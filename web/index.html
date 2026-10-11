@@ -56,9 +56,9 @@ a { color: var(--accent); }
 .app { max-width: 460px; margin: 0 auto; min-height: 100vh; background: var(--bg); padding-inline: 16px; padding-block: 0 104px; }
 .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; display: flex; align-items: center; justify-content: space-between; padding-block: 12px; background: var(--bg); }
 .brand { font-family: var(--font-serif); font-size: 21px; letter-spacing: .1em; color: var(--text); text-decoration: none; }
-.top nav { display: flex; gap: 4px; }
-.top nav a { font-size: 13.5px; color: var(--text-2); text-decoration: none; padding: 6px 10px; border-radius: 999px; }
-.top nav a[aria-current="page"] { color: var(--text); background: var(--surface); }
+.foot { display: flex; justify-content: flex-end; padding-block: 28px 8px; }
+.foot a { font-size: 13px; color: var(--text-2); text-decoration: none; padding: 6px 4px; }
+.foot a[aria-current="page"] { color: var(--text); }
 .page { display: grid; gap: 14px; }
 .tabbar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(460px, 100%); display: grid; grid-template-columns: repeat(6, 1fr); padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--line); z-index: 40; }
 .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; color: var(--text-2); text-decoration: none; font-size: 12px; }
@@ -176,7 +176,6 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
 
 /* Adaptive: phone < 720px (single column, bottom tabs) · tablet 720–1099px (wider, two-up cards) · desktop ≥ 1100px (side rail, capture column + overview) */
 .col-a, .col-b { display: grid; gap: 14px; min-width: 0; align-content: start; }
-.rail-brand { display: none !important; }
 @media (min-width: 720px) {
   .app { max-width: 920px; padding-inline: 32px; }
   .tabbar { width: min(920px, 100%); }
@@ -198,8 +197,6 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
   .tabbar { top: 0; bottom: 0; left: 0; transform: none; width: 104px; grid-template-columns: 1fr; grid-auto-rows: min-content; gap: 4px; align-content: start; padding: 28px 10px; border-top: 0; border-right: 1px solid var(--line); }
   .tabbar a { padding: 10px 0; border-radius: 12px; font-size: 13px; }
   .tabbar a[aria-current="page"] { background: var(--surface-2); }
-  .rail-brand { display: block !important; font-family: var(--font-serif); font-size: 22px; line-height: 1.2; text-align: center; color: var(--text) !important; margin-bottom: 18px; }
-  .top .brand { visibility: hidden; }
   .page.split { grid-template-columns: 400px minmax(0, 1fr); align-items: start; column-gap: 24px; }
   .page.split > .head, .page.split > .demo { grid-column: 1 / -1; }
   .col-a { position: sticky; top: 64px; max-height: calc(100vh - 80px); overflow: auto; }
@@ -217,9 +214,9 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
 <div class="app">
   <header class="top">
     <a class="brand" href="#today">留白</a>
-    <nav id="topnav" aria-label="其他"></nav>
   </header>
   <main id="view"></main>
+  <footer class="foot"><a id="footSet" href="#settings">设置</a></footer>
 </div>
 <nav class="tabbar" id="tabbar" aria-label="主导航"></nav>
 <div id="layer"></div>
@@ -244,18 +241,18 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     { id: 'today', label: '今日' }, { id: 'flow', label: '时间流' }, { id: 'compress', label: '压缩' },
     { id: 'account', label: '账户' }, { id: 'invest', label: '投资' }, { id: 'suggest', label: '建议' }
   ];
-  var PAGES2 = [{ id: 'charter', label: '宪章' }, { id: 'settings', label: '设置' }];
+  var PAGES2 = [{ id: 'settings', label: '设置' }];
   var STORE_KEY = 'leubai.web.v1';
 
   var RULES = [
-    { re: /邮件|email|回复|消息/i, low: 0.3, high: 0.55, method: 'AI 起草常规回复，你只审阅和修改' },
-    { re: /会议|纪要|组会|周会|例会|开会/, low: 0.3, high: 0.6, method: '自动转录与要点摘要，会后只核对' },
-    { re: /论文|文献|筛选|初筛|材料|审稿/, low: 0.3, high: 0.6, method: 'AI 摘要做初筛，精读留给自己' },
-    { re: /报销|行政|表格|填报|审批|整理|申请/, low: 0.2, high: 0.45, method: '模板与自动填表，你只核对提交' },
-    { re: /批改|作业|出题/, low: 0.2, high: 0.4, method: 'AI 先做初评与错因归类，你只复核' },
-    { re: /通勤|路上|排队/, low: 0, high: 0, method: '这段很难交给 AI，就当作路上的时间' }
+    { re: /邮件|email|回复|消息/i, low: 0.3, high: 0.55, method: 'AI 起草，你来改' },
+    { re: /会议|纪要|组会|周会|例会|开会/, low: 0.3, high: 0.6, method: '自动纪要' },
+    { re: /论文|文献|筛选|初筛|材料|审稿/, low: 0.3, high: 0.6, method: 'AI 摘要初筛' },
+    { re: /报销|行政|表格|填报|审批|整理|申请/, low: 0.2, high: 0.45, method: '自动填表' },
+    { re: /批改|作业|出题/, low: 0.2, high: 0.4, method: 'AI 初评' },
+    { re: /通勤|路上|排队/, low: 0, high: 0, method: '难以压缩' }
   ];
-  var DEFAULT_RULE = { low: 0.1, high: 0.3, method: '先记录一周，再判断哪一段适合交给 AI' };
+  var DEFAULT_RULE = { low: 0.1, high: 0.3, method: '先记一周再看' };
 
   // keyword → kind, checked in order; the first hit wins
   var KIND_WORDS = [
@@ -283,7 +280,7 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     '你可以不优化这一天。',
     '请求不是责任，推迟也不是节省。'
   ];
-  var EXAMPLES = ['下午两点到三点开组会', '刚才回邮件花了 40 分钟', '晚上八点留白一小时', '明天上午九点半批改作业一个半小时', '六点到七点陪女儿吃饭'];
+  var EXAMPLES = ['刚才回邮件 40 分钟', '晚上八点留白一小时', '六点到七点陪女儿吃饭'];
 
   // ---------- utils ----------
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -496,14 +493,14 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
   function parseInput(text) {
     text = String(text || '').trim();
     if (!text || capState.busy) return;
-    capState.busy = true; setCap('正在整理…');
+    capState.busy = true; setCap('整理中…');
     var btn = document.getElementById('capGo'); if (btn) btn.disabled = true;
     var done = function (items, how) {
       capState.busy = false;
       var b2 = document.getElementById('capGo'); if (b2) b2.disabled = false;
-      if (!items.length) { setCap('没有听出时间或事情。可以说得具体一点，比如“下午两点到三点开组会”。', true); return; }
+      if (!items.length) { setCap('没听出时间，再具体一点', true); return; }
       S.drafts = S.drafts.concat(items); save();
-      capState.msg = '整理出 ' + items.length + ' 条' + (how === 'ai' ? '（由 Claude 匹配）' : '（按本地规则匹配）') + '，看一眼再记下。'; capState.warn = false;
+      capState.msg = ''; capState.warn = false;
       render();
     };
     (aiOff ? Promise.resolve(null) : withTimeout(sampleP, 1500)).then(function (sample) {
@@ -521,7 +518,7 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
   function startMic() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     var ta = document.getElementById('cap-text');
-    var fallback = function () { if (ta) ta.focus(); setCap('这里暂时不能直接打开麦克风。点一下输入框，用手机键盘上的麦克风说话，效果一样。', true); };
+    var fallback = function () { if (ta) ta.focus(); setCap('请用键盘上的话筒说话', true); };
     if (!SR) return fallback();
     if (rec) { rec.stop(); return; }
     try {
@@ -533,10 +530,10 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
       rec.onerror = function (ev) {
         rec = null; capState.listening = false; micUi();
         if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed' || ev.error === 'audio-capture') fallback();
-        else if (ev.error !== 'aborted') setCap('没有听清，再说一次，或者直接打字。', true);
+        else if (ev.error !== 'aborted') setCap('没听清，再说一次', true);
       };
       rec.onend = function () { var had = rec !== null; rec = null; capState.listening = false; micUi(); if (had && ta && ta.value.trim()) parseInput(ta.value); };
-      rec.start(); capState.listening = true; micUi(); setCap('在听…说完停一下就好。');
+      rec.start(); capState.listening = true; micUi(); setCap('在听…');
     } catch (e) { rec = null; fallback(); }
   }
   function micUi() { var b = document.getElementById('mic'); if (b) { b.classList.toggle('on', capState.listening); b.setAttribute('aria-pressed', String(capState.listening)); } }
@@ -551,10 +548,6 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
       return '<div class="bar-row"><span>' + KINDS[k].label + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (share * 100).toFixed(1) + '%;' + fill + '"></div></div><span class="num" style="text-align:right">' + pct(share) + '%</span></div>';
     }).join('') + '</div>';
   }
-  function demoBanner() {
-    if (S.mode !== 'demo') return '';
-    return '<div class="demo"><span>示例数据，不是你的记录</span><button class="btn sm" data-act="start-real">清空，开始用</button></div>';
-  }
   function dial(date) {
     var R = 42, C = 2 * Math.PI * R;
     var segs = entriesOn(date).map(function (e) {
@@ -565,34 +558,33 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     }).join('');
     var ang = nowMin() / 1440 * 2 * Math.PI;
     var now = date === todayStr() ? '<line x1="' + (56 + Math.sin(ang) * 32).toFixed(1) + '" y1="' + (56 - Math.cos(ang) * 32).toFixed(1) + '" x2="' + (56 + Math.sin(ang) * 52).toFixed(1) + '" y2="' + (56 - Math.cos(ang) * 52).toFixed(1) + '" stroke="var(--text)" stroke-width="2"></line>' : '';
-    return '<svg class="dial" viewBox="0 0 112 112" role="img" aria-label="今天 24 小时的时间分布，顶端为零点"><circle cx="56" cy="56" r="' + R + '" fill="none" stroke="var(--line)" stroke-width="12"></circle><g transform="rotate(-90 56 56)">' + segs + '</g>' + now + '<text x="56" y="60" text-anchor="middle" font-size="11">24h</text></svg>';
+    return '<svg class="dial" viewBox="0 0 112 112" role="img" aria-label="今天 24 小时的时间分布"><circle cx="56" cy="56" r="' + R + '" fill="none" stroke="var(--line)" stroke-width="12"></circle><g transform="rotate(-90 56 56)">' + segs + '</g>' + now + '<text x="56" y="60" text-anchor="middle" font-size="11">24h</text></svg>';
   }
   function timeItem(e, withDelete) {
     return '<div class="item"><span class="mark' + (e.kind === 'blank' ? ' blank' : '') + '" style="' + (e.kind === 'blank' ? '' : 'background:' + KINDS[e.kind].color) + '"></span>' +
-      '<div class="t">' + esc(e.title) + '<div class="when"><span class="num">' + e.start + '–' + e.end + '</span> · ' + (e.kind === 'blank' ? blankStatus(e) : KINDS[e.kind].label + ' · ' + fmtPlain(dur(e))) + '</div></div>' +
+      '<div class="t">' + esc(e.title) + '<div class="when"><span class="num">' + e.start + '–' + e.end + '</span>' + (e.kind === 'blank' ? ' · ' + blankStatus(e) : '') + '</div></div>' +
       (withDelete ? '<button class="x" data-act="del" data-id="' + e.id + '" aria-label="删除 ' + esc(e.title) + '">×</button>' : chip(e.kind)) + '</div>';
   }
   function blankStatus(e) {
-    if (e.state === 'reserved') return blankEnded(e) ? '等你确认是否留住' : '已预留，默认不再被塞满' + (e.intent ? ' · 想用来：' + esc(e.intent) : '');
-    if (e.state === 'kept') return '完整留住' + (e.use ? ' · ' + USES[e.use] : '') + (e.note ? ' · ' + esc(e.note) : '');
-    if (e.state === 'partial') return '留住 ' + fmtPlain(e.kept) + (e.use ? ' · ' + USES[e.use] : '') + (e.note ? ' · ' + esc(e.note) : '');
-    if (e.state === 'taken') return '被占用' + (e.note ? ' · ' + esc(e.note) : '');
+    if (e.state === 'reserved') return blankEnded(e) ? '待确认' : '已预留' + (e.intent ? ' · ' + esc(e.intent) : '');
+    if (e.state === 'kept') return '留住了' + (e.note ? ' · ' + esc(e.note) : '');
+    if (e.state === 'partial') return '留住 ' + fmtPlain(e.kept) + (e.note ? ' · ' + esc(e.note) : '');
+    if (e.state === 'taken') return '被占用';
     return '记不清';
   }
 
   // capture box + drafts, shared by 今日 and 时间流
   function capture(prompt) {
-    var html = '<section class="capture" aria-label="语音或文字记录"><div class="capture-main">' +
-      '<button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="按一下开始语音输入" aria-pressed="' + capState.listening + '">' + MIC_SVG + '</button>' +
-      '<div><div style="font-family:var(--font-serif);font-size:17px">' + prompt + '</div><div class="tiny muted">说几件事都行，我来拆开、配时间、分好类</div></div></div>' +
-      '<form id="capForm" class="stack"><textarea id="cap-text" rows="2" maxlength="600" placeholder="比如：下午两点到三点开组会，刚才回邮件花了 40 分钟，晚上八点留白一小时"></textarea>' +
+    return '<section class="capture" aria-label="语音或文字记录"><div class="capture-main">' +
+      '<button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音输入" aria-pressed="' + capState.listening + '">' + MIC_SVG + '</button>' +
+      '<div><div style="font-family:var(--font-serif);font-size:18px">' + prompt + '</div><div class="tiny muted">说一句，自动整理</div></div></div>' +
+      '<form id="capForm" class="stack"><textarea id="cap-text" rows="2" maxlength="600" placeholder="下午两点到三点开组会"></textarea>' +
       '<div class="examples" aria-label="示例">' + EXAMPLES.map(function (x) { return '<button type="button" data-act="ex" data-v="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
       '<button class="btn primary block" id="capGo" type="submit"' + (capState.busy ? ' disabled' : '') + '>整理</button></form>' +
-      '<p id="capStatus" class="cap-status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p></section>';
-    return html + draftList();
+      '<p id="capStatus" class="cap-status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p></section>' + draftList();
   }
   function draftProblem(d) {
-    if (!isHM(d.start) || !isHM(d.end)) return '缺开始或结束时间';
+    if (!isHM(d.start) || !isHM(d.end)) return '补上时间';
     if (toMin(d.end) <= toMin(d.start)) return '结束要晚于开始';
     if (d.kind !== 'blank' && overlapsBlank(d.date, toMin(d.start), toMin(d.end)).length && !d.force) return 'overlap';
     return '';
@@ -602,21 +594,18 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     var list = S.drafts.slice();
     if (S.sortBy === 'kind') list.sort(function (a, b) { return KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || ((a.date + a.start) < (b.date + b.start) ? -1 : 1); });
     else list.sort(function (a, b) { var ka = a.date + (a.start || '99'), kb = b.date + (b.start || '99'); return ka < kb ? -1 : ka > kb ? 1 : 0; });
-    var nec = S.drafts.filter(function (d) { return d.kind === 'necessary' && ruleFor(d.title).high > 0; });
-    var html = '<section class="panel"><div class="row between"><h2>待确认 ' + S.drafts.length + ' 条</h2><div class="seg" role="group" aria-label="排序">' +
-      '<button data-act="sort" data-v="time" aria-pressed="' + (S.sortBy === 'time') + '">按时间</button><button data-act="sort" data-v="kind" aria-pressed="' + (S.sortBy === 'kind') + '">按类别</button></div></div>';
-    if (nec.length) html += '<p class="small muted">' + nec.map(function (d) { return esc(d.title); }).join('、') + ' 是必要劳动，记下后会出现在“压缩”里。</p>';
+    var html = '<section class="panel"><div class="row between"><h2>确认 ' + S.drafts.length + ' 条</h2><div class="seg" role="group" aria-label="排序">' +
+      '<button data-act="sort" data-v="time" aria-pressed="' + (S.sortBy === 'time') + '">时间</button><button data-act="sort" data-v="kind" aria-pressed="' + (S.sortBy === 'kind') + '">类别</button></div></div>';
     html += list.map(function (d) {
       var prob = draftProblem(d);
       return '<div class="draft' + (prob ? ' bad' : '') + '" data-id="' + d.id + '">' +
-        '<div class="row between" style="flex-wrap:nowrap"><input class="title" data-f="title" value="' + esc(d.title) + '" aria-label="事情" maxlength="30"><button class="x" data-act="draft-del" aria-label="删掉这条">×</button></div>' +
+        '<div class="row between" style="flex-wrap:nowrap"><input class="title" data-f="title" value="' + esc(d.title) + '" aria-label="事情" maxlength="30"><button class="x" data-act="draft-del" aria-label="删掉">×</button></div>' +
         '<div class="kinds" role="group" aria-label="类别">' + KIND_ORDER.map(function (k) { return '<button type="button" data-act="draft-kind" data-v="' + k + '" aria-pressed="' + (d.kind === k) + '"><i style="background:' + (k === 'blank' ? 'transparent;border:1.5px dashed var(--k-blank-line)' : KINDS[k].color) + '"></i>' + KINDS[k].label + '</button>'; }).join('') + '</div>' +
         '<div class="times"><input type="date" data-f="date" value="' + d.date + '" aria-label="日期"><input type="time" data-f="start" value="' + d.start + '" aria-label="开始"><input type="time" data-f="end" value="' + d.end + '" aria-label="结束"></div>' +
-        (prob === 'overlap' ? '<div class="row small" style="color:var(--warm)">和你预留的留白重叠，留白默认不被再次塞满。<button class="btn sm" data-act="draft-force">仍然记下</button></div>' : prob ? '<div class="small" style="color:var(--warm)">' + prob + '</div>' : '') +
+        (prob === 'overlap' ? '<div class="row small" style="color:var(--warm)">占用了留白<button class="btn sm" data-act="draft-force">仍然记下</button></div>' : prob ? '<div class="small" style="color:var(--warm)">' + prob + '</div>' : '') +
         '</div>';
     }).join('');
-    html += '<div class="two"><button class="btn primary" data-act="draft-commit">全部记下</button><button class="btn" data-act="draft-clear">都不要了</button></div></section>';
-    return html;
+    return html + '<div class="two"><button class="btn primary" data-act="draft-commit">全部记下</button><button class="btn" data-act="draft-clear">清空</button></div></section>';
   }
 
   // ---------- pages ----------
@@ -624,60 +613,53 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     var t = todayStr(), today = entriesOn(t), h = new Date().getHours();
     var greet = h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
     var nec = today.filter(function (e) { return e.kind === 'necessary'; }).reduce(function (a, e) { return a + dur(e); }, 0);
-    var free = Math.max(0, S.wake - nec);
     var up = upcomingBlanks(), upMin = up.reduce(function (a, e) { return a + dur(e); }, 0);
     var pend = pendingBlanks(), fi = freedom(inRange(7));
-    var html = demoBanner();
-    html += '<div class="head"><div class="eyebrow">' + t.replace(/-/g, '.') + ' 星期' + weekday(t) + '</div><h1>' + greet + (S.name ? '，' + esc(S.name) : '') + '</h1></div>';
-    html += '<div class="col-a">' + capture('今天怎么过的，说给我听') + '</div><div class="col-b flow-grid">';
-    html += '<section class="panel"><div class="hero"><div class="stack" style="gap:4px"><div class="eyebrow">今日可支配生命</div><div class="big">' + fmt(free) + '</div>' +
-      '<p class="tiny muted">清醒 ' + Math.round(S.wake / 60) + ' 小时，减去今天的必要时间 ' + fmtPlain(nec) + '</p></div>' + dial(t) + '</div>' +
-      '<p class="tiny muted">待办数量已隐藏。没记录的时间，不算空闲也不算浪费。</p></section>';
-    if (pend.length) html += '<section class="panel"><h2>这些留白，留住了吗？</h2><p class="small muted">只有你确认留住的，才记进留白账户。被占用了也照实说。</p>' + pend.slice(0, 2).map(confirmBlock).join('') + '</section>';
+    var html = '<div class="head"><div class="eyebrow">' + (+t.slice(5, 7)) + '月' + (+t.slice(8)) + '日 星期' + weekday(t) + '</div><h1>' + greet + (S.name ? '，' + esc(S.name) : '') + '</h1></div>';
+    html += '<div class="col-a">' + capture('说说今天') + '</div><div class="col-b flow-grid">';
+    html += '<section class="panel"><div class="hero"><div class="stack" style="gap:4px"><div class="eyebrow">今日可支配生命</div><div class="big">' + fmt(Math.max(0, S.wake - nec)) + '</div></div>' + dial(t) + '</div></section>';
+    if (pend.length) html += '<section class="panel"><h2>这段留白留住了吗？</h2>' + pend.slice(0, 2).map(confirmBlock).join('') + '</section>';
     html += '<div class="two">' +
-      '<div class="stat"><span class="k">今天预留的留白</span><span class="v">' + fmt(upMin) + '</span><button class="btn sm" data-act="reserve" style="justify-self:start;margin-top:6px">预留一段</button></div>' +
-      '<div class="stat"><span class="k">今日已确认节省</span><span class="v">' + fmt(trialsSaved(t)) + '</span><span class="tiny muted">试过才算，不是估算</span></div>' +
-      '</div>';
-    html += '<div class="stat half"><span class="k">本周自由指数</span><div class="row" style="gap:12px;flex-wrap:nowrap"><span class="v num">' + (fi ? fi.score : '—') + '</span><span class="tiny muted" style="min-width:0">' + (fi ? '自主时间 ' + pct(fi.auto) + '%，其中创造与连接 ' + pct(fi.meaning) + '%。只描述，不比较。' : '记满一小时后才计算。') + '</span></div></div>';
-    html += '<section class="panel flat half"><div class="eyebrow">一句提醒</div><p class="quote">' + esc(LINES[hashInt(t) % LINES.length]) + '</p></section>';
+      '<div class="stat"><span class="k">今天的留白</span><span class="v">' + fmt(upMin) + '</span><button class="btn sm" data-act="reserve" style="justify-self:start;margin-top:6px">预留</button></div>' +
+      '<div class="stat"><span class="k">今天省下</span><span class="v">' + fmt(trialsSaved(t)) + '</span></div></div>';
+    html += '<div class="stat half"><span class="k">本周自由指数</span><span class="v num">' + (fi ? fi.score : '—') + '</span></div>';
+    html += '<section class="panel flat half"><p class="quote">' + esc(LINES[hashInt(t) % LINES.length]) + '</p></section>';
     var shown = today.filter(function (e) { return e.kind !== 'blank' || e.state === 'reserved'; });
     html += '<section class="panel"><div class="row between"><h2>今天</h2><a class="small" href="#flow">全部</a></div>' +
-      (shown.length ? '<div class="list">' + shown.slice(-5).map(function (e) { return timeItem(e, false); }).join('') + '</div>' : '<div class="empty">还没有记录。按上面的话筒说一句就行。</div>') + '</section>';
+      (shown.length ? '<div class="list">' + shown.slice(-5).map(function (e) { return timeItem(e, false); }).join('') + '</div>' : '<div class="empty">还没有记录</div>') + '</section>';
     return html + '</div>';
   }
 
   function confirmBlock(e) {
     var d = dur(e);
-    return '<div class="pending" data-id="' + e.id + '"><div class="small"><b>' + esc(dateLabel(e.date)) + ' ' + e.start + '–' + e.end + '</b> <span class="muted">' + fmtPlain(d) + (e.intent ? ' · 想用来：' + esc(e.intent) : '') + '</span></div>' +
-      '<div class="seg" role="group" aria-label="这段留白的结果"><button data-act="c-state" data-v="kept">完整留住</button><button data-act="c-state" data-v="partial">留住一部分</button><button data-act="c-state" data-v="taken">被占用了</button><button data-act="c-state" data-v="unknown">记不清</button></div>' +
-      '<div class="c-more stack" hidden><div class="field c-partial" hidden><label for="kp-' + e.id + '">留住了多少分钟</label><input id="kp-' + e.id + '" type="number" inputmode="numeric" min="1" max="' + d + '" value="' + Math.round(d / 2) + '"></div>' +
-      '<div class="field c-use"><label for="ku-' + e.id + '">用在了哪里（可不选）</label><select id="ku-' + e.id + '"><option value="">不选</option>' + Object.keys(USES).map(function (k) { return '<option value="' + k + '">' + USES[k] + '</option>'; }).join('') + '</select></div>' +
-      '<div class="field"><label for="kn-' + e.id + '">一句话（可不写）</label><input id="kn-' + e.id + '" maxlength="60" placeholder="比如：陪女儿散步"></div>' +
+    return '<div class="pending" data-id="' + e.id + '"><div class="small"><b>' + esc(dateLabel(e.date)) + ' ' + e.start + '–' + e.end + '</b></div>' +
+      '<div class="seg" role="group" aria-label="结果"><button data-act="c-state" data-v="kept">留住了</button><button data-act="c-state" data-v="partial">一部分</button><button data-act="c-state" data-v="taken">被占用</button><button data-act="c-state" data-v="unknown">记不清</button></div>' +
+      '<div class="c-more stack" hidden><div class="field c-partial" hidden><label for="kp-' + e.id + '">留住几分钟</label><input id="kp-' + e.id + '" type="number" inputmode="numeric" min="1" max="' + d + '" value="' + Math.round(d / 2) + '"></div>' +
+      '<div class="field c-use"><label for="ku-' + e.id + '">用来做什么</label><select id="ku-' + e.id + '"><option value="">不选</option>' + Object.keys(USES).map(function (k) { return '<option value="' + k + '">' + USES[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="kn-' + e.id + '">一句话</label><input id="kn-' + e.id + '" maxlength="60" placeholder="可不写"></div>' +
       '<button class="btn sm primary" data-act="c-save" style="justify-self:start">记下</button></div></div>';
   }
 
   var flowDate = null;
   function pageFlow() {
     var date = flowDate || todayStr(), list = entriesOn(date), x = mix(list);
-    var html = demoBanner();
-    html += '<div class="head"><div class="eyebrow">时间流</div><h1>' + esc(dateLabel(date)) + '的时间</h1></div>';
-    html += '<div class="col-a">' + capture('补记一段时间') + '</div><div class="col-b flow-grid">';
-    html += '<div class="row between"><button class="btn sm" data-act="day" data-d="-1">‹ 前一天</button><span class="num small">' + date.replace(/-/g, '.') + ' 周' + weekday(date) + '</span><button class="btn sm" data-act="day" data-d="1">后一天 ›</button></div>';
-    if (date !== todayStr()) html += '<button class="btn sm ghost" data-act="day" data-d="0" style="justify-self:center">回到今天</button>';
+    var html = '<div class="head"><h1>时间流</h1></div>';
+    html += '<div class="col-a">' + capture('补记') + '</div><div class="col-b flow-grid">';
+    html += '<div class="row between"><button class="btn sm" data-act="day" data-d="-1" aria-label="前一天">‹</button><span class="small">' + esc(dateLabel(date)) + ' · 周' + weekday(date) + '</span><button class="btn sm" data-act="day" data-d="1" aria-label="后一天">›</button></div>';
     html += '<section class="panel half"><div class="list">';
-    if (!list.length) html += '<div class="empty">这一天还没有记录。</div>';
+    if (!list.length) html += '<div class="empty">没有记录</div>';
     var prevEnd = null;
     list.forEach(function (e) {
-      if (prevEnd !== null && toMin(e.start) - prevEnd >= 60) html += '<div class="gap">' + toHM(prevEnd) + '–' + e.start + ' 没有记录，不认定为空闲</div>';
+      if (prevEnd !== null && toMin(e.start) - prevEnd >= 60) html += '<div class="gap">未记录</div>';
       prevEnd = Math.max(prevEnd || 0, toMin(e.end));
       html += timeItem(e, true);
     });
-    html += '</div><details><summary>手动添加一段</summary><form id="addForm" class="stack" style="margin-top:10px">' +
-      '<div class="field"><label for="f-title">做了什么</label><input id="f-title" required maxlength="30" placeholder="邮件回复、论文阅读、晚餐与聊天"></div>' +
-      '<div class="field"><label for="f-kind">属于</label><select id="f-kind">' + ['necessary', 'restore', 'create', 'connect', 'explore'].map(function (k) { return '<option value="' + k + '">' + KINDS[k].long + '</option>'; }).join('') + '</select></div>' +
+    html += '</div><details><summary>手动添加</summary><form id="addForm" class="stack" style="margin-top:10px">' +
+      '<div class="field"><label for="f-title">做什么</label><input id="f-title" required maxlength="30"></div>' +
+      '<div class="field"><label for="f-kind">类别</label><select id="f-kind">' + ['necessary', 'restore', 'create', 'connect', 'explore'].map(function (k) { return '<option value="' + k + '">' + KINDS[k].label + '</option>'; }).join('') + '</select></div>' +
       '<div class="two"><div class="field"><label for="f-start">开始</label><input id="f-start" type="time" required value="09:00"></div><div class="field"><label for="f-end">结束</label><input id="f-end" type="time" required value="10:00"></div></div>' +
       '<p id="addWarn" class="small" style="color:var(--warm)" hidden></p><button class="btn primary" type="submit">记下</button></form></details></section>';
-    html += '<section class="panel half"><h2>当天时间地图</h2>' + (x.total ? bars(x.m, KIND_ORDER, x.total) : '<div class="empty">记录之后显示比例。</div>') + '</section>';
+    html += '<section class="panel half"><h2>分布</h2>' + (x.total ? bars(x.m, KIND_ORDER, x.total) : '<div class="empty">暂无</div>') + '</section>';
     return html + '</div>';
   }
 
@@ -685,19 +667,18 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     var finds = compressFindings(7), t = todayStr();
     var lowSum = finds.reduce(function (a, f) { return a + f.low; }, 0), highSum = finds.reduce(function (a, f) { return a + f.high; }, 0);
     var savedToday = trialsSaved(t);
-    var html = demoBanner();
-    html += '<div class="head"><div class="eyebrow">AI 压缩</div><h1>必要劳动里，哪些可以交给 AI</h1><p class="small muted">只看你记下的必要时间。估算是区间；你试过、记下前后用时，节省才算数。</p></div>';
-    html += '<div class="two"><div class="stat"><span class="k">每天估算可压缩</span><span class="v num">' + lowSum + '–' + highSum + '<small>分钟</small></span></div>' +
-      '<div class="stat"><span class="k">今天已确认节省</span><span class="v">' + fmt(savedToday) + '</span></div></div>';
+    var html = '<div class="head"><h1>交给 AI</h1></div>';
+    html += '<div class="two"><div class="stat"><span class="k">每天约可省</span><span class="v num">' + lowSum + '–' + highSum + '<small>分钟</small></span></div>' +
+      '<div class="stat"><span class="k">今天已省</span><span class="v">' + fmt(savedToday) + '</span></div></div>';
     html += '<button class="btn primary block" data-act="reserve" data-min="' + (savedToday || 30) + '">把省下的时间留白</button>';
-    html += '<section class="panel half"><h2>本周发现</h2>' + (finds.length ? '<div class="list">' + finds.map(function (f) {
-      return '<div class="item" style="grid-template-columns:minmax(0,1fr) auto"><div class="t">' + esc(f.title) + ' <span class="tiny muted">每天约 ' + f.perDay + ' 分钟</span>' +
-        '<div class="when">' + (f.high ? '可压缩约 <span class="num">' + f.low + '–' + f.high + '</span> 分钟 · ' : '') + esc(f.method) + '</div></div>' +
+    html += '<section class="panel half"><h2>可以省</h2>' + (finds.length ? '<div class="list">' + finds.map(function (f) {
+      return '<div class="item" style="grid-template-columns:minmax(0,1fr) auto"><div class="t">' + esc(f.title) +
+        '<div class="when">' + (f.high ? '约省 <span class="num">' + f.low + '–' + f.high + '</span> 分钟 · ' : '') + esc(f.method) + '</div></div>' +
         (f.high ? '<button class="btn sm" data-act="trial" data-title="' + esc(f.title) + '" data-before="' + f.perDay + '">试过了</button>' : '') + '</div>';
-    }).join('') + '</div>' : '<div class="empty">还没有必要时间。在首页说一句“上午开了一小时会”试试。</div>') + '</section>';
-    html += '<section class="panel half"><h2>试过的记录</h2>' + (S.trials.length ? '<div class="list">' + S.trials.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).map(function (r) {
-      return '<div class="item" style="grid-template-columns:minmax(0,1fr) auto auto"><div class="t">' + esc(r.title) + '<div class="when">' + esc(dateLabel(r.date)) + ' · ' + r.before + ' → ' + r.after + ' 分钟' + (r.method ? ' · ' + esc(r.method) : '') + '</div></div><span class="num">−' + Math.max(0, r.before - r.after) + '</span><button class="x" data-act="del-trial" data-id="' + r.id + '" aria-label="删除这条">×</button></div>';
-    }).join('') + '</div>' : '<div class="empty">还没有。</div>') + '<p class="tiny muted">核对、修改 AI 输出的时间，也算进“用 AI 后”。</p></section>';
+    }).join('') + '</div>' : '<div class="empty">先记下会议、邮件这类事</div>') + '</section>';
+    html += '<section class="panel half"><h2>已试过</h2>' + (S.trials.length ? '<div class="list">' + S.trials.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).map(function (r) {
+      return '<div class="item" style="grid-template-columns:minmax(0,1fr) auto auto"><div class="t">' + esc(r.title) + '<div class="when">' + esc(dateLabel(r.date)) + ' · ' + r.before + ' → ' + r.after + ' 分钟</div></div><span class="num">−' + Math.max(0, r.before - r.after) + '</span><button class="x" data-act="del-trial" data-id="' + r.id + '" aria-label="删除">×</button></div>';
+    }).join('') + '</div>' : '<div class="empty">暂无</div>') + '</section>';
     return html;
   }
 
@@ -708,45 +689,43 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     var cnt = { kept: 0, partial: 0, taken: 0, unknown: 0, reserved: 0 };
     blanks.forEach(function (e) { cnt[e.state] = (cnt[e.state] || 0) + 1; });
     var recent = blanks.filter(function (e) { return e.kept > 0; }).sort(function (a, b) { return (a.date + a.start) < (b.date + b.start) ? 1 : -1; })[0];
-    var html = demoBanner();
-    html += '<div class="head"><div class="eyebrow">留白账户</div><h1>你留住的人生时间</h1></div>';
-    html += '<section class="panel half"><div class="eyebrow">累计留住</div><div class="big">' + fmt(total) + '</div><p class="small muted">相当于 <span class="num">' + (total / 1440).toFixed(1) + '</span> 天连续的人生。只算你亲口确认留住的。</p></section>';
-    if (recent) html += '<section class="panel half"><div class="eyebrow">最近一次</div><div class="row"><span class="big" style="font-size:30px">' + fmt(recent.kept) + '</span><span class="small muted">' + esc(dateLabel(recent.date)) + (recent.use ? ' · ' + USES[recent.use] : '') + '</span></div>' + (recent.note ? '<p class="quote">' + esc(recent.note) + '</p>' : '') + '</section>';
-    html += '<section class="panel half"><h2>去了哪里</h2>' + (total ? '<div class="bars">' + Object.keys(by).filter(function (k) { return by[k] > 0; }).sort(function (a, b) { return by[b] - by[a]; }).map(function (k) {
+    var html = '<div class="head"><h1>留白账户</h1></div>';
+    html += '<section class="panel half"><div class="eyebrow">累计留住</div><div class="big">' + fmt(total) + '</div><p class="small muted">≈ <span class="num">' + (total / 1440).toFixed(1) + '</span> 天</p></section>';
+    if (recent) html += '<section class="panel half"><div class="eyebrow">最近一次</div><div class="big" style="font-size:30px">' + fmt(recent.kept) + '</div>' + (recent.note ? '<p class="quote">' + esc(recent.note) + '</p>' : '') + '</section>';
+    html += '<section class="panel half"><h2>去向</h2>' + (total ? '<div class="bars">' + Object.keys(by).filter(function (k) { return by[k] > 0; }).sort(function (a, b) { return by[b] - by[a]; }).map(function (k) {
       var c = k === 'blank' || k === 'private' ? 'var(--k-blank-line)' : KINDS[k].color;
       return '<div class="bar-row" style="grid-template-columns:62px minmax(0,1fr) 70px"><span>' + USES[k] + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (by[k] / total * 100).toFixed(1) + '%;background:' + c + '"></div></div><span class="num tiny" style="text-align:right">' + fmtPlain(by[k]) + '</span></div>';
-    }).join('') + '</div><p class="tiny muted">“空着本身”和其他用途一样算数。</p>' : '<div class="empty">还没有确认留住的留白。</div>') + '</section>';
-    html += '<section class="panel half"><h2>如实的账</h2><div class="two" style="grid-template-columns:repeat(3,1fr)">' +
-      [['预留过', blanks.length], ['完整留住', cnt.kept], ['留住部分', cnt.partial], ['被占用', cnt.taken], ['记不清', cnt.unknown], ['还没到', cnt.reserved]].map(function (p) { return '<div><div class="num" style="font-size:24px">' + p[1] + '</div><div class="tiny muted">' + p[0] + '</div></div>'; }).join('') +
-      '</div><p class="small muted">被占用的那几次，说明边界在哪里还薄。它是信息，不是失败。</p></section>';
+    }).join('') + '</div>' : '<div class="empty">暂无</div>') + '</section>';
+    html += '<section class="panel half"><h2>记录</h2><div class="two" style="grid-template-columns:repeat(3,1fr)">' +
+      [['预留', blanks.length], ['留住', cnt.kept], ['一部分', cnt.partial], ['被占用', cnt.taken], ['记不清', cnt.unknown], ['未到', cnt.reserved]].map(function (p) { return '<div><div class="num" style="font-size:24px">' + p[1] + '</div><div class="tiny muted">' + p[0] + '</div></div>'; }).join('') +
+      '</div></section>';
     return html;
   }
 
   var investRange = 30;
   function pageInvest() {
     var x = mix(inRange(investRange)), m = x.m;
-    var html = demoBanner();
-    html += '<div class="head"><div class="eyebrow">人生投资</div><h1>像看投资组合一样看时间</h1><p class="small muted">理想比例由你自己定，留白不提供标准答案，也不打分。</p></div>';
+    var html = '<div class="head"><h1>人生投资</h1></div>';
     html += '<div class="seg" role="group" aria-label="时间范围">' + [7, 30, 90].map(function (d) { return '<button data-act="range" data-d="' + d + '" aria-pressed="' + (investRange === d) + '">' + d + ' 天</button>'; }).join('') + '</div>';
-    if (!x.total) return html + '<div class="empty">这个范围内还没有记录。</div>';
+    if (!x.total) return html + '<div class="empty">暂无记录</div>';
     var keys = ['create', 'connect', 'explore', 'restore', 'necessary', 'blank'].filter(function (k) { return m[k] > 0; });
-    html += '<section class="panel half"><h2>实际组合</h2><div class="stackbar" role="img" aria-label="' + keys.map(function (k) { return KINDS[k].label + pct(m[k] / x.total) + '%'; }).join('，') + '">' + keys.map(function (k) { return '<span style="width:' + (m[k] / x.total * 100).toFixed(2) + '%;background:' + KINDS[k].color + '"></span>'; }).join('') + '</div>' +
-      '<div class="legend">' + keys.map(function (k) { return '<span><i style="background:' + KINDS[k].color + '"></i>' + KINDS[k].label + ' <b class="num">' + pct(m[k] / x.total) + '%</b></span>'; }).join('') + '</div><p class="tiny muted">基于你记录的 ' + fmtPlain(x.total) + '</p></section>';
+    html += '<section class="panel half"><h2>实际</h2><div class="stackbar" role="img" aria-label="' + keys.map(function (k) { return KINDS[k].label + pct(m[k] / x.total) + '%'; }).join('，') + '">' + keys.map(function (k) { return '<span style="width:' + (m[k] / x.total * 100).toFixed(2) + '%;background:' + KINDS[k].color + '"></span>'; }).join('') + '</div>' +
+      '<div class="legend">' + keys.map(function (k) { return '<span><i style="background:' + KINDS[k].color + '"></i>' + KINDS[k].label + ' <b class="num">' + pct(m[k] / x.total) + '%</b></span>'; }).join('') + '</div></section>';
     var ideal = S.ideal;
-    html += '<section class="panel half"><div class="row between"><h2>你想要的比例</h2><button class="btn sm" data-act="ideal-edit">' + (ideal ? '修改' : '设定') + '</button></div>';
-    if (!ideal) html += '<p class="small muted">还没设定。只在恢复、创造、连接、探索之间分配，不含必要劳动。</p>';
+    html += '<section class="panel half"><div class="row between"><h2>理想</h2><button class="btn sm" data-act="ideal-edit">' + (ideal ? '修改' : '设定') + '</button></div>';
+    if (!ideal) html += '<div class="empty">由你来定</div>';
     else {
       var qt = QUADS.reduce(function (a, k) { return a + m[k]; }, 0) || 1;
       var rows = QUADS.map(function (k) { var a = m[k] / qt * 100; return { k: k, a: a, i: ideal[k], d: a - ideal[k] }; });
       html += '<div class="list">' + rows.map(function (r) {
         return '<div class="item" style="grid-template-columns:56px minmax(0,1fr) 40px">' + chip(r.k) + '<div class="stack" style="gap:4px"><div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, r.a).toFixed(1) + '%;background:' + KINDS[r.k].color + '"></div></div><div class="bar-track" style="height:5px"><div class="bar-fill" style="width:' + r.i + '%;background:var(--text-2);opacity:.45"></div></div></div>' +
           '<span class="num small" style="text-align:right;color:' + (r.d < -5 ? 'var(--warm)' : 'var(--text-2)') + '">' + (r.d > 0 ? '+' : '') + Math.round(r.d) + '</span></div>';
-      }).join('') + '</div><p class="tiny muted">上面一条是实际，下面虚线是你想要的；数字是差几个百分点。</p>';
+      }).join('') + '</div>';
       var gap = rows.slice().sort(function (a, b) { return a.d - b.d; })[0];
       if (gap.d < -5) {
         var idea = IDEAS[gap.k][hashInt(todayStr() + gap.k) % IDEAS[gap.k].length];
-        html += '<div class="notice"><b style="color:var(--text);font-weight:500">' + KINDS[gap.k].long + '比你想要的少 ' + Math.round(-gap.d) + ' 个百分点。</b> 愿意的话，这周试一次：' + esc(idea[0]) + '。也可以不调整，比例是用来看见的，不是用来追赶的。</div>';
-      } else html += '<div class="notice">实际组合和你想要的相差不大。</div>';
+        html += '<div class="notice">' + KINDS[gap.k].label + '少了 ' + Math.round(-gap.d) + '%，可以试试：' + esc(idea[0]) + '</div>';
+      }
     }
     return html + '</section>';
   }
@@ -754,10 +733,9 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
   var suggestSpin = {};
   function pageSuggest() {
     var up = upcomingBlanks(), upMin = up.reduce(function (a, e) { return a + dur(e); }, 0), target = up[0];
-    var html = demoBanner();
-    html += '<div class="head"><div class="eyebrow">留白建议</div><h1>' + (up.length ? '有 ' + fmtPlain(upMin) + ' 还没决定怎么用' : '今天还没有预留留白') + '</h1><p class="small muted">下面是可能性，不是任务。选了不会变成待办，不提醒，也不检查。</p></div>';
-    if (!up.length) html += '<button class="btn primary block" data-act="reserve">预留一段留白</button>';
-    html += '<section class="card default"><div class="row between"><h2>什么都不安排</h2><span class="chip">默认</span></div><p class="small muted">到了那段时间，想做什么就做什么，或者什么都不做。</p>' + (target ? '<button class="btn sm" data-act="intent" data-v="" style="justify-self:start">就这样</button>' : '') + '</section>';
+    var html = '<div class="head"><h1>' + (up.length ? '这 ' + fmtPlain(upMin) + '，可以…' : '还没有留白') + '</h1></div>';
+    if (!up.length) html += '<button class="btn primary block" data-act="reserve">预留留白</button>';
+    html += '<section class="card default"><div class="row between"><h2>什么都不做</h2><span class="chip">默认</span></div>' + (target ? '<button class="btn sm" data-act="intent" data-v="" style="justify-self:start">就这样</button>' : '') + '</section>';
     var order = QUADS.slice(), reason = {};
     if (S.ideal) {
       var x = mix(inRange(30)), qt = QUADS.reduce(function (a, k) { return a + x.m[k]; }, 0) || 1;
@@ -767,42 +745,21 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     html += order.map(function (k) {
       var list = IDEAS[k].filter(function (i) { return !upMin || i[1] <= Math.max(upMin, 20); }); if (!list.length) list = IDEAS[k];
       var idea = list[(suggestSpin[k] || 0) % list.length];
-      var why = S.ideal && reason[k] < -5 ? '过去 30 天，' + KINDS[k].long + '比你想要的少 ' + Math.round(-reason[k]) + ' 个百分点' : '';
-      return '<section class="card half"><div class="row between">' + chip(k) + '<span class="tiny muted">约 ' + idea[1] + ' 分钟</span></div><h3>' + esc(idea[0]) + '</h3>' + (why ? '<p class="tiny muted">' + why + '</p>' : '') +
-        '<div class="row">' + (target ? '<button class="btn sm" data-act="intent" data-v="' + esc(idea[0] + '（' + KINDS[k].label + '）') + '">想这样用</button>' : '') + '<button class="btn sm ghost" data-act="spin" data-k="' + k + '">换一个</button></div></section>';
+      return '<section class="card half"><div class="row between">' + chip(k) + '<span class="tiny muted">' + idea[1] + ' 分钟</span></div><h3>' + esc(idea[0]) + '</h3>' +
+        '<div class="row">' + (target ? '<button class="btn sm" data-act="intent" data-v="' + esc(idea[0]) + '">选这个</button>' : '') + '<button class="btn sm ghost" data-act="spin" data-k="' + k + '">换一个</button></div></section>';
     }).join('');
-    if (target && target.intent) html += '<p class="small muted">当前的念头：' + esc(target.intent) + '。随时可以改，也可以不照做。</p>';
     return html;
   }
 
-  function pageCharter() {
-    var chain = [['必要时间', '你记下不得不做的事'], ['AI 压缩', '给出估算区间，不算数'], ['归还', '把省下的时间预留成留白'], ['主动时间', '你决定怎么用，或什么都不安排'], ['意义时间', '事后由你确认留住了没有']];
-    return '<div class="head"><div class="eyebrow">留白宪章</div><h1>AI 负责完成必须做的事，人负责成为想成为的人</h1><p class="small muted">被归还的人生时间，应该流向哪里？</p></div>' +
-      '<section class="panel"><h2>唯一主线</h2><div class="chain">' + chain.map(function (c, i) { return '<div><b>' + (i + 1) + '</b><span>' + c[0] + ' <span class="muted small">· ' + c[1] + '</span></span></div>'; }).join('') + '</div></section>' +
-      '<section class="panel charter half"><h2>五条原则</h2><ol>' +
-      '<li><h3>时间不是资源，而是生命</h3><p>不显示完成数、效率排名或连续打卡，只显示时间流向。</p></li>' +
-      '<li><h3>AI 负责压缩，不负责占用</h3><p>省下的时间默认变成留白，不被自动填满。</p></li>' +
-      '<li><h3>不鼓励更多，鼓励更重要</h3><p>不问完成了多少件事，只问今天最重要的是什么。</p></li>' +
-      '<li><h3>自由比效率更重要</h3><p>自由指数只描述，不和昨天比，不和别人比，没有目标值。</p></li>' +
-      '<li><h3>人的成长来自四种时间</h3><p>恢复、创造、连接、探索。比例由你自己定。</p></li></ol></section>' +
-      '<section class="panel charter half"><h2>四条诚实约束</h2><ol>' +
-      '<li><h3>估算不等于归还</h3><p>试过并记下用时，节省才算数。</p></li>' +
-      '<li><h3>预留不等于留住</h3><p>留白结束后由你确认，只有留住的进入账户。</p></li>' +
-      '<li><h3>没记录不等于空闲</h3><p>所有比例只基于你记下的时间。</p></li>' +
-      '<li><h3>请求不是责任，推迟不是节省</h3><p>挪到明天不算省时间。</p></li></ol></section>' +
-      '<section class="panel half"><h2>自由指数怎么算</h2><p class="small">50% × 自主时间占比 + 50% × 创造与连接占自主时间的比例。自主时间是记录时间里除必要劳动以外的部分。只看过去 7 天。</p></section>' +
-      '<section class="panel half"><h2>语音整理</h2><p class="small">在支持的地方，你说的话会交给 Claude 拆成几条、配时间、分类别，第一次会先征求你同意；不支持或你不同意时，用本地规则整理。整理结果都要你确认后才记下。</p></section>' +
-      '<p class="small muted" style="text-align:center;padding:8px 0">留白不需要先挣来。</p>';
-  }
-
   function pageSettings() {
-    return '<div class="head"><div class="eyebrow">设置</div><h1>你的留白</h1><p class="small muted">数据只存在这个浏览器里，不上传，不同步。</p></div>' +
-      (memoryOnly ? '<div class="notice">这个浏览器不允许本地保存，刷新后记录会消失。</div>' : '') +
-      '<section class="panel half"><form id="setForm" class="stack"><div class="field"><label for="s-name">怎么称呼你</label><input id="s-name" maxlength="20" value="' + esc(S.name) + '"></div>' +
-      '<div class="field"><label for="s-wake">每天清醒多少小时</label><input id="s-wake" type="number" inputmode="decimal" min="8" max="20" step="0.5" value="' + (S.wake / 60) + '"></div>' +
+    return '<div class="head"><h1>设置</h1></div>' +
+      (memoryOnly ? '<div class="notice">此浏览器无法保存记录</div>' : '') +
+      '<section class="panel half"><form id="setForm" class="stack"><div class="field"><label for="s-name">称呼</label><input id="s-name" maxlength="20" value="' + esc(S.name) + '"></div>' +
+      '<div class="field"><label for="s-wake">每天清醒几小时</label><input id="s-wake" type="number" inputmode="decimal" min="8" max="20" step="0.5" value="' + (S.wake / 60) + '"></div>' +
       '<button class="btn primary" type="submit">保存</button></form></section>' +
-      '<section class="panel half"><h2>数据</h2><p class="small muted">当前：' + (S.mode === 'demo' ? '示例数据' : '你自己的记录') + '，共 ' + S.entries.length + ' 段时间。</p>' +
-      '<div class="two"><button class="btn" data-act="export">导出</button><button class="btn" data-act="import-open">导入</button><button class="btn" data-act="load-demo">载入示例</button><button class="btn danger" data-act="wipe">清空全部</button></div><div id="dataBox"></div></section>';
+      '<section class="panel half"><h2>数据</h2>' + (S.mode === 'demo' ? '<div class="row between small"><span class="muted">正在看示例数据</span><button class="btn sm" data-act="start-real">清空示例</button></div>' : '') +
+      '<p class="tiny muted">只保存在这个浏览器</p>' +
+      '<div class="two"><button class="btn" data-act="export">导出</button><button class="btn" data-act="import-open">导入</button><button class="btn" data-act="load-demo">示例</button><button class="btn danger" data-act="wipe">清空</button></div><div id="dataBox"></div></section>';
   }
 
   // ---------- sheets ----------
@@ -811,41 +768,39 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
   var toastTimer;
   function toast(msg) {
     var el = document.querySelector('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
-    el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.hidden = true; }, 2600);
+    el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.hidden = true; }, 2200);
   }
   function reserveSheet(minutes) {
     var start = Math.min(1380, Math.ceil((nowMin() + 10) / 15) * 15), m = Math.max(15, Math.min(240, minutes || 60));
-    openSheet('<h2>预留一段留白</h2><p class="small muted">之后往这段时间里安排事情，留白会先提醒你。</p>' +
-      '<div class="field"><label for="r-date">哪天</label><input id="r-date" type="date" value="' + todayStr() + '"></div>' +
-      '<div class="two"><div class="field"><label for="r-start">从几点</label><input id="r-start" type="time" value="' + toHM(start) + '"></div><div class="field"><label for="r-min">多少分钟</label><input id="r-min" type="number" inputmode="numeric" min="10" max="600" step="5" value="' + m + '"></div></div>' +
+    openSheet('<h2>预留留白</h2>' +
+      '<div class="field"><label for="r-date">日期</label><input id="r-date" type="date" value="' + todayStr() + '"></div>' +
+      '<div class="two"><div class="field"><label for="r-start">开始</label><input id="r-start" type="time" value="' + toHM(start) + '"></div><div class="field"><label for="r-min">分钟</label><input id="r-min" type="number" inputmode="numeric" min="10" max="600" step="5" value="' + m + '"></div></div>' +
       '<p id="resWarn" class="small" style="color:var(--warm)" hidden></p>' +
       '<button class="btn primary block" data-act="res-save">留出来</button><button class="btn ghost block" data-act="close">取消</button>');
   }
   function trialSheet(title, before) {
     var r = ruleFor(title);
-    openSheet('<h2>记一次实际的尝试</h2><p class="small muted">同一件事，以前大约多久，这次用 AI 之后（含核对修改）用了多久。</p>' +
-      '<div class="field"><label for="t-title">事情</label><input id="t-title" value="' + esc(title) + '" maxlength="30"></div>' +
-      '<div class="two"><div class="field"><label for="t-before">以前（分钟）</label><input id="t-before" type="number" inputmode="numeric" min="1" value="' + before + '"></div><div class="field"><label for="t-after">这次（分钟）</label><input id="t-after" type="number" inputmode="numeric" min="0" value="' + Math.round(before * (1 - (r.low + r.high) / 2)) + '"></div></div>' +
-      '<div class="field"><label for="t-method">用了什么方式</label><input id="t-method" value="' + esc(r.method) + '" maxlength="60"></div>' +
+    openSheet('<h2>' + esc(title) + '</h2>' +
+      '<div class="two"><div class="field"><label for="t-before">原来（分钟）</label><input id="t-before" type="number" inputmode="numeric" min="1" value="' + before + '"></div><div class="field"><label for="t-after">现在（分钟）</label><input id="t-after" type="number" inputmode="numeric" min="0" value="' + Math.round(before * (1 - (r.low + r.high) / 2)) + '"></div></div>' +
+      '<input id="t-title" type="hidden" value="' + esc(title) + '"><input id="t-method" type="hidden" value="' + esc(r.method) + '">' +
       '<button class="btn primary block" data-act="trial-save">记下</button><button class="btn ghost block" data-act="close">取消</button>');
   }
   function idealSheet() {
     var i = S.ideal || { restore: 15, create: 35, connect: 25, explore: 25 };
-    openSheet('<h2>你想要的比例</h2><p class="small muted">四种时间合计 100。初始值只是起点，改成你自己的。</p><div class="two">' +
-      QUADS.map(function (k) { return '<div class="field"><label for="i-' + k + '">' + KINDS[k].long + ' %</label><input id="i-' + k + '" type="number" inputmode="numeric" min="0" max="100" value="' + i[k] + '"></div>'; }).join('') +
+    openSheet('<h2>理想比例</h2><div class="two">' +
+      QUADS.map(function (k) { return '<div class="field"><label for="i-' + k + '">' + KINDS[k].label + ' %</label><input id="i-' + k + '" type="number" inputmode="numeric" min="0" max="100" value="' + i[k] + '"></div>'; }).join('') +
       '</div><p id="idealSum" class="small muted"></p><button class="btn primary block" data-act="ideal-save">保存</button>' + (S.ideal ? '<button class="btn block" data-act="ideal-clear">不设定</button>' : '') + '<button class="btn ghost block" data-act="close">取消</button>');
     updateIdealSum();
   }
   function updateIdealSum() {
     var el = document.getElementById('idealSum'); if (!el) return;
     var s = QUADS.reduce(function (a, k) { return a + (+document.getElementById('i-' + k).value || 0); }, 0);
-    el.textContent = '合计 ' + s + (s === 100 ? '' : '，需要等于 100'); el.style.color = s === 100 ? '' : 'var(--warm)';
+    el.textContent = '合计 ' + s + ' / 100'; el.style.color = s === 100 ? '' : 'var(--warm)';
   }
   function onboard() {
-    openSheet('<div class="eyebrow">留白 · LeuBai</div><h2 style="font-size:22px">被归还的时间，应该流向哪里？</h2>' +
-      '<p class="small muted">说一句话就能记下时间去了哪里。留白把 AI 省下的时间留出来，默认不再被塞满。不显示待办数量，不打分，不打卡。</p>' +
-      '<div class="field"><label for="o-name">怎么称呼你（可不填）</label><input id="o-name" maxlength="20"></div>' +
-      '<button class="btn primary block" data-act="ob-real">从空白开始</button><button class="btn block" data-act="ob-demo">先看示例（一位研究者的三周）</button><p class="tiny muted">数据只保存在这个浏览器里。</p>');
+    openSheet('<h2 style="font-size:24px">留白</h2><p class="muted">把省下的时间，留给自己。</p>' +
+      '<div class="field"><label for="o-name">称呼（可不填）</label><input id="o-name" maxlength="20"></div>' +
+      '<button class="btn primary block" data-act="ob-real">开始</button><button class="btn block" data-act="ob-demo">看示例</button>');
   }
 
   // ---------- router ----------
@@ -853,9 +808,9 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
   function render() {
     var r = route();
     var link = function (p) { return '<a href="#' + p.id + '"' + (p.id === r ? ' aria-current="page"' : '') + '>' + (PAGES.indexOf(p) >= 0 ? '<span class="dot"></span>' : '') + p.label + '</a>'; };
-    document.getElementById('tabbar').innerHTML = '<a class="rail-brand" href="#today" aria-label="留白">留<br>白</a>' + PAGES.map(link).join('');
-    document.getElementById('topnav').innerHTML = PAGES2.map(link).join('');
-    var fn = { today: pageToday, flow: pageFlow, compress: pageCompress, account: pageAccount, invest: pageInvest, suggest: pageSuggest, charter: pageCharter, settings: pageSettings }[r];
+    document.getElementById('tabbar').innerHTML = PAGES.map(link).join('');
+    var fs = document.getElementById('footSet'); if (r === 'settings') fs.setAttribute('aria-current', 'page'); else fs.removeAttribute('aria-current');
+    var fn = { today: pageToday, flow: pageFlow, compress: pageCompress, account: pageAccount, invest: pageInvest, suggest: pageSuggest, settings: pageSettings }[r];
     document.getElementById('view').innerHTML = '<div class="page ' + (r === 'today' || r === 'flow' ? 'split' : 'flow-grid') + '" data-page="' + r + '">' + fn() + '</div>';
   }
 
@@ -884,19 +839,19 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
       var ok = 0, keep = [];
       S.drafts.forEach(function (d) { if (draftProblem(d)) keep.push(d); else { commitDraft(d); ok++; } });
       S.drafts = keep; capState.msg = ''; save(); render();
-      toast(ok ? '记下 ' + ok + ' 条' + (keep.length ? '，还有 ' + keep.length + ' 条要补一下' : '') : '先把标黄的补完整');
+      toast(ok ? '记下 ' + ok + ' 条' : '先补完标黄的');
       return;
     }
     if (act === 'reserve') return reserveSheet(+el.getAttribute('data-min') || 60);
     if (act === 'res-save') {
       var dd = document.getElementById('r-date').value, st = document.getElementById('r-start').value, mm = +document.getElementById('r-min').value, w = document.getElementById('resWarn');
-      if (!dd || !st || !(mm >= 10)) { w.hidden = false; w.textContent = '请填好日期、开始时间和时长（至少 10 分钟）。'; return; }
+      if (!dd || !st || !(mm >= 10)) { w.hidden = false; w.textContent = '请填完整'; return; }
       var a = toMin(st), b = Math.min(1440, a + mm);
-      if (b - a < 10) { w.hidden = false; w.textContent = '这段会跨过午夜，请换一个更早的开始时间。'; return; }
+      if (b - a < 10) { w.hidden = false; w.textContent = '不能跨过午夜'; return; }
       S.entries.push({ id: uid(), date: dd, start: st, end: toHM(b), title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '' });
-      save(); closeSheet(); render(); toast('已留出 ' + fmtPlain(b - a) + '，默认不再被塞满'); return;
+      save(); closeSheet(); render(); toast('已留出 ' + fmtPlain(b - a)); return;
     }
-    if (act === 'start-real') { S.entries = []; S.trials = []; S.drafts = []; S.ideal = null; S.mode = 'real'; S.name = ''; save(); render(); toast('示例已清空'); return; }
+    if (act === 'start-real') { S.entries = []; S.trials = []; S.drafts = []; S.ideal = null; S.mode = 'real'; S.name = ''; save(); render(); toast('已清空'); return; }
     if (act === 'ob-real' || act === 'ob-demo') {
       var nm = (document.getElementById('o-name').value || '').trim();
       if (act === 'ob-demo') S = demoState(); else S.mode = 'real';
@@ -919,14 +874,14 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
       e.kept = state === 'kept' ? dur(e) : state === 'partial' ? Math.max(1, Math.min(dur(e), +document.getElementById('kp-' + id).value || 0)) : 0;
       e.use = e.kept ? (document.getElementById('ku-' + id).value || null) : null;
       e.note = (document.getElementById('kn-' + id).value || '').trim();
-      save(); render(); toast(e.kept ? '记进留白账户：' + fmtPlain(e.kept) : '照实记下了'); return;
+      save(); render(); toast('已记下'); return;
     }
     if (act === 'trial') return trialSheet(el.getAttribute('data-title'), +el.getAttribute('data-before'));
     if (act === 'trial-save') {
       var tb = +document.getElementById('t-before').value, tf = +document.getElementById('t-after').value, tt = document.getElementById('t-title').value.trim();
       if (!tt || !(tb > 0) || !(tf >= 0)) return;
       S.trials.push({ id: uid(), date: todayStr(), title: tt, before: tb, after: tf, method: document.getElementById('t-method').value.trim() });
-      save(); closeSheet(); render(); toast(tf < tb ? '确认节省 ' + (tb - tf) + ' 分钟' : '这次没省下时间，也照实记下了'); return;
+      save(); closeSheet(); render(); toast(tf < tb ? '省下 ' + (tb - tf) + ' 分钟' : '已记下'); return;
     }
     if (act === 'del-trial') { S.trials = S.trials.filter(function (r) { return r.id !== el.getAttribute('data-id'); }); save(); render(); return; }
     if (act === 'range') { investRange = +el.getAttribute('data-d'); render(); return; }
@@ -938,9 +893,9 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
     }
     if (act === 'ideal-clear') { S.ideal = null; save(); closeSheet(); render(); return; }
     if (act === 'spin') { var k = el.getAttribute('data-k'); suggestSpin[k] = (suggestSpin[k] || 0) + 1; render(); return; }
-    if (act === 'intent') { var up = upcomingBlanks()[0]; if (up) { up.intent = el.getAttribute('data-v'); save(); render(); toast(up.intent ? '记下这个念头，不会提醒你' : '好，什么都不安排'); } return; }
+    if (act === 'intent') { var up = upcomingBlanks()[0]; if (up) { up.intent = el.getAttribute('data-v'); save(); render(); toast('好'); } return; }
     if (act === 'export') {
-      document.getElementById('dataBox').innerHTML = '<div class="field"><label for="exp">全部数据（JSON）</label><textarea id="exp" class="code" readonly>' + esc(JSON.stringify(S)) + '</textarea></div><button class="btn sm" data-act="copy">复制</button>';
+      document.getElementById('dataBox').innerHTML = '<div class="field"><label for="exp">数据</label><textarea id="exp" class="code" readonly>' + esc(JSON.stringify(S)) + '</textarea></div><button class="btn sm" data-act="copy">复制</button>';
       return;
     }
     if (act === 'copy') {
@@ -949,15 +904,15 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ex.value).then(function () { toast('已复制'); }, sel); else sel();
       return;
     }
-    if (act === 'import-open') { document.getElementById('dataBox').innerHTML = '<div class="field"><label for="imp">粘贴之前导出的 JSON</label><textarea id="imp" class="code"></textarea></div><button class="btn sm" data-act="import">导入并替换</button>'; return; }
+    if (act === 'import-open') { document.getElementById('dataBox').innerHTML = '<div class="field"><label for="imp">粘贴导出的数据</label><textarea id="imp" class="code"></textarea></div><button class="btn sm" data-act="import">导入</button>'; return; }
     if (act === 'import') {
       try { var s2 = JSON.parse(document.getElementById('imp').value); if (!s2 || s2.v !== 1 || !Array.isArray(s2.entries)) throw 0; s2.drafts = s2.drafts || []; s2.trials = s2.trials || []; S = s2; save(); render(); toast('已导入'); }
-      catch (e2) { toast('这段文本不是留白导出的数据'); }
+      catch (e2) { toast('无法识别'); }
       return;
     }
-    if (act === 'load-demo') { openSheet('<h2>载入示例？</h2><p class="small muted">当前数据会被示例替换，需要的话先导出。</p><button class="btn primary block" data-act="demo-yes">载入示例</button><button class="btn ghost block" data-act="close">取消</button>'); return; }
+    if (act === 'load-demo') { openSheet('<h2>载入示例？</h2><p class="small muted">会替换当前数据</p><button class="btn primary block" data-act="demo-yes">载入示例</button><button class="btn ghost block" data-act="close">取消</button>'); return; }
     if (act === 'demo-yes') { S = demoState(); save(); closeSheet(); render(); return; }
-    if (act === 'wipe') { openSheet('<h2>清空全部数据？</h2><p class="small muted">所有记录和设置都会删除，不能撤销。</p><button class="btn danger block" data-act="wipe-yes">清空</button><button class="btn ghost block" data-act="close">取消</button>'); return; }
+    if (act === 'wipe') { openSheet('<h2>清空全部？</h2><p class="small muted">不能撤销</p><button class="btn danger block" data-act="wipe-yes">清空</button><button class="btn ghost block" data-act="close">取消</button>'); return; }
     if (act === 'wipe-yes') { S = blankState(); S.mode = 'real'; save(); closeSheet(); location.hash = '#today'; render(); return; }
   });
 
@@ -977,10 +932,10 @@ details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
       var date = flowDate || todayStr(), title = document.getElementById('f-title').value.trim(), kind = document.getElementById('f-kind').value;
       var st = document.getElementById('f-start').value, en = document.getElementById('f-end').value, w = document.getElementById('addWarn');
       if (!title || !st || !en) return;
-      if (toMin(en) <= toMin(st)) { w.hidden = false; w.textContent = '结束要晚于开始。跨午夜的时间请分成两段。'; return; }
+      if (toMin(en) <= toMin(st)) { w.hidden = false; w.textContent = '结束要晚于开始'; return; }
       var entry = { id: uid(), date: date, start: st, end: en, title: title, kind: kind };
       var hit = overlapsBlank(date, toMin(st), toMin(en));
-      if (hit.length) { pendingAdd = entry; w.hidden = false; w.innerHTML = '和预留的留白重叠，留白默认不被再次塞满。 <button class="btn sm" type="button" data-act="add-anyway">仍然记下</button>'; return; }
+      if (hit.length) { pendingAdd = entry; w.hidden = false; w.innerHTML = '占用了留白 <button class="btn sm" type="button" data-act="add-anyway">仍然记下</button>'; return; }
       S.entries.push(entry); save(); render(); toast('记下了：' + title); return;
     }
     if (f.id === 'setForm') {
