@@ -135,26 +135,41 @@ a { color: inherit; }
 .check input { width: 18px; height: 18px; accent-color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .oops, .oops .drop { animation: none; } }
 
-:root { --p1: #E0524A; --p2: #EFA05E; --p3: #B7C3CB; }
-.bubbles { position: relative; height: 380px; border-radius: 28px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; touch-action: none; }
-.bubble { position: absolute; left: 0; top: 0; display: grid; place-content: center; gap: 1px; text-align: center; border: 0; padding: 0 6px; cursor: grab; color: #fff; user-select: none; -webkit-user-select: none; will-change: transform;
-  border-radius: 46% 54% 52% 48% / 52% 45% 55% 48%; animation: cell 7s ease-in-out infinite alternate; box-shadow: inset -6px -8px 16px rgba(0,0,0,.08), 0 6px 18px rgba(0,0,0,.08); }
-.bubble:nth-child(2n) { animation-duration: 9s; animation-delay: -3s; }
-.bubble:nth-child(3n) { animation-duration: 6s; animation-delay: -5s; }
+:root { --p1: #E0524A; --p2: #EFA05E; --p3: #BFC6CB; --field: #FBF3EA; --field-line: #F1E1CF; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --field: #2A231D; --field-line: #3A3027; --p3: #6F777C; } }
+:root[data-theme="dark"] { --field: #2A231D; --field-line: #3A3027; --p3: #6F777C; }
+.bubbles { position: relative; height: 380px; border-radius: 28px; background: radial-gradient(120% 80% at 50% 0%, #FFF8F0, var(--field) 70%); border: 1px solid var(--field-line); overflow: hidden; touch-action: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bubbles { background: var(--field); } }
+:root[data-theme="dark"] .bubbles { background: var(--field); }
+.bubble { position: absolute; left: 0; top: 0; display: grid; place-content: center; gap: 1px; text-align: center; border: 0; padding: 0 3px; cursor: grab; color: #fff; background: none; user-select: none; -webkit-user-select: none; will-change: transform; isolation: isolate; transition: opacity .4s; }
+.bubble::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; animation: cell 5s ease-in-out infinite alternate, spin 14s linear infinite;
+  box-shadow: inset -7px -9px 16px rgba(0,0,0,.10), 0 8px 18px rgba(120,70,30,.12); }
+.bubble:nth-child(2n)::before { animation-duration: 6.5s, 18s; animation-delay: -2s, -6s; animation-direction: alternate, reverse; }
+.bubble:nth-child(3n)::before { animation-duration: 4.2s, 11s; animation-delay: -3s, -2s; }
 .bubble:active { cursor: grabbing; }
-.bubble .bt { font-weight: 500; line-height: 1.2; }
+.bubble .bt { font-weight: 500; line-height: 1.2; white-space: nowrap; letter-spacing: -.02em; }
 .bubble .bs { font-size: .78em; opacity: .85; font-variant-numeric: tabular-nums; }
-.bubble.p1 { background: radial-gradient(circle at 32% 28%, #F38B7F, var(--p1) 70%); }
-.bubble.p2 { background: radial-gradient(circle at 32% 28%, #F8C796, var(--p2) 70%); opacity: .82; }
-.bubble.p3 { background: radial-gradient(circle at 32% 28%, #E6ECEF, var(--p3) 70%); color: #3E4A52; opacity: .6; }
-.bubble.over { opacity: .28; filter: grayscale(.6); }
-@keyframes cell { 0% { border-radius: 46% 54% 52% 48% / 52% 45% 55% 48%; } 50% { border-radius: 55% 45% 42% 58% / 44% 56% 46% 54%; } 100% { border-radius: 50% 50% 58% 42% / 58% 48% 52% 42%; } }
+.bubble.p1::before { background: radial-gradient(circle at 32% 28%, #F59A8E, var(--p1) 68%); }
+.bubble.p2::before { background: radial-gradient(circle at 32% 28%, #F9CFA3, var(--p2) 68%); }
+.bubble.p3::before { background: radial-gradient(circle at 32% 28%, #ECEFF1, var(--p3) 70%); }
+.bubble.p2 { opacity: .9; }
+.bubble.p3 { color: #4A545B; opacity: .72; }
+.bubble.over { opacity: .3; filter: grayscale(.6); }
+.bubble.pop::before { animation: pop .45s ease-out, cell 5s ease-in-out infinite alternate, spin 14s linear infinite; }
+@keyframes cell {
+  0% { border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; transform: scale(1, 1); }
+  33% { border-radius: 63% 37% 41% 59% / 58% 63% 37% 42%; transform: scale(1.05, .95); }
+  66% { border-radius: 35% 65% 55% 45% / 62% 38% 62% 38%; transform: scale(.96, 1.04); }
+  100% { border-radius: 56% 44% 34% 66% / 45% 57% 43% 55%; transform: scale(1.03, .98); } }
+@keyframes spin { to { rotate: 360deg; } }
+@keyframes pop { 0% { scale: 1; } 35% { scale: 1.18; } 100% { scale: 1; } }
 .bub-hint { text-align: center; }
 .pdot { border: 0; border-radius: 999px; padding: 3px 9px; font-size: 12px; cursor: pointer; color: #fff; white-space: nowrap; }
 .pdot.p1, .pchip.p1[aria-pressed="true"] { background: var(--p1); color: #fff; border-color: var(--p1); }
 .pdot.p2, .pchip.p2[aria-pressed="true"] { background: var(--p2); color: #fff; border-color: var(--p2); }
-.pdot.p3, .pchip.p3[aria-pressed="true"] { background: var(--p3); color: #3E4A52; border-color: var(--p3); }
-@media (prefers-reduced-motion: reduce) { .bubble { animation: none; } }
+.pdot.p3, .pchip.p3[aria-pressed="true"] { background: var(--p3); color: #4A545B; border-color: var(--p3); }
+@media (min-width: 1100px) { .bubbles { height: 440px; } }
+@media (prefers-reduced-motion: reduce) { .bubble::before { animation: none !important; } }
 @media (min-width: 1100px) { .bubbles { height: 440px; } }
 
 /* Timeline */
@@ -624,7 +639,7 @@ a { color: inherit; }
   var PRIO_STRIP = /(这|这件事|这个)?(是|很|非常|特别)?(最优先级?|最重要的?|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧|不急|不重要|有空再|有空的话|随便|次要|顺便|可做可不做|晚点也行|优先级?|重要的?|要紧)(的事)?/g;
   function prioOf(seg) { for (var i = 0; i < PRIO_RE.length; i++) if (PRIO_RE[i][1].test(seg)) return PRIO_RE[i][0]; return 2; }
   var PRIO_NAME = { 1: '最优先', 2: '一般', 3: '不急' };
-  var bub = {}, bubRaf = 0, bubDrag = null;
+  var bub = {}, bubRaf = 0, bubDrag = null, bubPress = 0;
   function bubbleField() {
     var now = nowMin(), list = entriesOn(todayStr()).filter(function (e) { return e.kind !== 'blank'; });
     if (!list.length) return '';
@@ -634,7 +649,7 @@ a { color: inherit; }
         var t = e.title.length > 6 ? e.title.slice(0, 5) + '…' : e.title;
         return '<button class="bubble p' + p + (over ? ' over' : '') + '" data-id="' + e.id + '" data-act="bubble" aria-label="' + esc(e.title) + '，' + PRIO_NAME[p] + '，' + e.start + '–' + e.end + '">' +
           '<span class="bt">' + esc(t) + '</span><span class="bs">' + e.start + (a ? ' ✦' : e.ai ? ' ✓' : '') + '</span></button>';
-      }).join('') + '</div><p class="small muted bub-hint">点泡泡看详情，拖一拖也行。</p></section>';
+      }).join('') + '</div><p class="small muted bub-hint">点一下升一级，长按看详情</p></section>';
   }
   function bubSetup() {
     var box = document.getElementById('bubbles');
@@ -691,8 +706,14 @@ a { color: inherit; }
     var el = ev.target.closest && ev.target.closest('.bubble'), box = document.getElementById('bubbles'); if (!el || !box || !box._items) return;
     var b = box._items.filter(function (x) { return x.el === el; })[0]; if (!b) return;
     var rect = box.getBoundingClientRect();
+    clearTimeout(bubPress); bubPress = setTimeout(function () { if (bubDrag === b && b.moved < 8) { b.longPressed = true; bubDrag = null; var e = byId(el.getAttribute('data-id')); if (e) bubbleSheet(e); } }, 550);
     bubDrag = b; b.moved = 0; b.lx = ev.clientX; b.ly = ev.clientY; b.ox = ev.clientX - rect.left - b.x; b.oy = ev.clientY - rect.top - b.y;
     try { el.setPointerCapture(ev.pointerId); } catch (e) { /* ok */ }
+  });
+  document.addEventListener('contextmenu', function (ev) {
+    var el = ev.target.closest && ev.target.closest('.bubble'); if (!el) return;
+    ev.preventDefault();
+    if (!document.querySelector('.overlay')) { var e = byId(el.getAttribute('data-id')); if (e) bubbleSheet(e); }
   });
   document.addEventListener('pointermove', function (ev) {
     if (!bubDrag) return; var box = document.getElementById('bubbles'); if (!box) return;
@@ -701,7 +722,7 @@ a { color: inherit; }
     b.vx = (ev.clientX - b.lx) * .6; b.vy = (ev.clientY - b.ly) * .6; b.lx = ev.clientX; b.ly = ev.clientY;
     b.x = Math.max(b.r, Math.min(box._W - b.r, ev.clientX - rect.left - b.ox)); b.y = Math.max(b.r, Math.min(box._H - b.r, ev.clientY - rect.top - b.oy));
   });
-  document.addEventListener('pointerup', function () { if (bubDrag) { var b = bubDrag; bubDrag = null; b.justDragged = b.moved > 8; } });
+  document.addEventListener('pointerup', function () { clearTimeout(bubPress); if (bubDrag) { var b = bubDrag; bubDrag = null; b.justDragged = b.moved > 8; } });
   function bubbleSheet(e) {
     var over = toMin(e.end) <= nowMin(), a = !over && aiPlan(e), p = e.prio || 2;
     openSheet('<h2 style="font-size:22px">' + esc(e.title) + '</h2><p class="muted">' + e.start + '–' + e.end + ' · ' + KINDS[e.kind].label + '</p>' +
@@ -996,7 +1017,17 @@ a { color: inherit; }
       return;
     }
     if (act === 'draft-prio') { var dp = draftById(el); if (dp) { dp.prio = (dp.prio || 2) % 3 + 1; save(); render(); } return; }
-    if (act === 'bubble') { var bx = document.getElementById('bubbles'), bb = bx && bx._items && bx._items.filter(function (x) { return x.el === el; })[0]; if (bb && bb.justDragged) { bb.justDragged = false; return; } var eb = byId(el.getAttribute('data-id')); if (eb) bubbleSheet(eb); return; }
+    if (act === 'bubble') {
+      var bx = document.getElementById('bubbles'), bb = bx && bx._items && bx._items.filter(function (x) { return x.el === el; })[0];
+      if (bb && (bb.justDragged || bb.longPressed)) { bb.justDragged = bb.longPressed = false; return; }
+      var eb = byId(el.getAttribute('data-id')); if (!eb) return;
+      var np = eb.prio === 1 ? 3 : (eb.prio || 2) - 1; eb.prio = np; save();
+      if (bb) { bb.vy += np === 3 ? 6 : -9; }
+      el.className = 'bubble p' + np + (toMin(eb.end) <= nowMin() ? ' over' : '') + ' pop';
+      el.setAttribute('aria-label', eb.title + '，' + PRIO_NAME[np] + '，' + eb.start + '–' + eb.end);
+      bubSetup(); toast(PRIO_NAME[np] + (np === 3 ? ' ↓' : ' ↑'));
+      return;
+    }
     if (act === 'set-prio') { var ep = byId(el.getAttribute('data-id')); if (ep) { ep.prio = +el.getAttribute('data-v'); save(); closeSheet(); render(); } return; }
     if (act === 'sort') { S.sortBy = el.getAttribute('data-d'); save(); render(); return; }
     if (act === 'to-ai') {
