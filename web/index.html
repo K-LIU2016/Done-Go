@@ -88,7 +88,7 @@ a { color: inherit; }
 .status:empty { display: none; }
 
 .drafts { width: 100%; display: grid; gap: 2px; }
-.draft { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.draft { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .draft .t { min-width: 0; }
 .draft .t input { width: 100%; border: 0; background: none; padding: 0; font-size: 15px; }
 .draft .times { display: flex; gap: 4px; align-items: center; font-size: 12.5px; color: var(--text-2); }
@@ -134,6 +134,28 @@ a { color: inherit; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .check input { width: 18px; height: 18px; accent-color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .oops, .oops .drop { animation: none; } }
+
+:root { --p1: #E0524A; --p2: #EFA05E; --p3: #B7C3CB; }
+.bubbles { position: relative; height: 380px; border-radius: 28px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; touch-action: none; }
+.bubble { position: absolute; left: 0; top: 0; display: grid; place-content: center; gap: 1px; text-align: center; border: 0; padding: 0 6px; cursor: grab; color: #fff; user-select: none; -webkit-user-select: none; will-change: transform;
+  border-radius: 46% 54% 52% 48% / 52% 45% 55% 48%; animation: cell 7s ease-in-out infinite alternate; box-shadow: inset -6px -8px 16px rgba(0,0,0,.08), 0 6px 18px rgba(0,0,0,.08); }
+.bubble:nth-child(2n) { animation-duration: 9s; animation-delay: -3s; }
+.bubble:nth-child(3n) { animation-duration: 6s; animation-delay: -5s; }
+.bubble:active { cursor: grabbing; }
+.bubble .bt { font-weight: 500; line-height: 1.2; }
+.bubble .bs { font-size: .78em; opacity: .85; font-variant-numeric: tabular-nums; }
+.bubble.p1 { background: radial-gradient(circle at 32% 28%, #F38B7F, var(--p1) 70%); }
+.bubble.p2 { background: radial-gradient(circle at 32% 28%, #F8C796, var(--p2) 70%); opacity: .82; }
+.bubble.p3 { background: radial-gradient(circle at 32% 28%, #E6ECEF, var(--p3) 70%); color: #3E4A52; opacity: .6; }
+.bubble.over { opacity: .28; filter: grayscale(.6); }
+@keyframes cell { 0% { border-radius: 46% 54% 52% 48% / 52% 45% 55% 48%; } 50% { border-radius: 55% 45% 42% 58% / 44% 56% 46% 54%; } 100% { border-radius: 50% 50% 58% 42% / 58% 48% 52% 42%; } }
+.bub-hint { text-align: center; }
+.pdot { border: 0; border-radius: 999px; padding: 3px 9px; font-size: 12px; cursor: pointer; color: #fff; white-space: nowrap; }
+.pdot.p1, .pchip.p1[aria-pressed="true"] { background: var(--p1); color: #fff; border-color: var(--p1); }
+.pdot.p2, .pchip.p2[aria-pressed="true"] { background: var(--p2); color: #fff; border-color: var(--p2); }
+.pdot.p3, .pchip.p3[aria-pressed="true"] { background: var(--p3); color: #3E4A52; border-color: var(--p3); }
+@media (prefers-reduced-motion: reduce) { .bubble { animation: none; } }
+@media (min-width: 1100px) { .bubbles { height: 440px; } }
 
 /* Timeline */
 .daynav { display: flex; align-items: center; justify-content: space-between; }
@@ -288,9 +310,9 @@ a { color: inherit; }
 
   // ---------- state ----------
   var memoryOnly = false;
-  function blankState() { return { v: 1, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'time' }; }
+  function blankState() { return { v: 1, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'prio' }; }
   function load() {
-    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) { s.drafts = s.drafts || []; s.sortBy = s.sortBy || 'time'; return s; } } } catch (e) { memoryOnly = true; }
+    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) { s.drafts = s.drafts || []; s.sortBy = s.sortBy || 'prio'; return s; } } } catch (e) { memoryOnly = true; }
     return blankState();
   }
   var S = load();
@@ -309,8 +331,8 @@ a { color: inherit; }
       var date = addDays(t, d), p = date.split('-'), wd = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
       var v = hashInt(date) % 4;
       if (d === 0) {
-        var n0 = Math.floor(nowMin() / 60) * 60, plan = [[-120, 60, '组会', 'necessary'], [60, 120, '读论文', 'explore'], [180, 40, '邮件回复', 'necessary'], [240, 60, '晚饭', 'connect']];
-        plan.forEach(function (x) { var a = n0 + x[0]; if (a >= 420 && a + x[1] <= 1440) add(0, toHM(a), toHM(a + x[1]), x[2], x[3]); });
+        var n0 = Math.floor(nowMin() / 60) * 60, plan = [[-120, 60, '组会', 'necessary', 2], [60, 120, '读论文', 'explore', 1], [180, 40, '邮件回复', 'necessary', 3], [240, 60, '晚饭', 'connect', 2], [300, 90, '健身', 'restore', 3], [400, 60, '给妈妈打电话', 'connect', 1]];
+        plan.forEach(function (x) { var a = n0 + x[0]; if (a >= 420 && a + x[1] <= 1440) add(0, toHM(a), toHM(a + x[1]), x[2], x[3], { prio: x[4] }); });
       } else if (wd !== 0 && wd !== 6) {
         add(d, '09:00', '10:00', '组会', 'necessary');
         add(d, '10:00', '11:30', '读论文', 'explore');
@@ -431,16 +453,19 @@ a { color: inherit; }
       var d = durationOf(rest); if (d) rest = rest.replace(d.text, ' ');
       var start = null, end = null;
       if (times.length >= 2) { start = times[0]; end = times[1]; if (end <= start && end + 720 > start) end += 720; }
-      else if (times.length === 1) { start = times[0]; end = d ? start + d.min : null; }
+      else if (times.length === 1) { start = times[0]; end = Math.min(1440, start + (d ? d.min : 60)); }
       else if (d && date === t && PAST_RE.test(seg)) { end = nowMin(); start = Math.max(0, end - d.min); }
       else if (d) { start = date === t ? nextSlot() : 540; end = Math.min(1440, start + d.min); }
-      var kind = guessKind(seg);
+      var kind = guessKind(seg), prio = prioOf(seg);
+      rest = rest.replace(PRIO_STRIP, ' ');
+      if (start == null && end == null && kind !== 'blank' && (date !== t || nowMin() < 1380)) { start = date === t ? nextSlot() : 540; end = Math.min(1440, start + 60); }
       var title = rest.replace(new RegExp(PERIOD, 'g'), ' ').replace(/大后天|后天|明天|今天|昨天|前天/g, ' ')
         .replace(/开(\S{1,4}会)/, '$1').replace(/我们|我|刚才|刚刚|花了|用了|大概|大约|左右|一共|从|到|至|要花|要|需要|打算|准备|想|在|去|了|的|-|~|～|—/g, ' ')
         .replace(/\s+/g, ' ').trim();
+      if (!times.length && !d && prio !== 2 && !title.replace(/[这那个件事是它就也都很]/g, '').trim() && out.length) { out[out.length - 1].prio = prio; return; }
       if (kind === 'blank') title = '留白';
       if (!title) title = KINDS[kind].label;
-      out.push({ id: uid(), title: title.slice(0, 30), kind: kind, date: date, start: start == null ? '' : toHM(start), end: end == null ? '' : toHM(end) });
+      out.push({ id: uid(), title: title.slice(0, 30), kind: kind, prio: prio, date: date, start: start == null ? '' : toHM(start), end: end == null ? '' : toHM(end) });
     });
     return out;
   }
@@ -453,10 +478,11 @@ a { color: inherit; }
       var date = /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') ? it.date : t;
       var start = isHM(it.start) ? it.start : '', end = isHM(it.end) ? it.end : '';
       var mins = +it.minutes > 0 ? Math.round(+it.minutes) : 0;
-      if (start && !end && mins) end = toHM(toMin(start) + mins);
+      if (start && !end) end = toHM(Math.min(1440, toMin(start) + (mins || 60)));
       if (!start && end && mins) start = toHM(toMin(end) - mins);
       if (!start && !end && mins) { var a0 = date === t ? nextSlot() : 540; start = toHM(a0); end = toHM(a0 + mins); }
-      return { id: uid(), title: (kind === 'blank' ? '留白' : it.title).slice(0, 30), kind: kind, date: date, start: start, end: end };
+      if (!start && !end && kind !== 'blank') { var a1 = date === t ? nextSlot() : 540; start = toHM(a1); end = toHM(Math.min(1440, a1 + 60)); }
+      return { id: uid(), title: (kind === 'blank' ? '留白' : it.title.replace(PRIO_STRIP, '').trim() || it.title).slice(0, 30), kind: kind, prio: [1, 2, 3].indexOf(+it.prio) >= 0 ? +it.prio : prioOf(it.title), date: date, start: start, end: end };
     }).filter(Boolean);
   }
   var sampleP = (window.claude && typeof window.claude.use === 'function') ? Promise.resolve(window.claude.use('sample')).catch(function () { return null; }) : Promise.resolve(null);
@@ -465,7 +491,8 @@ a { color: inherit; }
   function aiPrompt(text) {
     var t = todayStr();
     return '你是“留白”的记录助手，把用户的一段口语整理成时间记录。今天是 ' + t + '（星期' + weekday(t) + '），现在是 ' + toHM(nowMin()) + '。\n' +
-      '只输出 JSON，不要任何解释：{"items":[{"title":"简短名称，不含时间词","kind":"necessary|restore|create|connect|explore|blank","date":"YYYY-MM-DD","start":"HH:MM 或 null","end":"HH:MM 或 null","minutes":数字或null}]}\n' +
+      '只输出 JSON，不要任何解释：{"items":[{"title":"简短名称，不含时间词","kind":"necessary|restore|create|connect|explore|blank","date":"YYYY-MM-DD","start":"HH:MM 或 null","end":"HH:MM 或 null","minutes":数字或null,"prio":1|2|3}]}\n' +
+      'prio：用户说最优先、最重要、一定要、紧急的写 1；说不急、有空再、顺便的写 3；没提就写 2。\n' +
       '分类：necessary=必要劳动（会议、邮件、行政、审稿、批改、上课、通勤等不得不做的事）；create=创造（写作、研究、设计、编程、画画）；connect=连接（家人、朋友、聊天、吃饭、电话）；explore=探索（阅读、学习新东西、看展）；restore=恢复（睡眠、散步、运动、休息）；blank=用户想空出来、什么都不安排的时间。\n' +
       '只说时长没说时间时：说了“刚才/已经/花了”表示刚结束，end 为现在；否则 start 和 end 写 null，只填 minutes。没说上午下午的 1–6 点按下午算。拿不准的字段写 null，不要编造。一句话里有几件事就拆成几条。\n' +
       '用户的话：「' + String(text).slice(0, 600) + '」';
@@ -539,6 +566,7 @@ a { color: inherit; }
         '<div class="times">' + (d.date !== todayStr() ? esc(dateLabel(d.date)) + ' ' : '') + '<input data-f="start" value="' + d.start + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="开始">–<input data-f="end" value="' + d.end + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="结束">' +
         (!prob && aiPlan(d) ? '<span class="ai-mini">AI 可省 ' + fmtPlain(aiPlan(d).saved) + '</span>' : '') +
         (prob ? '<span style="color:var(--warm)">' + prob + '</span>' : '') + '</div></div>' +
+        (d.kind === 'blank' ? '' : '<button class="pdot p' + (d.prio || 2) + '" data-act="draft-prio" aria-label="优先级：' + PRIO_NAME[d.prio || 2] + '，点按切换">' + PRIO_NAME[d.prio || 2] + '</button>') +
         kindBtn(d.kind, 'draft-kind') + '<button class="x" data-act="draft-del" aria-label="删掉">×</button></div>';
     }).join('') + '</div>';
     return html + '<button class="btn primary wide" data-act="draft-commit">记下</button>';
@@ -554,7 +582,7 @@ a { color: inherit; }
       '<button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" placeholder="说或写：下午两点到三点开会" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section></div>';
-    html += '<div class="col">' + blankCard() + planList() + picker() + '</div>';
+    html += '<div class="col">' + blankCard() + bubbleField() + picker() + '</div>';
     return html;
   }
   // one cartoon per half hour, 07:00–23:30
@@ -591,24 +619,96 @@ a { color: inherit; }
     var saved = entriesOn(todayStr()).reduce(function (a, e) { return a + (e.ai ? e.ai.before - e.ai.after : 0); }, 0);
     return saved ? '<p class="saved">AI 今天帮你省下 ' + fmtPlain(saved) + '，已留白</p>' : '';
   }
-  function planList() {
-    var now = nowMin(), t = todayStr();
-    var list = entriesOn(t).filter(function (e) { return e.kind !== 'blank'; });
+  // ---------- today as bubbles: priority floats up and turns red ----------
+  var PRIO_RE = [[1, /最优先|最重要|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧/], [3, /不急|不重要|有空再|有空的话|随便|次要|顺便|可做可不做|晚点也行/], [1, /优先|重要|要紧/]];
+  var PRIO_STRIP = /(这|这件事|这个)?(是|很|非常|特别)?(最优先级?|最重要的?|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧|不急|不重要|有空再|有空的话|随便|次要|顺便|可做可不做|晚点也行|优先级?|重要的?|要紧)(的事)?/g;
+  function prioOf(seg) { for (var i = 0; i < PRIO_RE.length; i++) if (PRIO_RE[i][1].test(seg)) return PRIO_RE[i][0]; return 2; }
+  var PRIO_NAME = { 1: '最优先', 2: '一般', 3: '不急' };
+  var bub = {}, bubRaf = 0, bubDrag = null;
+  function bubbleField() {
+    var now = nowMin(), list = entriesOn(todayStr()).filter(function (e) { return e.kind !== 'blank'; });
     if (!list.length) return '';
-    var done = function (e) { return toMin(e.end) <= now; };
-    list.sort(function (a, b) {
-      if (done(a) !== done(b)) return done(a) ? 1 : -1;
-      if (S.sortBy === 'prio') { var d = PRIO.indexOf(a.kind) - PRIO.indexOf(b.kind); if (d) return d; }
-      return toMin(a.start) - toMin(b.start);
+    return '<section class="block"><div class="plan-head"><h2>今天</h2><div class="seg" role="group" aria-label="排列"><button data-act="sort" data-d="prio" aria-pressed="' + (S.sortBy !== 'time') + '">按优先</button><button data-act="sort" data-d="time" aria-pressed="' + (S.sortBy === 'time') + '">按时间</button></div></div>' +
+      '<div class="bubbles" id="bubbles" data-mode="' + (S.sortBy === 'time' ? 'time' : 'prio') + '">' + list.map(function (e) {
+        var p = e.prio || 2, over = toMin(e.end) <= now, a = !over && aiPlan(e);
+        var t = e.title.length > 6 ? e.title.slice(0, 5) + '…' : e.title;
+        return '<button class="bubble p' + p + (over ? ' over' : '') + '" data-id="' + e.id + '" data-act="bubble" aria-label="' + esc(e.title) + '，' + PRIO_NAME[p] + '，' + e.start + '–' + e.end + '">' +
+          '<span class="bt">' + esc(t) + '</span><span class="bs">' + e.start + (a ? ' ✦' : e.ai ? ' ✓' : '') + '</span></button>';
+      }).join('') + '</div><p class="small muted bub-hint">点泡泡看详情，拖一拖也行。</p></section>';
+  }
+  function bubSetup() {
+    var box = document.getElementById('bubbles');
+    if (!box) { cancelAnimationFrame(bubRaf); bubRaf = 0; return; }
+    var W = box.clientWidth, H = box.clientHeight, now = nowMin(), els = box.querySelectorAll('.bubble'), items = [];
+    var area = 0;
+    els.forEach(function (el) { var e = byId(el.getAttribute('data-id')); el._e = e; el._r = 30 + Math.sqrt(Math.min(dur(e), 240) / 240) * 30; area += Math.PI * el._r * el._r; });
+    var k = Math.min(1, Math.sqrt(W * H * 0.5 / Math.max(area, 1)));
+    var times = [].map.call(els, function (el) { return toMin(el._e.start); }), t0 = Math.min.apply(null, times), t1 = Math.max.apply(null, times);
+    els.forEach(function (el, i) {
+      var e = el._e, r = Math.max(24, el._r * k), id = e.id, p = e.prio || 2, over = toMin(e.end) <= now;
+      var f = t1 > t0 ? (toMin(e.start) - t0) / (t1 - t0) : .5;
+      var tx = S.sortBy === 'time' ? W * (i % 2 ? .66 : .34) : null;
+      var ty = S.sortBy === 'time' ? r + (H - 2 * r) * f : H * (over ? .9 : [0, .16, .5, .8][p]);
+      var b = bub[id] || (bub[id] = { x: W / 2 + (Math.random() - .5) * W * .5, y: H + r, vx: 0, vy: 0, ph: Math.random() * 6.28 });
+      b.r = r; b.tx = tx; b.ty = Math.max(r, Math.min(H - r, ty)); b.el = el;
+      el.style.width = el.style.height = (2 * r) + 'px'; el.style.fontSize = Math.max(11, Math.min(14, r / 3.5)) + 'px';
+      items.push(b);
     });
-    return '<section class="block"><div class="plan-head"><h2>今天</h2><div class="seg" role="group" aria-label="排序"><button data-act="sort" data-d="time" aria-pressed="' + (S.sortBy !== 'prio') + '">按时间</button><button data-act="sort" data-d="prio" aria-pressed="' + (S.sortBy === 'prio') + '">按优先</button></div></div><div>' +
-      list.map(function (e) {
-        var a = done(e) ? null : aiPlan(e);
-        var foot = e.ai ? '<div class="ai-tip done">交给 AI 了 · 原 ' + fmtPlain(e.ai.before) + '，省下的已留白</div>' :
-          a ? '<div class="ai-tip"><span>' + esc(a.method) + '：约 ' + fmtPlain(a.after) + '，可省 <b>' + fmtPlain(a.saved) + '</b></span><button class="btn sm" data-act="to-ai" data-id="' + e.id + '">交给 AI</button></div>' : '';
-        return '<div class="plan' + (done(e) ? ' over' : '') + '"><span class="dot" style="background:' + KINDS[e.kind].color + '"></span><div class="t">' + esc(e.title) +
-          '<small>' + e.start + '–' + e.end + ' · ' + KINDS[e.kind].label + '</small>' + foot + '</div></div>';
-      }).join('') + '</div></section>';
+    box._items = items; box._W = W; box._H = H;
+    var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (still) { for (var n = 0; n < 240; n++) bubStep(box, 0); bubPaint(box); return; }
+    if (!bubRaf) bubRaf = requestAnimationFrame(bubLoop);
+  }
+  function bubStep(box, time) {
+    var it = box._items, W = box._W, H = box._H;
+    it.forEach(function (b) {
+      if (b === bubDrag) return;
+      b.vy += (b.ty - b.y) * 0.004; if (b.tx != null) b.vx += (b.tx - b.x) * 0.004;
+      b.vx += Math.sin(time / 1300 + b.ph) * 0.012; b.vy += Math.cos(time / 1700 + b.ph) * 0.012;
+      b.vx *= 0.94; b.vy *= 0.94; b.x += b.vx; b.y += b.vy;
+    });
+    for (var i = 0; i < it.length; i++) for (var j = i + 1; j < it.length; j++) {
+      var a = it[i], c = it[j], dx = c.x - a.x, dy = c.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || .01, min = a.r + c.r + 4;
+      if (d < min) {
+        var o = (min - d) / 2, nx = dx / d, ny = dy / d, wa = a === bubDrag ? 0 : 1, wc = c === bubDrag ? 0 : 1, s = wa + wc || 1;
+        a.x -= nx * o * 2 * wa / s; a.y -= ny * o * 2 * wa / s; c.x += nx * o * 2 * wc / s; c.y += ny * o * 2 * wc / s;
+        var rv = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
+        if (rv < 0) { a.vx += nx * rv * .5 * wa; a.vy += ny * rv * .5 * wa; c.vx -= nx * rv * .5 * wc; c.vy -= ny * rv * .5 * wc; }
+      }
+    }
+    it.forEach(function (b) {
+      if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx) * .6; } if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx) * .6; }
+      if (b.y < b.r) { b.y = b.r; b.vy = Math.abs(b.vy) * .6; } if (b.y > H - b.r) { b.y = H - b.r; b.vy = -Math.abs(b.vy) * .6; }
+    });
+  }
+  function bubPaint(box) { box._items.forEach(function (b) { b.el.style.transform = 'translate(' + (b.x - b.r).toFixed(1) + 'px,' + (b.y - b.r).toFixed(1) + 'px)'; }); }
+  function bubLoop(time) {
+    var box = document.getElementById('bubbles');
+    if (!box || !box._items) { bubRaf = 0; return; }
+    bubStep(box, time); bubPaint(box); bubRaf = requestAnimationFrame(bubLoop);
+  }
+  document.addEventListener('pointerdown', function (ev) {
+    var el = ev.target.closest && ev.target.closest('.bubble'), box = document.getElementById('bubbles'); if (!el || !box || !box._items) return;
+    var b = box._items.filter(function (x) { return x.el === el; })[0]; if (!b) return;
+    var rect = box.getBoundingClientRect();
+    bubDrag = b; b.moved = 0; b.lx = ev.clientX; b.ly = ev.clientY; b.ox = ev.clientX - rect.left - b.x; b.oy = ev.clientY - rect.top - b.y;
+    try { el.setPointerCapture(ev.pointerId); } catch (e) { /* ok */ }
+  });
+  document.addEventListener('pointermove', function (ev) {
+    if (!bubDrag) return; var box = document.getElementById('bubbles'); if (!box) return;
+    var rect = box.getBoundingClientRect(), b = bubDrag;
+    b.moved += Math.abs(ev.clientX - b.lx) + Math.abs(ev.clientY - b.ly);
+    b.vx = (ev.clientX - b.lx) * .6; b.vy = (ev.clientY - b.ly) * .6; b.lx = ev.clientX; b.ly = ev.clientY;
+    b.x = Math.max(b.r, Math.min(box._W - b.r, ev.clientX - rect.left - b.ox)); b.y = Math.max(b.r, Math.min(box._H - b.r, ev.clientY - rect.top - b.oy));
+  });
+  document.addEventListener('pointerup', function () { if (bubDrag) { var b = bubDrag; bubDrag = null; b.justDragged = b.moved > 8; } });
+  function bubbleSheet(e) {
+    var over = toMin(e.end) <= nowMin(), a = !over && aiPlan(e), p = e.prio || 2;
+    openSheet('<h2 style="font-size:22px">' + esc(e.title) + '</h2><p class="muted">' + e.start + '–' + e.end + ' · ' + KINDS[e.kind].label + '</p>' +
+      '<div class="chips" role="group" aria-label="优先级">' + [1, 2, 3].map(function (n) { return '<button class="pchip p' + n + '" data-act="set-prio" data-id="' + e.id + '" data-v="' + n + '" aria-pressed="' + (p === n) + '">' + PRIO_NAME[n] + '</button>'; }).join('') + '</div>' +
+      (e.ai ? '<div class="ai-tip done">交给 AI 了 · 原 ' + fmtPlain(e.ai.before) + '，省下的已留白</div>' :
+        a ? '<div class="ai-tip"><span>' + esc(a.method) + '：约 ' + fmtPlain(a.after) + '，可省 <b>' + fmtPlain(a.saved) + '</b></span><button class="btn sm" data-act="to-ai" data-id="' + e.id + '">交给 AI</button></div>' : '') +
+      '<button class="btn wide" data-act="del" data-id="' + e.id + '">删除</button><button class="btn wide" data-act="close">关闭</button>');
   }
   function blankCard() {
     var pend = pendingBlanks()[0];
@@ -849,6 +949,7 @@ a { color: inherit; }
     var fs = document.getElementById('footSet'); if (r === 'settings') fs.setAttribute('aria-current', 'page'); else fs.removeAttribute('aria-current');
     var fn = { today: pageToday, line: pageLine, review: pageReview, settings: pageSettings }[r];
     document.getElementById('view').innerHTML = '<div class="page' + (r === 'today' || r === 'review' ? ' split' : '') + '">' + fn() + '</div>';
+    bubSetup();
   }
 
   // ---------- actions ----------
@@ -865,7 +966,7 @@ a { color: inherit; }
       var keep = [], items = [];
       S.drafts.forEach(function (d) {
         if (draftProblem(d)) { keep.push(d); return; }
-        items.push(d.kind === 'blank' ? blankEntry(d.date, d.start, d.end) : { id: uid(), date: d.date, start: d.start, end: d.end, title: d.title || KINDS[d.kind].label, kind: d.kind });
+        items.push(d.kind === 'blank' ? blankEntry(d.date, d.start, d.end) : { id: uid(), date: d.date, start: d.start, end: d.end, title: d.title || KINDS[d.kind].label, kind: d.kind, prio: d.prio || 2 });
       });
       S.drafts = keep; save();
       if (!items.length) { render(); toast('先补完标黄的'); return; }
@@ -894,13 +995,16 @@ a { color: inherit; }
       place(runs.map(function (x) { return blankEntry(todayStr(), toHM(x[0]), toHM(x[1])); }), function (n) { toast(n ? '留出来了' : '这次没留'); });
       return;
     }
+    if (act === 'draft-prio') { var dp = draftById(el); if (dp) { dp.prio = (dp.prio || 2) % 3 + 1; save(); render(); } return; }
+    if (act === 'bubble') { var bx = document.getElementById('bubbles'), bb = bx && bx._items && bx._items.filter(function (x) { return x.el === el; })[0]; if (bb && bb.justDragged) { bb.justDragged = false; return; } var eb = byId(el.getAttribute('data-id')); if (eb) bubbleSheet(eb); return; }
+    if (act === 'set-prio') { var ep = byId(el.getAttribute('data-id')); if (ep) { ep.prio = +el.getAttribute('data-v'); save(); closeSheet(); render(); } return; }
     if (act === 'sort') { S.sortBy = el.getAttribute('data-d'); save(); render(); return; }
     if (act === 'to-ai') {
       var e3 = byId(el.getAttribute('data-id')), a3 = e3 && aiPlan(e3); if (!a3) return;
       var newEnd = toMin(e3.start) + a3.after, oldEnd = toMin(e3.end);
       e3.ai = { before: a3.before, after: a3.after, method: a3.method }; e3.end = toHM(newEnd);
       S.entries.push({ id: uid(), date: e3.date, start: toHM(newEnd), end: toHM(oldEnd), title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '', from: e3.id });
-      save(); render(); toast('省下 ' + fmtPlain(a3.saved) + '，已留白'); return;
+      save(); closeSheet(); render(); toast('省下 ' + fmtPlain(a3.saved) + '，已留白'); return;
     }
     if (act === 'range') { range = +el.getAttribute('data-d'); render(); return; }
     if (act === 'ob-real' || act === 'ob-demo') {
@@ -949,6 +1053,7 @@ a { color: inherit; }
     if (ev.key === 'Escape' && document.querySelector('.overlay')) { var cb = clashCb; clashCb = null; closeSheet(); if (cb) cb('cancel'); }
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList && ev.target.classList.contains('leaf')) { ev.preventDefault(); ev.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });
+  window.addEventListener('resize', function () { clearTimeout(window.__bt); window.__bt = setTimeout(bubSetup, 150); });
   window.addEventListener('hashchange', function () { capState.msg = ''; render(); window.scrollTo(0, 0); });
 
   window.__leubaiParse = ruleParse;
