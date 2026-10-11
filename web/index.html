@@ -100,6 +100,28 @@ a { color: inherit; }
 .blank-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border: 1.5px dashed var(--k-blank); border-radius: 20px; }
 .blank-card .when { font-family: var(--font-serif); font-size: 20px; }
 
+.saved { margin-top: 6px; font-size: 13.5px; color: var(--k-restore); }
+.plan-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.plan { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.plan:last-child { border-bottom: 0; }
+.plan .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 7px; }
+.plan .t small { display: block; font-size: 12px; color: var(--text-2); }
+.plan.over { opacity: .45; }
+.ai-tip .btn { white-space: nowrap; flex: none; }
+.ai-tip { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
+.ai-tip b { font-weight: 500; color: var(--k-restore); }
+.ai-tip.done { display: block; border-style: dashed; }
+.ai-mini { color: var(--k-restore); margin-left: 6px; white-space: nowrap; }
+
+.avs { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 10px; }
+.tile-av { display: grid; justify-items: center; gap: 2px; padding: 10px 0 8px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; transition: transform .12s; }
+.tile-av .av { font-size: 26px; line-height: 1.1; }
+.tile-av .tm { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tile-av:active { transform: scale(.94); }
+.tile-av.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); transform: rotate(-3deg); }
+.tile-av.busy { opacity: .3; cursor: default; }
+.tile-av.kept { border-style: dashed; border-color: var(--k-blank); opacity: .7; cursor: default; }
+
 /* Timeline */
 .daynav { display: flex; align-items: center; justify-content: space-between; }
 .daynav button { border: 0; background: none; font-size: 22px; width: 44px; height: 44px; cursor: pointer; color: var(--text-2); }
@@ -188,6 +210,7 @@ a { color: inherit; }
   var PAGES = [{ id: 'today', label: '今天' }, { id: 'line', label: '时间线' }, { id: 'review', label: '回顾' }];
   var STORE_KEY = 'leubai.web.v1';
   var RULES = [
+    { re: /读论文|看论文|读文献|看文献|论文阅读|阅读文献|读报告|看报告/, low: 0.7, high: 0.9, method: 'AI 先读，给你摘要和要点' },
     { re: /邮件|email|回复|消息/i, low: 0.3, high: 0.55, method: 'AI 起草，你来改' },
     { re: /会议|纪要|组会|周会|例会|开会/, low: 0.3, high: 0.6, method: '自动纪要' },
     { re: /论文|文献|筛选|初筛|材料|审稿/, low: 0.3, high: 0.6, method: 'AI 摘要初筛' },
@@ -234,6 +257,14 @@ a { color: inherit; }
   }
   function weekday(s) { var p = s.split('-'); return '日一二三四五六'.charAt(new Date(+p[0], +p[1] - 1, +p[2]).getDay()); }
   function hashInt(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+  // AI estimate for one entry: minutes still needed with AI (midpoint of the rule's range, rounded to 5)
+  function aiPlan(e) {
+    if (e.kind === 'blank' || e.ai) return null;
+    var r = ruleFor(e.title), d = dur(e);
+    if (r === DEFAULT_RULE || !r.high || d < 20) return null;
+    var after = Math.max(5, Math.round(d * (1 - (r.low + r.high) / 2) / 5) * 5);
+    return after < d ? { before: d, after: after, saved: d - after, method: r.method } : null;
+  }
   function ruleFor(title) { for (var i = 0; i < RULES.length; i++) if (RULES[i].re.test(title)) return RULES[i]; return DEFAULT_RULE; }
 
   // ---------- state ----------
@@ -258,9 +289,12 @@ a { color: inherit; }
     for (var d = -20; d <= 0; d++) {
       var date = addDays(t, d), p = date.split('-'), wd = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
       var v = hashInt(date) % 4;
-      if (wd !== 0 && wd !== 6) {
+      if (d === 0) {
+        var n0 = Math.floor(nowMin() / 60) * 60, plan = [[-120, 60, '组会', 'necessary'], [60, 120, '读论文', 'explore'], [180, 40, '邮件回复', 'necessary'], [240, 60, '晚饭', 'connect']];
+        plan.forEach(function (x) { var a = n0 + x[0]; if (a >= 420 && a + x[1] <= 1440) add(0, toHM(a), toHM(a + x[1]), x[2], x[3]); });
+      } else if (wd !== 0 && wd !== 6) {
         add(d, '09:00', '10:00', '组会', 'necessary');
-        add(d, '10:00', '11:30', '论文阅读', 'explore');
+        add(d, '10:00', '11:30', '读论文', 'explore');
         add(d, '11:30', '12:10', '邮件回复', 'necessary');
         add(d, '13:00', v === 0 ? '14:00' : '15:00', '课程设计', 'create');
         if (v !== 0) add(d, '15:10', '16:10', '文献筛选', 'necessary');
@@ -281,7 +315,7 @@ a { color: inherit; }
     add(-6, '20:00', '21:00', '留白', 'blank', { state: 'taken', kept: 0, use: null, note: '临时加了一个会' });
     add(-9, '19:30', '20:30', '留白', 'blank', { state: 'kept', kept: 60, use: 'blank', note: '' });
     add(-13, '20:00', '21:30', '留白', 'blank', { state: 'kept', kept: 90, use: 'create', note: '画了两页速写' });
-    add(0, '21:00', '22:00', '留白', 'blank', { state: 'reserved', kept: 0, use: null, note: '', intent: '' });
+    if (!E.some(function (e) { return e.date === t && toMin(e.start) < 1320 && toMin(e.end) > 1260; })) add(0, '21:00', '22:00', '留白', 'blank', { state: 'reserved', kept: 0, use: null, note: '', intent: '' });
     s.entries = E;
     s.trials = [
       { id: uid(), date: addDays(t, -1), title: '邮件回复', before: 54, after: 19, method: 'AI 起草常规回复' },
@@ -360,6 +394,8 @@ a { color: inherit; }
     m = s.match(new RegExp('(' + NUM + ')\\s*分钟')); if (m) return { min: cnNum(m[1]), text: m[0] };
     return null;
   }
+  var PAST_RE = /刚|已经|花了|用了|做完|搞完/;
+  function nextSlot() { return Math.min(1380, Math.ceil((nowMin() + 5) / 15) * 15); }
   function ruleParse(text) {
     var t = todayStr(), out = [], baseDate = t;
     String(text).split(/[，,。；;！!？?\n]+|然后|之后|接着|还有|另外/).forEach(function (seg) {
@@ -377,10 +413,11 @@ a { color: inherit; }
       var start = null, end = null;
       if (times.length >= 2) { start = times[0]; end = times[1]; if (end <= start && end + 720 > start) end += 720; }
       else if (times.length === 1) { start = times[0]; end = d ? start + d.min : null; }
-      else if (d && date === t) { end = nowMin(); start = Math.max(0, end - d.min); }
+      else if (d && date === t && PAST_RE.test(seg)) { end = nowMin(); start = Math.max(0, end - d.min); }
+      else if (d) { start = date === t ? nextSlot() : 540; end = Math.min(1440, start + d.min); }
       var kind = guessKind(seg);
       var title = rest.replace(new RegExp(PERIOD, 'g'), ' ').replace(/大后天|后天|明天|今天|昨天|前天/g, ' ')
-        .replace(/开(\S{1,4}会)/, '$1').replace(/我们|我|刚才|刚刚|花了|用了|大概|大约|左右|一共|从|到|至|要|需要|打算|准备|想|在|去|了|的|-|~|～|—/g, ' ')
+        .replace(/开(\S{1,4}会)/, '$1').replace(/我们|我|刚才|刚刚|花了|用了|大概|大约|左右|一共|从|到|至|要花|要|需要|打算|准备|想|在|去|了|的|-|~|～|—/g, ' ')
         .replace(/\s+/g, ' ').trim();
       if (kind === 'blank') title = '留白';
       if (!title) title = KINDS[kind].label;
@@ -399,7 +436,7 @@ a { color: inherit; }
       var mins = +it.minutes > 0 ? Math.round(+it.minutes) : 0;
       if (start && !end && mins) end = toHM(toMin(start) + mins);
       if (!start && end && mins) start = toHM(toMin(end) - mins);
-      if (!start && !end && mins && date === t) { end = toHM(nowMin()); start = toHM(nowMin() - mins); }
+      if (!start && !end && mins) { var a0 = date === t ? nextSlot() : 540; start = toHM(a0); end = toHM(a0 + mins); }
       return { id: uid(), title: (kind === 'blank' ? '留白' : it.title).slice(0, 30), kind: kind, date: date, start: start, end: end };
     }).filter(Boolean);
   }
@@ -411,7 +448,7 @@ a { color: inherit; }
     return '你是“留白”的记录助手，把用户的一段口语整理成时间记录。今天是 ' + t + '（星期' + weekday(t) + '），现在是 ' + toHM(nowMin()) + '。\n' +
       '只输出 JSON，不要任何解释：{"items":[{"title":"简短名称，不含时间词","kind":"necessary|restore|create|connect|explore|blank","date":"YYYY-MM-DD","start":"HH:MM 或 null","end":"HH:MM 或 null","minutes":数字或null}]}\n' +
       '分类：necessary=必要劳动（会议、邮件、行政、审稿、批改、上课、通勤等不得不做的事）；create=创造（写作、研究、设计、编程、画画）；connect=连接（家人、朋友、聊天、吃饭、电话）；explore=探索（阅读、学习新东西、看展）；restore=恢复（睡眠、散步、运动、休息）；blank=用户想空出来、什么都不安排的时间。\n' +
-      '“刚才/刚刚…花了 X 分钟”表示刚结束，end 为现在。没说上午下午的 1–6 点按下午算。拿不准的字段写 null，不要编造。一句话里有几件事就拆成几条。\n' +
+      '只说时长没说时间时：说了“刚才/已经/花了”表示刚结束，end 为现在；否则 start 和 end 写 null，只填 minutes。没说上午下午的 1–6 点按下午算。拿不准的字段写 null，不要编造。一句话里有几件事就拆成几条。\n' +
       '用户的话：「' + String(text).slice(0, 600) + '」';
   }
   var capState = { busy: false, msg: '', warn: false, listening: false };
@@ -482,6 +519,7 @@ a { color: inherit; }
       var prob = draftProblem(d);
       return '<div class="draft' + (prob ? ' bad' : '') + '" data-id="' + d.id + '"><div class="t"><input data-f="title" value="' + esc(d.title) + '" aria-label="事情" maxlength="30">' +
         '<div class="times">' + (d.date !== todayStr() ? esc(dateLabel(d.date)) + ' ' : '') + '<input data-f="start" value="' + d.start + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="开始">–<input data-f="end" value="' + d.end + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="结束">' +
+        (!prob && aiPlan(d) ? '<span class="ai-mini">AI 可省 ' + fmtPlain(aiPlan(d).saved) + '</span>' : '') +
         (prob === 'overlap' ? '<button class="btn sm" data-act="draft-force" style="min-height:26px;padding:0 10px">占用留白，仍记下</button>' : prob ? '<span style="color:var(--warm)">' + prob + '</span>' : '') + '</div></div>' +
         kindBtn(d.kind, 'draft-kind') + '<button class="x" data-act="draft-del" aria-label="删掉">×</button></div>';
     }).join('') + '</div>';
@@ -493,18 +531,72 @@ a { color: inherit; }
     var greet = h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
     var nec = entriesOn(t).filter(function (e) { return e.kind === 'necessary'; }).reduce(function (a, e) { return a + dur(e); }, 0);
     var html = '<div class="col"><div><p class="hello">' + greet + (S.name ? '，' + esc(S.name) : '') + '</p></div>' +
-      '<div><div class="label">今天可支配</div><div class="big">' + fmt(Math.max(0, S.wake - nec)) + '</div></div>';
+      '<div><div class="label">今天可支配</div><div class="big">' + fmt(Math.max(0, S.wake - nec)) + '</div>' + savedLine() + '</div>';
     html += '<section class="voice" aria-label="记录">' +
       '<button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" placeholder="说或写：下午两点到三点开会" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section></div>';
-    html += '<div class="col">' + blankCard() + '</div>';
+    html += '<div class="col">' + blankCard() + planList() + picker() + '</div>';
     return html;
+  }
+  // one cartoon per half hour, 07:00–23:30
+  var SLOTS = {
+    420: ['🥱', '起床'], 450: ['🪥', '洗漱'], 480: ['🥱', '打哈欠'], 510: ['🍳', '早餐'], 540: ['☕', '咖啡'], 570: ['📰', '看看新闻'],
+    600: ['🧑‍💻', '写代码'], 630: ['💻', '专注'], 660: ['🤔', '想事情'], 690: ['🚶', '走一走'], 720: ['🍱', '午饭'], 750: ['😴', '午睡'],
+    780: ['💤', '再眯一会'], 810: ['🍵', '喝茶'], 840: ['✍️', '写点东西'], 870: ['🎨', '画画'], 900: ['🧋', '奶茶'], 930: ['🌳', '晒太阳'],
+    960: ['🎧', '听歌'], 990: ['📚', '读书'], 1020: ['🏃', '跑步'], 1050: ['🧘', '拉伸'], 1080: ['🍲', '晚饭'], 1110: ['👨‍👩‍👧', '陪家人'],
+    1140: ['🐶', '遛狗'], 1170: ['🎮', '玩一局'], 1200: ['🎬', '看电影'], 1230: ['🛁', '泡澡'], 1260: ['🌙', '看月亮'], 1290: ['📖', '睡前读'],
+    1320: ['🥱', '犯困'], 1350: ['😴', '睡觉'], 1380: ['💤', '好梦'], 1410: ['🌌', '星空']
+  };
+  var BLOBS = ['46% 54% 42% 58% / 55% 45% 55% 45%', '18px', '60% 40% 55% 45% / 45% 60% 40% 55%', '50%', '40% 60% 50% 50% / 60% 40% 60% 40%', '22px 10px 22px 10px'];
+  var pick = {};
+  function slotState(m) {
+    var t = todayStr(), hit = entriesOn(t).filter(function (e) { return toMin(e.start) < m + 30 && m < toMin(e.end); });
+    if (hit.some(function (e) { return e.kind === 'blank'; })) return 'kept';
+    if (hit.length) return 'busy';
+    return 'free';
+  }
+  function picker() {
+    var from = Math.max(420, Math.ceil(nowMin() / 30) * 30), tiles = '';
+    for (var m = from; m <= 1410; m += 30) {
+      var st = slotState(m), on = !!pick[m], sl = SLOTS[m];
+      tiles += '<button class="tile-av ' + st + (on ? ' on' : '') + '" style="border-radius:' + BLOBS[(m / 30) % BLOBS.length] + '" data-act="pick" data-m="' + m + '"' + (st !== 'free' ? ' disabled' : '') +
+        ' aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已留白' : '') + '"><span class="av" aria-hidden="true">' + sl[0] + '</span><span class="tm">' + toHM(m) + '</span></button>';
+    }
+    if (!tiles) return '';
+    var n = Object.keys(pick).length;
+    return '<section class="block"><h2>留一段给自己</h2><div class="avs">' + tiles + '</div>' +
+      '<button class="btn primary wide" data-act="pick-save"' + (n ? '' : ' disabled') + '>' + (n ? '留白 ' + fmtPlain(n * 30) : '点几个头像') + '</button></section>';
+  }
+  var PRIO = ['necessary', 'create', 'connect', 'explore', 'restore'];
+  function savedLine() {
+    var saved = entriesOn(todayStr()).reduce(function (a, e) { return a + (e.ai ? e.ai.before - e.ai.after : 0); }, 0);
+    return saved ? '<p class="saved">AI 今天帮你省下 ' + fmtPlain(saved) + '，已留白</p>' : '';
+  }
+  function planList() {
+    var now = nowMin(), t = todayStr();
+    var list = entriesOn(t).filter(function (e) { return e.kind !== 'blank'; });
+    if (!list.length) return '';
+    var done = function (e) { return toMin(e.end) <= now; };
+    list.sort(function (a, b) {
+      if (done(a) !== done(b)) return done(a) ? 1 : -1;
+      if (S.sortBy === 'prio') { var d = PRIO.indexOf(a.kind) - PRIO.indexOf(b.kind); if (d) return d; }
+      return toMin(a.start) - toMin(b.start);
+    });
+    return '<section class="block"><div class="plan-head"><h2>今天</h2><div class="seg" role="group" aria-label="排序"><button data-act="sort" data-d="time" aria-pressed="' + (S.sortBy !== 'prio') + '">按时间</button><button data-act="sort" data-d="prio" aria-pressed="' + (S.sortBy === 'prio') + '">按优先</button></div></div><div>' +
+      list.map(function (e) {
+        var a = done(e) ? null : aiPlan(e);
+        var foot = e.ai ? '<div class="ai-tip done">交给 AI 了 · 原 ' + fmtPlain(e.ai.before) + '，省下的已留白</div>' :
+          a ? '<div class="ai-tip"><span>' + esc(a.method) + '：约 ' + fmtPlain(a.after) + '，可省 <b>' + fmtPlain(a.saved) + '</b></span><button class="btn sm" data-act="to-ai" data-id="' + e.id + '">交给 AI</button></div>' : '';
+        return '<div class="plan' + (done(e) ? ' over' : '') + '"><span class="dot" style="background:' + KINDS[e.kind].color + '"></span><div class="t">' + esc(e.title) +
+          '<small>' + e.start + '–' + e.end + ' · ' + KINDS[e.kind].label + '</small>' + foot + '</div></div>';
+      }).join('') + '</div></section>';
   }
   function blankCard() {
     var pend = pendingBlanks()[0];
     if (pend) return '<div class="blank-card"><div><div class="label">' + esc(dateLabel(pend.date)) + '的留白</div><div class="when">留住了吗？</div></div>' +
       '<div class="btns"><button class="btn sm primary" data-act="kept" data-id="' + pend.id + '">留住了</button><button class="btn sm" data-act="taken" data-id="' + pend.id + '">没有</button></div></div>';
+    return '';
     var up = upcomingBlanks()[0];
     if (up) return '<div class="blank-card"><div><div class="label">留白</div><div class="when num">' + up.start + '–' + up.end + '</div></div><button class="x" data-act="del" data-id="' + up.id + '" aria-label="取消这段留白">×</button></div>';
     return '<button class="blank-card" data-act="reserve" style="background:none;cursor:pointer;text-align:left;width:100%"><div><div class="label">留白</div><div class="when">留一段给自己</div></div><span style="font-size:24px" aria-hidden="true">+</span></button>';
@@ -516,7 +608,7 @@ a { color: inherit; }
     var html = '<div class="daynav full"><button data-act="day" data-d="-1" aria-label="前一天">‹</button><span>' + esc(dateLabel(date)) + '</span><button data-act="day" data-d="1" aria-label="后一天">›</button></div>';
     if (!list.length) return html + '<div class="empty full">没有记录</div>';
     return html + '<div class="line full">' + list.map(function (e) {
-      var sub = e.kind === 'blank' ? ({ reserved: blankEnded(e) ? '待确认' : '', kept: '留住了', partial: '留住一部分', taken: '没留住', unknown: '' }[e.state] || '') : '';
+      var sub = e.ai ? 'AI 压缩，原 ' + fmtPlain(e.ai.before) : e.kind === 'blank' ? ({ reserved: blankEnded(e) ? '待确认' : '', kept: '留住了', partial: '留住一部分', taken: '没留住', unknown: '' }[e.state] || '') : '';
       return '<div class="row"><span class="time">' + e.start + '</span><span class="dot' + (e.kind === 'blank' ? ' blank' : '') + '" style="' + (e.kind === 'blank' ? '' : 'background:' + KINDS[e.kind].color) + '"></span>' +
         '<span class="t">' + esc(e.title) + '<small>' + e.start + '–' + e.end + (sub ? ' · ' + sub : '') + '</small></span><button class="x" data-act="del" data-id="' + e.id + '" aria-label="删除 ' + esc(e.title) + '">×</button></div>';
     }).join('') + '</div>';
@@ -614,6 +706,22 @@ a { color: inherit; }
     if (act === 'kept' || act === 'taken') { var e1 = byId(el.getAttribute('data-id')); if (e1) { e1.state = act; e1.kept = act === 'kept' ? dur(e1) : 0; save(); render(); } return; }
     if (act === 'del') { S.entries = S.entries.filter(function (e) { return e.id !== el.getAttribute('data-id'); }); save(); render(); return; }
     if (act === 'day') { var n = +el.getAttribute('data-d'); lineDate = addDays(lineDate || todayStr(), n); if (lineDate === todayStr()) lineDate = null; render(); return; }
+    if (act === 'pick') { var pm = +el.getAttribute('data-m'); if (pick[pm]) delete pick[pm]; else pick[pm] = 1; render(); return; }
+    if (act === 'pick-save') {
+      var ms = Object.keys(pick).map(Number).sort(function (a, b) { return a - b; }); if (!ms.length) return;
+      var runs = [], cur = null;
+      ms.forEach(function (m) { if (cur && cur[1] === m) cur[1] = m + 30; else { cur = [m, m + 30]; runs.push(cur); } });
+      runs.forEach(function (x) { S.entries.push({ id: uid(), date: todayStr(), start: toHM(x[0]), end: toHM(x[1]), title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '' }); });
+      pick = {}; save(); render(); toast('留出来了'); return;
+    }
+    if (act === 'sort') { S.sortBy = el.getAttribute('data-d'); save(); render(); return; }
+    if (act === 'to-ai') {
+      var e3 = byId(el.getAttribute('data-id')), a3 = e3 && aiPlan(e3); if (!a3) return;
+      var newEnd = toMin(e3.start) + a3.after, oldEnd = toMin(e3.end);
+      e3.ai = { before: a3.before, after: a3.after, method: a3.method }; e3.end = toHM(newEnd);
+      S.entries.push({ id: uid(), date: e3.date, start: toHM(newEnd), end: toHM(oldEnd), title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '', from: e3.id });
+      save(); render(); toast('省下 ' + fmtPlain(a3.saved) + '，已留白'); return;
+    }
     if (act === 'range') { range = +el.getAttribute('data-d'); render(); return; }
     if (act === 'ob-real' || act === 'ob-demo') {
       var nm = (document.getElementById('o-name').value || '').trim();
