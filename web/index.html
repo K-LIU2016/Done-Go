@@ -11,33 +11,30 @@
 <style>
 /* Layout: three screens (今天 / 时间线 / 回顾). One big number, one mic, one blank block. Phone: bottom tabs; ≥1100px: side rail. */
 :root {
-  --bg: #F4F6F7;
-  --surface: #FFFFFF;
-  --text: #20292F;
-  --text-2: #6A7780;
-  --line: #E1E7EA;
-  --accent: #426D92;
-  --warm: #9A6E44;
-  --k-nec: #9AA4AA;
-  --k-restore: #5E8C7E;
-  --k-create: #B58448;
-  --k-connect: #B0645A;
-  --k-explore: #4F7BA3;
-  --k-blank: #A9B5BC;
+  --bg: #2F4A38;
+  --surface: #3A5743;
+  --text: #F3F1E6;
+  --text-2: #BCCBBB;
+  --line: rgba(243, 241, 230, .14);
+  --accent: #E9E3A6;
+  --warm: #F0C987;
+  --k-nec: #A9B3AE;
+  --k-restore: #8CC3A8;
+  --k-create: #E2B36B;
+  --k-connect: #E38E7F;
+  --k-explore: #8FB8DA;
+  --k-blank: #C9D3C6;
+  --spring: #EEF0BE;
+  --spring-ink: #2F3B26;
+  --moss: #9DB397;
+  --moss-line: #B5C6AE;
+  --deep: #1C3125;
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
   --font-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-  color-scheme: light;
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #11161A; --surface: #192026; --text: #E8EDEF; --text-2: #9AA8B0; --line: #2A353B; --accent: #8DB3D4; --warm: #D2A876;
-    --k-nec: #6F7C84; --k-restore: #7FB2A2; --k-create: #D3A467; --k-connect: #D18A7F; --k-explore: #7FA7CC; --k-blank: #7D8C94; color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #11161A; --surface: #192026; --text: #E8EDEF; --text-2: #9AA8B0; --line: #2A353B; --accent: #8DB3D4; --warm: #D2A876;
-  --k-nec: #6F7C84; --k-restore: #7FB2A2; --k-create: #D3A467; --k-connect: #D18A7F; --k-explore: #7FA7CC; --k-blank: #7D8C94; color-scheme: dark;
-}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #263E2F; --surface: #304C3A; } }
+:root[data-theme="dark"] { --bg: #263E2F; --surface: #304C3A; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
@@ -74,7 +71,9 @@ a { color: inherit; }
 .big { font-family: var(--font-serif); font-size: 64px; line-height: 1; font-variant-numeric: tabular-nums; }
 .big small { font-family: var(--font-sans); font-size: 16px; color: var(--text-2); margin: 0 .25em 0 .1em; }
 .label { font-size: 13px; color: var(--text-2); letter-spacing: .08em; }
-.voice { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 14px; padding: 26px 18px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 28px; }
+.voice { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 14px; padding: 26px 18px 18px; background: linear-gradient(160deg, #F6F6D2, var(--spring)); color: var(--spring-ink); border: 0; border-radius: 28px;
+  --text: var(--spring-ink); --text-2: #5F6B50; --line: rgba(47, 59, 38, .14); --bg: rgba(255, 255, 255, .65); --surface: #FFFFFF; }
+.voice .mic, .voice .say button, .voice .btn.primary { background: var(--deep); color: var(--spring); border-color: var(--deep); }
 .mic { width: 84px; height: 84px; border-radius: 50%; border: 0; background: var(--text); color: var(--bg); display: grid; place-items: center; cursor: pointer; position: relative; }
 .mic svg { width: 32px; height: 32px; }
 .mic.on { background: var(--k-connect); }
@@ -113,12 +112,13 @@ a { color: inherit; }
 .ai-tip.done { display: block; border-style: dashed; }
 .ai-mini { color: var(--k-restore); margin-left: 6px; white-space: nowrap; }
 
+.picker { border: 2px solid var(--deep); border-radius: 26px; padding: 18px 16px; }
 .avs { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 10px; }
-.tile-av { display: grid; justify-items: center; gap: 2px; padding: 10px 0 8px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; transition: transform .12s; }
+.tile-av { display: grid; justify-items: center; gap: 2px; padding: 10px 0 8px; border: 1.5px solid rgba(243, 241, 230, .16); background: rgba(28, 49, 37, .35); cursor: pointer; transition: transform .12s; }
 .tile-av .av { font-size: 26px; line-height: 1.1; }
 .tile-av .tm { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .tile-av:active { transform: scale(.94); }
-.tile-av.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); transform: rotate(-3deg); }
+.tile-av.on { border-color: var(--spring); background: rgba(238, 240, 190, .22); transform: rotate(-3deg); }
 .tile-av.busy { opacity: .4; }
 .tile-av.busy.on { opacity: 1; }
 .tile-av.kept { border-style: dashed; border-color: var(--k-blank); opacity: .7; cursor: default; }
@@ -135,12 +135,8 @@ a { color: inherit; }
 .check input { width: 18px; height: 18px; accent-color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .oops, .oops .drop { animation: none; } }
 
-:root { --p1: #E0524A; --p2: #EFA05E; --p3: #BFC6CB; --field: #FBF3EA; --field-line: #F1E1CF; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --field: #2A231D; --field-line: #3A3027; --p3: #6F777C; } }
-:root[data-theme="dark"] { --field: #2A231D; --field-line: #3A3027; --p3: #6F777C; }
-.bubbles { position: relative; height: 380px; border-radius: 28px; background: radial-gradient(120% 80% at 50% 0%, #FFF8F0, var(--field) 70%); border: 1px solid var(--field-line); overflow: hidden; touch-action: none; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bubbles { background: var(--field); } }
-:root[data-theme="dark"] .bubbles { background: var(--field); }
+:root { --p1: #D9483E; --p2: #E5714A; --p3: #EFA05E; --p4: #D8C29C; --p5: #BFC6CB; --field: var(--moss); --field-line: var(--moss-line); }
+.bubbles { position: relative; height: 380px; border-radius: 28px; background: radial-gradient(120% 80% at 50% 0%, #B7C8B0, var(--field) 72%); border: 1px solid var(--field-line); overflow: hidden; touch-action: none; }
 .bubble { position: absolute; left: 0; top: 0; display: grid; place-content: center; gap: 1px; text-align: center; border: 0; padding: 0 3px; cursor: grab; color: #fff; background: none; user-select: none; -webkit-user-select: none; will-change: transform; isolation: isolate; transition: opacity .4s; }
 .bubble::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; animation: cell 5s ease-in-out infinite alternate, spin 14s linear infinite;
   box-shadow: inset -7px -9px 16px rgba(0,0,0,.10), 0 8px 18px rgba(120,70,30,.12); }
@@ -150,10 +146,20 @@ a { color: inherit; }
 .bubble .bt { font-weight: 500; line-height: 1.2; white-space: nowrap; letter-spacing: -.02em; }
 .bubble .bs { font-size: .78em; opacity: .85; font-variant-numeric: tabular-nums; }
 .bubble.p1::before { background: radial-gradient(circle at 32% 28%, #F59A8E, var(--p1) 68%); }
-.bubble.p2::before { background: radial-gradient(circle at 32% 28%, #F9CFA3, var(--p2) 68%); }
-.bubble.p3::before { background: radial-gradient(circle at 32% 28%, #ECEFF1, var(--p3) 70%); }
-.bubble.p2 { opacity: .9; }
-.bubble.p3 { color: #4A545B; opacity: .72; }
+.bubble.p2::before { background: radial-gradient(circle at 32% 28%, #F6A585, var(--p2) 68%); }
+.bubble.p3::before { background: radial-gradient(circle at 32% 28%, #F9CFA3, var(--p3) 68%); }
+.bubble.p4::before { background: radial-gradient(circle at 32% 28%, #F3E7CF, var(--p4) 70%); }
+.bubble.p5::before { background: radial-gradient(circle at 32% 28%, #ECEFF1, var(--p5) 70%); }
+.bubble.p3 { opacity: .92; }
+.bubble.p4 { color: #4E4634; opacity: .85; }
+.bubble.p5 { color: #4A545B; opacity: .75; }
+.bubble.sel { opacity: 1; z-index: 2; }
+.bubble.sel::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px dashed var(--deep); animation: spin 8s linear infinite; }
+.selbar { display: grid; gap: 10px; padding: 12px 14px; border-radius: 20px; background: var(--surface); }
+.sel-name { font-size: 15px; }
+.sel-name .pdot { font-style: normal; margin-right: 4px; }
+.sel-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.sel-btns .btn { flex: 1 0 auto; }
 .bubble.over { opacity: .3; filter: grayscale(.6); }
 .bubble.pop::before { animation: pop .45s ease-out, cell 5s ease-in-out infinite alternate, spin 14s linear infinite; }
 @keyframes cell {
@@ -167,7 +173,9 @@ a { color: inherit; }
 .pdot { border: 0; border-radius: 999px; padding: 3px 9px; font-size: 12px; cursor: pointer; color: #fff; white-space: nowrap; }
 .pdot.p1, .pchip.p1[aria-pressed="true"] { background: var(--p1); color: #fff; border-color: var(--p1); }
 .pdot.p2, .pchip.p2[aria-pressed="true"] { background: var(--p2); color: #fff; border-color: var(--p2); }
-.pdot.p3, .pchip.p3[aria-pressed="true"] { background: var(--p3); color: #4A545B; border-color: var(--p3); }
+.pdot.p3, .pchip.p3[aria-pressed="true"] { background: var(--p3); color: #fff; border-color: var(--p3); }
+.pdot.p4, .pchip.p4[aria-pressed="true"] { background: var(--p4); color: #4E4634; border-color: var(--p4); }
+.pdot.p5, .pchip.p5[aria-pressed="true"] { background: var(--p5); color: #4A545B; border-color: var(--p5); }
 @media (min-width: 1100px) { .bubbles { height: 440px; } }
 @media (prefers-reduced-motion: reduce) { .bubble::before { animation: none !important; } }
 @media (min-width: 1100px) { .bubbles { height: 440px; } }
@@ -325,9 +333,9 @@ a { color: inherit; }
 
   // ---------- state ----------
   var memoryOnly = false;
-  function blankState() { return { v: 1, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'prio' }; }
+  function blankState() { return { v: 1, pv: 5, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'prio' }; }
   function load() {
-    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) { s.drafts = s.drafts || []; s.sortBy = s.sortBy || 'prio'; return s; } } } catch (e) { memoryOnly = true; }
+    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) { s.drafts = s.drafts || []; s.sortBy = s.sortBy || 'prio'; if (!s.pv) { s.entries.concat(s.drafts).forEach(function (e) { if (e.prio) e.prio = { 1: 1, 2: 3, 3: 5 }[e.prio] || 3; }); s.pv = 5; } return s; } } } catch (e) { memoryOnly = true; }
     return blankState();
   }
   var S = load();
@@ -346,7 +354,7 @@ a { color: inherit; }
       var date = addDays(t, d), p = date.split('-'), wd = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
       var v = hashInt(date) % 4;
       if (d === 0) {
-        var n0 = Math.floor(nowMin() / 60) * 60, plan = [[-120, 60, '组会', 'necessary', 2], [60, 120, '读论文', 'explore', 1], [180, 40, '邮件回复', 'necessary', 3], [240, 60, '晚饭', 'connect', 2], [300, 90, '健身', 'restore', 3], [400, 60, '给妈妈打电话', 'connect', 1]];
+        var n0 = Math.floor(nowMin() / 60) * 60, plan = [[-120, 60, '组会', 'necessary', 3], [60, 120, '读论文', 'explore', 1], [180, 40, '邮件回复', 'necessary', 5], [240, 60, '晚饭', 'connect', 3], [300, 90, '健身', 'restore', 4], [400, 60, '给妈妈打电话', 'connect', 2]];
         plan.forEach(function (x) { var a = n0 + x[0]; if (a >= 420 && a + x[1] <= 1440) add(0, toHM(a), toHM(a + x[1]), x[2], x[3], { prio: x[4] }); });
       } else if (wd !== 0 && wd !== 6) {
         add(d, '09:00', '10:00', '组会', 'necessary');
@@ -477,7 +485,7 @@ a { color: inherit; }
       var title = rest.replace(new RegExp(PERIOD, 'g'), ' ').replace(/大后天|后天|明天|今天|昨天|前天/g, ' ')
         .replace(/开(\S{1,4}会)/, '$1').replace(/我们|我|刚才|刚刚|花了|用了|大概|大约|左右|一共|从|到|至|要花|要|需要|打算|准备|想|在|去|了|的|-|~|～|—/g, ' ')
         .replace(/\s+/g, ' ').trim();
-      if (!times.length && !d && prio !== 2 && !title.replace(/[这那个件事是它就也都很]/g, '').trim() && out.length) { out[out.length - 1].prio = prio; return; }
+      if (!times.length && !d && prio !== 3 && !title.replace(/[这那个件事是它就也都很]/g, '').trim() && out.length) { out[out.length - 1].prio = prio; return; }
       if (kind === 'blank') title = '留白';
       if (!title) title = KINDS[kind].label;
       out.push({ id: uid(), title: title.slice(0, 30), kind: kind, prio: prio, date: date, start: start == null ? '' : toHM(start), end: end == null ? '' : toHM(end) });
@@ -497,7 +505,7 @@ a { color: inherit; }
       if (!start && end && mins) start = toHM(toMin(end) - mins);
       if (!start && !end && mins) { var a0 = date === t ? nextSlot() : 540; start = toHM(a0); end = toHM(a0 + mins); }
       if (!start && !end && kind !== 'blank') { var a1 = date === t ? nextSlot() : 540; start = toHM(a1); end = toHM(Math.min(1440, a1 + 60)); }
-      return { id: uid(), title: (kind === 'blank' ? '留白' : it.title.replace(PRIO_STRIP, '').trim() || it.title).slice(0, 30), kind: kind, prio: [1, 2, 3].indexOf(+it.prio) >= 0 ? +it.prio : prioOf(it.title), date: date, start: start, end: end };
+      return { id: uid(), title: (kind === 'blank' ? '留白' : it.title.replace(PRIO_STRIP, '').trim() || it.title).slice(0, 30), kind: kind, prio: [1, 2, 3, 4, 5].indexOf(+it.prio) >= 0 ? +it.prio : prioOf(it.title), date: date, start: start, end: end };
     }).filter(Boolean);
   }
   var sampleP = (window.claude && typeof window.claude.use === 'function') ? Promise.resolve(window.claude.use('sample')).catch(function () { return null; }) : Promise.resolve(null);
@@ -506,8 +514,8 @@ a { color: inherit; }
   function aiPrompt(text) {
     var t = todayStr();
     return '你是“留白”的记录助手，把用户的一段口语整理成时间记录。今天是 ' + t + '（星期' + weekday(t) + '），现在是 ' + toHM(nowMin()) + '。\n' +
-      '只输出 JSON，不要任何解释：{"items":[{"title":"简短名称，不含时间词","kind":"necessary|restore|create|connect|explore|blank","date":"YYYY-MM-DD","start":"HH:MM 或 null","end":"HH:MM 或 null","minutes":数字或null,"prio":1|2|3}]}\n' +
-      'prio：用户说最优先、最重要、一定要、紧急的写 1；说不急、有空再、顺便的写 3；没提就写 2。\n' +
+      '只输出 JSON，不要任何解释：{"items":[{"title":"简短名称，不含时间词","kind":"necessary|restore|create|connect|explore|blank","date":"YYYY-MM-DD","start":"HH:MM 或 null","end":"HH:MM 或 null","minutes":数字或null,"prio":1到5的整数}]}\n' +
+      'prio：1=最优先（最重要、一定要、紧急），2=优先（重要、尽快），3=一般（没提就写 3），4=稍缓（顺便、晚点也行），5=不急（有空再、不急）。\n' +
       '分类：necessary=必要劳动（会议、邮件、行政、审稿、批改、上课、通勤等不得不做的事）；create=创造（写作、研究、设计、编程、画画）；connect=连接（家人、朋友、聊天、吃饭、电话）；explore=探索（阅读、学习新东西、看展）；restore=恢复（睡眠、散步、运动、休息）；blank=用户想空出来、什么都不安排的时间。\n' +
       '只说时长没说时间时：说了“刚才/已经/花了”表示刚结束，end 为现在；否则 start 和 end 写 null，只填 minutes。没说上午下午的 1–6 点按下午算。拿不准的字段写 null，不要编造。一句话里有几件事就拆成几条。\n' +
       '用户的话：「' + String(text).slice(0, 600) + '」';
@@ -581,7 +589,7 @@ a { color: inherit; }
         '<div class="times">' + (d.date !== todayStr() ? esc(dateLabel(d.date)) + ' ' : '') + '<input data-f="start" value="' + d.start + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="开始">–<input data-f="end" value="' + d.end + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="结束">' +
         (!prob && aiPlan(d) ? '<span class="ai-mini">AI 可省 ' + fmtPlain(aiPlan(d).saved) + '</span>' : '') +
         (prob ? '<span style="color:var(--warm)">' + prob + '</span>' : '') + '</div></div>' +
-        (d.kind === 'blank' ? '' : '<button class="pdot p' + (d.prio || 2) + '" data-act="draft-prio" aria-label="优先级：' + PRIO_NAME[d.prio || 2] + '，点按切换">' + PRIO_NAME[d.prio || 2] + '</button>') +
+        (d.kind === 'blank' ? '' : '<button class="pdot p' + P(d) + '" data-act="draft-prio" aria-label="优先级：' + PRIO_NAME[P(d)] + '，点按切换">' + PRIO_NAME[P(d)] + '</button>') +
         kindBtn(d.kind, 'draft-kind') + '<button class="x" data-act="draft-del" aria-label="删掉">×</button></div>';
     }).join('') + '</div>';
     return html + '<button class="btn primary wide" data-act="draft-commit">记下</button>';
@@ -626,7 +634,7 @@ a { color: inherit; }
     }
     if (!tiles) return '';
     var n = Object.keys(pick).length;
-    return '<section class="block"><h2>留一段给自己</h2><div class="avs">' + tiles + '</div>' +
+    return '<section class="block picker"><h2>留一段给自己</h2><div class="avs">' + tiles + '</div>' +
       '<button class="btn primary wide" data-act="pick-save"' + (n ? '' : ' disabled') + '>' + (n ? '留白 ' + fmtPlain(n * 30) : '点几个头像') + '</button></section>';
   }
   var PRIO = ['necessary', 'create', 'connect', 'explore', 'restore'];
@@ -635,21 +643,30 @@ a { color: inherit; }
     return saved ? '<p class="saved">AI 今天帮你省下 ' + fmtPlain(saved) + '，已留白</p>' : '';
   }
   // ---------- today as bubbles: priority floats up and turns red ----------
-  var PRIO_RE = [[1, /最优先|最重要|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧/], [3, /不急|不重要|有空再|有空的话|随便|次要|顺便|可做可不做|晚点也行/], [1, /优先|重要|要紧/]];
-  var PRIO_STRIP = /(这|这件事|这个)?(是|很|非常|特别)?(最优先级?|最重要的?|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧|不急|不重要|有空再|有空的话|随便|次要|顺便|可做可不做|晚点也行|优先级?|重要的?|要紧)(的事)?/g;
-  function prioOf(seg) { for (var i = 0; i < PRIO_RE.length; i++) if (PRIO_RE[i][1].test(seg)) return PRIO_RE[i][0]; return 2; }
-  var PRIO_NAME = { 1: '最优先', 2: '一般', 3: '不急' };
-  var bub = {}, bubRaf = 0, bubDrag = null, bubPress = 0;
+  var PRIO_RE = [[1, /最优先|最重要|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧/], [5, /不急|不重要|有空再|有空的话|随便|可做可不做/], [4, /次要|顺便|晚点也行|可以晚点|稍后|缓一缓|不那么急/], [2, /优先|重要|要紧|尽快|早点/]];
+  var PRIO_STRIP = /(这|这件事|这个)?(是|很|非常|特别)?(最优先级?|最重要的?|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧|不急|不重要|有空再|有空的话|随便|次要|顺便|可做可不做|晚点也行|可以晚点|稍后|缓一缓|不那么急|尽快|早点|优先级?|重要的?|要紧)(的事)?/g;
+  function prioOf(seg) { for (var i = 0; i < PRIO_RE.length; i++) if (PRIO_RE[i][1].test(seg)) return PRIO_RE[i][0]; return 3; }
+  var PRIO_NAME = { 1: '最优先', 2: '优先', 3: '一般', 4: '稍缓', 5: '不急' };
+  function P(e) { return e.prio || 3; }
+  var bub = {}, bubRaf = 0, bubDrag = null, bubSel = null;
+  function selBar() {
+    var e = bubSel && byId(bubSel);
+    if (!e) return '<p class="small muted bub-hint">点泡泡选中，可以升降、修改或删除</p>';
+    var p = P(e);
+    return '<div class="selbar" role="toolbar" aria-label="' + esc(e.title) + '"><span class="sel-name"><i class="pdot p' + p + '">' + PRIO_NAME[p] + '</i> ' + esc(e.title) + '</span>' +
+      '<div class="sel-btns"><button class="btn sm" data-act="prio-up"' + (p === 1 ? ' disabled' : '') + ' aria-label="升一级">↑ 升</button><button class="btn sm" data-act="prio-down"' + (p === 5 ? ' disabled' : '') + ' aria-label="降一级">↓ 降</button>' +
+      '<button class="btn sm" data-act="edit">修改</button><button class="btn sm" data-act="del" data-id="' + e.id + '">删除</button><button class="btn sm" data-act="unsel">取消</button></div></div>';
+  }
   function bubbleField() {
     var now = nowMin(), list = entriesOn(todayStr()).filter(function (e) { return e.kind !== 'blank'; });
     if (!list.length) return '';
     return '<section class="block"><div class="plan-head"><h2>今天</h2><div class="seg" role="group" aria-label="排列"><button data-act="sort" data-d="prio" aria-pressed="' + (S.sortBy !== 'time') + '">按优先</button><button data-act="sort" data-d="time" aria-pressed="' + (S.sortBy === 'time') + '">按时间</button></div></div>' +
       '<div class="bubbles" id="bubbles" data-mode="' + (S.sortBy === 'time' ? 'time' : 'prio') + '">' + list.map(function (e) {
-        var p = e.prio || 2, over = toMin(e.end) <= now, a = !over && aiPlan(e);
+        var p = P(e), over = toMin(e.end) <= now, a = !over && aiPlan(e);
         var t = e.title.length > 6 ? e.title.slice(0, 5) + '…' : e.title;
-        return '<button class="bubble p' + p + (over ? ' over' : '') + '" data-id="' + e.id + '" data-act="bubble" aria-label="' + esc(e.title) + '，' + PRIO_NAME[p] + '，' + e.start + '–' + e.end + '">' +
+        return '<button class="bubble p' + p + (over ? ' over' : '') + (bubSel === e.id ? ' sel' : '') + '" data-id="' + e.id + '" data-act="bubble" aria-label="' + esc(e.title) + '，' + PRIO_NAME[p] + '，' + e.start + '–' + e.end + '">' +
           '<span class="bt">' + esc(t) + '</span><span class="bs">' + e.start + (a ? ' ✦' : e.ai ? ' ✓' : '') + '</span></button>';
-      }).join('') + '</div><p class="small muted bub-hint">点一下升一级，长按看详情</p></section>';
+      }).join('') + '</div>' + selBar() + '</section>';
   }
   function bubSetup() {
     var box = document.getElementById('bubbles');
@@ -660,10 +677,10 @@ a { color: inherit; }
     var k = Math.min(1, Math.sqrt(W * H * 0.5 / Math.max(area, 1)));
     var times = [].map.call(els, function (el) { return toMin(el._e.start); }), t0 = Math.min.apply(null, times), t1 = Math.max.apply(null, times);
     els.forEach(function (el, i) {
-      var e = el._e, r = Math.max(24, el._r * k), id = e.id, p = e.prio || 2, over = toMin(e.end) <= now;
+      var e = el._e, r = Math.max(24, el._r * k), id = e.id, p = P(e), over = toMin(e.end) <= now;
       var f = t1 > t0 ? (toMin(e.start) - t0) / (t1 - t0) : .5;
       var tx = S.sortBy === 'time' ? W * (i % 2 ? .66 : .34) : null;
-      var ty = S.sortBy === 'time' ? r + (H - 2 * r) * f : H * (over ? .9 : [0, .16, .5, .8][p]);
+      var ty = S.sortBy === 'time' ? r + (H - 2 * r) * f : H * (over ? .92 : [0, .1, .28, .48, .66, .82][p]);
       var b = bub[id] || (bub[id] = { x: W / 2 + (Math.random() - .5) * W * .5, y: H + r, vx: 0, vy: 0, ph: Math.random() * 6.28 });
       b.r = r; b.tx = tx; b.ty = Math.max(r, Math.min(H - r, ty)); b.el = el;
       el.style.width = el.style.height = (2 * r) + 'px'; el.style.fontSize = Math.max(11, Math.min(14, r / 3.5)) + 'px';
@@ -706,14 +723,13 @@ a { color: inherit; }
     var el = ev.target.closest && ev.target.closest('.bubble'), box = document.getElementById('bubbles'); if (!el || !box || !box._items) return;
     var b = box._items.filter(function (x) { return x.el === el; })[0]; if (!b) return;
     var rect = box.getBoundingClientRect();
-    clearTimeout(bubPress); bubPress = setTimeout(function () { if (bubDrag === b && b.moved < 8) { b.longPressed = true; bubDrag = null; var e = byId(el.getAttribute('data-id')); if (e) bubbleSheet(e); } }, 550);
     bubDrag = b; b.moved = 0; b.lx = ev.clientX; b.ly = ev.clientY; b.ox = ev.clientX - rect.left - b.x; b.oy = ev.clientY - rect.top - b.y;
     try { el.setPointerCapture(ev.pointerId); } catch (e) { /* ok */ }
   });
   document.addEventListener('contextmenu', function (ev) {
     var el = ev.target.closest && ev.target.closest('.bubble'); if (!el) return;
     ev.preventDefault();
-    if (!document.querySelector('.overlay')) { var e = byId(el.getAttribute('data-id')); if (e) bubbleSheet(e); }
+    if (!document.querySelector('.overlay')) { bubSel = el.getAttribute('data-id'); render(); editSheet(); }
   });
   document.addEventListener('pointermove', function (ev) {
     if (!bubDrag) return; var box = document.getElementById('bubbles'); if (!box) return;
@@ -722,15 +738,21 @@ a { color: inherit; }
     b.vx = (ev.clientX - b.lx) * .6; b.vy = (ev.clientY - b.ly) * .6; b.lx = ev.clientX; b.ly = ev.clientY;
     b.x = Math.max(b.r, Math.min(box._W - b.r, ev.clientX - rect.left - b.ox)); b.y = Math.max(b.r, Math.min(box._H - b.r, ev.clientY - rect.top - b.oy));
   });
-  document.addEventListener('pointerup', function () { clearTimeout(bubPress); if (bubDrag) { var b = bubDrag; bubDrag = null; b.justDragged = b.moved > 8; } });
-  function bubbleSheet(e) {
-    var over = toMin(e.end) <= nowMin(), a = !over && aiPlan(e), p = e.prio || 2;
-    openSheet('<h2 style="font-size:22px">' + esc(e.title) + '</h2><p class="muted">' + e.start + '–' + e.end + ' · ' + KINDS[e.kind].label + '</p>' +
-      '<div class="chips" role="group" aria-label="优先级">' + [1, 2, 3].map(function (n) { return '<button class="pchip p' + n + '" data-act="set-prio" data-id="' + e.id + '" data-v="' + n + '" aria-pressed="' + (p === n) + '">' + PRIO_NAME[n] + '</button>'; }).join('') + '</div>' +
+  document.addEventListener('pointerup', function () { if (bubDrag) { var b = bubDrag; bubDrag = null; b.justDragged = b.moved > 8; } });
+  var editPrio = 3;
+  function editSheet() {
+    var e = bubSel && byId(bubSel); if (!e) return;
+    var over = toMin(e.end) <= nowMin(), a = !over && aiPlan(e); editPrio = P(e);
+    openSheet('<h2 style="font-size:22px">修改</h2>' +
+      '<div class="field"><label for="ed-title">事情</label><input id="ed-title" maxlength="30" value="' + esc(e.title) + '"></div>' +
+      '<div class="pair"><div class="field"><label for="ed-start">开始</label><input id="ed-start" inputmode="numeric" maxlength="5" value="' + e.start + '"></div><div class="field"><label for="ed-end">结束</label><input id="ed-end" inputmode="numeric" maxlength="5" value="' + e.end + '"></div></div>' +
+      '<div class="chips" role="group" aria-label="优先级">' + [1, 2, 3, 4, 5].map(function (n) { return '<button class="pchip p' + n + '" data-act="ed-prio" data-v="' + n + '" aria-pressed="' + (editPrio === n) + '">' + PRIO_NAME[n] + '</button>'; }).join('') + '</div>' +
       (e.ai ? '<div class="ai-tip done">交给 AI 了 · 原 ' + fmtPlain(e.ai.before) + '，省下的已留白</div>' :
         a ? '<div class="ai-tip"><span>' + esc(a.method) + '：约 ' + fmtPlain(a.after) + '，可省 <b>' + fmtPlain(a.saved) + '</b></span><button class="btn sm" data-act="to-ai" data-id="' + e.id + '">交给 AI</button></div>' : '') +
-      '<button class="btn wide" data-act="del" data-id="' + e.id + '">删除</button><button class="btn wide" data-act="close">关闭</button>');
+      '<button class="btn primary wide" data-act="ed-save">保存</button><div class="clash-btns"><button class="btn" data-act="del" data-id="' + e.id + '">删除</button><button class="btn" data-act="close">取消</button></div>');
   }
+  function hm(v) { v = String(v || '').trim().replace('：', ':'); var m = v.match(/^(\d{1,2})(?::?(\d{2}))?$/); return m && +m[1] <= 24 ? pad(+m[1]) + ':' + (m[2] || '00') : v; }
+
   function blankCard() {
     var pend = pendingBlanks()[0];
     if (pend) return '<div class="blank-card"><div><div class="label">' + esc(dateLabel(pend.date)) + '的留白</div><div class="when">留住了吗？</div></div>' +
@@ -987,7 +1009,7 @@ a { color: inherit; }
       var keep = [], items = [];
       S.drafts.forEach(function (d) {
         if (draftProblem(d)) { keep.push(d); return; }
-        items.push(d.kind === 'blank' ? blankEntry(d.date, d.start, d.end) : { id: uid(), date: d.date, start: d.start, end: d.end, title: d.title || KINDS[d.kind].label, kind: d.kind, prio: d.prio || 2 });
+        items.push(d.kind === 'blank' ? blankEntry(d.date, d.start, d.end) : { id: uid(), date: d.date, start: d.start, end: d.end, title: d.title || KINDS[d.kind].label, kind: d.kind, prio: P(d) });
       });
       S.drafts = keep; save();
       if (!items.length) { render(); toast('先补完标黄的'); return; }
@@ -1004,7 +1026,7 @@ a { color: inherit; }
       save(); closeSheet(); render(); toast('留出来了'); return;
     }
     if (act === 'kept' || act === 'taken') { var e1 = byId(el.getAttribute('data-id')); if (e1) { e1.state = act; e1.kept = act === 'kept' ? dur(e1) : 0; save(); closeSheet(); render(); } return; }
-    if (act === 'del') { S.entries = S.entries.filter(function (e) { return e.id !== el.getAttribute('data-id'); }); save(); closeSheet(); render(); return; }
+    if (act === 'del') { var did = el.getAttribute('data-id'); S.entries = S.entries.filter(function (e) { return e.id !== did; }); if (bubSel === did) bubSel = null; save(); closeSheet(); render(); toast('已删除'); return; }
     if (act === 'leaf') { var e4 = byId(el.getAttribute('data-id')); if (e4) leafSheet(e4); return; }
     if (act === 'day') { var n = +el.getAttribute('data-d'); lineDate = addDays(lineDate || todayStr(), n); if (lineDate === todayStr()) lineDate = null; render(); return; }
     if (act === 'pick') { var pm = +el.getAttribute('data-m'); if (pick[pm]) delete pick[pm]; else pick[pm] = 1; render(); return; }
@@ -1016,19 +1038,29 @@ a { color: inherit; }
       place(runs.map(function (x) { return blankEntry(todayStr(), toHM(x[0]), toHM(x[1])); }), function (n) { toast(n ? '留出来了' : '这次没留'); });
       return;
     }
-    if (act === 'draft-prio') { var dp = draftById(el); if (dp) { dp.prio = (dp.prio || 2) % 3 + 1; save(); render(); } return; }
+    if (act === 'draft-prio') { var dp = draftById(el); if (dp) { dp.prio = P(dp) % 5 + 1; save(); render(); } return; }
     if (act === 'bubble') {
       var bx = document.getElementById('bubbles'), bb = bx && bx._items && bx._items.filter(function (x) { return x.el === el; })[0];
-      if (bb && (bb.justDragged || bb.longPressed)) { bb.justDragged = bb.longPressed = false; return; }
-      var eb = byId(el.getAttribute('data-id')); if (!eb) return;
-      var np = eb.prio === 1 ? 3 : (eb.prio || 2) - 1; eb.prio = np; save();
-      if (bb) { bb.vy += np === 3 ? 6 : -9; }
-      el.className = 'bubble p' + np + (toMin(eb.end) <= nowMin() ? ' over' : '') + ' pop';
-      el.setAttribute('aria-label', eb.title + '，' + PRIO_NAME[np] + '，' + eb.start + '–' + eb.end);
-      bubSetup(); toast(PRIO_NAME[np] + (np === 3 ? ' ↓' : ' ↑'));
+      if (bb && bb.justDragged) { bb.justDragged = false; return; }
+      var id0 = el.getAttribute('data-id'); bubSel = bubSel === id0 ? null : id0; render(); return;
+    }
+    if (act === 'unsel') { bubSel = null; render(); return; }
+    if (act === 'prio-up' || act === 'prio-down') {
+      var es = bubSel && byId(bubSel); if (!es) return;
+      var np = Math.max(1, Math.min(5, P(es) + (act === 'prio-up' ? -1 : 1))); es.prio = np; save();
+      if (bub[es.id]) bub[es.id].vy += act === 'prio-up' ? -9 : 6;
+      render(); var pe = document.querySelector('.bubble.sel'); if (pe) pe.classList.add('pop');
       return;
     }
-    if (act === 'set-prio') { var ep = byId(el.getAttribute('data-id')); if (ep) { ep.prio = +el.getAttribute('data-v'); save(); closeSheet(); render(); } return; }
+    if (act === 'edit') return editSheet();
+    if (act === 'ed-prio') { editPrio = +el.getAttribute('data-v'); el.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === el)); }); return; }
+    if (act === 'ed-save') {
+      var ee = bubSel && byId(bubSel); if (!ee) return closeSheet();
+      var t1 = document.getElementById('ed-title').value.trim(), a1 = hm(document.getElementById('ed-start').value), b1 = hm(document.getElementById('ed-end').value);
+      if (!isHM(a1) || !isHM(b1) || toMin(b1) <= toMin(a1)) { toast('时间不对'); return; }
+      if (t1) ee.title = t1; ee.start = a1; ee.end = b1; ee.prio = editPrio;
+      save(); closeSheet(); render(); toast('改好了'); return;
+    }
     if (act === 'sort') { S.sortBy = el.getAttribute('data-d'); save(); render(); return; }
     if (act === 'to-ai') {
       var e3 = byId(el.getAttribute('data-id')), a3 = e3 && aiPlan(e3); if (!a3) return;
