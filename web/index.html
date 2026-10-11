@@ -119,8 +119,21 @@ a { color: inherit; }
 .tile-av .tm { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .tile-av:active { transform: scale(.94); }
 .tile-av.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); transform: rotate(-3deg); }
-.tile-av.busy { opacity: .3; cursor: default; }
+.tile-av.busy { opacity: .4; }
+.tile-av.busy.on { opacity: 1; }
 .tile-av.kept { border-style: dashed; border-color: var(--k-blank); opacity: .7; cursor: default; }
+
+.clash { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.clash h2 { font-size: 21px; }
+.clash p { max-width: 30em; }
+.oops { width: 84px; height: 84px; color: var(--text); animation: wobble .6s ease-in-out 1; }
+.oops .drop { color: var(--k-explore); stroke: var(--k-explore); animation: drip 1.4s ease-in .4s infinite; }
+@keyframes wobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(6deg); } }
+@keyframes drip { 0% { transform: translateY(0); opacity: 1; } 80% { transform: translateY(6px); opacity: 0; } 100% { opacity: 0; } }
+.clash-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.check input { width: 18px; height: 18px; accent-color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .oops, .oops .drop { animation: none; } }
 
 /* Timeline */
 .daynav { display: flex; align-items: center; justify-content: space-between; }
@@ -216,6 +229,7 @@ a { color: inherit; }
   var STORE_KEY = 'leubai.web.v1';
   var RULES = [
     { re: /读论文|看论文|读文献|看文献|论文阅读|阅读文献|读报告|看报告/, low: 0.7, high: 0.9, method: 'AI 先读，给你摘要和要点' },
+    { re: /修改|改稿|润色|校对|写论文|写报告/, low: 0.2, high: 0.4, method: 'AI 帮你润色、查错' },
     { re: /邮件|email|回复|消息/i, low: 0.3, high: 0.55, method: 'AI 起草，你来改' },
     { re: /会议|纪要|组会|周会|例会|开会/, low: 0.3, high: 0.6, method: '自动纪要' },
     { re: /论文|文献|筛选|初筛|材料|审稿/, low: 0.3, high: 0.6, method: 'AI 摘要初筛' },
@@ -514,7 +528,6 @@ a { color: inherit; }
   function draftProblem(d) {
     if (!isHM(d.start) || !isHM(d.end)) return '补上时间';
     if (toMin(d.end) <= toMin(d.start)) return '时间不对';
-    if (d.kind !== 'blank' && overlapsBlank(d.date, toMin(d.start), toMin(d.end)).length && !d.force) return 'overlap';
     return '';
   }
   function drafts() {
@@ -525,7 +538,7 @@ a { color: inherit; }
       return '<div class="draft' + (prob ? ' bad' : '') + '" data-id="' + d.id + '"><div class="t"><input data-f="title" value="' + esc(d.title) + '" aria-label="事情" maxlength="30">' +
         '<div class="times">' + (d.date !== todayStr() ? esc(dateLabel(d.date)) + ' ' : '') + '<input data-f="start" value="' + d.start + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="开始">–<input data-f="end" value="' + d.end + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="结束">' +
         (!prob && aiPlan(d) ? '<span class="ai-mini">AI 可省 ' + fmtPlain(aiPlan(d).saved) + '</span>' : '') +
-        (prob === 'overlap' ? '<button class="btn sm" data-act="draft-force" style="min-height:26px;padding:0 10px">占用留白，仍记下</button>' : prob ? '<span style="color:var(--warm)">' + prob + '</span>' : '') + '</div></div>' +
+        (prob ? '<span style="color:var(--warm)">' + prob + '</span>' : '') + '</div></div>' +
         kindBtn(d.kind, 'draft-kind') + '<button class="x" data-act="draft-del" aria-label="删掉">×</button></div>';
     }).join('') + '</div>';
     return html + '<button class="btn primary wide" data-act="draft-commit">记下</button>';
@@ -565,7 +578,7 @@ a { color: inherit; }
     var from = Math.max(420, Math.ceil(nowMin() / 30) * 30), tiles = '';
     for (var m = from; m <= 1410; m += 30) {
       var st = slotState(m), on = !!pick[m], sl = SLOTS[m];
-      tiles += '<button class="tile-av ' + st + (on ? ' on' : '') + '" style="border-radius:' + BLOBS[(m / 30) % BLOBS.length] + '" data-act="pick" data-m="' + m + '"' + (st !== 'free' ? ' disabled' : '') +
+      tiles += '<button class="tile-av ' + st + (on ? ' on' : '') + '" style="border-radius:' + BLOBS[(m / 30) % BLOBS.length] + '" data-act="pick" data-m="' + m + '"' + (st === 'kept' ? ' disabled' : '') +
         ' aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已留白' : '') + '"><span class="av" aria-hidden="true">' + sl[0] + '</span><span class="tm">' + toHM(m) + '</span></button>';
     }
     if (!tiles) return '';
@@ -726,6 +739,7 @@ a { color: inherit; }
     return '<h1 class="full" style="font-size:26px">设置</h1><div class="col full">' +
       '<form id="setForm" class="col" style="gap:14px"><div class="field"><label for="s-name">称呼</label><input id="s-name" maxlength="20" value="' + esc(S.name) + '"></div>' +
       '<div class="field"><label for="s-wake">每天清醒几小时</label><input id="s-wake" type="number" inputmode="decimal" min="8" max="20" step="0.5" value="' + (S.wake / 60) + '"></div>' +
+      '<label class="check"><input type="checkbox" id="s-sound"' + (S.sound === false ? '' : ' checked') + '> 提示音</label>' +
       '<button class="btn primary" type="submit" style="justify-self:start">保存</button></form>' +
       (S.mode === 'demo' ? '<div class="blank-card"><span>正在看示例</span><button class="btn sm" data-act="start-real">清空示例</button></div>' : '') +
       '<div class="btns"><button class="btn sm" data-act="export">导出</button><button class="btn sm" data-act="import-open">导入</button><button class="btn sm" data-act="load-demo">示例</button><button class="btn sm" data-act="wipe">清空</button></div>' +
@@ -733,7 +747,7 @@ a { color: inherit; }
   }
 
   // ---------- sheets ----------
-  function openSheet(html) { document.getElementById('layer').innerHTML = '<div class="overlay" data-act="layer-bg"><div class="sheet" role="dialog" aria-modal="true">' + html + '</div></div>'; var f = document.querySelector('.sheet input, .sheet button'); if (f) f.focus(); }
+  function openSheet(html) { var tt = document.querySelector('.toast'); if (tt) tt.hidden = true; document.getElementById('layer').innerHTML = '<div class="overlay" data-act="layer-bg"><div class="sheet" role="dialog" aria-modal="true">' + html + '</div></div>'; var f = document.querySelector('.sheet input, .sheet button'); if (f) f.focus(); }
   function closeSheet() { document.getElementById('layer').innerHTML = ''; }
   var toastTimer;
   function toast(msg) {
@@ -754,6 +768,79 @@ a { color: inherit; }
       '<button class="btn primary wide" data-act="ob-real">开始</button><button class="btn wide" data-act="ob-demo">看示例</button>');
   }
 
+  // ---------- conflicts: a task and a 留白 block want the same time ----------
+  function blankEntry(date, a, b) { return { id: uid(), date: date, start: a, end: b, title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '' }; }
+  function clashesOf(e) {
+    var a = toMin(e.start), b = toMin(e.end);
+    return entriesOn(e.date).filter(function (x) {
+      if (x.id === e.id || toMin(x.start) >= b || a >= toMin(x.end)) return false;
+      return e.kind === 'blank' ? x.kind !== 'blank' : (x.kind === 'blank' && x.state === 'reserved');
+    });
+  }
+  // the parts of e left after cutting out [a, b)
+  function cutOut(e, a, b) {
+    var s0 = toMin(e.start), e0 = toMin(e.end), out = [];
+    if (s0 < a) out.push([s0, Math.min(e0, a)]);
+    if (e0 > b) out.push([Math.max(s0, b), e0]);
+    return out.filter(function (x) { return x[1] - x[0] >= 5; }).map(function (x, i) {
+      var c = JSON.parse(JSON.stringify(e)); if (i) c.id = uid(); c.start = toHM(x[0]); c.end = toHM(x[1]); return c;
+    });
+  }
+  function replaceEntry(e, parts) { S.entries = S.entries.filter(function (x) { return x.id !== e.id; }).concat(parts); }
+  // add entries one by one; ask when one collides with 留白, then call done(count added)
+  function place(items, done) {
+    var n = 0, i = 0;
+    (function next() {
+      if (i >= items.length) { save(); render(); done(n); return; }
+      var e = items[i++], hits = clashesOf(e);
+      if (!hits.length) { S.entries.push(e); n++; return next(); }
+      var task = e.kind === 'blank' ? hits[0] : e, blank = e.kind === 'blank' ? e : hits[0];
+      askClash(task.title, hits.length - 1, toHM(Math.max(toMin(task.start), toMin(blank.start))) + '–' + toHM(Math.min(toMin(task.end), toMin(blank.end))), function (v) {
+        if (v === 'cancel') return next();
+        var newIsBlank = e.kind === 'blank';
+        if ((v === 'blank') === newIsBlank) {
+          // the new item wins: trim what it overlaps
+          hits.forEach(function (h) { replaceEntry(h, cutOut(h, toMin(e.start), toMin(e.end))); });
+          S.entries.push(e); n++;
+        } else {
+          // the existing items win: keep only the free parts of the new one
+          var parts = [e];
+          hits.forEach(function (h) { parts = [].concat.apply([], parts.map(function (p) { return cutOut(p, toMin(h.start), toMin(h.end)); })); });
+          parts.forEach(function (p) { S.entries.push(p); }); if (parts.length) n++;
+        }
+        next();
+      });
+    })();
+  }
+  var clashCb = null;
+  var OOPS = '<svg class="oops" viewBox="0 0 96 96" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M48 12c19 0 35 14 35 35 0 20-15 37-36 37-20 0-35-16-35-36 0-22 16-36 36-36z" stroke-width="3.2"/>' +
+    '<path d="M29 33l9 -4M67 33l-9 -4" stroke-width="2.6"/><circle cx="35" cy="43" r="2.6" fill="currentColor" stroke="none"/><circle cx="61" cy="43" r="2.6" fill="currentColor" stroke="none"/>' +
+    '<path d="M42 64c2-5 10-5 12 0 1 4-2 6-6 6s-7-2-6-6z" stroke-width="2.4"/>' +
+    '<path d="M76 22c3 4 5 8 3 11-2 2-5 1-6-1-1-3 1-6 3-10z" stroke-width="2.2" class="drop"/>' +
+    '<path d="M27 54l-5 2M70 54l5 2" stroke-width="2" opacity=".5"/></g></svg>';
+  function askClash(title, more, span, cb) {
+    clashCb = cb; uhOh();
+    openSheet('<div class="clash">' + OOPS + '<h2>啊哦，时间撞了</h2>' +
+      '<p class="muted">「' + esc(title) + '」' + (more ? '等 ' + (more + 1) + ' 件事' : '') + '和留白在 ' + span + ' 重叠，你想优先哪一个？</p>' +
+      '<div class="clash-btns"><button class="btn primary" data-act="clash" data-v="blank">留白</button><button class="btn" data-act="clash" data-v="task">' + esc(title.length > 8 ? title.slice(0, 7) + '…' : title) + '</button></div>' +
+      '<button class="btn wide" data-act="clash" data-v="cancel" style="border:0">先不记</button></div>');
+  }
+  var actx = null;
+  function uhOh() {
+    if (S.sound === false) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      actx = actx || new AC(); var t0 = actx.currentTime + .02;
+      [[587, 0, .13], [392, .17, .26]].forEach(function (n) {
+        var o = actx.createOscillator(), g = actx.createGain();
+        o.type = 'triangle'; o.frequency.setValueAtTime(n[0], t0 + n[1]); o.frequency.exponentialRampToValueAtTime(n[0] * .88, t0 + n[1] + n[2]);
+        g.gain.setValueAtTime(0, t0 + n[1]); g.gain.linearRampToValueAtTime(.22, t0 + n[1] + .02); g.gain.exponentialRampToValueAtTime(.001, t0 + n[1] + n[2]);
+        o.connect(g); g.connect(actx.destination); o.start(t0 + n[1]); o.stop(t0 + n[1] + n[2] + .02);
+      });
+    } catch (e) { /* no sound is fine */ }
+  }
+
   // ---------- router ----------
   function route() { var h = (location.hash || '').replace('#', ''); return ['today', 'line', 'review', 'settings'].indexOf(h) >= 0 ? h : 'today'; }
   function render() {
@@ -770,21 +857,22 @@ a { color: inherit; }
   document.addEventListener('click', function (ev) {
     var el = ev.target.closest('[data-act]'); if (!el) return;
     var act = el.getAttribute('data-act');
-    if (act === 'layer-bg') { if (ev.target === el) closeSheet(); return; }
+    if (act === 'layer-bg') { if (ev.target === el) { if (clashCb) { var cb0 = clashCb; clashCb = null; closeSheet(); cb0('cancel'); } else closeSheet(); } return; }
     if (act === 'mic') return startMic();
     if (act === 'draft-kind') { var d = draftById(el); if (d) { d.kind = KIND_ORDER[(KIND_ORDER.indexOf(d.kind) + 1) % KIND_ORDER.length]; if (d.kind === 'blank') d.title = '留白'; save(); render(); } return; }
     if (act === 'draft-del') { var d2 = draftById(el); S.drafts = S.drafts.filter(function (x) { return x !== d2; }); save(); render(); return; }
-    if (act === 'draft-force') { var d3 = draftById(el); if (d3) { d3.force = true; save(); render(); } return; }
     if (act === 'draft-commit') {
-      var ok = 0, keep = [];
+      var keep = [], items = [];
       S.drafts.forEach(function (d) {
         if (draftProblem(d)) { keep.push(d); return; }
-        var e = { id: uid(), date: d.date, start: d.start, end: d.end, title: d.title || KINDS[d.kind].label, kind: d.kind };
-        if (d.kind === 'blank') { e.title = '留白'; e.state = 'reserved'; e.kept = 0; e.use = null; e.note = ''; e.intent = ''; }
-        S.entries.push(e); ok++;
+        items.push(d.kind === 'blank' ? blankEntry(d.date, d.start, d.end) : { id: uid(), date: d.date, start: d.start, end: d.end, title: d.title || KINDS[d.kind].label, kind: d.kind });
       });
-      S.drafts = keep; save(); render(); toast(ok ? '记下 ' + ok + ' 条' : '先补完标黄的'); return;
+      S.drafts = keep; save();
+      if (!items.length) { render(); toast('先补完标黄的'); return; }
+      place(items, function (n) { toast(n ? '记下 ' + n + ' 条' : '没有记下'); });
+      return;
     }
+    if (act === 'clash') { var cb = clashCb; clashCb = null; closeSheet(); if (cb) cb(el.getAttribute('data-v')); return; }
     if (act === 'reserve') return reserveSheet();
     if (act === 'res-min') { resMin = +el.getAttribute('data-v'); el.parentNode.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); return; }
     if (act === 'res-save') {
@@ -802,8 +890,9 @@ a { color: inherit; }
       var ms = Object.keys(pick).map(Number).sort(function (a, b) { return a - b; }); if (!ms.length) return;
       var runs = [], cur = null;
       ms.forEach(function (m) { if (cur && cur[1] === m) cur[1] = m + 30; else { cur = [m, m + 30]; runs.push(cur); } });
-      runs.forEach(function (x) { S.entries.push({ id: uid(), date: todayStr(), start: toHM(x[0]), end: toHM(x[1]), title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '' }); });
-      pick = {}; save(); render(); toast('留出来了'); return;
+      pick = {};
+      place(runs.map(function (x) { return blankEntry(todayStr(), toHM(x[0]), toHM(x[1])); }), function (n) { toast(n ? '留出来了' : '这次没留'); });
+      return;
     }
     if (act === 'sort') { S.sortBy = el.getAttribute('data-d'); save(); render(); return; }
     if (act === 'to-ai') {
@@ -851,12 +940,13 @@ a { color: inherit; }
     if (ev.target.id === 'capForm') return parseInput(document.getElementById('cap-text').value);
     if (ev.target.id === 'setForm') {
       S.name = document.getElementById('s-name').value.trim();
+      S.sound = document.getElementById('s-sound').checked;
       var wk = +document.getElementById('s-wake').value; if (wk >= 8 && wk <= 20) S.wake = Math.round(wk * 60);
       save(); render(); toast('已保存');
     }
   });
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape' && document.querySelector('.overlay')) closeSheet();
+    if (ev.key === 'Escape' && document.querySelector('.overlay')) { var cb = clashCb; clashCb = null; closeSheet(); if (cb) cb('cancel'); }
     if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList && ev.target.classList.contains('leaf')) { ev.preventDefault(); ev.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });
   window.addEventListener('hashchange', function () { capState.msg = ''; render(); window.scrollTo(0, 0); });
