@@ -11,10 +11,10 @@
 <style>
 /* Layout: three screens (今天 / 时间线 / 回顾). One big number, one mic, one blank block. Phone: bottom tabs; ≥1100px: side rail. */
 :root {
-  --bg: #A7B7A3;
-  --surface: #BCC9B8;
+  --bg: #EEF3EC;
+  --surface: #FFFFFF;
   --text: #22302A;
-  --text-2: #4B5B51;
+  --text-2: #5C6B61;
   --line: rgba(34, 48, 42, .14);
   --accent: #3E5A47;
   --warm: #8A5A2B;
@@ -29,7 +29,7 @@
   --moss: #8DA48E;
   --moss-line: #7F977F;
   --deep: #2E4636;
-  --paper: #F6F3EA;
+  --paper: #FCFBF6;
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
   --font-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
   color-scheme: light;
@@ -184,14 +184,14 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .bubble::before { animation: none !important; } }
 @media (min-width: 1100px) { .bubbles { height: 440px; } }
 
-.forest { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; color: #8FA28C; }
+.forest { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; color: #D3DFCF; }
 .app { position: relative; z-index: 1; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .forest { color: #536853; } }
 :root[data-theme="dark"] .forest { color: #536853; }
 .tree-bg { position: absolute; right: -60px; bottom: -40px; width: min(420px, 70vw); height: auto; opacity: .55; }
 .sway { transform-origin: 150px 420px; animation: sway 7s ease-in-out infinite alternate; }
 @keyframes sway { from { transform: rotate(-2.2deg); } to { transform: rotate(2.4deg); } }
-.leaf-f { position: absolute; top: -40px; width: 16px; height: 9px; border-radius: 0 100% 0 100%; background: #6F8A6C; opacity: .55; animation: fall linear infinite; }
+.leaf-f { position: absolute; top: -40px; width: 16px; height: 9px; border-radius: 0 100% 0 100%; background: #8FA88A; opacity: .5; animation: fall linear infinite; }
 .leaf-f:nth-child(2n) { background: #C2A35F; width: 13px; height: 8px; }
 .leaf-f:nth-child(3n) { background: #8FA88A; }
 @keyframes fall {
