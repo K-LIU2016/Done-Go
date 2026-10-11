@@ -11,30 +11,31 @@
 <style>
 /* Layout: three screens (今天 / 时间线 / 回顾). One big number, one mic, one blank block. Phone: bottom tabs; ≥1100px: side rail. */
 :root {
-  --bg: #2F4A38;
-  --surface: #3A5743;
-  --text: #F3F1E6;
-  --text-2: #BCCBBB;
-  --line: rgba(243, 241, 230, .14);
-  --accent: #E9E3A6;
-  --warm: #F0C987;
-  --k-nec: #A9B3AE;
-  --k-restore: #8CC3A8;
-  --k-create: #E2B36B;
-  --k-connect: #E38E7F;
-  --k-explore: #8FB8DA;
-  --k-blank: #C9D3C6;
+  --bg: #A7B7A3;
+  --surface: #BCC9B8;
+  --text: #22302A;
+  --text-2: #4B5B51;
+  --line: rgba(34, 48, 42, .14);
+  --accent: #3E5A47;
+  --warm: #8A5A2B;
+  --k-nec: #7D8781;
+  --k-restore: #4F8570;
+  --k-create: #B07A36;
+  --k-connect: #B05A4D;
+  --k-explore: #4D7699;
+  --k-blank: #6E7E72;
   --spring: #EEF0BE;
   --spring-ink: #2F3B26;
-  --moss: #9DB397;
-  --moss-line: #B5C6AE;
-  --deep: #1C3125;
+  --moss: #8DA48E;
+  --moss-line: #7F977F;
+  --deep: #2E4636;
+  --paper: #F6F3EA;
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
   --font-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-  color-scheme: dark;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #263E2F; --surface: #304C3A; } }
-:root[data-theme="dark"] { --bg: #263E2F; --surface: #304C3A; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #5F7363; --surface: #6C8170; --text: #F3F1E6; --text-2: #DCE3D8; --line: rgba(243, 241, 230, .18); --accent: #EEF0BE; --warm: #F0C987; --moss: #7F977F; --moss-line: #92A892; --deep: #22352A; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #5F7363; --surface: #6C8170; --text: #F3F1E6; --text-2: #DCE3D8; --line: rgba(243, 241, 230, .18); --accent: #EEF0BE; --warm: #F0C987; --moss: #7F977F; --moss-line: #92A892; --deep: #22352A; color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
@@ -113,12 +114,15 @@ a { color: inherit; }
 .ai-mini { color: var(--k-restore); margin-left: 6px; white-space: nowrap; }
 
 .picker { border: 2px solid var(--deep); border-radius: 26px; padding: 18px 16px; }
-.avs { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 10px; }
-.tile-av { display: grid; justify-items: center; gap: 2px; padding: 10px 0 8px; border: 1.5px solid rgba(243, 241, 230, .16); background: rgba(28, 49, 37, .35); cursor: pointer; transition: transform .12s; }
-.tile-av .av { font-size: 26px; line-height: 1.1; }
-.tile-av .tm { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.avs { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 10px; }
+.tile-av { display: grid; justify-items: center; gap: 1px; padding: 8px 0 7px; border: 1.5px solid rgba(34, 48, 42, .18); background: var(--paper); color: #1F2622; cursor: pointer; transition: transform .12s; }
+.tile-av .av { display: block; width: 40px; height: 40px; }
+.ink { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.ink .f { fill: currentColor; stroke: none; }
+.tile-av .lbl { font-size: 10.5px; color: #3A443E; line-height: 1.2; white-space: nowrap; }
+.tile-av .tm { font-size: 10px; color: #6A746D; font-variant-numeric: tabular-nums; }
 .tile-av:active { transform: scale(.94); }
-.tile-av.on { border-color: var(--spring); background: rgba(238, 240, 190, .22); transform: rotate(-3deg); }
+.tile-av.on { border-color: var(--deep); background: var(--spring); box-shadow: 0 0 0 2px var(--deep); transform: rotate(-3deg); }
 .tile-av.busy { opacity: .4; }
 .tile-av.busy.on { opacity: 1; }
 .tile-av.kept { border-style: dashed; border-color: var(--k-blank); opacity: .7; cursor: default; }
@@ -136,7 +140,7 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .oops, .oops .drop { animation: none; } }
 
 :root { --p1: #D9483E; --p2: #E5714A; --p3: #EFA05E; --p4: #D8C29C; --p5: #BFC6CB; --field: var(--moss); --field-line: var(--moss-line); }
-.bubbles { position: relative; height: 380px; border-radius: 28px; background: radial-gradient(120% 80% at 50% 0%, #B7C8B0, var(--field) 72%); border: 1px solid var(--field-line); overflow: hidden; touch-action: none; }
+.bubbles { position: relative; height: 380px; border-radius: 28px; background: radial-gradient(120% 80% at 50% 0%, #A3B7A2, var(--field) 72%); border: 1px solid var(--field-line); overflow: hidden; touch-action: none; }
 .bubble { position: absolute; left: 0; top: 0; display: grid; place-content: center; gap: 1px; text-align: center; border: 0; padding: 0 3px; cursor: grab; color: #fff; background: none; user-select: none; -webkit-user-select: none; will-change: transform; isolation: isolate; transition: opacity .4s; }
 .bubble::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; animation: cell 5s ease-in-out infinite alternate, spin 14s linear infinite;
   box-shadow: inset -7px -9px 16px rgba(0,0,0,.10), 0 8px 18px rgba(120,70,30,.12); }
@@ -179,6 +183,24 @@ a { color: inherit; }
 @media (min-width: 1100px) { .bubbles { height: 440px; } }
 @media (prefers-reduced-motion: reduce) { .bubble::before { animation: none !important; } }
 @media (min-width: 1100px) { .bubbles { height: 440px; } }
+
+.forest { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; color: #8FA28C; }
+.app { position: relative; z-index: 1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .forest { color: #536853; } }
+:root[data-theme="dark"] .forest { color: #536853; }
+.tree-bg { position: absolute; right: -60px; bottom: -40px; width: min(420px, 70vw); height: auto; opacity: .55; }
+.sway { transform-origin: 150px 420px; animation: sway 7s ease-in-out infinite alternate; }
+@keyframes sway { from { transform: rotate(-2.2deg); } to { transform: rotate(2.4deg); } }
+.leaf-f { position: absolute; top: -40px; width: 16px; height: 9px; border-radius: 0 100% 0 100%; background: #6F8A6C; opacity: .55; animation: fall linear infinite; }
+.leaf-f:nth-child(2n) { background: #C2A35F; width: 13px; height: 8px; }
+.leaf-f:nth-child(3n) { background: #8FA88A; }
+@keyframes fall {
+  0% { transform: translate(0, 0) rotate(0); }
+  25% { transform: translate(40px, 25vh) rotate(120deg); }
+  50% { transform: translate(-20px, 50vh) rotate(220deg); }
+  75% { transform: translate(35px, 75vh) rotate(320deg); }
+  100% { transform: translate(-10px, 110vh) rotate(420deg); } }
+@media (prefers-reduced-motion: reduce) { .sway, .leaf-f { animation: none; } .leaf-f { display: none; } }
 
 /* Timeline */
 .daynav { display: flex; align-items: center; justify-content: space-between; }
@@ -248,6 +270,20 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .mic.on::after { animation: none; } }
 </style>
 
+<div class="forest" aria-hidden="true">
+  <svg class="tree-bg" viewBox="0 0 300 420"><g class="sway">
+    <path d="M150 420c-4-60-2-120 4-170" stroke="currentColor" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="M152 300c-20-20-44-28-70-30M154 260c22-22 46-30 76-30M153 220c-14-22-34-36-60-44" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <ellipse cx="150" cy="150" rx="110" ry="100" fill="currentColor"/><ellipse cx="76" cy="236" rx="56" ry="44" fill="currentColor"/><ellipse cx="228" cy="214" rx="60" ry="46" fill="currentColor"/>
+  </g></svg>
+  <span class="leaf-f" style="left:8%;animation-duration:17s;animation-delay:-2s"></span>
+  <span class="leaf-f" style="left:22%;animation-duration:21s;animation-delay:-9s"></span>
+  <span class="leaf-f" style="left:41%;animation-duration:19s;animation-delay:-14s"></span>
+  <span class="leaf-f" style="left:58%;animation-duration:23s;animation-delay:-5s"></span>
+  <span class="leaf-f" style="left:73%;animation-duration:18s;animation-delay:-11s"></span>
+  <span class="leaf-f" style="left:88%;animation-duration:25s;animation-delay:-17s"></span>
+  <span class="leaf-f" style="left:33%;animation-duration:27s;animation-delay:-21s"></span>
+</div>
 <div class="app">
   <header class="top"><a class="logo" href="#today">留白</a></header>
   <main id="view"></main>
@@ -617,6 +653,61 @@ a { color: inherit; }
     1140: ['🐶', '遛狗'], 1170: ['🎮', '玩一局'], 1200: ['🎬', '看电影'], 1230: ['🛁', '泡澡'], 1260: ['🌙', '看月亮'], 1290: ['📖', '睡前读'],
     1320: ['🥱', '犯困'], 1350: ['😴', '睡觉'], 1380: ['💤', '好梦'], 1410: ['🌌', '星空']
   };
+  // hand-drawn line icons, one little character through the day (48×48, ink = currentColor)
+  function iP(d) { return '<path d="' + d + '"/>'; }
+  function iC(x, y, r, fill) { return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '"' + (fill ? ' class="f"' : '') + '/>'; }
+  function iF(x, y, eyes, mouth) {
+    var s = iC(x, y, 8.5);
+    if (eyes === 'shut') s += iP('M' + (x - 5) + ' ' + y + 'q1.6 1.6 3.2 0M' + (x + 1.8) + ' ' + y + 'q1.6 1.6 3.2 0');
+    else if (eyes === 'happy') s += iP('M' + (x - 5) + ' ' + (y + .5) + 'q1.6-1.8 3.2 0M' + (x + 1.8) + ' ' + (y + .5) + 'q1.6-1.8 3.2 0');
+    else if (eyes === 'up') s += iC(x - 3, y - 2.2, 1.1, 1) + iC(x + 3, y - 2.2, 1.1, 1);
+    else s += iC(x - 3, y - .5, 1.1, 1) + iC(x + 3, y - .5, 1.1, 1);
+    if (mouth === 'o') s += iC(x, y + 4, 1.3);
+    else if (mouth === 'yawn') s += '<ellipse cx="' + x + '" cy="' + (y + 4) + '" rx="2" ry="2.6"/>';
+    else if (mouth === 'flat') s += iP('M' + (x - 2) + ' ' + (y + 4) + 'h4');
+    else if (mouth !== 'none') s += iP('M' + (x - 2.6) + ' ' + (y + 3.2) + 'q2.6 2.2 5.2 0');
+    return s;
+  }
+  function iB(x, y) { return iP('M' + (x - 9) + ' ' + (y + 20) + 'q0-9.5 9-9.5 9 0 9 9.5'); }
+  function iZ(x, y, s) { return iP('M' + x + ' ' + y + 'h' + s + 'l-' + s + ' ' + s + 'h' + s); }
+  function iS(x, y, s) { return iP('M' + x + ' ' + (y - s) + 'v' + 2 * s + 'M' + (x - s) + ' ' + y + 'h' + 2 * s); }
+  var INK = {
+    420: iF(24, 21, 'dot', 'smile') + iB(24, 21) + iP('M16 32l-6-11M32 32l6-11') + iC(41, 8, 3) + iP('M41 2v1.5M46 4.5l-1.2 1.2M47.5 9h-1.5'),
+    450: iF(20, 20, 'dot', 'flat') + iB(20, 20) + iP('M27 25l11-8M36 16.5l3 4') + iC(36, 9, 1.8) + iC(42, 12, 1.3) + iC(40, 5, 1),
+    480: iF(24, 22, 'shut', 'yawn') + iB(24, 22) + iP('M33 12q3-3 6 0M36 7q3-3 6 0'),
+    510: iF(24, 14, 'dot', 'smile') + iP('M11 30h26q0 11-13 11t-13-11z') + iP('M19 27q-2-3 0-5M24 27q-2-3 0-5M29 27q-2-3 0-5'),
+    540: iF(17, 18, 'happy', 'smile') + iB(17, 18) + iP('M29 26h12v9q0 5-6 5t-6-5z') + iP('M41 28q4 0 4 3.5t-4 3.5') + iP('M33 22q-2-3 0-5M37 22q-2-3 0-5'),
+    570: iF(24, 14, 'dot', 'flat') + iP('M9 26h30v16h-30z') + iP('M24 26v16M13 31h7M13 35h7M28 31h7M28 35h7'),
+    600: iF(24, 12, 'dot', 'flat') + iP('M12 22h24v14h-24z') + iP('M8 40h32l-3-4h-26z') + iP('M20 26l-3 3 3 3M28 26l3 3-3 3'),
+    630: iF(24, 20, 'dot', 'flat') + iB(24, 20) + iP('M14 21q0-12 10-12t10 12') + '<rect x="11.5" y="18" width="4" height="7" rx="2"/><rect x="32.5" y="18" width="4" height="7" rx="2"/>',
+    660: iF(18, 26, 'up', 'flat') + iB(18, 26) + iC(29, 15, 1.4) + iC(33, 11, 2) + iP('M35 3q8 0 8 5t-8 5q-6 0-6-5t6-5z') + iP('M37.5 6.5q0-1.5 1.5-1.5t1.5 1.5-1.5 1.5v1'),
+    690: iF(24, 12, 'dot', 'smile') + iP('M24 21v12M24 33l-6 9M24 33l6 8M24 24l-7 5M24 24l7 4') + iP('M6 44h10M33 44h9'),
+    720: iF(24, 13, 'happy', 'smile') + iP('M10 30h28q0 11-14 11t-14-11z') + iP('M30 18l10 14M34 17l8 13'),
+    750: iF(20, 24, 'shut', 'flat') + iP('M6 33h28') + iZ(31, 10, 4) + iZ(38, 4, 3),
+    780: iP('M6 30q0-6 8-6h22q6 0 6 6v6h-36z') + iF(16, 22, 'shut', 'none') + iP('M12 26q4 2 8 0') + iZ(32, 8, 5),
+    810: iF(16, 18, 'happy', 'flat') + iB(16, 18) + iP('M28 28h14l-2 9h-10z') + iP('M26 37h18') + iP('M34 22q3-4 6-1-3 4-6 1z'),
+    840: iF(16, 16, 'dot', 'flat') + iB(16, 16) + iP('M27 20h14v22h-14z') + iP('M30 26h8M30 30h8M30 34h5') + iP('M44 14l-9 13-1 3 3-1 9-13z'),
+    870: iF(14, 16, 'happy', 'smile') + iB(14, 16) + iP('M27 34q-2-10 8-12t10 6q0 4-4 4-3 0-3 3 0 4-5 4-5 0-6-5z') + iC(34, 27, 1.4, 1) + iC(39, 26, 1.4, 1) + iC(41, 31, 1.4, 1) + iP('M27 21l-6-12'),
+    900: iF(16, 18, 'happy', 'smile') + iB(16, 18) + iP('M29 20h12l-2 22h-8z') + iP('M37 20l3-10h3') + iC(33, 37, 1.1, 1) + iC(37, 38, 1.1, 1) + iC(35, 34, 1.1, 1),
+    930: iC(36, 13, 6) + iP('M36 3v2M36 21v2M26 13h2M44 13h2M29 6l1.5 1.5M43 6l-1.5 1.5M29 20l1.5-1.5M43 20l-1.5-1.5') + iF(17, 26, 'shut', 'smile') + iB(17, 26),
+    960: iF(20, 20, 'shut', 'smile') + iB(20, 20) + iP('M10 21q0-12 10-12t10 12') + '<rect x="7.5" y="18" width="4" height="7" rx="2"/><rect x="28.5" y="18" width="4" height="7" rx="2"/>' + iP('M39 8v11M39 8l5-1.5v4') + '<ellipse cx="37" cy="19.5" rx="2.4" ry="1.8"/>',
+    990: iF(24, 13, 'dot', 'flat') + iP('M24 26q-7-4-15-2v16q8-2 15 2 7-4 15-2v-16q-8-2-15 2zM24 26v16'),
+    1020: iF(26, 11, 'dot', 'o') + iP('M25 20l-3 12M22 32l-6 9M22 32l8 6v5M24 23l-8 2M24 23l8-4') + iP('M5 24h6M3 30h7M6 36h5'),
+    1050: iF(24, 14, 'happy', 'smile') + iP('M24 23v12M24 35l-7 7M24 35l7 7M5 22l19 3 19-3'),
+    1080: iF(24, 10, 'dot', 'smile') + iP('M9 28h30v8q0 6-6 6h-18q-6 0-6-6z') + iP('M7 28h34M20 24h8') + iP('M18 21q-2-3 0-5M30 21q-2-3 0-5'),
+    1110: iF(15, 18, 'happy', 'smile') + iB(15, 18) + iC(35, 26, 6) + iC(33, 25.5, .9, 1) + iC(37, 25.5, .9, 1) + iP('M33 28.5q2 1.5 4 0M28 42q0-8 7-8t7 8') + iP('M25 6q2-3 4 0 2-3 4 0-4 5-4 5t-4-5z'),
+    1140: iF(13, 15, 'dot', 'smile') + iB(13, 15) + iP('M20 28q8-2 14 6') + iP('M30 34q0-4 6-4h4q4 0 4 4v4h-14z') + iP('M40 30l1-5 3 3M32 38v4M42 38v4') + iC(42, 31, .8, 1),
+    1170: iP('M10 22h28q6 0 6 8t-6 8q-3 0-5-3h-18q-2 3-5 3-6 0-6-8t6-8z') + iP('M14 30h6M17 27v6') + iC(31, 28, 1.3, 1) + iC(35, 32, 1.3, 1) + iF(24, 10, 'happy', 'smile').replace('r="8.5"', 'r="6"'),
+    1200: iP('M7 8h34v24h-34zM18 40h12M24 32v8') + iP('M21 15v10l8-5z') + iC(12, 44, 2) + iC(36, 44, 2),
+    1230: iF(19, 20, 'shut', 'smile') + iP('M5 28h38v4q0 10-10 10h-18q-10 0-10-10z') + iC(32, 22, 2.2) + iC(38, 17, 1.6) + iC(35, 12, 1.2) + iP('M12 42l-2 3M36 42l2 3'),
+    1260: iP('M38 6a9 9 0 1 0 6 14 7 7 0 1 1-6-14z') + iS(12, 9, 2) + iS(24, 5, 1.6) + iF(18, 30, 'up', 'o') + iB(18, 30).replace(/q0-9\.5 9-9\.5 9 0 9 9\.5/, 'q0-6 9-6 9 0 9 6'),
+    1290: iF(24, 13, 'dot', 'smile') + iP('M24 28q-7-4-15-2v14q8-2 15 2 7-4 15-2v-14q-8-2-15 2zM24 28v14') + iP('M40 4a5 5 0 1 0 4 7 4 4 0 1 1-4-7z'),
+    1320: iF(24, 22, 'shut', 'yawn') + iB(24, 22) + iP('M14 10q4-3 7 0M27 10q4-3 7 0') + iZ(36, 6, 3),
+    1350: iP('M5 28q0-5 7-5h11v10h-18z') + iF(14, 21, 'shut', 'none') + iP('M23 26h18q3 0 3 3v6h-21z') + iP('M5 36h39') + iP('M38 4a5 5 0 1 0 4 7 4 4 0 1 1-4-7z'),
+    1380: iP('M10 30q-6 0-6-6t7-6q2-7 10-7 7 0 9 6 8-1 9 6t-6 7z') + iZ(18, 21, 4) + iZ(25, 17, 3) + iS(40, 38, 2) + iS(10, 40, 1.6),
+    1410: iS(10, 10, 2.5) + iS(30, 6, 1.8) + iS(42, 16, 2.2) + iS(20, 22, 1.5) + iP('M6 42q18-14 36-8') + iC(36, 32, .9, 1) + iC(15, 33, .9, 1)
+  };
+  function ink(m) { return '<svg class="ink" viewBox="0 0 48 48" aria-hidden="true">' + (INK[m] || '') + '</svg>'; }
   var BLOBS = ['46% 54% 42% 58% / 55% 45% 55% 45%', '18px', '60% 40% 55% 45% / 45% 60% 40% 55%', '50%', '40% 60% 50% 50% / 60% 40% 60% 40%', '22px 10px 22px 10px'];
   var pick = {};
   function slotState(m) {
@@ -630,7 +721,7 @@ a { color: inherit; }
     for (var m = from; m <= 1410; m += 30) {
       var st = slotState(m), on = !!pick[m], sl = SLOTS[m];
       tiles += '<button class="tile-av ' + st + (on ? ' on' : '') + '" style="border-radius:' + BLOBS[(m / 30) % BLOBS.length] + '" data-act="pick" data-m="' + m + '"' + (st === 'kept' ? ' disabled' : '') +
-        ' aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已留白' : '') + '"><span class="av" aria-hidden="true">' + sl[0] + '</span><span class="tm">' + toHM(m) + '</span></button>';
+        ' aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已留白' : '') + '"><span class="av">' + ink(m) + '</span><span class="lbl">' + sl[1] + '</span><span class="tm">' + toHM(m) + '</span></button>';
     }
     if (!tiles) return '';
     var n = Object.keys(pick).length;
