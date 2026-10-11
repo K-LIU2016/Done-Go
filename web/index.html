@@ -9,203 +9,185 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500&display=swap">
 <style>
-/* Layout: a narrow porcelain rail + one reading column; the day is drawn as a 24h dial, unscheduled time stays visibly empty. */
+/* Layout: one phone-width column; voice capture always first; a fixed six-tab bar at the thumb. */
 :root {
+  --outer: #E9EDEF;
   --bg: #F3F5F6;
   --surface: #FFFFFF;
-  --surface-2: #F8FAFA;
+  --surface-2: #F6F8F9;
   --text: #232C32;
   --text-2: #5F6C75;
   --line: #DDE4E7;
   --accent: #426D92;
-  --ok: #4D7771;
   --warm: #956C43;
   --k-nec: #8A959C;
   --k-restore: #5E8C7E;
   --k-create: #B58448;
   --k-connect: #B0645A;
   --k-explore: #4F7BA3;
-  --k-blank: #FFFFFF;
   --k-blank-line: #9AA8B0;
-  --shadow: 0 14px 40px rgba(35, 44, 50, .06);
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
   --font-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-  --r-lg: 22px;
-  --r-md: 14px;
-  --r-sm: 10px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #12171A; --surface: #1A2126; --surface-2: #1F272D; --text: #E7ECEE; --text-2: #A3B0B8; --line: #2E393F;
-    --accent: #8DB3D4; --ok: #8FBDB4; --warm: #D2A876; --k-nec: #6D7A82; --k-restore: #7FB2A2; --k-create: #D3A467;
-    --k-connect: #D18A7F; --k-explore: #7FA7CC; --k-blank: #12171A; --k-blank-line: #7D8C94; --shadow: none; color-scheme: dark;
+    --outer: #0D1113; --bg: #12171A; --surface: #1A2126; --surface-2: #20292F; --text: #E7ECEE; --text-2: #A3B0B8; --line: #2E393F;
+    --accent: #8DB3D4; --warm: #D2A876; --k-nec: #73818A; --k-restore: #7FB2A2; --k-create: #D3A467; --k-connect: #D18A7F; --k-explore: #7FA7CC; --k-blank-line: #7D8C94; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #12171A; --surface: #1A2126; --surface-2: #1F272D; --text: #E7ECEE; --text-2: #A3B0B8; --line: #2E393F;
-  --accent: #8DB3D4; --ok: #8FBDB4; --warm: #D2A876; --k-nec: #6D7A82; --k-restore: #7FB2A2; --k-create: #D3A467;
-  --k-connect: #D18A7F; --k-explore: #7FA7CC; --k-blank: #12171A; --k-blank-line: #7D8C94; --shadow: none; color-scheme: dark;
+  --outer: #0D1113; --bg: #12171A; --surface: #1A2126; --surface-2: #20292F; --text: #E7ECEE; --text-2: #A3B0B8; --line: #2E393F;
+  --accent: #8DB3D4; --warm: #D2A876; --k-nec: #73818A; --k-restore: #7FB2A2; --k-create: #D3A467; --k-connect: #D18A7F; --k-explore: #7FA7CC; --k-blank-line: #7D8C94; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 15px; line-height: 1.65; -webkit-font-smoothing: antialiased; }
-h1, h2, h3 { font-family: var(--font-serif); font-weight: 400; text-wrap: balance; margin: 0; }
-h1 { font-size: clamp(28px, 4vw, 38px); line-height: 1.25; }
-h2 { font-size: 21px; line-height: 1.35; }
-h3 { font-size: 17px; }
+body { background: var(--outer); color: var(--text); font-family: var(--font-sans); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-family: var(--font-serif); font-weight: 400; margin: 0; text-wrap: balance; }
+h1 { font-size: 26px; line-height: 1.3; }
+h2 { font-size: 18px; line-height: 1.4; }
+h3 { font-size: 16px; line-height: 1.4; }
 p { margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
-.num { font-variant-numeric: tabular-nums; font-family: var(--font-serif); }
 a { color: var(--accent); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.num { font-variant-numeric: tabular-nums; font-family: var(--font-serif); }
 
-.app { display: grid; grid-template-columns: 96px minmax(0, 1fr); min-height: 100vh; }
-.rail { position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 8px; border-right: 1px solid var(--line); background: var(--surface); }
-.brand { font-family: var(--font-serif); font-size: 22px; line-height: 1.2; text-align: center; margin-bottom: 22px; color: var(--text); text-decoration: none; }
-.nav { display: flex; flex-direction: column; gap: 2px; width: 100%; }
-.nav a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 4px; border-radius: var(--r-sm); color: var(--text-2); text-decoration: none; font-size: 12.5px; }
-.nav a .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; }
-.nav a[aria-current="page"] { color: var(--text); background: var(--surface-2); }
-.nav a[aria-current="page"] .dot { background: currentColor; }
-.nav a:hover { color: var(--text); }
-.rail .spacer { flex: 1; }
-.main { min-width: 0; padding-block: 36px 96px; padding-inline: clamp(16px, 5vw, 64px); }
-.page { max-width: 980px; margin: 0 auto; display: grid; gap: 22px; }
-.mobile-top { display: none; }
-.tabbar { display: none; }
+.app { max-width: 460px; margin: 0 auto; min-height: 100vh; background: var(--bg); padding-inline: 16px; padding-block: 0 104px; }
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; display: flex; align-items: center; justify-content: space-between; padding-block: 12px; background: var(--bg); }
+.brand { font-family: var(--font-serif); font-size: 21px; letter-spacing: .1em; color: var(--text); text-decoration: none; }
+.top nav { display: flex; gap: 4px; }
+.top nav a { font-size: 13.5px; color: var(--text-2); text-decoration: none; padding: 6px 10px; border-radius: 999px; }
+.top nav a[aria-current="page"] { color: var(--text); background: var(--surface); }
+.page { display: grid; gap: 14px; }
+.tabbar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(460px, 100%); display: grid; grid-template-columns: repeat(6, 1fr); padding: 6px 4px calc(8px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--line); z-index: 40; }
+.tabbar a { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; color: var(--text-2); text-decoration: none; font-size: 12px; }
+.tabbar a .dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; }
+.tabbar a[aria-current="page"] { color: var(--text); }
+.tabbar a[aria-current="page"] .dot { background: currentColor; }
 
-.eyebrow { font-size: 12.5px; letter-spacing: .14em; color: var(--text-2); }
-.lede { color: var(--text-2); max-width: 62ch; }
-.head { display: grid; gap: 8px; }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 24px; box-shadow: var(--shadow); min-width: 0; }
-.panel.quiet { background: transparent; box-shadow: none; }
-.panel > h2 + * { margin-top: 14px; }
-.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
-.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.stack { display: grid; gap: 12px; }
-.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.between { justify-content: space-between; }
+.eyebrow { font-size: 12.5px; letter-spacing: .12em; color: var(--text-2); }
 .muted { color: var(--text-2); }
-.small { font-size: 13px; }
+.small { font-size: 13.5px; }
 .tiny { font-size: 12px; }
-.hr { height: 1px; background: var(--line); border: 0; margin: 4px 0; }
+.head { display: grid; gap: 4px; padding-top: 4px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.panel.flat { background: transparent; border-style: dashed; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.between { justify-content: space-between; }
+.stack { display: grid; gap: 10px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; text-decoration: none; color: var(--text); }
-.btn:hover { border-color: var(--text-2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; text-decoration: none; color: var(--text); font-size: 14.5px; }
 .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
 .btn.ghost { background: transparent; }
 .btn.danger { color: var(--k-connect); border-color: var(--k-connect); }
-.btn.sm { min-height: 34px; padding: 0 13px; font-size: 13.5px; }
-.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; border: 1px solid var(--line); color: var(--text-2); white-space: nowrap; }
-.chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.chip.blank i { background: var(--k-blank); border: 1.5px dashed var(--k-blank-line); }
+.btn.sm { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.btn.block { width: 100%; }
+.btn:disabled { opacity: .5; cursor: default; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); color: var(--text-2); white-space: nowrap; }
+.chip i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.chip.blank i { border: 1.5px dashed var(--k-blank-line); }
 
-.field { display: grid; gap: 5px; min-width: 0; }
-.field label { font-size: 13px; color: var(--text-2); }
-.field input, .field select, .field textarea { min-height: 42px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2); width: 100%; }
-.field textarea { min-height: 110px; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
-.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; align-items: end; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: 12.5px; color: var(--text-2); }
+.field input, .field select, .field textarea { min-height: 42px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); width: 100%; }
+.field textarea.code { min-height: 120px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 
-/* Hero: the 24h dial */
-.hero { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: center; }
-.big { font-size: clamp(48px, 9vw, 84px); line-height: 1; letter-spacing: -.01em; }
-.big small { font-size: .38em; color: var(--text-2); margin: 0 .18em 0 .06em; }
-.dial { width: 100%; max-width: 300px; aspect-ratio: 1; justify-self: center; }
-.dial text { fill: var(--text-2); font-size: 10px; font-family: var(--font-sans); }
-.dial .now { stroke: var(--text); }
+/* Capture: the first thing on the screen */
+.capture { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 16px; display: grid; gap: 12px; }
+.capture-main { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; }
+.mic { width: 64px; height: 64px; border-radius: 50%; border: 0; background: var(--text); color: var(--bg); display: grid; place-items: center; cursor: pointer; position: relative; }
+.mic svg { width: 26px; height: 26px; }
+.mic.on { background: var(--k-connect); }
+.mic.on::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--k-connect); opacity: .5; animation: pulse 1.2s ease-out infinite; }
+@keyframes pulse { from { transform: scale(.9); opacity: .6; } to { transform: scale(1.15); opacity: 0; } }
+.capture textarea { width: 100%; min-height: 64px; resize: vertical; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); line-height: 1.5; }
+.examples { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; max-width: 100%; }
+.examples button { flex: none; border: 1px dashed var(--line); background: transparent; border-radius: 999px; padding: 4px 10px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+.cap-status { font-size: 13px; color: var(--text-2); }
+.cap-status:empty { display: none; }
+.cap-status.warn { color: var(--warm); }
 
-.bars { display: grid; gap: 10px; }
-.bar-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 48px; gap: 10px; align-items: center; font-size: 13.5px; }
-.bar-track { height: 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 999px; }
-.stackbar { display: flex; height: 18px; border-radius: 999px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2); }
-.stackbar span { height: 100%; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--text-2); }
-.legend b { font-weight: 400; color: var(--text); }
-
-.timeline { display: grid; gap: 0; }
-.t-item { display: grid; grid-template-columns: 112px 6px minmax(0, 1fr) auto; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); align-items: center; }
-.t-item:last-child { border-bottom: 0; }
-.t-time { font-size: 14px; color: var(--text-2); }
-.t-mark { align-self: stretch; border-radius: 3px; }
-.t-mark.blank { background: transparent; border: 1.5px dashed var(--k-blank-line); }
-.t-title { min-width: 0; overflow-wrap: anywhere; }
-.t-gap { padding: 10px 0 10px 126px; color: var(--text-2); font-size: 12.5px; border-bottom: 1px solid var(--line); }
-
-.stat { display: grid; gap: 4px; }
-.stat .v { font-size: 34px; line-height: 1.1; }
-.stat .k { font-size: 13px; color: var(--text-2); }
-
-.card { border: 1px solid var(--line); border-radius: var(--r-md); padding: 16px 18px; background: var(--surface); display: grid; gap: 8px; min-width: 0; }
-.card.default { border-color: var(--text); }
-.notice { border-radius: var(--r-md); padding: 12px 16px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13.5px; color: var(--text-2); }
-.demo-banner { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 16px; border-radius: var(--r-md); border: 1px dashed var(--warm); color: var(--warm); font-size: 13.5px; }
-.quote { font-family: var(--font-serif); font-size: 19px; line-height: 1.7; }
-.pending { border-left: 3px solid var(--warm); padding-left: 14px; display: grid; gap: 10px; }
+.draft { border: 1px solid var(--line); border-radius: 16px; padding: 12px; display: grid; gap: 10px; background: var(--surface-2); }
+.draft.bad { border-color: var(--warm); }
+.draft .kinds { display: flex; gap: 4px; flex-wrap: wrap; }
+.draft .kinds button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 10px; font-size: 12.5px; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
+.draft .kinds button i { width: 7px; height: 7px; border-radius: 50%; }
+.draft .kinds button[aria-pressed="true"] { border-color: var(--text); color: var(--text); font-weight: 500; }
+.draft .times { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.draft .times input[type="date"] { grid-column: 1 / -1; }
+.draft input { min-height: 38px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); width: 100%; min-width: 0; font-size: 14px; }
+.draft .title { font-size: 15px; flex: 1; }
 .seg { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.seg button { min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 13.5px; }
+.seg button { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 13px; }
 .seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
-.empty { padding: 26px; text-align: center; color: var(--text-2); border: 1px dashed var(--line); border-radius: var(--r-md); }
-table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
-table.t th, table.t td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
-.scroll-x { overflow-x: auto; }
 
-.overlay { position: fixed; inset: 0; background: rgba(18, 23, 26, .42); display: grid; place-items: center; padding: 16px; z-index: 50; }
-.dialog { width: min(520px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border-radius: var(--r-lg); padding: 26px; display: grid; gap: 16px; border: 1px solid var(--line); }
-.toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: 14px; z-index: 60; max-width: calc(100% - 32px); }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 10px; align-items: center; }
+.big { font-size: 44px; line-height: 1.05; }
+.big small { font-size: 15px; color: var(--text-2); margin: 0 .2em 0 .1em; font-family: var(--font-sans); }
+.dial { width: 112px; height: 112px; }
+.dial text { fill: var(--text-2); font-family: var(--font-sans); }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; display: grid; gap: 2px; align-content: start; }
+.stat .k { font-size: 12.5px; color: var(--text-2); }
+.stat .v { font-size: 26px; line-height: 1.2; }
+.stat .v small { font-size: 13px; color: var(--text-2); font-family: var(--font-sans); margin: 0 .15em; }
 
-.charter ol { padding-left: 1.3em; display: grid; gap: 14px; margin: 0; }
-.charter li p { color: var(--text-2); }
-.chain { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }
-.chain span { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
-.chain em { font-style: normal; color: var(--text-2); }
+.bars { display: grid; gap: 8px; }
+.bar-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 42px; gap: 8px; align-items: center; font-size: 13px; }
+.bar-track { height: 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 999px; }
+.stackbar { display: flex; height: 16px; border-radius: 999px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2); }
+.stackbar span { height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--text-2); }
+.legend b { font-weight: 400; color: var(--text); }
+.legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
 
-@media (max-width: 880px) {
-  .hero { grid-template-columns: 1fr; }
-  .grid2 { grid-template-columns: 1fr; }
-  .grid3 { grid-template-columns: 1fr; }
-}
-@media (max-width: 720px) {
-  .app { grid-template-columns: 1fr; }
-  .rail { display: none; }
-  .main { padding-block: 12px 110px; }
-  .mobile-top { display: flex; justify-content: space-between; align-items: center; padding-block: 8px; max-width: 980px; margin: 0 auto 6px; }
-  .mobile-top .brand { margin: 0; font-size: 20px; letter-spacing: .1em; }
-  .tabbar { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--line); z-index: 40; }
-  .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; color: var(--text-2); text-decoration: none; font-size: 12px; }
-  .tabbar a .dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; }
-  .tabbar a[aria-current="page"] { color: var(--text); }
-  .tabbar a[aria-current="page"] .dot { background: currentColor; }
-  .panel { padding: 18px; }
-  .t-item { grid-template-columns: 88px 5px minmax(0, 1fr); }
-  .t-item .t-actions { grid-column: 3; }
-  .t-gap { padding-left: 107px; }
-  .stat .v { font-size: 28px; }
-}
+.list { display: grid; }
+.item { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); align-items: center; }
+.item:last-child { border-bottom: 0; }
+.mark { align-self: stretch; border-radius: 3px; min-height: 34px; }
+.mark.blank { border: 1.5px dashed var(--k-blank-line); }
+.item .t { min-width: 0; overflow-wrap: anywhere; }
+.item .when { font-size: 12.5px; color: var(--text-2); }
+.gap { padding: 8px 0 8px 16px; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--line); }
+.x { border: 0; background: transparent; color: var(--text-2); cursor: pointer; min-width: 36px; min-height: 36px; border-radius: 50%; font-size: 18px; line-height: 1; }
+
+.card { border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: var(--surface); display: grid; gap: 8px; min-width: 0; }
+.card.default { border-color: var(--text); }
+.notice { border-radius: 14px; padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13.5px; color: var(--text-2); }
+.demo { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 14px; border: 1px dashed var(--warm); color: var(--warm); font-size: 12.5px; }
+.quote { font-family: var(--font-serif); font-size: 17px; line-height: 1.7; }
+.pending { border-left: 3px solid var(--warm); padding-left: 12px; display: grid; gap: 8px; }
+.empty { padding: 18px; text-align: center; color: var(--text-2); border: 1px dashed var(--line); border-radius: 14px; font-size: 13.5px; }
+details summary { cursor: pointer; color: var(--text-2); font-size: 13.5px; }
+
+.overlay { position: fixed; inset: 0; background: rgba(13, 17, 19, .45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+.sheet { width: min(460px, 100%); max-height: 88vh; overflow: auto; background: var(--surface); border-radius: 22px 22px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 14px; }
+.sheet::before { content: ""; width: 40px; height: 4px; border-radius: 4px; background: var(--line); justify-self: center; margin-top: -8px; }
+.toast { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 999px; font-size: 13.5px; z-index: 60; max-width: calc(100% - 32px); }
+
+.charter ol { padding-left: 1.2em; display: grid; gap: 12px; margin: 0; }
+.charter li p { color: var(--text-2); font-size: 14px; }
+.chain { display: grid; gap: 6px; font-size: 14px; }
+.chain div { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.chain b { font-weight: 400; font-family: var(--font-serif); color: var(--text-2); }
+
+@media (prefers-reduced-motion: reduce) { .mic.on::after { animation: none; } }
 @media (prefers-reduced-motion: no-preference) {
-  .page { animation: rise .32s ease-out both; }
-  @keyframes rise { from { opacity: .4; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .page { animation: rise .25s ease-out both; }
+  @keyframes rise { from { opacity: .5; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 }
 </style>
 
 <div class="app">
-  <aside class="rail" aria-label="主导航">
-    <a class="brand" href="#today" aria-label="留白">留<br>白</a>
-    <nav class="nav" id="nav"></nav>
-    <div class="spacer"></div>
-    <nav class="nav" id="nav2"></nav>
-  </aside>
-  <main class="main">
-    <div class="mobile-top">
-      <a class="brand" href="#today">留白</a>
-      <div class="row"><a class="btn sm ghost" href="#charter">宪章</a><a class="btn sm ghost" href="#settings">设置</a></div>
-    </div>
-    <div id="view"></div>
-  </main>
-  <nav class="tabbar" id="tabbar" aria-label="主导航"></nav>
+  <header class="top">
+    <a class="brand" href="#today">留白</a>
+    <nav id="topnav" aria-label="其他"></nav>
+  </header>
+  <main id="view"></main>
 </div>
+<nav class="tabbar" id="tabbar" aria-label="主导航"></nav>
 <div id="layer"></div>
 
 <script>
@@ -221,15 +203,12 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
     explore: { label: '探索', long: '探索时间', color: 'var(--k-explore)' },
     blank: { label: '留白', long: '留白', color: 'var(--k-blank-line)' }
   };
+  var KIND_ORDER = ['necessary', 'create', 'connect', 'explore', 'restore', 'blank'];
   var QUADS = ['restore', 'create', 'connect', 'explore'];
   var USES = { blank: '空着本身', restore: '恢复', create: '创造', connect: '连接', explore: '探索', private: '不想说' };
   var PAGES = [
-    { id: 'today', label: '今日', title: '首页' },
-    { id: 'flow', label: '时间流', title: '时间流' },
-    { id: 'compress', label: '压缩', title: 'AI 压缩' },
-    { id: 'account', label: '账户', title: '留白账户' },
-    { id: 'invest', label: '投资', title: '人生投资' },
-    { id: 'suggest', label: '建议', title: '留白建议' }
+    { id: 'today', label: '今日' }, { id: 'flow', label: '时间流' }, { id: 'compress', label: '压缩' },
+    { id: 'account', label: '账户' }, { id: 'invest', label: '投资' }, { id: 'suggest', label: '建议' }
   ];
   var PAGES2 = [{ id: 'charter', label: '宪章' }, { id: 'settings', label: '设置' }];
   var STORE_KEY = 'leubai.web.v1';
@@ -237,11 +216,23 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
   var RULES = [
     { re: /邮件|email|回复|消息/i, low: 0.3, high: 0.55, method: 'AI 起草常规回复，你只审阅和修改' },
     { re: /会议|纪要|组会|周会|例会|开会/, low: 0.3, high: 0.6, method: '自动转录与要点摘要，会后只核对' },
-    { re: /论文|文献|筛选|初筛|材料/, low: 0.3, high: 0.6, method: 'AI 摘要做初筛，精读留给自己' },
-    { re: /报销|行政|表格|填报|审批|整理/, low: 0.2, high: 0.45, method: '模板与自动填表，你只核对提交' },
-    { re: /通勤|路上|排队/, low: 0, high: 0, method: '这段很难交给 AI；可以只把它当作路上的时间' }
+    { re: /论文|文献|筛选|初筛|材料|审稿/, low: 0.3, high: 0.6, method: 'AI 摘要做初筛，精读留给自己' },
+    { re: /报销|行政|表格|填报|审批|整理|申请/, low: 0.2, high: 0.45, method: '模板与自动填表，你只核对提交' },
+    { re: /批改|作业|出题/, low: 0.2, high: 0.4, method: 'AI 先做初评与错因归类，你只复核' },
+    { re: /通勤|路上|排队/, low: 0, high: 0, method: '这段很难交给 AI，就当作路上的时间' }
   ];
   var DEFAULT_RULE = { low: 0.1, high: 0.3, method: '先记录一周，再判断哪一段适合交给 AI' };
+
+  // keyword → kind, checked in order; the first hit wins
+  var KIND_WORDS = [
+    ['blank', /留白|空出|空着|什么都不(做|安排)|不安排/],
+    ['connect', /陪|家人|朋友|父母|爸|妈|女儿|儿子|孩子|老婆|老公|伴侣|聊天|聚餐|吃饭|打电话|电话|约会|见面/],
+    ['restore', /睡|午休|散步|休息|跑步|运动|健身|游泳|瑜伽|冥想|发呆|洗澡|按摩/],
+    ['necessary', /会|邮件|回复|报销|行政|审稿|批改|作业|上课|讲课|答疑|通勤|填|申请|汇报|材料|文献筛选|初筛|家务|买菜|消息/],
+    ['create', /写|撰写|画|创作|设计|编程|代码|作曲|拍|做研究|实验/],
+    ['explore', /读|看书|阅读|学|课程|纪录片|看展|展览|逛|旅行|探索|播客/]
+  ];
+  function guessKind(s) { for (var i = 0; i < KIND_WORDS.length; i++) if (KIND_WORDS[i][1].test(s)) return KIND_WORDS[i][0]; return 'necessary'; }
 
   var IDEAS = {
     restore: [['散步', 40], ['什么都不看，坐一会儿', 20], ['午睡', 25], ['慢慢做一顿饭', 60], ['拉伸', 15]],
@@ -258,6 +249,7 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
     '你可以不优化这一天。',
     '请求不是责任，推迟也不是节省。'
   ];
+  var EXAMPLES = ['下午两点到三点开组会', '刚才回邮件花了 40 分钟', '晚上八点留白一小时', '明天上午九点半批改作业一个半小时', '六点到七点陪女儿吃饭'];
 
   // ---------- utils ----------
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -265,12 +257,12 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
   function todayStr() { return ymd(new Date()); }
   function addDays(s, n) { var p = s.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + n); return ymd(d); }
   function toMin(t) { var p = String(t).split(':'); return (+p[0]) * 60 + (+p[1]); }
-  function toHM(m) { m = Math.max(0, Math.round(m)); return pad(Math.floor(m / 60) % 24 === 0 && m >= 1440 ? 24 : Math.floor(m / 60)) + ':' + pad(m % 60); }
+  function toHM(m) { m = Math.max(0, Math.min(1440, Math.round(m))); return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
+  function isHM(t) { return typeof t === 'string' && /^([01]\d|2[0-4]):[0-5]\d$/.test(t); }
   function nowMin() { var d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
   function dur(e) { var a = toMin(e.start), b = toMin(e.end); return b > a ? b - a : 0; }
   function fmt(m) {
-    m = Math.max(0, Math.round(m));
-    var h = Math.floor(m / 60), r = m % 60;
+    m = Math.max(0, Math.round(m)); var h = Math.floor(m / 60), r = m % 60;
     if (!h) return '<span class="num">' + r + '</span><small>分钟</small>';
     return '<span class="num">' + h + '</span><small>小时</small>' + (r ? '<span class="num">' + r + '</span><small>分</small>' : '');
   }
@@ -280,21 +272,18 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
   function uid() { return Math.random().toString(36).slice(2, 10); }
   function dateLabel(s) {
     var t = todayStr();
-    if (s === t) return '今天';
-    if (s === addDays(t, -1)) return '昨天';
-    if (s === addDays(t, 1)) return '明天';
+    if (s === t) return '今天'; if (s === addDays(t, -1)) return '昨天'; if (s === addDays(t, 1)) return '明天';
     var p = s.split('-'); return (+p[1]) + '月' + (+p[2]) + '日';
   }
+  function weekday(s) { var p = s.split('-'); return '日一二三四五六'.charAt(new Date(+p[0], +p[1] - 1, +p[2]).getDay()); }
   function hashInt(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
   function ruleFor(title) { for (var i = 0; i < RULES.length; i++) if (RULES[i].re.test(title)) return RULES[i]; return DEFAULT_RULE; }
 
   // ---------- state ----------
   var memoryOnly = false;
-  function blankState() {
-    return { v: 1, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [] };
-  }
+  function blankState() { return { v: 1, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'time' }; }
   function load() {
-    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) return s; } } catch (e) { memoryOnly = true; }
+    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) { s.drafts = s.drafts || []; s.sortBy = s.sortBy || 'time'; return s; } } } catch (e) { memoryOnly = true; }
     return blankState();
   }
   var S = load();
@@ -302,10 +291,8 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
 
   // ---------- demo ----------
   function demoState() {
-    var s = blankState();
-    s.mode = 'demo'; s.name = 'Yajing';
-    var t = todayStr();
-    var E = [];
+    var s = blankState(); s.mode = 'demo'; s.name = 'Yajing';
+    var t = todayStr(), E = [];
     function add(day, a, b, title, kind, extra) {
       var e = { id: uid(), date: addDays(t, day), start: a, end: b, title: title, kind: kind };
       if (extra) for (var k in extra) e[k] = extra[k];
@@ -313,8 +300,8 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
     }
     for (var d = -20; d <= 0; d++) {
       var date = addDays(t, d), p = date.split('-'), wd = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
-      var weekend = wd === 0 || wd === 6, v = hashInt(date) % 4;
-      if (!weekend) {
+      var v = hashInt(date) % 4;
+      if (wd !== 0 && wd !== 6) {
         add(d, '09:00', '10:00', '组会', 'necessary');
         add(d, '10:00', '11:30', '论文阅读', 'explore');
         add(d, '11:30', '12:10', '邮件回复', 'necessary');
@@ -337,7 +324,7 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
     add(-6, '20:00', '21:00', '留白', 'blank', { state: 'taken', kept: 0, use: null, note: '临时加了一个会' });
     add(-9, '19:30', '20:30', '留白', 'blank', { state: 'kept', kept: 60, use: 'blank', note: '' });
     add(-13, '20:00', '21:30', '留白', 'blank', { state: 'kept', kept: 90, use: 'create', note: '画了两页速写' });
-    add(0, '20:00', '21:00', '留白', 'blank', { state: 'reserved', kept: 0, use: null, note: '', intent: '' });
+    add(0, '21:00', '22:00', '留白', 'blank', { state: 'reserved', kept: 0, use: null, note: '', intent: '' });
     s.entries = E;
     s.trials = [
       { id: uid(), date: addDays(t, -1), title: '邮件回复', before: 54, after: 19, method: 'AI 起草常规回复' },
@@ -353,18 +340,12 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
   function inRange(days) { var t = todayStr(), from = addDays(t, -(days - 1)); return S.entries.filter(function (e) { return e.date >= from && e.date <= t; }); }
   function blankEnded(e) { var t = todayStr(); return e.date < t || (e.date === t && toMin(e.end) <= nowMin()); }
   function pendingBlanks() { return S.entries.filter(function (e) { return e.kind === 'blank' && e.state === 'reserved' && blankEnded(e); }).sort(function (a, b) { return a.date < b.date ? 1 : -1; }); }
-  function upcomingBlanks() { var t = todayStr(); return entriesOn(t).filter(function (e) { return e.kind === 'blank' && e.state === 'reserved' && !blankEnded(e); }); }
-
-  // minutes per kind; a kept blank counts by its declared use (unused = blank)
+  function upcomingBlanks() { return entriesOn(todayStr()).filter(function (e) { return e.kind === 'blank' && e.state === 'reserved' && !blankEnded(e); }); }
   function mix(list) {
     var m = { necessary: 0, restore: 0, create: 0, connect: 0, explore: 0, blank: 0 };
     list.forEach(function (e) {
-      if (e.kind === 'blank') {
-        if (e.state === 'kept' || e.state === 'partial') {
-          var k = e.kind === 'blank' && e.use && QUADS.indexOf(e.use) >= 0 ? e.use : 'blank';
-          m[k] += e.kept || 0;
-        } else if (e.state === 'reserved' && !blankEnded(e)) { /* future: not yet lived */ }
-      } else m[e.kind] += dur(e);
+      if (e.kind === 'blank') { if (e.state === 'kept' || e.state === 'partial') m[e.use && QUADS.indexOf(e.use) >= 0 ? e.use : 'blank'] += e.kept || 0; }
+      else m[e.kind] += dur(e);
     });
     var total = 0; for (var k in m) total += m[k];
     return { m: m, total: total };
@@ -373,9 +354,7 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
     var x = mix(list), m = x.m, T = x.total;
     if (T < 60) return null;
     var auto = T - m.necessary;
-    var autoShare = auto / T;
-    var meaning = auto > 0 ? (m.create + m.connect) / auto : 0;
-    return { score: Math.round(100 * (0.5 * autoShare + 0.5 * meaning)), auto: autoShare, meaning: meaning, create: m.create / T, connect: m.connect / T, total: T };
+    return { score: Math.round(100 * (0.5 * auto / T + 0.5 * (auto > 0 ? (m.create + m.connect) / auto : 0))), auto: auto / T, meaning: auto > 0 ? (m.create + m.connect) / auto : 0 };
   }
   function keptTotal() { return S.entries.reduce(function (a, e) { return a + (e.kind === 'blank' ? (e.kept || 0) : 0); }, 0); }
   function trialsSaved(date) { return S.trials.filter(function (r) { return !date || r.date === date; }).reduce(function (a, r) { return a + Math.max(0, r.before - r.after); }, 0); }
@@ -394,9 +373,143 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
       return f;
     }).sort(function (a, b) { return b.high - a.high; });
   }
+  function overlapsBlank(date, a, b) {
+    return entriesOn(date).filter(function (e) { return e.kind === 'blank' && e.state === 'reserved' && toMin(e.start) < b && a < toMin(e.end); });
+  }
+
+  // ---------- speech → drafts ----------
+  var CN = { '零': 0, '〇': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+  function cnNum(s) {
+    if (/^\d+(\.\d+)?$/.test(s)) return +s;
+    var n = 0, cur = 0;
+    for (var i = 0; i < s.length; i++) { var c = s.charAt(i); if (c === '十') { n += (cur || 1) * 10; cur = 0; } else if (c in CN) cur = CN[c]; }
+    return n + cur;
+  }
+  var NUM = '[0-9零〇一二两三四五六七八九十]+';
+  var PERIOD = '凌晨|早上|早晨|上午|中午|下午|傍晚|晚上|夜里|今晚';
+  var TIME_RE = new RegExp('(' + PERIOD + ')?\\s*(' + NUM + ')\\s*(?:点钟?|:|：|时)\\s*(半|一刻|三刻|(' + NUM + ')\\s*分?)?', 'g');
+  function clock(period, h, tail) {
+    var m = 0;
+    if (tail === '半') m = 30; else if (tail === '一刻') m = 15; else if (tail === '三刻') m = 45; else if (tail) m = cnNum(tail);
+    if (/下午|傍晚|晚上|夜里|今晚/.test(period || '') && h < 12) h += 12;
+    else if (period === '中午' && h < 11) h += 12;
+    else if (!period && h >= 1 && h <= 6) h += 12; // a bare "三点" during waking hours is read as the afternoon
+    return Math.min(1440, h * 60 + m);
+  }
+  function durationOf(s) {
+    var m = s.match(/一个半(小时|钟头)/); if (m) return { min: 90, text: m[0] };
+    m = s.match(/半(个)?(小时|钟头)/); if (m) return { min: 30, text: m[0] };
+    m = s.match(new RegExp('(\\d+\\.\\d+|' + NUM + ')\\s*个?\\s*(小时|钟头)(\\s*(' + NUM + ')\\s*分钟?)?')); if (m) return { min: Math.round(cnNum(m[1]) * 60) + (m[4] ? cnNum(m[4]) : 0), text: m[0] };
+    m = s.match(new RegExp('(' + NUM + ')\\s*分钟')); if (m) return { min: cnNum(m[1]), text: m[0] };
+    return null;
+  }
+  function ruleParse(text) {
+    var t = todayStr(), out = [], baseDate = t;
+    String(text).split(/[，,。；;！!？?\n]+|然后|之后|接着|还有|另外/).forEach(function (seg) {
+      seg = (seg || '').trim(); if (!seg) return;
+      var date = baseDate;
+      var dm = seg.match(/大后天|后天|明天|今天|昨天|前天|今晚/);
+      if (dm) { date = addDays(t, { '大后天': 3, '后天': 2, '明天': 1, '今天': 0, '今晚': 0, '昨天': -1, '前天': -2 }[dm[0]]); baseDate = date; }
+      var times = [], m, lastPeriod = null, rest = seg;
+      TIME_RE.lastIndex = 0;
+      while ((m = TIME_RE.exec(seg))) {
+        var p = m[1] || lastPeriod; if (m[1]) lastPeriod = m[1];
+        times.push(clock(p, cnNum(m[2]), (m[3] || '').replace(/[\s分]/g, ''))); rest = rest.replace(m[0], ' ');
+      }
+      var d = durationOf(rest); if (d) rest = rest.replace(d.text, ' ');
+      var start = null, end = null;
+      if (times.length >= 2) { start = times[0]; end = times[1]; if (end <= start && end + 720 > start) end += 720; }
+      else if (times.length === 1) { start = times[0]; end = d ? start + d.min : null; }
+      else if (d && date === t) { end = nowMin(); start = Math.max(0, end - d.min); }
+      var kind = guessKind(seg);
+      var title = rest.replace(new RegExp(PERIOD, 'g'), ' ').replace(/大后天|后天|明天|今天|昨天|前天/g, ' ')
+        .replace(/开(\S{0,4}会)/, '$1').replace(/我们|我|刚才|刚刚|花了|用了|大概|大约|左右|一共|从|到|至|要|需要|打算|准备|想|在|去|了|的|-|~|～|—/g, ' ')
+        .replace(/\s+/g, ' ').trim();
+      if (kind === 'blank') title = '留白';
+      if (!title) title = KINDS[kind].label;
+      out.push({ id: uid(), title: title.slice(0, 30), kind: kind, date: date, start: start == null ? '' : toHM(start), end: end == null ? '' : toHM(end) });
+    });
+    return out;
+  }
+  function normalizeAI(items) {
+    var t = todayStr();
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, 12).map(function (it) {
+      if (!it || typeof it.title !== 'string') return null;
+      var kind = KINDS[it.kind] ? it.kind : guessKind(it.title);
+      var date = /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') ? it.date : t;
+      var start = isHM(it.start) ? it.start : '', end = isHM(it.end) ? it.end : '';
+      var mins = +it.minutes > 0 ? Math.round(+it.minutes) : 0;
+      if (start && !end && mins) end = toHM(toMin(start) + mins);
+      if (!start && end && mins) start = toHM(toMin(end) - mins);
+      if (!start && !end && mins && date === t) { end = toHM(nowMin()); start = toHM(nowMin() - mins); }
+      return { id: uid(), title: (kind === 'blank' ? '留白' : it.title).slice(0, 30), kind: kind, date: date, start: start, end: end };
+    }).filter(Boolean);
+  }
+  var sampleP = (window.claude && typeof window.claude.use === 'function') ? Promise.resolve(window.claude.use('sample')).catch(function () { return null; }) : Promise.resolve(null);
+  var aiOff = false;
+  function withTimeout(p, ms) { return Promise.race([p, new Promise(function (r) { setTimeout(function () { r(null); }, ms); })]); }
+  function aiPrompt(text) {
+    var t = todayStr();
+    return '你是“留白”的记录助手，把用户的一段口语整理成时间记录。今天是 ' + t + '（星期' + weekday(t) + '），现在是 ' + toHM(nowMin()) + '。\n' +
+      '只输出 JSON，不要任何解释：{"items":[{"title":"简短名称，不含时间词","kind":"necessary|restore|create|connect|explore|blank","date":"YYYY-MM-DD","start":"HH:MM 或 null","end":"HH:MM 或 null","minutes":数字或null}]}\n' +
+      '分类：necessary=必要劳动（会议、邮件、行政、审稿、批改、上课、通勤等不得不做的事）；create=创造（写作、研究、设计、编程、画画）；connect=连接（家人、朋友、聊天、吃饭、电话）；explore=探索（阅读、学习新东西、看展）；restore=恢复（睡眠、散步、运动、休息）；blank=用户想空出来、什么都不安排的时间。\n' +
+      '“刚才/刚刚…花了 X 分钟”表示刚结束，end 为现在。没说上午下午的 1–6 点按下午算。拿不准的字段写 null，不要编造。一句话里有几件事就拆成几条。\n' +
+      '用户的话：「' + String(text).slice(0, 600) + '」';
+  }
+  var capState = { busy: false, msg: '', warn: false, listening: false };
+  function setCap(msg, warn) { capState.msg = msg; capState.warn = !!warn; var el = document.getElementById('capStatus'); if (el) { el.textContent = msg; el.className = 'cap-status' + (warn ? ' warn' : ''); } }
+  function parseInput(text) {
+    text = String(text || '').trim();
+    if (!text || capState.busy) return;
+    capState.busy = true; setCap('正在整理…');
+    var btn = document.getElementById('capGo'); if (btn) btn.disabled = true;
+    var done = function (items, how) {
+      capState.busy = false;
+      var b2 = document.getElementById('capGo'); if (b2) b2.disabled = false;
+      if (!items.length) { setCap('没有听出时间或事情。可以说得具体一点，比如“下午两点到三点开组会”。', true); return; }
+      S.drafts = S.drafts.concat(items); save();
+      capState.msg = '整理出 ' + items.length + ' 条' + (how === 'ai' ? '（由 Claude 匹配）' : '（按本地规则匹配）') + '，看一眼再记下。'; capState.warn = false;
+      render();
+    };
+    (aiOff ? Promise.resolve(null) : withTimeout(sampleP, 1500)).then(function (sample) {
+      if (!sample) return done(ruleParse(text), 'rule');
+      sample.json(aiPrompt(text), { modelTier: 'quick' }).then(function (data) {
+        var items = normalizeAI(data && data.items);
+        done(items.length ? items : ruleParse(text), items.length ? 'ai' : 'rule');
+      }, function (e) {
+        if (e && e.code === 'not_granted') aiOff = true;
+        done(ruleParse(text), 'rule');
+      });
+    });
+  }
+  var rec = null;
+  function startMic() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var ta = document.getElementById('cap-text');
+    var fallback = function () { if (ta) ta.focus(); setCap('这里暂时不能直接打开麦克风。点一下输入框，用手机键盘上的麦克风说话，效果一样。', true); };
+    if (!SR) return fallback();
+    if (rec) { rec.stop(); return; }
+    try {
+      rec = new SR(); rec.lang = 'zh-CN'; rec.interimResults = true; rec.continuous = false;
+      rec.onresult = function (ev) {
+        var txt = ''; for (var i = 0; i < ev.results.length; i++) txt += ev.results[i][0].transcript;
+        if (ta) ta.value = txt;
+      };
+      rec.onerror = function (ev) {
+        rec = null; capState.listening = false; micUi();
+        if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed' || ev.error === 'audio-capture') fallback();
+        else if (ev.error !== 'aborted') setCap('没有听清，再说一次，或者直接打字。', true);
+      };
+      rec.onend = function () { var had = rec !== null; rec = null; capState.listening = false; micUi(); if (had && ta && ta.value.trim()) parseInput(ta.value); };
+      rec.start(); capState.listening = true; micUi(); setCap('在听…说完停一下就好。');
+    } catch (e) { rec = null; fallback(); }
+  }
+  function micUi() { var b = document.getElementById('mic'); if (b) { b.classList.toggle('on', capState.listening); b.setAttribute('aria-pressed', String(capState.listening)); } }
 
   // ---------- rendering helpers ----------
-  function chip(kind) { var k = KINDS[kind]; return '<span class="chip ' + (kind === 'blank' ? 'blank' : '') + '"><i style="background:' + k.color + '"></i>' + k.label + '</span>'; }
+  var MIC_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"></path></svg>';
+  function chip(kind) { return '<span class="chip' + (kind === 'blank' ? ' blank' : '') + '"><i style="background:' + (kind === 'blank' ? 'transparent' : KINDS[kind].color) + '"></i>' + KINDS[kind].label + '</span>'; }
   function bars(m, keys, total) {
     return '<div class="bars">' + keys.map(function (k) {
       var share = total ? m[k] / total : 0;
@@ -404,35 +517,72 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
       return '<div class="bar-row"><span>' + KINDS[k].label + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (share * 100).toFixed(1) + '%;' + fill + '"></div></div><span class="num" style="text-align:right">' + pct(share) + '%</span></div>';
     }).join('') + '</div>';
   }
-  function stackbar(parts) {
-    return '<div class="stackbar" role="img" aria-label="' + esc(parts.map(function (p) { return p.label + ' ' + p.pct + '%'; }).join('，')) + '">' +
-      parts.map(function (p) { return '<span style="width:' + p.pct + '%;background:' + p.color + '"></span>'; }).join('') + '</div>';
-  }
   function demoBanner() {
     if (S.mode !== 'demo') return '';
-    return '<div class="demo-banner"><span>你正在看示例数据：一位研究者 Yajing 的三周。这些不是你的记录。</span><button class="btn sm" data-act="start-real">清空示例，开始记我自己的</button></div>';
+    return '<div class="demo"><span>示例数据，不是你的记录</span><button class="btn sm" data-act="start-real">清空，开始用</button></div>';
   }
   function dial(date) {
-    var R = 112, C = 2 * Math.PI * R, list = entriesOn(date);
-    var segs = list.map(function (e) {
+    var R = 42, C = 2 * Math.PI * R;
+    var segs = entriesOn(date).map(function (e) {
       var a = toMin(e.start), b = toMin(e.end); if (b <= a) return '';
-      var len = (b - a) / 1440 * C, off = -a / 1440 * C;
-      if (e.kind === 'blank') return '<circle cx="150" cy="150" r="' + R + '" fill="none" stroke="var(--k-blank-line)" stroke-width="20" stroke-dasharray="' + len.toFixed(2) + ' ' + C.toFixed(2) + '" stroke-dashoffset="' + off.toFixed(2) + '" opacity=".22"></circle>' +
-        '<circle cx="150" cy="150" r="' + (R + 11) + '" fill="none" stroke="var(--k-blank-line)" stroke-width="1.5" stroke-dasharray="' + ((b - a) / 1440 * 2 * Math.PI * (R + 11)).toFixed(2) + ' 9999" stroke-dashoffset="' + (-a / 1440 * 2 * Math.PI * (R + 11)).toFixed(2) + '"></circle>';
-      return '<circle cx="150" cy="150" r="' + R + '" fill="none" stroke="' + KINDS[e.kind].color + '" stroke-width="20" stroke-dasharray="' + len.toFixed(2) + ' ' + C.toFixed(2) + '" stroke-dashoffset="' + off.toFixed(2) + '"></circle>';
+      var len = ((b - a) / 1440 * C).toFixed(2), off = (-a / 1440 * C).toFixed(2);
+      if (e.kind === 'blank') return '<circle cx="56" cy="56" r="' + R + '" fill="none" stroke="var(--k-blank-line)" stroke-width="12" stroke-dasharray="' + len + ' ' + C.toFixed(2) + '" stroke-dashoffset="' + off + '" opacity=".3"></circle>';
+      return '<circle cx="56" cy="56" r="' + R + '" fill="none" stroke="' + KINDS[e.kind].color + '" stroke-width="12" stroke-dasharray="' + len + ' ' + C.toFixed(2) + '" stroke-dashoffset="' + off + '"></circle>';
     }).join('');
-    var ticks = [0, 6, 12, 18].map(function (h) {
-      var ang = h / 24 * 2 * Math.PI, x = 150 + Math.sin(ang) * 140, y = 150 - Math.cos(ang) * 140;
-      return '<text x="' + x.toFixed(1) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="middle">' + pad(h) + '</text>';
+    var ang = nowMin() / 1440 * 2 * Math.PI;
+    var now = date === todayStr() ? '<line x1="' + (56 + Math.sin(ang) * 32).toFixed(1) + '" y1="' + (56 - Math.cos(ang) * 32).toFixed(1) + '" x2="' + (56 + Math.sin(ang) * 52).toFixed(1) + '" y2="' + (56 - Math.cos(ang) * 52).toFixed(1) + '" stroke="var(--text)" stroke-width="2"></line>' : '';
+    return '<svg class="dial" viewBox="0 0 112 112" role="img" aria-label="今天 24 小时的时间分布，顶端为零点"><circle cx="56" cy="56" r="' + R + '" fill="none" stroke="var(--line)" stroke-width="12"></circle><g transform="rotate(-90 56 56)">' + segs + '</g>' + now + '<text x="56" y="60" text-anchor="middle" font-size="11">24h</text></svg>';
+  }
+  function timeItem(e, withDelete) {
+    return '<div class="item"><span class="mark' + (e.kind === 'blank' ? ' blank' : '') + '" style="' + (e.kind === 'blank' ? '' : 'background:' + KINDS[e.kind].color) + '"></span>' +
+      '<div class="t">' + esc(e.title) + '<div class="when"><span class="num">' + e.start + '–' + e.end + '</span> · ' + (e.kind === 'blank' ? blankStatus(e) : KINDS[e.kind].label + ' · ' + fmtPlain(dur(e))) + '</div></div>' +
+      (withDelete ? '<button class="x" data-act="del" data-id="' + e.id + '" aria-label="删除 ' + esc(e.title) + '">×</button>' : chip(e.kind)) + '</div>';
+  }
+  function blankStatus(e) {
+    if (e.state === 'reserved') return blankEnded(e) ? '等你确认是否留住' : '已预留，默认不再被塞满' + (e.intent ? ' · 想用来：' + esc(e.intent) : '');
+    if (e.state === 'kept') return '完整留住' + (e.use ? ' · ' + USES[e.use] : '') + (e.note ? ' · ' + esc(e.note) : '');
+    if (e.state === 'partial') return '留住 ' + fmtPlain(e.kept) + (e.use ? ' · ' + USES[e.use] : '') + (e.note ? ' · ' + esc(e.note) : '');
+    if (e.state === 'taken') return '被占用' + (e.note ? ' · ' + esc(e.note) : '');
+    return '记不清';
+  }
+
+  // capture box + drafts, shared by 今日 and 时间流
+  function capture(prompt) {
+    var html = '<section class="capture" aria-label="语音或文字记录"><div class="capture-main">' +
+      '<button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="按一下开始语音输入" aria-pressed="' + capState.listening + '">' + MIC_SVG + '</button>' +
+      '<div><div style="font-family:var(--font-serif);font-size:17px">' + prompt + '</div><div class="tiny muted">说几件事都行，我来拆开、配时间、分好类</div></div></div>' +
+      '<form id="capForm" class="stack"><textarea id="cap-text" rows="2" maxlength="600" placeholder="比如：下午两点到三点开组会，刚才回邮件花了 40 分钟，晚上八点留白一小时"></textarea>' +
+      '<div class="examples" aria-label="示例">' + EXAMPLES.map(function (x) { return '<button type="button" data-act="ex" data-v="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<button class="btn primary block" id="capGo" type="submit"' + (capState.busy ? ' disabled' : '') + '>整理</button></form>' +
+      '<p id="capStatus" class="cap-status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p></section>';
+    return html + draftList();
+  }
+  function draftProblem(d) {
+    if (!isHM(d.start) || !isHM(d.end)) return '缺开始或结束时间';
+    if (toMin(d.end) <= toMin(d.start)) return '结束要晚于开始';
+    if (d.kind !== 'blank' && overlapsBlank(d.date, toMin(d.start), toMin(d.end)).length && !d.force) return 'overlap';
+    return '';
+  }
+  function draftList() {
+    if (!S.drafts.length) return '';
+    var list = S.drafts.slice();
+    if (S.sortBy === 'kind') list.sort(function (a, b) { return KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || ((a.date + a.start) < (b.date + b.start) ? -1 : 1); });
+    else list.sort(function (a, b) { var ka = a.date + (a.start || '99'), kb = b.date + (b.start || '99'); return ka < kb ? -1 : ka > kb ? 1 : 0; });
+    var nec = S.drafts.filter(function (d) { return d.kind === 'necessary' && ruleFor(d.title).high > 0; });
+    var html = '<section class="panel"><div class="row between"><h2>待确认 ' + S.drafts.length + ' 条</h2><div class="seg" role="group" aria-label="排序">' +
+      '<button data-act="sort" data-v="time" aria-pressed="' + (S.sortBy === 'time') + '">按时间</button><button data-act="sort" data-v="kind" aria-pressed="' + (S.sortBy === 'kind') + '">按类别</button></div></div>';
+    if (nec.length) html += '<p class="small muted">' + nec.map(function (d) { return esc(d.title); }).join('、') + ' 是必要劳动，记下后会出现在“压缩”里。</p>';
+    html += list.map(function (d) {
+      var prob = draftProblem(d);
+      return '<div class="draft' + (prob ? ' bad' : '') + '" data-id="' + d.id + '">' +
+        '<div class="row between" style="flex-wrap:nowrap"><input class="title" data-f="title" value="' + esc(d.title) + '" aria-label="事情" maxlength="30"><button class="x" data-act="draft-del" aria-label="删掉这条">×</button></div>' +
+        '<div class="kinds" role="group" aria-label="类别">' + KIND_ORDER.map(function (k) { return '<button type="button" data-act="draft-kind" data-v="' + k + '" aria-pressed="' + (d.kind === k) + '"><i style="background:' + (k === 'blank' ? 'transparent;border:1.5px dashed var(--k-blank-line)' : KINDS[k].color) + '"></i>' + KINDS[k].label + '</button>'; }).join('') + '</div>' +
+        '<div class="times"><input type="date" data-f="date" value="' + d.date + '" aria-label="日期"><input type="time" data-f="start" value="' + d.start + '" aria-label="开始"><input type="time" data-f="end" value="' + d.end + '" aria-label="结束"></div>' +
+        (prob === 'overlap' ? '<div class="row small" style="color:var(--warm)">和你预留的留白重叠，留白默认不被再次塞满。<button class="btn sm" data-act="draft-force">仍然记下</button></div>' : prob ? '<div class="small" style="color:var(--warm)">' + prob + '</div>' : '') +
+        '</div>';
     }).join('');
-    var nowLine = '';
-    if (date === todayStr()) {
-      var ang = nowMin() / 1440 * 2 * Math.PI;
-      nowLine = '<line class="now" x1="' + (150 + Math.sin(ang) * 96).toFixed(1) + '" y1="' + (150 - Math.cos(ang) * 96).toFixed(1) + '" x2="' + (150 + Math.sin(ang) * 128).toFixed(1) + '" y2="' + (150 - Math.cos(ang) * 128).toFixed(1) + '" stroke-width="2"></line>';
-    }
-    return '<svg class="dial" viewBox="0 0 300 300" role="img" aria-label="今天 24 小时的时间分布图">' +
-      '<circle cx="150" cy="150" r="' + R + '" fill="none" stroke="var(--line)" stroke-width="20"></circle>' +
-      '<g transform="rotate(-90 150 150)">' + segs + '</g>' + ticks + nowLine + '</svg>';
+    html += '<div class="two"><button class="btn primary" data-act="draft-commit">全部记下</button><button class="btn" data-act="draft-clear">都不要了</button></div></section>';
+    return html;
   }
 
   // ---------- pages ----------
@@ -442,91 +592,59 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
     var nec = today.filter(function (e) { return e.kind === 'necessary'; }).reduce(function (a, e) { return a + dur(e); }, 0);
     var free = Math.max(0, S.wake - nec);
     var up = upcomingBlanks(), upMin = up.reduce(function (a, e) { return a + dur(e); }, 0);
-    var savedToday = trialsSaved(t);
-    var pend = pendingBlanks();
-    var week = mix(inRange(7)), fi = freedom(inRange(7));
-    var finds = compressFindings(7).filter(function (f) { return f.high > 0; }).slice(0, 3);
-    var line = LINES[hashInt(t) % LINES.length];
-
+    var pend = pendingBlanks(), fi = freedom(inRange(7));
     var html = demoBanner();
-    html += '<header class="head"><div class="eyebrow">' + esc(dateLabel(t)) + ' · ' + t.replace(/-/g, '.') + '</div><h1>' + greet + (S.name ? '，' + esc(S.name) : '') + '</h1></header>';
-
-    html += '<section class="panel hero"><div class="stack"><div class="eyebrow">今日可支配生命</div><div class="big">' + fmt(free) + '</div>' +
-      '<p class="muted small">按清醒 ' + Math.round(S.wake / 60) + ' 小时，减去今天记录的必要时间 ' + fmtPlain(nec) + '。没有记录的时间，留白不替你认定是空闲还是忙碌。</p>' +
-      '<div class="row" style="margin-top:6px"><button class="btn primary" data-act="reserve">预留一段留白</button><a class="btn" href="#flow">记录今天</a></div>' +
-      '<p class="tiny muted">待办事项：已隐藏。留白不显示你还有多少件事没做。</p></div>' + dial(t) + '</section>';
-
-    if (pend.length) {
-      html += '<section class="panel"><h2>这些留白，最后留住了吗？</h2><p class="muted small" style="margin-top:6px">只有你确认留住的时间，才会记进留白账户。被占用了也照实说，这不是失败。</p><div class="stack" style="margin-top:14px">' +
-        pend.slice(0, 3).map(confirmBlock).join('') + '</div></section>';
-    }
-
-    html += '<div class="grid3">' +
-      '<div class="panel stat"><span class="k">今日已确认节省</span><span class="v">' + fmt(savedToday) + '</span><span class="tiny muted">你试过并记下的实际差值，不是估算</span></div>' +
-      '<div class="panel stat"><span class="k">今天预留的留白</span><span class="v">' + fmt(upMin) + '</span><span class="tiny muted">' + (up.length ? up.map(function (e) { return e.start + '–' + e.end; }).join('、') + '，默认不再被塞满' : '还没有。留白不需要先挣来') + '</span></div>' +
-      '<div class="panel stat"><span class="k">本周自由指数</span><span class="v">' + (fi ? '<span class="num">' + fi.score + '</span>' : '<span class="muted" style="font-size:18px">记录不足</span>') + '</span><span class="tiny muted">' + (fi ? '自主 ' + pct(fi.auto) + '% · 创造与连接占自主 ' + pct(fi.meaning) + '%。只描述，不比较' : '记满一小时后才计算') + '</span></div>' +
+    html += '<div class="head"><div class="eyebrow">' + t.replace(/-/g, '.') + ' 星期' + weekday(t) + '</div><h1>' + greet + (S.name ? '，' + esc(S.name) : '') + '</h1></div>';
+    html += capture('今天怎么过的，说给我听');
+    html += '<section class="panel"><div class="hero"><div class="stack" style="gap:4px"><div class="eyebrow">今日可支配生命</div><div class="big">' + fmt(free) + '</div>' +
+      '<p class="tiny muted">清醒 ' + Math.round(S.wake / 60) + ' 小时，减去今天的必要时间 ' + fmtPlain(nec) + '</p></div>' + dial(t) + '</div>' +
+      '<p class="tiny muted">待办数量已隐藏。没记录的时间，不算空闲也不算浪费。</p></section>';
+    if (pend.length) html += '<section class="panel"><h2>这些留白，留住了吗？</h2><p class="small muted">只有你确认留住的，才记进留白账户。被占用了也照实说。</p>' + pend.slice(0, 2).map(confirmBlock).join('') + '</section>';
+    html += '<div class="two">' +
+      '<div class="stat"><span class="k">今天预留的留白</span><span class="v">' + fmt(upMin) + '</span><button class="btn sm" data-act="reserve" style="justify-self:start;margin-top:6px">预留一段</button></div>' +
+      '<div class="stat"><span class="k">今日已确认节省</span><span class="v">' + fmt(trialsSaved(t)) + '</span><span class="tiny muted">试过才算，不是估算</span></div>' +
       '</div>';
-
-    html += '<div class="grid2"><section class="panel"><div class="row between"><h2>本周时间流向</h2><a class="small" href="#invest">看人生投资</a></div>' +
-      (week.total ? bars(week.m, ['necessary', 'create', 'connect', 'explore', 'restore', 'blank'], week.total) + '<p class="tiny muted" style="margin-top:12px">基于过去 7 天你记录的 ' + fmtPlain(week.total) + '</p>' : '<div class="empty">还没有记录。去时间流记下今天的几段时间。</div>') +
-      '</section><section class="panel"><div class="row between"><h2>AI 发现</h2><a class="small" href="#compress">去压缩</a></div>' +
-      (finds.length ? '<div class="stack">' + finds.map(function (f) { return '<div class="row between"><span>' + esc(f.title) + '</span><span class="muted small">每天约可压缩 <span class="num">' + f.low + '–' + f.high + '</span> 分钟</span></div>'; }).join('') + '</div><p class="tiny muted" style="margin-top:12px">这是按规则估算的区间，不是已经归还的时间。</p>'
-        : '<div class="empty">记录几段必要时间（会议、邮件、行政），这里会给出可压缩的估算。</div>') +
-      '</section></div>';
-
-    html += '<section class="panel quiet"><div class="eyebrow">一句提醒</div><p class="quote" style="margin-top:8px">' + esc(line) + '</p></section>';
+    html += '<div class="stat"><span class="k">本周自由指数</span><div class="row" style="gap:12px;flex-wrap:nowrap"><span class="v num">' + (fi ? fi.score : '—') + '</span><span class="tiny muted" style="min-width:0">' + (fi ? '自主时间 ' + pct(fi.auto) + '%，其中创造与连接 ' + pct(fi.meaning) + '%。只描述，不比较。' : '记满一小时后才计算。') + '</span></div></div>';
+    var shown = today.filter(function (e) { return e.kind !== 'blank' || e.state === 'reserved'; });
+    html += '<section class="panel"><div class="row between"><h2>今天</h2><a class="small" href="#flow">全部</a></div>' +
+      (shown.length ? '<div class="list">' + shown.slice(-5).map(function (e) { return timeItem(e, false); }).join('') + '</div>' : '<div class="empty">还没有记录。按上面的话筒说一句就行。</div>') + '</section>';
+    html += '<section class="panel flat"><div class="eyebrow">一句提醒</div><p class="quote">' + esc(LINES[hashInt(t) % LINES.length]) + '</p></section>';
     return html;
   }
 
   function confirmBlock(e) {
     var d = dur(e);
-    return '<div class="pending" data-id="' + e.id + '"><div><b>' + esc(dateLabel(e.date)) + ' ' + e.start + '–' + e.end + '</b> <span class="muted small">预留 ' + fmtPlain(d) + (e.intent ? ' · 想用来：' + esc(e.intent) : '') + '</span></div>' +
-      '<div class="seg" role="group" aria-label="这段留白的结果">' +
-      '<button data-act="c-state" data-v="kept">完整留住</button><button data-act="c-state" data-v="partial">留住一部分</button><button data-act="c-state" data-v="taken">被占用了</button><button data-act="c-state" data-v="unknown">记不清</button></div>' +
-      '<div class="c-more" hidden><div class="form"><div class="field c-partial" hidden><label for="kp-' + e.id + '">留住了多少分钟</label><input id="kp-' + e.id + '" type="number" min="1" max="' + d + '" value="' + Math.round(d / 2) + '"></div>' +
-      '<div class="field"><label for="ku-' + e.id + '">用在了哪里（可不选）</label><select id="ku-' + e.id + '"><option value="">不选</option>' + Object.keys(USES).map(function (k) { return '<option value="' + k + '">' + USES[k] + '</option>'; }).join('') + '</select></div>' +
-      '<div class="field"><label for="kn-' + e.id + '">一句话（可不写）</label><input id="kn-' + e.id + '" maxlength="60" placeholder="比如：陪女儿散步"></div></div>' +
-      '<div class="row" style="margin-top:10px"><button class="btn sm primary" data-act="c-save">记下</button></div></div></div>';
+    return '<div class="pending" data-id="' + e.id + '"><div class="small"><b>' + esc(dateLabel(e.date)) + ' ' + e.start + '–' + e.end + '</b> <span class="muted">' + fmtPlain(d) + (e.intent ? ' · 想用来：' + esc(e.intent) : '') + '</span></div>' +
+      '<div class="seg" role="group" aria-label="这段留白的结果"><button data-act="c-state" data-v="kept">完整留住</button><button data-act="c-state" data-v="partial">留住一部分</button><button data-act="c-state" data-v="taken">被占用了</button><button data-act="c-state" data-v="unknown">记不清</button></div>' +
+      '<div class="c-more stack" hidden><div class="field c-partial" hidden><label for="kp-' + e.id + '">留住了多少分钟</label><input id="kp-' + e.id + '" type="number" inputmode="numeric" min="1" max="' + d + '" value="' + Math.round(d / 2) + '"></div>' +
+      '<div class="field c-use"><label for="ku-' + e.id + '">用在了哪里（可不选）</label><select id="ku-' + e.id + '"><option value="">不选</option>' + Object.keys(USES).map(function (k) { return '<option value="' + k + '">' + USES[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="kn-' + e.id + '">一句话（可不写）</label><input id="kn-' + e.id + '" maxlength="60" placeholder="比如：陪女儿散步"></div>' +
+      '<button class="btn sm primary" data-act="c-save" style="justify-self:start">记下</button></div></div>';
   }
 
   var flowDate = null;
   function pageFlow() {
     var date = flowDate || todayStr(), list = entriesOn(date), x = mix(list);
     var html = demoBanner();
-    html += '<header class="head"><div class="eyebrow">时间流</div><h1>' + esc(dateLabel(date)) + '的时间</h1><p class="lede">记下时间去了哪里，并标上它属于哪一种时间。不必记满一天：没有记录的空隙会保持空白，不会被算作效率损失。</p></header>';
-    html += '<div class="row between"><div class="row"><button class="btn sm" data-act="day" data-d="-1" aria-label="前一天">‹ 前一天</button><span class="num">' + date.replace(/-/g, '.') + '</span><button class="btn sm" data-act="day" data-d="1" aria-label="后一天">后一天 ›</button>' +
-      (date !== todayStr() ? '<button class="btn sm ghost" data-act="day" data-d="0">回到今天</button>' : '') + '</div><button class="btn sm" data-act="reserve">预留留白</button></div>';
-
-    html += '<section class="panel"><h2>记一段时间</h2><form id="addForm" class="form" style="margin-top:14px">' +
-      '<div class="field" style="grid-column:span 2"><label for="f-title">做了什么</label><input id="f-title" required maxlength="40" placeholder="比如：邮件回复、论文阅读、晚餐与聊天"></div>' +
-      '<div class="field"><label for="f-kind">属于</label><select id="f-kind">' + ['necessary', 'restore', 'create', 'connect', 'explore'].map(function (k) { return '<option value="' + k + '">' + KINDS[k].long + '</option>'; }).join('') + '</select></div>' +
-      '<div class="field"><label for="f-start">开始</label><input id="f-start" type="time" required value="09:00"></div>' +
-      '<div class="field"><label for="f-end">结束</label><input id="f-end" type="time" required value="10:00"></div>' +
-      '<div class="field"><button class="btn primary" type="submit">记下</button></div></form><p id="addWarn" class="small" style="margin-top:10px;color:var(--warm)" hidden></p></section>';
-
-    html += '<section class="panel"><h2>当天</h2><div class="timeline" style="margin-top:8px">';
+    html += '<div class="head"><div class="eyebrow">时间流</div><h1>' + esc(dateLabel(date)) + '的时间</h1></div>';
+    html += capture('补记一段时间');
+    html += '<div class="row between"><button class="btn sm" data-act="day" data-d="-1">‹ 前一天</button><span class="num small">' + date.replace(/-/g, '.') + ' 周' + weekday(date) + '</span><button class="btn sm" data-act="day" data-d="1">后一天 ›</button></div>';
+    if (date !== todayStr()) html += '<button class="btn sm ghost" data-act="day" data-d="0" style="justify-self:center">回到今天</button>';
+    html += '<section class="panel"><div class="list">';
     if (!list.length) html += '<div class="empty">这一天还没有记录。</div>';
     var prevEnd = null;
     list.forEach(function (e) {
-      var a = toMin(e.start);
-      if (prevEnd !== null && a - prevEnd >= 60) html += '<div class="t-gap">' + toHM(prevEnd) + '–' + e.start + ' 没有记录 · 不认定为空闲</div>';
+      if (prevEnd !== null && toMin(e.start) - prevEnd >= 60) html += '<div class="gap">' + toHM(prevEnd) + '–' + e.start + ' 没有记录，不认定为空闲</div>';
       prevEnd = Math.max(prevEnd || 0, toMin(e.end));
-      var sub = e.kind === 'blank' ? blankStatus(e) : KINDS[e.kind].long;
-      html += '<div class="t-item"><span class="t-time num">' + e.start + '–' + e.end + '</span><span class="t-mark ' + (e.kind === 'blank' ? 'blank' : '') + '" style="' + (e.kind === 'blank' ? '' : 'background:' + KINDS[e.kind].color) + '"></span>' +
-        '<div class="t-title">' + esc(e.title) + '<div class="tiny muted">' + sub + ' · ' + fmtPlain(dur(e)) + '</div></div>' +
-        '<div class="t-actions row">' + chip(e.kind) + '<button class="btn sm ghost" data-act="del" data-id="' + e.id + '" aria-label="删除 ' + esc(e.title) + '">删除</button></div></div>';
+      html += timeItem(e, true);
     });
-    html += '</div></section>';
-
-    html += '<section class="panel"><h2>当天时间地图</h2>' + (x.total ? bars(x.m, ['necessary', 'create', 'connect', 'explore', 'restore', 'blank'], x.total) : '<div class="empty">记录之后显示比例。</div>') + '</section>';
+    html += '</div><details><summary>手动添加一段</summary><form id="addForm" class="stack" style="margin-top:10px">' +
+      '<div class="field"><label for="f-title">做了什么</label><input id="f-title" required maxlength="30" placeholder="邮件回复、论文阅读、晚餐与聊天"></div>' +
+      '<div class="field"><label for="f-kind">属于</label><select id="f-kind">' + ['necessary', 'restore', 'create', 'connect', 'explore'].map(function (k) { return '<option value="' + k + '">' + KINDS[k].long + '</option>'; }).join('') + '</select></div>' +
+      '<div class="two"><div class="field"><label for="f-start">开始</label><input id="f-start" type="time" required value="09:00"></div><div class="field"><label for="f-end">结束</label><input id="f-end" type="time" required value="10:00"></div></div>' +
+      '<p id="addWarn" class="small" style="color:var(--warm)" hidden></p><button class="btn primary" type="submit">记下</button></form></details></section>';
+    html += '<section class="panel"><h2>当天时间地图</h2>' + (x.total ? bars(x.m, KIND_ORDER, x.total) : '<div class="empty">记录之后显示比例。</div>') + '</section>';
     return html;
-  }
-  function blankStatus(e) {
-    if (e.state === 'reserved') return blankEnded(e) ? '留白 · 等你确认是否留住' : '留白 · 已预留，默认不再被塞满' + (e.intent ? ' · 想用来：' + esc(e.intent) : '');
-    if (e.state === 'kept') return '留白 · 完整留住' + (e.use ? ' · ' + USES[e.use] : '') + (e.note ? ' · ' + esc(e.note) : '');
-    if (e.state === 'partial') return '留白 · 留住 ' + fmtPlain(e.kept) + (e.use ? ' · ' + USES[e.use] : '') + (e.note ? ' · ' + esc(e.note) : '');
-    if (e.state === 'taken') return '留白 · 被占用' + (e.note ? ' · ' + esc(e.note) : '');
-    return '留白 · 记不清';
   }
 
   function pageCompress() {
@@ -534,27 +652,18 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
     var lowSum = finds.reduce(function (a, f) { return a + f.low; }, 0), highSum = finds.reduce(function (a, f) { return a + f.high; }, 0);
     var savedToday = trialsSaved(t);
     var html = demoBanner();
-    html += '<header class="head"><div class="eyebrow">AI 压缩</div><h1>让 AI 承担必要时间里能承担的那一部分</h1><p class="lede">这里只看你记录的必要时间。估算来自本地规则，不读取你的邮件或日历；只有你实际试过、记下前后用时，节省才算数。</p></header>';
-
-    html += '<div class="grid3">' +
-      '<div class="panel stat"><span class="k">每天估算可压缩</span><span class="v num">' + lowSum + '–' + highSum + '<small style="font-size:15px;color:var(--text-2)"> 分钟</small></span><span class="tiny muted">基于过去 7 天的必要时间，是区间，不是承诺</span></div>' +
-      '<div class="panel stat"><span class="k">今天已确认节省</span><span class="v">' + fmt(savedToday) + '</span><span class="tiny muted">累计 ' + fmtPlain(trialsSaved()) + '</span></div>' +
-      '<div class="panel stat"><span class="k">省下来之后</span><span class="v" style="font-size:18px;line-height:1.5;padding-top:6px">默认不再安排任务</span><button class="btn sm primary" data-act="reserve" data-min="' + (savedToday || 30) + '" style="justify-self:start">把它留白</button></div>' +
-      '</div>';
-
-    html += '<section class="panel"><h2>本周发现</h2>';
-    if (!finds.length) html += '<div class="empty" style="margin-top:14px">时间流里还没有必要时间。记下会议、邮件、行政这类事，这里会出现估算。</div>';
-    else html += '<div class="scroll-x" style="margin-top:10px"><table class="t"><thead><tr><th>必要劳动</th><th>每天约耗时</th><th>估算可压缩</th><th>建议的方式</th><th></th></tr></thead><tbody>' +
-      finds.map(function (f) {
-        return '<tr><td>' + esc(f.title) + '<div class="tiny muted">7 天内 ' + f.count + ' 次</div></td><td class="num">' + f.perDay + ' 分钟</td><td class="num">' + (f.high ? f.low + '–' + f.high + ' 分钟' : '—') + '</td><td class="small">' + esc(f.method) + '</td><td>' + (f.high ? '<button class="btn sm" data-act="trial" data-title="' + esc(f.title) + '" data-before="' + f.perDay + '">我试过了</button>' : '') + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
-    html += '</section>';
-
-    html += '<section class="panel"><h2>试过的记录</h2>' + (S.trials.length ? '<div class="scroll-x" style="margin-top:10px"><table class="t"><thead><tr><th>日期</th><th>事情</th><th>以前</th><th>用 AI 后</th><th>节省</th><th></th></tr></thead><tbody>' +
-      S.trials.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).map(function (r) {
-        return '<tr><td>' + esc(dateLabel(r.date)) + '</td><td>' + esc(r.title) + '<div class="tiny muted">' + esc(r.method || '') + '</div></td><td class="num">' + r.before + ' 分</td><td class="num">' + r.after + ' 分</td><td class="num">' + Math.max(0, r.before - r.after) + ' 分</td><td><button class="btn sm ghost" data-act="del-trial" data-id="' + r.id + '">删除</button></td></tr>';
-      }).join('') + '</tbody></table></div>' : '<div class="empty" style="margin-top:14px">还没有试过的记录。</div>') +
-      '<p class="tiny muted" style="margin-top:12px">AI 输出后你核对、修改所花的时间，也要算进“用 AI 后”。监督也是成本。</p></section>';
+    html += '<div class="head"><div class="eyebrow">AI 压缩</div><h1>必要劳动里，哪些可以交给 AI</h1><p class="small muted">只看你记下的必要时间。估算是区间；你试过、记下前后用时，节省才算数。</p></div>';
+    html += '<div class="two"><div class="stat"><span class="k">每天估算可压缩</span><span class="v num">' + lowSum + '–' + highSum + '<small>分钟</small></span></div>' +
+      '<div class="stat"><span class="k">今天已确认节省</span><span class="v">' + fmt(savedToday) + '</span></div></div>';
+    html += '<button class="btn primary block" data-act="reserve" data-min="' + (savedToday || 30) + '">把省下的时间留白</button>';
+    html += '<section class="panel"><h2>本周发现</h2>' + (finds.length ? '<div class="list">' + finds.map(function (f) {
+      return '<div class="item" style="grid-template-columns:minmax(0,1fr) auto"><div class="t">' + esc(f.title) + ' <span class="tiny muted">每天约 ' + f.perDay + ' 分钟</span>' +
+        '<div class="when">' + (f.high ? '可压缩约 <span class="num">' + f.low + '–' + f.high + '</span> 分钟 · ' : '') + esc(f.method) + '</div></div>' +
+        (f.high ? '<button class="btn sm" data-act="trial" data-title="' + esc(f.title) + '" data-before="' + f.perDay + '">试过了</button>' : '') + '</div>';
+    }).join('') + '</div>' : '<div class="empty">还没有必要时间。在首页说一句“上午开了一小时会”试试。</div>') + '</section>';
+    html += '<section class="panel"><h2>试过的记录</h2>' + (S.trials.length ? '<div class="list">' + S.trials.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).map(function (r) {
+      return '<div class="item" style="grid-template-columns:minmax(0,1fr) auto auto"><div class="t">' + esc(r.title) + '<div class="when">' + esc(dateLabel(r.date)) + ' · ' + r.before + ' → ' + r.after + ' 分钟' + (r.method ? ' · ' + esc(r.method) : '') + '</div></div><span class="num">−' + Math.max(0, r.before - r.after) + '</span><button class="x" data-act="del-trial" data-id="' + r.id + '" aria-label="删除这条">×</button></div>';
+    }).join('') + '</div>' : '<div class="empty">还没有。</div>') + '<p class="tiny muted">核对、修改 AI 输出的时间，也算进“用 AI 后”。</p></section>';
     return html;
   }
 
@@ -566,211 +675,207 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
     blanks.forEach(function (e) { cnt[e.state] = (cnt[e.state] || 0) + 1; });
     var recent = blanks.filter(function (e) { return e.kept > 0; }).sort(function (a, b) { return (a.date + a.start) < (b.date + b.start) ? 1 : -1; })[0];
     var html = demoBanner();
-    html += '<header class="head"><div class="eyebrow">留白账户</div><h1>你留住的人生时间</h1><p class="lede">这里只记你亲口确认留住的时间。预留了但被占用的，照实记下，不扣分，也不补算。</p></header>';
-    html += '<section class="panel hero" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"><div class="stack"><div class="eyebrow">累计留住</div><div class="big">' + fmt(total) + '</div></div>' +
-      '<div class="stack"><div class="eyebrow">相当于</div><div class="big"><span class="num">' + (total / 1440).toFixed(1) + '</span><small>天</small></div><p class="muted">连续的人生</p></div></section>';
-    html += '<div class="grid2"><section class="panel"><h2>这些时间去了哪里</h2>' + (total ? '<div class="bars">' + Object.keys(by).filter(function (k) { return by[k] > 0; }).sort(function (a, b) { return by[b] - by[a]; }).map(function (k) {
+    html += '<div class="head"><div class="eyebrow">留白账户</div><h1>你留住的人生时间</h1></div>';
+    html += '<section class="panel"><div class="eyebrow">累计留住</div><div class="big">' + fmt(total) + '</div><p class="small muted">相当于 <span class="num">' + (total / 1440).toFixed(1) + '</span> 天连续的人生。只算你亲口确认留住的。</p></section>';
+    if (recent) html += '<section class="panel"><div class="eyebrow">最近一次</div><div class="row"><span class="big" style="font-size:30px">' + fmt(recent.kept) + '</span><span class="small muted">' + esc(dateLabel(recent.date)) + (recent.use ? ' · ' + USES[recent.use] : '') + '</span></div>' + (recent.note ? '<p class="quote">' + esc(recent.note) + '</p>' : '') + '</section>';
+    html += '<section class="panel"><h2>去了哪里</h2>' + (total ? '<div class="bars">' + Object.keys(by).filter(function (k) { return by[k] > 0; }).sort(function (a, b) { return by[b] - by[a]; }).map(function (k) {
       var c = k === 'blank' || k === 'private' ? 'var(--k-blank-line)' : KINDS[k].color;
-      return '<div class="bar-row" style="grid-template-columns:72px minmax(0,1fr) 72px"><span>' + USES[k] + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (by[k] / total * 100).toFixed(1) + '%;background:' + c + '"></div></div><span class="num small" style="text-align:right">' + fmtPlain(by[k]) + '</span></div>';
-    }).join('') + '</div><p class="tiny muted" style="margin-top:12px">“空着本身”和其他用途一样算数。</p>' : '<div class="empty">还没有确认留住的留白。</div>') + '</section>' +
-      '<section class="panel"><h2>最近一次</h2>' + (recent ? '<div class="stack"><div class="big" style="font-size:44px">' + fmt(recent.kept) + '</div><p>' + esc(dateLabel(recent.date)) + ' ' + recent.start + ' 起' + (recent.use ? '，用于' + USES[recent.use] : '') + '</p>' + (recent.note ? '<p class="quote">' + esc(recent.note) + '</p>' : '') + '</div>' : '<div class="empty">确认留住一段之后，这里会显示。</div>') + '</section></div>';
-    html += '<section class="panel"><h2>如实的账</h2><div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-top:14px">' +
-      [['预留过', blanks.length], ['完整留住', cnt.kept], ['留住一部分', cnt.partial], ['被占用', cnt.taken], ['记不清', cnt.unknown]].map(function (p) { return '<div class="stat"><span class="v num">' + p[1] + '</span><span class="k">' + p[0] + '</span></div>'; }).join('') +
-      '</div><p class="small muted" style="margin-top:14px">被占用的那几次，说明边界在哪里还薄。它是信息，不是失败。</p></section>';
+      return '<div class="bar-row" style="grid-template-columns:62px minmax(0,1fr) 70px"><span>' + USES[k] + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (by[k] / total * 100).toFixed(1) + '%;background:' + c + '"></div></div><span class="num tiny" style="text-align:right">' + fmtPlain(by[k]) + '</span></div>';
+    }).join('') + '</div><p class="tiny muted">“空着本身”和其他用途一样算数。</p>' : '<div class="empty">还没有确认留住的留白。</div>') + '</section>';
+    html += '<section class="panel"><h2>如实的账</h2><div class="two" style="grid-template-columns:repeat(3,1fr)">' +
+      [['预留过', blanks.length], ['完整留住', cnt.kept], ['留住部分', cnt.partial], ['被占用', cnt.taken], ['记不清', cnt.unknown], ['还没到', cnt.reserved]].map(function (p) { return '<div><div class="num" style="font-size:24px">' + p[1] + '</div><div class="tiny muted">' + p[0] + '</div></div>'; }).join('') +
+      '</div><p class="small muted">被占用的那几次，说明边界在哪里还薄。它是信息，不是失败。</p></section>';
     return html;
   }
 
-  var investRange = 90;
+  var investRange = 30;
   function pageInvest() {
     var x = mix(inRange(investRange)), m = x.m;
-    var quadTotal = QUADS.reduce(function (a, k) { return a + m[k]; }, 0) + m.blank;
     var html = demoBanner();
-    html += '<header class="head"><div class="eyebrow">人生投资</div><h1>像看投资组合一样，看你的时间</h1><p class="lede">不是看钱，是看时间流向哪里。理想比例由你自己决定，留白不提供标准答案，也不替你打分。</p></header>';
-    html += '<div class="seg" role="group" aria-label="时间范围">' + [7, 30, 90].map(function (d) { return '<button data-act="range" data-d="' + d + '" aria-pressed="' + (investRange === d) + '">过去 ' + d + ' 天</button>'; }).join('') + '</div>';
+    html += '<div class="head"><div class="eyebrow">人生投资</div><h1>像看投资组合一样看时间</h1><p class="small muted">理想比例由你自己定，留白不提供标准答案，也不打分。</p></div>';
+    html += '<div class="seg" role="group" aria-label="时间范围">' + [7, 30, 90].map(function (d) { return '<button data-act="range" data-d="' + d + '" aria-pressed="' + (investRange === d) + '">' + d + ' 天</button>'; }).join('') + '</div>';
     if (!x.total) return html + '<div class="empty">这个范围内还没有记录。</div>';
-
-    var parts = ['create', 'connect', 'explore', 'restore', 'necessary'].map(function (k) { return { label: KINDS[k].label, pct: Math.round(m[k] / x.total * 1000) / 10, color: KINDS[k].color }; });
-    if (m.blank) parts.push({ label: '留白', pct: Math.round(m.blank / x.total * 1000) / 10, color: 'var(--k-blank-line)' });
-    html += '<section class="panel"><h2>实际组合</h2><div class="stack" style="margin-top:14px">' + stackbar(parts) + '<div class="legend">' + parts.map(function (p) { return '<span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + p.color + ';margin-right:5px"></i>' + p.label + ' <b class="num">' + Math.round(p.pct) + '%</b></span>'; }).join('') + '</div><p class="tiny muted">基于这段时间你记录的 ' + fmtPlain(x.total) + '。</p></div></section>';
-
+    var keys = ['create', 'connect', 'explore', 'restore', 'necessary', 'blank'].filter(function (k) { return m[k] > 0; });
+    html += '<section class="panel"><h2>实际组合</h2><div class="stackbar" role="img" aria-label="' + keys.map(function (k) { return KINDS[k].label + pct(m[k] / x.total) + '%'; }).join('，') + '">' + keys.map(function (k) { return '<span style="width:' + (m[k] / x.total * 100).toFixed(2) + '%;background:' + KINDS[k].color + '"></span>'; }).join('') + '</div>' +
+      '<div class="legend">' + keys.map(function (k) { return '<span><i style="background:' + KINDS[k].color + '"></i>' + KINDS[k].label + ' <b class="num">' + pct(m[k] / x.total) + '%</b></span>'; }).join('') + '</div><p class="tiny muted">基于你记录的 ' + fmtPlain(x.total) + '</p></section>';
     var ideal = S.ideal;
     html += '<section class="panel"><div class="row between"><h2>你想要的比例</h2><button class="btn sm" data-act="ideal-edit">' + (ideal ? '修改' : '设定') + '</button></div>';
-    if (!ideal) {
-      html += '<p class="muted" style="margin-top:12px">还没有设定。它只在恢复、创造、连接、探索四种时间之间分配，不包括必要劳动。</p>';
-    } else {
-      var actualQ = {}; QUADS.forEach(function (k) { actualQ[k] = quadTotal ? m[k] / (quadTotal - m.blank || 1) * 100 : 0; });
-      var rows = QUADS.map(function (k) { return { k: k, a: actualQ[k], i: ideal[k], d: actualQ[k] - ideal[k] }; });
-      html += '<div class="scroll-x" style="margin-top:10px"><table class="t"><thead><tr><th>时间</th><th>实际（四种之间）</th><th>你想要</th><th>差距</th></tr></thead><tbody>' + rows.map(function (r) {
-        return '<tr><td>' + chip(r.k) + '</td><td class="num">' + Math.round(r.a) + '%</td><td class="num">' + r.i + '%</td><td class="num" style="color:' + (r.d < -5 ? 'var(--warm)' : 'var(--text-2)') + '">' + (r.d > 0 ? '+' : '') + Math.round(r.d) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+    if (!ideal) html += '<p class="small muted">还没设定。只在恢复、创造、连接、探索之间分配，不含必要劳动。</p>';
+    else {
+      var qt = QUADS.reduce(function (a, k) { return a + m[k]; }, 0) || 1;
+      var rows = QUADS.map(function (k) { var a = m[k] / qt * 100; return { k: k, a: a, i: ideal[k], d: a - ideal[k] }; });
+      html += '<div class="list">' + rows.map(function (r) {
+        return '<div class="item" style="grid-template-columns:56px minmax(0,1fr) 40px">' + chip(r.k) + '<div class="stack" style="gap:4px"><div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, r.a).toFixed(1) + '%;background:' + KINDS[r.k].color + '"></div></div><div class="bar-track" style="height:5px"><div class="bar-fill" style="width:' + r.i + '%;background:var(--text-2);opacity:.45"></div></div></div>' +
+          '<span class="num small" style="text-align:right;color:' + (r.d < -5 ? 'var(--warm)' : 'var(--text-2)') + '">' + (r.d > 0 ? '+' : '') + Math.round(r.d) + '</span></div>';
+      }).join('') + '</div><p class="tiny muted">上面一条是实际，下面虚线是你想要的；数字是差几个百分点。</p>';
       var gap = rows.slice().sort(function (a, b) { return a.d - b.d; })[0];
       if (gap.d < -5) {
         var idea = IDEAS[gap.k][hashInt(todayStr() + gap.k) % IDEAS[gap.k].length];
-        html += '<div class="notice" style="margin-top:14px"><b style="color:var(--text)">' + KINDS[gap.k].long + '比你想要的少 ' + Math.round(-gap.d) + ' 个百分点。</b> 如果你愿意，这周可以试一次：' + esc(idea[0]) + '。也可以不调整：比例是用来看见的，不是用来追赶的。</div>';
-      } else html += '<div class="notice" style="margin-top:14px">实际组合和你想要的相差不大。</div>';
+        html += '<div class="notice"><b style="color:var(--text);font-weight:500">' + KINDS[gap.k].long + '比你想要的少 ' + Math.round(-gap.d) + ' 个百分点。</b> 愿意的话，这周试一次：' + esc(idea[0]) + '。也可以不调整，比例是用来看见的，不是用来追赶的。</div>';
+      } else html += '<div class="notice">实际组合和你想要的相差不大。</div>';
     }
-    html += '</section>';
-    return html;
+    return html + '</section>';
   }
 
+  var suggestSpin = {};
   function pageSuggest() {
-    var up = upcomingBlanks(), upMin = up.reduce(function (a, e) { return a + dur(e); }, 0);
+    var up = upcomingBlanks(), upMin = up.reduce(function (a, e) { return a + dur(e); }, 0), target = up[0];
     var html = demoBanner();
-    html += '<header class="head"><div class="eyebrow">留白建议</div><h1>' + (up.length ? '你有 ' + fmtPlain(upMin) + ' 还没决定怎么用' : '今天还没有预留留白') + '</h1><p class="lede">下面是一些可能性，不是任务。选了也不会变成待办，不会提醒你，不会检查你有没有做到。</p></header>';
-    if (!up.length) html += '<div class="row"><button class="btn primary" data-act="reserve">预留一段留白</button></div>';
-    var target = up[0];
-    html += '<section class="panel card default" style="padding:22px"><div class="row between"><h2>什么都不安排</h2><span class="chip">默认</span></div><p class="muted">留白最本来的用法。到了那段时间，你想做什么就做什么，或者什么都不做。</p>' +
-      (target ? '<div><button class="btn sm" data-act="intent" data-v="">就这样</button></div>' : '') + '</section>';
-
-    // order quadrants by the user's own ideal gap if set; otherwise a fixed order
+    html += '<div class="head"><div class="eyebrow">留白建议</div><h1>' + (up.length ? '有 ' + fmtPlain(upMin) + ' 还没决定怎么用' : '今天还没有预留留白') + '</h1><p class="small muted">下面是可能性，不是任务。选了不会变成待办，不提醒，也不检查。</p></div>';
+    if (!up.length) html += '<button class="btn primary block" data-act="reserve">预留一段留白</button>';
+    html += '<section class="card default"><div class="row between"><h2>什么都不安排</h2><span class="chip">默认</span></div><p class="small muted">到了那段时间，想做什么就做什么，或者什么都不做。</p>' + (target ? '<button class="btn sm" data-act="intent" data-v="" style="justify-self:start">就这样</button>' : '') + '</section>';
     var order = QUADS.slice(), reason = {};
     if (S.ideal) {
       var x = mix(inRange(30)), qt = QUADS.reduce(function (a, k) { return a + x.m[k]; }, 0) || 1;
       QUADS.forEach(function (k) { reason[k] = x.m[k] / qt * 100 - S.ideal[k]; });
       order.sort(function (a, b) { return reason[a] - reason[b]; });
     }
-    html += '<div class="grid2">' + order.map(function (k) {
-      var list = IDEAS[k].filter(function (i) { return !upMin || i[1] <= Math.max(upMin, 20); });
-      if (!list.length) list = IDEAS[k];
-      var idx = (suggestSpin[k] || 0) % list.length, idea = list[idx];
+    html += order.map(function (k) {
+      var list = IDEAS[k].filter(function (i) { return !upMin || i[1] <= Math.max(upMin, 20); }); if (!list.length) list = IDEAS[k];
+      var idea = list[(suggestSpin[k] || 0) % list.length];
       var why = S.ideal && reason[k] < -5 ? '过去 30 天，' + KINDS[k].long + '比你想要的少 ' + Math.round(-reason[k]) + ' 个百分点' : '';
-      return '<section class="card"><div class="row between">' + chip(k) + '<span class="tiny muted num">约 ' + idea[1] + ' 分钟</span></div><h3>' + esc(idea[0]) + '</h3>' + (why ? '<p class="small muted">' + why + '</p>' : '') +
+      return '<section class="card"><div class="row between">' + chip(k) + '<span class="tiny muted">约 ' + idea[1] + ' 分钟</span></div><h3>' + esc(idea[0]) + '</h3>' + (why ? '<p class="tiny muted">' + why + '</p>' : '') +
         '<div class="row">' + (target ? '<button class="btn sm" data-act="intent" data-v="' + esc(idea[0] + '（' + KINDS[k].label + '）') + '">想这样用</button>' : '') + '<button class="btn sm ghost" data-act="spin" data-k="' + k + '">换一个</button></div></section>';
-    }).join('') + '</div>';
-    if (target && target.intent) html += '<p class="small muted">当前意向：' + esc(target.intent) + '。只是一个念头，随时可以改，也可以不照做。</p>';
+    }).join('');
+    if (target && target.intent) html += '<p class="small muted">当前的念头：' + esc(target.intent) + '。随时可以改，也可以不照做。</p>';
     return html;
   }
-  var suggestSpin = {};
 
   function pageCharter() {
-    return '<header class="head"><div class="eyebrow">留白宪章</div><h1>AI 负责完成必须做的事，人负责成为想成为的人</h1><p class="lede">未来会有很多 AI 帮人省时间。留白只回答一个问题：被归还的人生时间，应该流向哪里？</p></header>' +
-      '<section class="panel"><h2>唯一主线</h2><div class="chain" style="margin-top:14px"><span>必要时间</span><em>→</em><span>AI 压缩<br><small class="muted">估算，不算数</small></span><em>→</em><span>归还<br><small class="muted">预留成留白</small></span><em>→</em><span>主动时间<br><small class="muted">你决定用或不用</small></span><em>→</em><span>意义时间<br><small class="muted">事后由你确认</small></span></div></section>' +
-      '<section class="panel charter"><h2>五条原则</h2><ol style="margin-top:14px">' +
-      '<li><h3>时间不是资源，而是生命</h3><p>不展示完成数、效率排名或连续打卡，只展示时间流向哪里。</p></li>' +
-      '<li><h3>AI 负责压缩，不负责占用</h3><p>省下的时间默认变成留白，不会被自动填满。安排进留白的事，需要你明确同意。</p></li>' +
-      '<li><h3>不鼓励更多，鼓励更重要</h3><p>不问今天完成了多少件事，只问今天最重要的是什么。</p></li>' +
-      '<li><h3>自由比效率更重要</h3><p>自由指数描述你的时间有多少由自己决定、其中多少用于创造和连接。它不和昨天比，不和别人比，没有目标值。</p></li>' +
-      '<li><h3>人的成长来自四种时间</h3><p>恢复、创造、连接、探索。比例由你自己定，留白不提供标准答案。</p></li></ol></section>' +
-      '<section class="panel charter"><h2>四条诚实约束</h2><ol style="margin-top:14px">' +
-      '<li><h3>估算不等于归还</h3><p>AI 压缩给出的是区间。只有你实际试过并记下用时，节省才算数。</p></li>' +
-      '<li><h3>预留不等于留住</h3><p>留白结束后由你确认：留住、部分留住、被占用或记不清。只有确认留住的进入账户。</p></li>' +
-      '<li><h3>没记录不等于空闲</h3><p>留白不替你认定空隙是什么。所有比例都只基于你记下的时间。</p></li>' +
-      '<li><h3>请求不是责任，推迟不是节省</h3><p>把事情挪到明天不算省时间；把别人的请求接下来，需要你自己决定。</p></li></ol></section>' +
-      '<section class="panel"><h2>自由指数怎么算</h2><p style="margin-top:12px">自由指数 = 50% × 自主时间占比 + 50% × 创造与连接占自主时间的比例。自主时间是你记录的时间中，除必要劳动以外的部分，包括恢复、探索与留白。范围 0–100，只看过去 7 天，只作描述。</p></section>' +
-      '<section class="panel quiet"><p class="muted small">留白不需要先挣来。你可以随时预留一段，不必先用 AI 省下时间。</p></section>';
+    var chain = [['必要时间', '你记下不得不做的事'], ['AI 压缩', '给出估算区间，不算数'], ['归还', '把省下的时间预留成留白'], ['主动时间', '你决定怎么用，或什么都不安排'], ['意义时间', '事后由你确认留住了没有']];
+    return '<div class="head"><div class="eyebrow">留白宪章</div><h1>AI 负责完成必须做的事，人负责成为想成为的人</h1><p class="small muted">被归还的人生时间，应该流向哪里？</p></div>' +
+      '<section class="panel"><h2>唯一主线</h2><div class="chain">' + chain.map(function (c, i) { return '<div><b>' + (i + 1) + '</b><span>' + c[0] + ' <span class="muted small">· ' + c[1] + '</span></span></div>'; }).join('') + '</div></section>' +
+      '<section class="panel charter"><h2>五条原则</h2><ol>' +
+      '<li><h3>时间不是资源，而是生命</h3><p>不显示完成数、效率排名或连续打卡，只显示时间流向。</p></li>' +
+      '<li><h3>AI 负责压缩，不负责占用</h3><p>省下的时间默认变成留白，不被自动填满。</p></li>' +
+      '<li><h3>不鼓励更多，鼓励更重要</h3><p>不问完成了多少件事，只问今天最重要的是什么。</p></li>' +
+      '<li><h3>自由比效率更重要</h3><p>自由指数只描述，不和昨天比，不和别人比，没有目标值。</p></li>' +
+      '<li><h3>人的成长来自四种时间</h3><p>恢复、创造、连接、探索。比例由你自己定。</p></li></ol></section>' +
+      '<section class="panel charter"><h2>四条诚实约束</h2><ol>' +
+      '<li><h3>估算不等于归还</h3><p>试过并记下用时，节省才算数。</p></li>' +
+      '<li><h3>预留不等于留住</h3><p>留白结束后由你确认，只有留住的进入账户。</p></li>' +
+      '<li><h3>没记录不等于空闲</h3><p>所有比例只基于你记下的时间。</p></li>' +
+      '<li><h3>请求不是责任，推迟不是节省</h3><p>挪到明天不算省时间。</p></li></ol></section>' +
+      '<section class="panel"><h2>自由指数怎么算</h2><p class="small">50% × 自主时间占比 + 50% × 创造与连接占自主时间的比例。自主时间是记录时间里除必要劳动以外的部分。只看过去 7 天。</p></section>' +
+      '<section class="panel"><h2>语音整理</h2><p class="small">在支持的地方，你说的话会交给 Claude 拆成几条、配时间、分类别，第一次会先征求你同意；不支持或你不同意时，用本地规则整理。整理结果都要你确认后才记下。</p></section>' +
+      '<p class="small muted" style="text-align:center;padding:8px 0">留白不需要先挣来。</p>';
   }
 
   function pageSettings() {
-    return '<header class="head"><div class="eyebrow">设置</div><h1>你的留白</h1><p class="lede">数据只保存在这个浏览器里，不上传，不同步。换浏览器或清理网站数据会看不到。</p></header>' +
+    return '<div class="head"><div class="eyebrow">设置</div><h1>你的留白</h1><p class="small muted">数据只存在这个浏览器里，不上传，不同步。</p></div>' +
       (memoryOnly ? '<div class="notice">这个浏览器不允许本地保存，刷新后记录会消失。</div>' : '') +
-      '<section class="panel"><h2>基本</h2><form id="setForm" class="form" style="margin-top:14px"><div class="field"><label for="s-name">怎么称呼你</label><input id="s-name" maxlength="20" value="' + esc(S.name) + '"></div>' +
-      '<div class="field"><label for="s-wake">每天清醒多少小时</label><input id="s-wake" type="number" min="8" max="20" step="0.5" value="' + (S.wake / 60) + '"></div>' +
-      '<div class="field"><button class="btn primary" type="submit">保存</button></div></form></section>' +
-      '<section class="panel"><h2>数据</h2><div class="stack" style="margin-top:14px"><p class="small muted">当前：' + (S.mode === 'demo' ? '示例数据' : '你自己的记录') + '，共 ' + S.entries.length + ' 段时间。</p>' +
-      '<div class="row"><button class="btn" data-act="export">导出为文本</button><button class="btn" data-act="import-open">导入</button><button class="btn" data-act="load-demo">载入示例</button><button class="btn danger" data-act="wipe">清空全部</button></div><div id="dataBox"></div></div></section>';
+      '<section class="panel"><form id="setForm" class="stack"><div class="field"><label for="s-name">怎么称呼你</label><input id="s-name" maxlength="20" value="' + esc(S.name) + '"></div>' +
+      '<div class="field"><label for="s-wake">每天清醒多少小时</label><input id="s-wake" type="number" inputmode="decimal" min="8" max="20" step="0.5" value="' + (S.wake / 60) + '"></div>' +
+      '<button class="btn primary" type="submit">保存</button></form></section>' +
+      '<section class="panel"><h2>数据</h2><p class="small muted">当前：' + (S.mode === 'demo' ? '示例数据' : '你自己的记录') + '，共 ' + S.entries.length + ' 段时间。</p>' +
+      '<div class="two"><button class="btn" data-act="export">导出</button><button class="btn" data-act="import-open">导入</button><button class="btn" data-act="load-demo">载入示例</button><button class="btn danger" data-act="wipe">清空全部</button></div><div id="dataBox"></div></section>';
   }
 
-  // ---------- dialogs ----------
-  function openLayer(html) { document.getElementById('layer').innerHTML = '<div class="overlay" data-act="layer-bg"><div class="dialog" role="dialog" aria-modal="true">' + html + '</div></div>'; var f = document.querySelector('.dialog input, .dialog button'); if (f) f.focus(); }
-  function closeLayer() { document.getElementById('layer').innerHTML = ''; }
+  // ---------- sheets ----------
+  function openSheet(html) { document.getElementById('layer').innerHTML = '<div class="overlay" data-act="layer-bg"><div class="sheet" role="dialog" aria-modal="true">' + html + '</div></div>'; var f = document.querySelector('.sheet input, .sheet button'); if (f) f.focus(); }
+  function closeSheet() { document.getElementById('layer').innerHTML = ''; }
   var toastTimer;
   function toast(msg) {
     var el = document.querySelector('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
     el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.hidden = true; }, 2600);
   }
-
-  function reserveDialog(minutes) {
-    var n = nowMin(), start = Math.min(1380, Math.ceil((n + 10) / 15) * 15);
-    var m = Math.max(15, Math.min(240, minutes || 60));
-    openLayer('<h2>预留一段留白</h2><p class="muted small">这段时间会出现在时间流里。之后你再往里安排事情，留白会先提醒你。</p>' +
-      '<form id="resForm" class="form"><div class="field"><label for="r-date">哪天</label><input id="r-date" type="date" value="' + todayStr() + '" required></div>' +
-      '<div class="field"><label for="r-start">从几点</label><input id="r-start" type="time" value="' + toHM(start) + '" required></div>' +
-      '<div class="field"><label for="r-min">多长（分钟）</label><input id="r-min" type="number" min="10" max="600" step="5" value="' + m + '" required></div></form>' +
+  function reserveSheet(minutes) {
+    var start = Math.min(1380, Math.ceil((nowMin() + 10) / 15) * 15), m = Math.max(15, Math.min(240, minutes || 60));
+    openSheet('<h2>预留一段留白</h2><p class="small muted">之后往这段时间里安排事情，留白会先提醒你。</p>' +
+      '<div class="field"><label for="r-date">哪天</label><input id="r-date" type="date" value="' + todayStr() + '"></div>' +
+      '<div class="two"><div class="field"><label for="r-start">从几点</label><input id="r-start" type="time" value="' + toHM(start) + '"></div><div class="field"><label for="r-min">多少分钟</label><input id="r-min" type="number" inputmode="numeric" min="10" max="600" step="5" value="' + m + '"></div></div>' +
       '<p id="resWarn" class="small" style="color:var(--warm)" hidden></p>' +
-      '<div class="row"><button class="btn primary" data-act="res-save">留出来</button><button class="btn ghost" data-act="close">取消</button></div>');
+      '<button class="btn primary block" data-act="res-save">留出来</button><button class="btn ghost block" data-act="close">取消</button>');
   }
-  function trialDialog(title, before) {
+  function trialSheet(title, before) {
     var r = ruleFor(title);
-    openLayer('<h2>记一次实际的尝试</h2><p class="muted small">同一件事，以前大约用多久，这次用 AI 之后（含你核对和修改的时间）用了多久。</p>' +
-      '<form id="trialForm" class="form"><div class="field" style="grid-column:1/-1"><label for="t-title">事情</label><input id="t-title" value="' + esc(title) + '" required maxlength="40"></div>' +
-      '<div class="field"><label for="t-before">以前（分钟）</label><input id="t-before" type="number" min="1" value="' + before + '" required></div>' +
-      '<div class="field"><label for="t-after">这次（分钟）</label><input id="t-after" type="number" min="0" value="' + Math.round(before * (1 - (r.low + r.high) / 2)) + '" required></div>' +
-      '<div class="field" style="grid-column:1/-1"><label for="t-method">用了什么方式</label><input id="t-method" value="' + esc(r.method) + '" maxlength="60"></div></form>' +
-      '<div class="row"><button class="btn primary" data-act="trial-save">记下</button><button class="btn ghost" data-act="close">取消</button></div>');
+    openSheet('<h2>记一次实际的尝试</h2><p class="small muted">同一件事，以前大约多久，这次用 AI 之后（含核对修改）用了多久。</p>' +
+      '<div class="field"><label for="t-title">事情</label><input id="t-title" value="' + esc(title) + '" maxlength="30"></div>' +
+      '<div class="two"><div class="field"><label for="t-before">以前（分钟）</label><input id="t-before" type="number" inputmode="numeric" min="1" value="' + before + '"></div><div class="field"><label for="t-after">这次（分钟）</label><input id="t-after" type="number" inputmode="numeric" min="0" value="' + Math.round(before * (1 - (r.low + r.high) / 2)) + '"></div></div>' +
+      '<div class="field"><label for="t-method">用了什么方式</label><input id="t-method" value="' + esc(r.method) + '" maxlength="60"></div>' +
+      '<button class="btn primary block" data-act="trial-save">记下</button><button class="btn ghost block" data-act="close">取消</button>');
   }
-  function idealDialog() {
+  function idealSheet() {
     var i = S.ideal || { restore: 15, create: 35, connect: 25, explore: 25 };
-    openLayer('<h2>你想要的比例</h2><p class="muted small">在四种时间之间分配，总和 100。下面的初始值只是一个起点，改成你自己的。</p><form id="idealForm" class="form">' +
-      QUADS.map(function (k) { return '<div class="field"><label for="i-' + k + '">' + KINDS[k].long + ' %</label><input id="i-' + k + '" type="number" min="0" max="100" value="' + i[k] + '"></div>'; }).join('') +
-      '</form><p id="idealSum" class="small muted"></p><div class="row"><button class="btn primary" data-act="ideal-save">保存</button>' + (S.ideal ? '<button class="btn ghost" data-act="ideal-clear">不设定</button>' : '') + '<button class="btn ghost" data-act="close">取消</button></div>');
+    openSheet('<h2>你想要的比例</h2><p class="small muted">四种时间合计 100。初始值只是起点，改成你自己的。</p><div class="two">' +
+      QUADS.map(function (k) { return '<div class="field"><label for="i-' + k + '">' + KINDS[k].long + ' %</label><input id="i-' + k + '" type="number" inputmode="numeric" min="0" max="100" value="' + i[k] + '"></div>'; }).join('') +
+      '</div><p id="idealSum" class="small muted"></p><button class="btn primary block" data-act="ideal-save">保存</button>' + (S.ideal ? '<button class="btn block" data-act="ideal-clear">不设定</button>' : '') + '<button class="btn ghost block" data-act="close">取消</button>');
     updateIdealSum();
   }
   function updateIdealSum() {
     var el = document.getElementById('idealSum'); if (!el) return;
     var s = QUADS.reduce(function (a, k) { return a + (+document.getElementById('i-' + k).value || 0); }, 0);
-    el.textContent = '合计 ' + s + (s === 100 ? '' : '，需要等于 100');
-    el.style.color = s === 100 ? '' : 'var(--warm)';
+    el.textContent = '合计 ' + s + (s === 100 ? '' : '，需要等于 100'); el.style.color = s === 100 ? '' : 'var(--warm)';
   }
   function onboard() {
-    openLayer('<div class="eyebrow">留白 · LeuBai</div><h2 style="font-size:26px">被归还的时间，应该流向哪里？</h2>' +
-      '<p class="muted">留白帮你看见时间流向哪里，把 AI 省下的时间留出来，并且默认不再被塞满。它不显示待办数量，不打分，不打卡。</p>' +
+    openSheet('<div class="eyebrow">留白 · LeuBai</div><h2 style="font-size:22px">被归还的时间，应该流向哪里？</h2>' +
+      '<p class="small muted">说一句话就能记下时间去了哪里。留白把 AI 省下的时间留出来，默认不再被塞满。不显示待办数量，不打分，不打卡。</p>' +
       '<div class="field"><label for="o-name">怎么称呼你（可不填）</label><input id="o-name" maxlength="20"></div>' +
-      '<div class="stack"><button class="btn primary" data-act="ob-real">从空白开始</button><button class="btn" data-act="ob-demo">先看一个示例（研究者 Yajing 的三周）</button></div>' +
-      '<p class="tiny muted">数据只保存在这个浏览器里。</p>');
+      '<button class="btn primary block" data-act="ob-real">从空白开始</button><button class="btn block" data-act="ob-demo">先看示例（一位研究者的三周）</button><p class="tiny muted">数据只保存在这个浏览器里。</p>');
   }
 
   // ---------- router ----------
   function route() { var h = (location.hash || '').replace('#', ''); return PAGES.concat(PAGES2).some(function (p) { return p.id === h; }) ? h : 'today'; }
   function render() {
     var r = route();
-    var link = function (p) { return '<a href="#' + p.id + '"' + (p.id === r ? ' aria-current="page"' : '') + '><span class="dot"></span>' + p.label + '</a>'; };
-    document.getElementById('nav').innerHTML = PAGES.map(link).join('');
-    document.getElementById('nav2').innerHTML = PAGES2.map(link).join('');
+    var link = function (p) { return '<a href="#' + p.id + '"' + (p.id === r ? ' aria-current="page"' : '') + '>' + (PAGES.indexOf(p) >= 0 ? '<span class="dot"></span>' : '') + p.label + '</a>'; };
     document.getElementById('tabbar').innerHTML = PAGES.map(link).join('');
+    document.getElementById('topnav').innerHTML = PAGES2.map(link).join('');
     var fn = { today: pageToday, flow: pageFlow, compress: pageCompress, account: pageAccount, invest: pageInvest, suggest: pageSuggest, charter: pageCharter, settings: pageSettings }[r];
     document.getElementById('view').innerHTML = '<div class="page" data-page="' + r + '">' + fn() + '</div>';
-    var title = (PAGES.concat(PAGES2).filter(function (p) { return p.id === r; })[0] || {}).title || '';
-    document.title = r === 'today' ? '留白 LeuBai' : (title || '') + ' · 留白';
   }
 
   // ---------- actions ----------
-  function overlapsBlank(date, a, b, ignoreId) {
-    return entriesOn(date).filter(function (e) { return e.kind === 'blank' && e.state === 'reserved' && e.id !== ignoreId && toMin(e.start) < b && a < toMin(e.end); });
+  function draftById(el) { var box = el.closest('.draft'); var id = box && box.getAttribute('data-id'); return S.drafts.filter(function (d) { return d.id === id; })[0]; }
+  function commitDraft(d) {
+    var e = { id: uid(), date: d.date, start: d.start, end: d.end, title: d.title || KINDS[d.kind].label, kind: d.kind };
+    if (d.kind === 'blank') { e.title = '留白'; e.state = 'reserved'; e.kept = 0; e.use = null; e.note = ''; e.intent = ''; }
+    S.entries.push(e);
   }
   var pendingAdd = null;
 
   document.addEventListener('click', function (ev) {
     var el = ev.target.closest('[data-act]'); if (!el) return;
     var act = el.getAttribute('data-act');
-    if (act === 'layer-bg') { if (ev.target === el) closeLayer(); return; }
-    if (act === 'close') return closeLayer();
-    if (act === 'reserve') return reserveDialog(+el.getAttribute('data-min') || 60);
-    if (act === 'res-save') {
-      var d = document.getElementById('r-date').value, st = document.getElementById('r-start').value, mm = +document.getElementById('r-min').value;
-      var w = document.getElementById('resWarn');
-      if (!d || !st || !(mm >= 10)) { w.hidden = false; w.textContent = '请填好日期、开始时间和时长（至少 10 分钟）。'; return; }
-      var a = toMin(st), b = Math.min(1440, a + mm);
-      if (b - a < 10) { w.hidden = false; w.textContent = '这段留白会跨过午夜，请换一个更早的开始时间。'; return; }
-      S.entries.push({ id: uid(), date: d, start: st, end: toHM(b), title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '' });
-      save(); closeLayer(); render(); toast('已留出 ' + fmtPlain(b - a) + '。这段时间默认不再被塞满。'); return;
+    if (act === 'layer-bg') { if (ev.target === el) closeSheet(); return; }
+    if (act === 'close') return closeSheet();
+    if (act === 'mic') return startMic();
+    if (act === 'ex') { var ta = document.getElementById('cap-text'); ta.value = el.getAttribute('data-v'); ta.focus(); return; }
+    if (act === 'sort') { S.sortBy = el.getAttribute('data-v'); save(); render(); return; }
+    if (act === 'draft-kind') { var d = draftById(el); if (d) { d.kind = el.getAttribute('data-v'); if (d.kind === 'blank') d.title = '留白'; save(); render(); } return; }
+    if (act === 'draft-del') { var d2 = draftById(el); S.drafts = S.drafts.filter(function (x) { return x !== d2; }); save(); render(); return; }
+    if (act === 'draft-force') { var d3 = draftById(el); if (d3) { d3.force = true; save(); render(); } return; }
+    if (act === 'draft-clear') { S.drafts = []; capState.msg = ''; save(); render(); return; }
+    if (act === 'draft-commit') {
+      var ok = 0, keep = [];
+      S.drafts.forEach(function (d) { if (draftProblem(d)) keep.push(d); else { commitDraft(d); ok++; } });
+      S.drafts = keep; capState.msg = ''; save(); render();
+      toast(ok ? '记下 ' + ok + ' 条' + (keep.length ? '，还有 ' + keep.length + ' 条要补一下' : '') : '先把标黄的补完整');
+      return;
     }
-    if (act === 'start-real') { S.entries = []; S.trials = []; S.ideal = null; S.mode = 'real'; S.name = ''; save(); render(); toast('示例已清空。'); return; }
+    if (act === 'reserve') return reserveSheet(+el.getAttribute('data-min') || 60);
+    if (act === 'res-save') {
+      var dd = document.getElementById('r-date').value, st = document.getElementById('r-start').value, mm = +document.getElementById('r-min').value, w = document.getElementById('resWarn');
+      if (!dd || !st || !(mm >= 10)) { w.hidden = false; w.textContent = '请填好日期、开始时间和时长（至少 10 分钟）。'; return; }
+      var a = toMin(st), b = Math.min(1440, a + mm);
+      if (b - a < 10) { w.hidden = false; w.textContent = '这段会跨过午夜，请换一个更早的开始时间。'; return; }
+      S.entries.push({ id: uid(), date: dd, start: st, end: toHM(b), title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '' });
+      save(); closeSheet(); render(); toast('已留出 ' + fmtPlain(b - a) + '，默认不再被塞满'); return;
+    }
+    if (act === 'start-real') { S.entries = []; S.trials = []; S.drafts = []; S.ideal = null; S.mode = 'real'; S.name = ''; save(); render(); toast('示例已清空'); return; }
     if (act === 'ob-real' || act === 'ob-demo') {
       var nm = (document.getElementById('o-name').value || '').trim();
       if (act === 'ob-demo') S = demoState(); else S.mode = 'real';
-      if (nm) S.name = nm;
-      save(); closeLayer(); render(); return;
+      if (nm) S.name = nm; save(); closeSheet(); render(); return;
     }
-    if (act === 'day') { var dd = +el.getAttribute('data-d'); flowDate = dd === 0 ? null : addDays(flowDate || todayStr(), dd); render(); return; }
+    if (act === 'day') { var n = +el.getAttribute('data-d'); flowDate = n === 0 ? null : addDays(flowDate || todayStr(), n); render(); return; }
     if (act === 'del') { S.entries = S.entries.filter(function (e) { return e.id !== el.getAttribute('data-id'); }); save(); render(); return; }
-    if (act === 'add-anyway') { if (pendingAdd) { S.entries.push(pendingAdd); pendingAdd = null; save(); render(); toast('已记下。这段留白之后可以确认为“被占用”。'); } return; }
+    if (act === 'add-anyway') { if (pendingAdd) { S.entries.push(pendingAdd); pendingAdd = null; save(); render(); toast('已记下'); } return; }
     if (act === 'c-state') {
       var box = el.closest('.pending'), v = el.getAttribute('data-v');
-      box.querySelectorAll('[data-act="c-state"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); });
-      box.setAttribute('data-state', v);
-      var more = box.querySelector('.c-more'); more.hidden = false;
-      box.querySelector('.c-partial').hidden = v !== 'partial';
-      box.querySelector('select').closest('.field').hidden = v === 'taken' || v === 'unknown';
+      box.querySelectorAll('[data-act="c-state"]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === el)); });
+      box.setAttribute('data-state', v); box.querySelector('.c-more').hidden = false;
+      box.querySelector('.c-partial').hidden = v !== 'partial'; box.querySelector('.c-use').hidden = v === 'taken' || v === 'unknown';
       return;
     }
     if (act === 'c-save') {
@@ -778,85 +883,87 @@ table.t th { font-weight: 400; color: var(--text-2); font-size: 12.5px; }
       var e = S.entries.filter(function (x) { return x.id === id; })[0]; if (!e || !state) return;
       e.state = state;
       e.kept = state === 'kept' ? dur(e) : state === 'partial' ? Math.max(1, Math.min(dur(e), +document.getElementById('kp-' + id).value || 0)) : 0;
-      e.use = (state === 'kept' || state === 'partial') ? (document.getElementById('ku-' + id).value || null) : null;
+      e.use = e.kept ? (document.getElementById('ku-' + id).value || null) : null;
       e.note = (document.getElementById('kn-' + id).value || '').trim();
-      save(); render(); toast(e.kept ? '记进了留白账户：' + fmtPlain(e.kept) : '照实记下了。'); return;
+      save(); render(); toast(e.kept ? '记进留白账户：' + fmtPlain(e.kept) : '照实记下了'); return;
     }
-    if (act === 'trial') return trialDialog(el.getAttribute('data-title'), +el.getAttribute('data-before'));
+    if (act === 'trial') return trialSheet(el.getAttribute('data-title'), +el.getAttribute('data-before'));
     if (act === 'trial-save') {
-      var tb = +document.getElementById('t-before').value, ta = +document.getElementById('t-after').value, tt = document.getElementById('t-title').value.trim();
-      if (!tt || !(tb > 0) || !(ta >= 0)) return;
-      S.trials.push({ id: uid(), date: todayStr(), title: tt, before: tb, after: ta, method: document.getElementById('t-method').value.trim() });
-      save(); closeLayer(); render(); toast(ta < tb ? '确认节省 ' + (tb - ta) + ' 分钟。' : '这次没有省下时间，也照实记下了。'); return;
+      var tb = +document.getElementById('t-before').value, tf = +document.getElementById('t-after').value, tt = document.getElementById('t-title').value.trim();
+      if (!tt || !(tb > 0) || !(tf >= 0)) return;
+      S.trials.push({ id: uid(), date: todayStr(), title: tt, before: tb, after: tf, method: document.getElementById('t-method').value.trim() });
+      save(); closeSheet(); render(); toast(tf < tb ? '确认节省 ' + (tb - tf) + ' 分钟' : '这次没省下时间，也照实记下了'); return;
     }
     if (act === 'del-trial') { S.trials = S.trials.filter(function (r) { return r.id !== el.getAttribute('data-id'); }); save(); render(); return; }
     if (act === 'range') { investRange = +el.getAttribute('data-d'); render(); return; }
-    if (act === 'ideal-edit') return idealDialog();
+    if (act === 'ideal-edit') return idealSheet();
     if (act === 'ideal-save') {
       var vals = {}, sum = 0; QUADS.forEach(function (k) { vals[k] = Math.max(0, Math.round(+document.getElementById('i-' + k).value || 0)); sum += vals[k]; });
       if (sum !== 100) { updateIdealSum(); return; }
-      S.ideal = vals; save(); closeLayer(); render(); return;
+      S.ideal = vals; save(); closeSheet(); render(); return;
     }
-    if (act === 'ideal-clear') { S.ideal = null; save(); closeLayer(); render(); return; }
+    if (act === 'ideal-clear') { S.ideal = null; save(); closeSheet(); render(); return; }
     if (act === 'spin') { var k = el.getAttribute('data-k'); suggestSpin[k] = (suggestSpin[k] || 0) + 1; render(); return; }
-    if (act === 'intent') { var up = upcomingBlanks()[0]; if (up) { up.intent = el.getAttribute('data-v'); save(); render(); toast(up.intent ? '记下了这个念头。不会提醒你。' : '好，什么都不安排。'); } return; }
+    if (act === 'intent') { var up = upcomingBlanks()[0]; if (up) { up.intent = el.getAttribute('data-v'); save(); render(); toast(up.intent ? '记下这个念头，不会提醒你' : '好，什么都不安排'); } return; }
     if (act === 'export') {
-      document.getElementById('dataBox').innerHTML = '<div class="field" style="margin-top:12px"><label for="exp">你的全部数据（JSON）</label><textarea id="exp" readonly>' + esc(JSON.stringify(S, null, 1)) + '</textarea></div><button class="btn sm" data-act="copy" style="margin-top:8px">复制</button>';
+      document.getElementById('dataBox').innerHTML = '<div class="field"><label for="exp">全部数据（JSON）</label><textarea id="exp" class="code" readonly>' + esc(JSON.stringify(S)) + '</textarea></div><button class="btn sm" data-act="copy">复制</button>';
       return;
     }
     if (act === 'copy') {
-      var ta2 = document.getElementById('exp');
-      var done = function () { toast('已复制。'); };
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta2.value).then(done, function () { ta2.select(); toast('已选中，请手动复制。'); });
-      else { ta2.select(); toast('已选中，请手动复制。'); }
+      var ex = document.getElementById('exp');
+      var sel = function () { ex.select(); toast('已选中，请手动复制'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ex.value).then(function () { toast('已复制'); }, sel); else sel();
       return;
     }
-    if (act === 'import-open') {
-      document.getElementById('dataBox').innerHTML = '<div class="field" style="margin-top:12px"><label for="imp">粘贴之前导出的 JSON</label><textarea id="imp"></textarea></div><button class="btn sm" data-act="import" style="margin-top:8px">导入并替换当前数据</button>';
-      return;
-    }
+    if (act === 'import-open') { document.getElementById('dataBox').innerHTML = '<div class="field"><label for="imp">粘贴之前导出的 JSON</label><textarea id="imp" class="code"></textarea></div><button class="btn sm" data-act="import">导入并替换</button>'; return; }
     if (act === 'import') {
-      try { var s2 = JSON.parse(document.getElementById('imp').value); if (!s2 || s2.v !== 1 || !Array.isArray(s2.entries)) throw 0; S = s2; save(); render(); toast('已导入。'); }
-      catch (e2) { toast('这段文本不是留白导出的数据。'); }
+      try { var s2 = JSON.parse(document.getElementById('imp').value); if (!s2 || s2.v !== 1 || !Array.isArray(s2.entries)) throw 0; s2.drafts = s2.drafts || []; s2.trials = s2.trials || []; S = s2; save(); render(); toast('已导入'); }
+      catch (e2) { toast('这段文本不是留白导出的数据'); }
       return;
     }
-    if (act === 'load-demo') { openLayer('<h2>载入示例？</h2><p class="muted">当前数据会被示例替换。需要的话先导出。</p><div class="row"><button class="btn primary" data-act="demo-yes">载入示例</button><button class="btn ghost" data-act="close">取消</button></div>'); return; }
-    if (act === 'demo-yes') { var keep = S.name; S = demoState(); if (keep && keep !== 'Yajing') S.name = keep; save(); closeLayer(); render(); return; }
-    if (act === 'wipe') { openLayer('<h2>清空全部数据？</h2><p class="muted">所有时间记录、尝试记录和设置都会删除，不能撤销。</p><div class="row"><button class="btn danger" data-act="wipe-yes">清空</button><button class="btn ghost" data-act="close">取消</button></div>'); return; }
-    if (act === 'wipe-yes') { S = blankState(); S.mode = 'real'; save(); closeLayer(); location.hash = '#today'; render(); return; }
+    if (act === 'load-demo') { openSheet('<h2>载入示例？</h2><p class="small muted">当前数据会被示例替换，需要的话先导出。</p><button class="btn primary block" data-act="demo-yes">载入示例</button><button class="btn ghost block" data-act="close">取消</button>'); return; }
+    if (act === 'demo-yes') { S = demoState(); save(); closeSheet(); render(); return; }
+    if (act === 'wipe') { openSheet('<h2>清空全部数据？</h2><p class="small muted">所有记录和设置都会删除，不能撤销。</p><button class="btn danger block" data-act="wipe-yes">清空</button><button class="btn ghost block" data-act="close">取消</button>'); return; }
+    if (act === 'wipe-yes') { S = blankState(); S.mode = 'real'; save(); closeSheet(); location.hash = '#today'; render(); return; }
+  });
+
+  // draft field edits
+  document.addEventListener('change', function (ev) {
+    var f = ev.target.getAttribute && ev.target.getAttribute('data-f'); if (!f) return;
+    var d = draftById(ev.target); if (!d) return;
+    d[f] = ev.target.value.trim(); if (f !== 'title') d.force = false;
+    save(); render();
   });
 
   document.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var f = ev.target;
+    if (f.id === 'capForm') return parseInput(document.getElementById('cap-text').value);
     if (f.id === 'addForm') {
       var date = flowDate || todayStr(), title = document.getElementById('f-title').value.trim(), kind = document.getElementById('f-kind').value;
       var st = document.getElementById('f-start').value, en = document.getElementById('f-end').value, w = document.getElementById('addWarn');
       if (!title || !st || !en) return;
-      if (toMin(en) <= toMin(st)) { w.hidden = false; w.textContent = '结束时间要晚于开始时间。跨过午夜的时间，请分成两段记。'; return; }
+      if (toMin(en) <= toMin(st)) { w.hidden = false; w.textContent = '结束要晚于开始。跨午夜的时间请分成两段。'; return; }
       var entry = { id: uid(), date: date, start: st, end: en, title: title, kind: kind };
       var hit = overlapsBlank(date, toMin(st), toMin(en));
-      if (hit.length) {
-        pendingAdd = entry;
-        w.hidden = false;
-        w.innerHTML = '这段时间和你预留的留白（' + hit.map(function (e) { return e.start + '–' + e.end; }).join('、') + '）重叠。留白默认不被再次塞满。 <button class="btn sm" type="button" data-act="add-anyway">仍然记下</button>';
-        return;
-      }
-      S.entries.push(entry); save(); render();
-      var nextStart = en, nx = Math.min(1439, toMin(en) + 60);
-      document.getElementById('f-start').value = nextStart; document.getElementById('f-end').value = toHM(nx);
-      toast('记下了：' + title);
-      return;
+      if (hit.length) { pendingAdd = entry; w.hidden = false; w.innerHTML = '和预留的留白重叠，留白默认不被再次塞满。 <button class="btn sm" type="button" data-act="add-anyway">仍然记下</button>'; return; }
+      S.entries.push(entry); save(); render(); toast('记下了：' + title); return;
     }
     if (f.id === 'setForm') {
       S.name = document.getElementById('s-name').value.trim();
       var wk = +document.getElementById('s-wake').value; if (wk >= 8 && wk <= 20) S.wake = Math.round(wk * 60);
-      save(); render(); toast('已保存。'); return;
+      save(); render(); toast('已保存'); return;
     }
   });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && document.querySelector('.overlay')) closeSheet();
+    if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && ev.target.id === 'cap-text') { ev.preventDefault(); parseInput(ev.target.value); }
+  });
   document.addEventListener('input', function (ev) { if (ev.target.id && ev.target.id.indexOf('i-') === 0) updateIdealSum(); });
-  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && document.querySelector('.overlay')) closeLayer(); });
-  window.addEventListener('hashchange', function () { render(); window.scrollTo(0, 0); });
+  window.addEventListener('hashchange', function () { capState.msg = ''; render(); window.scrollTo(0, 0); });
+
+  // test hook for the local parser (pure, no side effects)
+  window.__leubaiParse = ruleParse;
 
   render();
   if (!S.mode) onboard();
