@@ -42,7 +42,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-sans);
 h1, h2 { font-family: var(--font-serif); font-weight: 400; margin: 0; }
 h2 { font-size: 17px; }
 p { margin: 0; }
-button, input, textarea { font: inherit; color: inherit; }
+button, input, textarea, select { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
 a { color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 .num { font-family: var(--font-serif); font-variant-numeric: tabular-nums; }
@@ -240,7 +241,7 @@ a { color: inherit; }
 /* Settings + sheets */
 .field { display: grid; gap: 4px; }
 .field label { font-size: 13px; color: var(--text-2); }
-.field input, .field textarea { min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); width: 100%; }
+.field input, .field textarea, .field select { min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); width: 100%; }
 .field textarea { min-height: 100px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .overlay { position: fixed; inset: 0; background: rgba(10, 14, 17, .45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
@@ -556,6 +557,37 @@ a { color: inherit; }
       '只说时长没说时间时：说了“刚才/已经/花了”表示刚结束，end 为现在；否则 start 和 end 写 null，只填 minutes。没说上午下午的 1–6 点按下午算。拿不准的字段写 null，不要编造。一句话里有几件事就拆成几条。\n' +
       '用户的话：「' + String(text).slice(0, 600) + '」';
   }
+  // ---------- own LLM ----------
+  // mode: auto (claude.ai → this host's /api/llm → rules), server, custom, off. Kept apart from S so export/wipe never carry the key.
+  var LLM_KEY = 'leubai.llm.v1';
+  var L = (function () { try { var o = JSON.parse(localStorage.getItem(LLM_KEY) || 'null'); if (o && o.mode) return o; } catch (e) { } return { mode: 'auto', path: '', url: '', key: '', model: '' }; })();
+  function saveLLM() { try { localStorage.setItem(LLM_KEY, JSON.stringify(L)); } catch (e) { } }
+  var serverCfg = null;
+  var serverP = (/^https?:$/.test(location.protocol) ? fetch('/api/llm/config', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }) : Promise.resolve(null))
+    .then(function (c) { serverCfg = c && c.endpoints && c.endpoints.length ? c : null; if (serverCfg && route() === 'settings') render(); return serverCfg; }, function () { return null; });
+  function serverTarget() {
+    if (!serverCfg) return null;
+    var ep = serverCfg.endpoints.filter(function (e) { return e.path === L.path; })[0] || serverCfg.endpoints[0];
+    return { url: '/api/llm' + ep.path, key: '', model: ep.model };
+  }
+  function customTarget() { return L.url && L.model ? { url: L.url, key: L.key, model: L.model } : null; }
+  function llmJSON(tg, prompt, ms) {
+    var ac = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ac) ac.abort(); }, ms || 45000);
+    var h = { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' };
+    if (tg.key) { h['x-api-key'] = tg.key; h['Authorization'] = 'Bearer ' + tg.key; }
+    return fetch(tg.url, { method: 'POST', headers: h, signal: ac ? ac.signal : undefined, body: JSON.stringify({ model: tg.model, max_tokens: 1500, messages: [{ role: 'user', content: prompt }] }) })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) {
+        clearTimeout(timer);
+        var txt = Array.isArray(d && d.content) ? d.content.filter(function (c) { return c.type === 'text'; }).map(function (c) { return c.text; }).join('') :
+          (d && d.choices && d.choices[0] && d.choices[0].message ? d.choices[0].message.content : '');
+        txt = String(txt || '').replace(/<think>[\s\S]*?<\/think>/g, '');
+        var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
+        if (a < 0 || b < a) throw new Error('no json');
+        return JSON.parse(txt.slice(a, b + 1));
+      }, function (e) { clearTimeout(timer); throw e; });
+  }
   var capState = { busy: false, msg: '', warn: false, listening: false };
   function setCap(msg, warn) { capState.msg = msg; capState.warn = !!warn; var el = document.getElementById('capStatus'); if (el) { el.textContent = msg; el.className = 'status' + (warn ? ' warn' : ''); } }
   function parseInput(text) {
@@ -571,8 +603,19 @@ a { color: inherit; }
       capState.msg = ''; capState.warn = false;
       render();
     };
+    var viaLLM = function (tg) {
+      if (!tg) return done(ruleParse(text), 'rule');
+      setCap('AI 整理中…');
+      llmJSON(tg, aiPrompt(text)).then(function (data) {
+        var items = normalizeAI(data && data.items);
+        done(items.length ? items : ruleParse(text), items.length ? 'ai' : 'rule');
+      }, function () { done(ruleParse(text), 'rule'); });
+    };
+    if (L.mode === 'off') return done(ruleParse(text), 'rule');
+    if (L.mode === 'custom') return viaLLM(customTarget());
+    if (L.mode === 'server') return serverP.then(function () { viaLLM(serverTarget()); });
     (aiOff ? Promise.resolve(null) : withTimeout(sampleP, 1500)).then(function (sample) {
-      if (!sample) return done(ruleParse(text), 'rule');
+      if (!sample) return serverP.then(function () { viaLLM(serverTarget()); });
       sample.json(aiPrompt(text), { modelTier: 'quick' }).then(function (data) {
         var items = normalizeAI(data && data.items);
         done(items.length ? items : ruleParse(text), items.length ? 'ai' : 'rule');
@@ -974,10 +1017,28 @@ a { color: inherit; }
       '<form id="setForm" class="col" style="gap:14px"><div class="field"><label for="s-name">称呼</label><input id="s-name" maxlength="20" value="' + esc(S.name) + '"></div>' +
       '<div class="field"><label for="s-wake">每天清醒几小时</label><input id="s-wake" type="number" inputmode="decimal" min="8" max="20" step="0.5" value="' + (S.wake / 60) + '"></div>' +
       '<label class="check"><input type="checkbox" id="s-sound"' + (S.sound === false ? '' : ' checked') + '> 提示音</label>' +
+      aiSettings() +
       '<button class="btn primary" type="submit" style="justify-self:start">保存</button></form>' +
       (S.mode === 'demo' ? '<div class="blank-card"><span>正在看示例</span><button class="btn sm" data-act="start-real">清空示例</button></div>' : '') +
       '<div class="btns"><button class="btn sm" data-act="export">导出</button><button class="btn sm" data-act="import-open">导入</button><button class="btn sm" data-act="load-demo">示例</button><button class="btn sm" data-act="wipe">清空</button></div>' +
       (memoryOnly ? '<p class="small muted">此浏览器无法保存</p>' : '<p class="small muted">数据只存在这个浏览器</p>') + '<div id="dataBox"></div></div>';
+  }
+
+  function aiSettings() {
+    var opt = function (v, t) { return '<option value="' + v + '"' + (L.mode === v ? ' selected' : '') + '>' + t + '</option>'; };
+    var eps = serverCfg ? serverCfg.endpoints : [];
+    return '<div class="field"><label for="s-ai">AI</label><select id="s-ai">' + opt('auto', '自动') + (eps.length || L.mode === 'server' ? opt('server', '本机模型') : '') + opt('custom', '自定义接口') + opt('off', '关闭') + '</select></div>' +
+      '<div class="field" data-ai="server"' + (L.mode === 'server' ? '' : ' hidden') + '><label for="s-ai-ep">模型</label><select id="s-ai-ep">' +
+      eps.map(function (e) { return '<option value="' + esc(e.path) + '"' + (e.path === L.path ? ' selected' : '') + '>' + esc(e.model || e.path) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="col" data-ai="custom" style="gap:14px"' + (L.mode === 'custom' ? '' : ' hidden') + '>' +
+      '<div class="field"><label for="s-ai-url">接口地址</label><input id="s-ai-url" inputmode="url" autocomplete="off" placeholder="http://127.0.0.1:3458/v1/messages" value="' + esc(L.url) + '"></div>' +
+      '<div class="field"><label for="s-ai-model">模型名</label><input id="s-ai-model" autocomplete="off" placeholder="glm-5.3-flash" value="' + esc(L.model) + '"></div>' +
+      '<div class="field"><label for="s-ai-key">密钥</label><input id="s-ai-key" type="password" autocomplete="off" value="' + esc(L.key) + '"></div></div>' +
+      '<button class="btn sm" type="button" data-act="ai-test" style="justify-self:start">测试 AI</button>';
+  }
+  function readAI() {
+    var g = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    L.mode = g('s-ai') || 'auto'; L.path = g('s-ai-ep'); L.url = g('s-ai-url'); L.model = g('s-ai-model'); L.key = g('s-ai-key');
   }
 
   // ---------- sheets ----------
@@ -1167,6 +1228,14 @@ a { color: inherit; }
       if (nm) S.name = nm; save(); closeSheet(); render(); return;
     }
     if (act === 'start-real') { S.entries = []; S.trials = []; S.drafts = []; S.ideal = null; S.mode = 'real'; S.name = ''; save(); render(); toast('已清空'); return; }
+    if (act === 'ai-test') {
+      readAI();
+      var tg = L.mode === 'custom' ? customTarget() : L.mode === 'off' ? null : serverTarget();
+      if (!tg) { toast(L.mode === 'auto' ? '自动：在 Claude 里用 Claude，否则用规则' : '没有可用的接口'); return; }
+      toast('测试中…');
+      llmJSON(tg, '只输出 JSON：{"ok":true}', 30000).then(function () { toast('连上了 · ' + tg.model); }, function (e) { toast('连不上：' + (e && e.message || '出错')); });
+      return;
+    }
     if (act === 'export') { document.getElementById('dataBox').innerHTML = '<div class="field"><label for="exp">数据</label><textarea id="exp" readonly>' + esc(JSON.stringify(S)) + '</textarea></div><button class="btn sm" data-act="copy" style="margin-top:8px">复制</button>'; return; }
     if (act === 'copy') {
       var ex = document.getElementById('exp'), sel = function () { ex.select(); toast('已选中'); };
@@ -1186,6 +1255,7 @@ a { color: inherit; }
     if (act === 'close') return closeSheet();
   });
   document.addEventListener('change', function (ev) {
+    if (ev.target.id === 's-ai') { var md = ev.target.value; document.querySelectorAll('[data-ai]').forEach(function (el) { el.hidden = el.getAttribute('data-ai') !== md; }); return; }
     var f = ev.target.getAttribute && ev.target.getAttribute('data-f'); if (!f) return;
     var d = draftById(ev.target); if (!d) return;
     var v = ev.target.value.trim();
@@ -1199,6 +1269,7 @@ a { color: inherit; }
     if (ev.target.id === 'setForm') {
       S.name = document.getElementById('s-name').value.trim();
       S.sound = document.getElementById('s-sound').checked;
+      readAI(); saveLLM();
       var wk = +document.getElementById('s-wake').value; if (wk >= 8 && wk <= 20) S.wake = Math.round(wk * 60);
       save(); render(); toast('已保存');
     }
