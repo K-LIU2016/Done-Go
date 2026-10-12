@@ -74,7 +74,7 @@ a { color: inherit; }
 .big { font-family: var(--font-serif); font-size: 64px; line-height: 1; font-variant-numeric: tabular-nums; }
 .big small { font-family: var(--font-sans); font-size: 16px; color: var(--text-2); margin: 0 .25em 0 .1em; }
 .label { font-size: 13px; color: var(--text-2); letter-spacing: .08em; }
-.voice { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 14px; padding: 26px 18px 18px; background: linear-gradient(160deg, #F6F6D2, var(--spring)); color: var(--spring-ink); border: 0; border-radius: 28px;
+.voice { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 14px; padding: 26px 18px 18px; background: linear-gradient(160deg, #E4E8D0, #D5DCBD); color: var(--spring-ink); border: 0; border-radius: 28px;
   --text: var(--spring-ink); --text-2: #5F6B50; --line: rgba(47, 59, 38, .14); --bg: rgba(255, 255, 255, .65); --surface: #FFFFFF; }
 .voice .mic, .voice .say button, .voice .btn.primary { background: var(--deep); color: var(--spring); border-color: var(--deep); }
 .mic { width: 84px; height: 84px; border-radius: 50%; border: 0; background: var(--text); color: var(--bg); display: grid; place-items: center; cursor: pointer; position: relative; }
@@ -123,7 +123,7 @@ a { color: inherit; }
 .ink { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .ink .f { fill: currentColor; stroke: none; }
 .tile-av { position: relative; }
-.tile-av .clk { position: absolute; top: 5px; right: 6px; width: 14px; height: 14px; color: #6A746D; }
+.tile-av .tm { font-size: 10.5px; color: #6A746D; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .pick-tip { margin: 0 0 10px; padding: 0 4px; color: var(--text-2); font-size: 14px; }
 .tile-av:active { transform: scale(.94); }
 .tile-av.on { border-color: var(--deep); background: var(--spring); box-shadow: 0 0 0 2px var(--deep); transform: rotate(-3deg); }
@@ -144,8 +144,9 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .oops, .oops .drop { animation: none; } }
 
 :root { --p1: #D9483E; --p2: #E5714A; --p3: #EFA05E; --p4: #D8C29C; --p5: #BFC6CB; --field: var(--moss); --field-line: var(--moss-line); }
-.bubbles { position: relative; height: 380px; overflow: hidden; touch-action: none; }
+.bubbles { position: relative; height: 380px; overflow: hidden; touch-action: none; border: 1.5px solid var(--field-line); border-radius: 26px; background: rgba(255, 255, 255, .35); }
 .bubbles .axes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; color: var(--deep); }
+.bubbles .axes text { fill: var(--text-2); font-size: 11px; font-family: inherit; }
 .bubble { position: absolute; left: 0; top: 0; display: grid; place-content: center; gap: 1px; text-align: center; border: 0; padding: 0 3px; cursor: grab; color: #fff; background: none; user-select: none; -webkit-user-select: none; will-change: transform; isolation: isolate; transition: opacity .4s; }
 .bubble::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; animation: cell 5s ease-in-out infinite alternate, spin 14s linear infinite;
   box-shadow: inset -7px -9px 16px rgba(0,0,0,.10), 0 8px 18px rgba(120,70,30,.12); }
@@ -703,7 +704,7 @@ a { color: inherit; }
       '<button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" placeholder="说或写：下午两点到三点开会" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section></div>';
-    html += '<div class="col">' + blankCard() + bubbleField() + picker() + '</div>';
+    html += '<div class="col">' + bubbleField() + picker() + '</div>';
     return html;
   }
   // one cartoon per half hour, 07:00–23:30
@@ -788,7 +789,7 @@ a { color: inherit; }
     for (var m = from; m <= 1410; m += 30) {
       var st = slotState(m), on = !!pick[m], sl = SLOTS[m];
       tiles += '<button class="tile-av ' + st + (on ? ' on' : '') + '" style="border-radius:' + BLOBS[(m / 30) % BLOBS.length] + '" data-act="pick" data-m="' + m + '"' + (st === 'kept' ? ' disabled' : '') +
-        ' title="' + toHM(m) + '" aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已留白' : '') + '"><span class="av">' + ink(m) + '</span>' + clock(m) + '</button>';
+        ' title="' + toHM(m) + '" aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已留白' : '') + '"><span class="av">' + ink(m) + '</span><span class="tm">' + toHM(m) + '</span></button>';
     }
     if (!tiles) return '';
     var n = Object.keys(pick).length;
@@ -839,29 +840,34 @@ a { color: inherit; }
     els.forEach(function (el) { var e = byId(el.getAttribute('data-id')); el._e = e; el._r = 30 + Math.sqrt(Math.min(dur(e), 240) / 240) * 30; area += Math.PI * el._r * el._r; });
     var k = Math.min(1, Math.sqrt(W * H * 0.5 / Math.max(area, 1)));
     // x axis = time of day, y axis = priority (higher floats up)
-    var L = 16, B = 16, times = [].map.call(els, function (el) { return toMin(el._e.start); });
-    var t0 = Math.min.apply(null, [420].concat(times)), t1 = 1440, X = function (t) { return L + (W - L - 8) * (t - t0) / (t1 - t0); };
-    var ax = '<path d="M' + L + ' 6V' + (H - B) + 'H' + (W - 4) + '" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
-      '<path d="M' + (L - 4) + ' 12L' + L + ' 5L' + (L + 4) + ' 12M' + (W - 11) + ' ' + (H - B - 4) + 'L' + (W - 4) + ' ' + (H - B) + 'L' + (W - 11) + ' ' + (H - B + 4) + '" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-    for (var hh = Math.ceil(t0 / 120) * 120; hh < t1; hh += 120) ax += '<path d="M' + X(hh).toFixed(1) + ' ' + (H - B) + 'v5" stroke="currentColor" stroke-width="1.2" opacity=".55"/>';
-    if (now > t0 && now < t1) ax += '<path d="M' + X(now).toFixed(1) + ' 10V' + (H - B) + '" stroke="currentColor" stroke-width="1" stroke-dasharray="2 4" opacity=".35"/>';
+    var L = 40, B = 34, T = 16, times = [].map.call(els, function (el) { return toMin(el._e.start); });
+    var t0 = Math.min.apply(null, [420].concat(times)), t1 = 1440, X = function (t) { return L + 6 + (W - L - 26) * (t - t0) / (t1 - t0); };
+    var R = W - 14;
+    var ax = '<path d="M' + L + ' ' + T + 'V' + (H - B) + 'H' + R + '" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
+      '<path d="M' + (L - 4) + ' ' + (T + 7) + 'L' + L + ' ' + T + 'L' + (L + 4) + ' ' + (T + 7) + 'M' + (R - 7) + ' ' + (H - B - 4) + 'L' + R + ' ' + (H - B) + 'L' + (R - 7) + ' ' + (H - B + 4) + '" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<text x="' + (L - 8) + '" y="' + (T + 14) + '" text-anchor="end">高</text><text x="' + (L - 8) + '" y="' + (H - B - 4) + '" text-anchor="end">低</text>' +
+      '<text transform="translate(' + (L - 22) + ' ' + ((T + H - B) / 2) + ') rotate(-90)" text-anchor="middle">优先级</text>' +
+      '<text x="' + R + '" y="' + (H - 8) + '" text-anchor="end">时间</text>';
+    var step = W < 520 ? 240 : 120;
+    for (var hh = Math.ceil(t0 / step) * step; hh < t1 - 30; hh += step) ax += '<path d="M' + X(hh).toFixed(1) + ' ' + (H - B) + 'v5" stroke="currentColor" stroke-width="1.2" opacity=".55"/><text x="' + X(hh).toFixed(1) + '" y="' + (H - B + 18) + '" text-anchor="middle">' + (hh / 60) + '</text>';
+    if (now > t0 && now < t1) ax += '<path d="M' + X(now).toFixed(1) + ' ' + T + 'V' + (H - B) + '" stroke="currentColor" stroke-width="1" stroke-dasharray="2 4" opacity=".35"/>';
     var axes = box.querySelector('.axes'); if (axes) axes.innerHTML = ax;
     els.forEach(function (el) {
       var e = el._e, r = Math.max(24, el._r * k), id = e.id, p = P(e);
-      var tx = Math.max(L + r, Math.min(W - r, X(toMin(e.start)) + r * .6));
-      var ty = r + (H - B - 2 * r) * (e.kind === 'blank' ? .5 : [0, 0, .25, .5, .75, 1][p]);
+      var tx = Math.max(L + 2 + r, Math.min(W - 4 - r, X(toMin(e.start)) + r * .6));
+      var ty = T + r + (H - B - T - 2 * r) * (e.kind === 'blank' ? .5 : [0, 0, .25, .5, .75, 1][p]);
       var b = bub[id] || (bub[id] = { x: W / 2 + (Math.random() - .5) * W * .5, y: H + r, vx: 0, vy: 0, ph: Math.random() * 6.28 });
       b.r = r; b.tx = tx; b.ty = Math.max(r, Math.min(H - r, ty)); b.el = el;
       el.style.width = el.style.height = (2 * r) + 'px'; el.style.fontSize = Math.max(11, Math.min(14, r / 3.5)) + 'px';
       items.push(b);
     });
-    box._items = items; box._W = W; box._H = H; box._L = L; box._B = B;
+    box._items = items; box._W = W; box._H = H; box._L = L + 2; box._B = B; box._T = T;
     var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (still) { for (var n = 0; n < 240; n++) bubStep(box, 0); bubPaint(box); return; }
     if (!bubRaf) bubRaf = requestAnimationFrame(bubLoop);
   }
   function bubStep(box, time) {
-    var it = box._items, W = box._W, H = box._H, L = box._L || 0, B = box._B || 0;
+    var it = box._items, W = box._W, H = box._H, L = box._L || 0, B = box._B || 0, T = box._T || 0;
     it.forEach(function (b) {
       if (b === bubDrag) return;
       b.vy += (b.ty - b.y) * 0.004; if (b.tx != null) b.vx += (b.tx - b.x) * 0.004;
@@ -879,7 +885,7 @@ a { color: inherit; }
     }
     it.forEach(function (b) {
       if (b.x < L + b.r) { b.x = L + b.r; b.vx = Math.abs(b.vx) * .6; } if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx) * .6; }
-      if (b.y < b.r) { b.y = b.r; b.vy = Math.abs(b.vy) * .6; } if (b.y > H - B - b.r) { b.y = H - B - b.r; b.vy = -Math.abs(b.vy) * .6; }
+      if (b.y < T + b.r) { b.y = T + b.r; b.vy = Math.abs(b.vy) * .6; } if (b.y > H - B - b.r) { b.y = H - B - b.r; b.vy = -Math.abs(b.vy) * .6; }
     });
   }
   function bubPaint(box) { box._items.forEach(function (b) { b.el.style.transform = 'translate(' + (b.x - b.r).toFixed(1) + 'px,' + (b.y - b.r).toFixed(1) + 'px)'; }); }
@@ -1033,7 +1039,7 @@ a { color: inherit; }
   function pageReview() {
     var x = mix(inRange(range)), m = x.m, fi = freedom(inRange(range)), kept = keptTotal();
     var html = '<div class="seg full" role="group" aria-label="范围"><button data-act="range" data-d="7" aria-pressed="' + (range === 7) + '">7 天</button><button data-act="range" data-d="30" aria-pressed="' + (range === 30) + '">30 天</button></div>';
-    html += '<div class="col"><div class="pair"><div class="tile"><span class="label">留住的时间</span><span class="v">' + fmtShort(kept) + '</span></div>' +
+    html += '<div class="col">' + blankCard() + '<div class="pair"><div class="tile"><span class="label">留住的时间</span><span class="v">' + fmtShort(kept) + '</span></div>' +
       '<div class="tile"><span class="label">自由指数</span><span class="v">' + (fi ? fi.score : '—') + '</span></div></div>';
     var keys = ['create', 'connect', 'explore', 'restore', 'necessary', 'blank'].filter(function (k) { return m[k] > 0; });
     html += '<section class="block"><h2>时间去向</h2>' + (x.total ? '<div class="stack-bar" role="img" aria-label="' + keys.map(function (k) { return KINDS[k].label + pct(m[k] / x.total) + '%'; }).join('，') + '">' +
