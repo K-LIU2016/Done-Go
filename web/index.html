@@ -192,6 +192,20 @@ a { color: inherit; }
 .fw-bar .fw-n { font-size: 15px; }
 .fw-bar .fw-n b { font-family: var(--font-serif); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; margin: 0 2px; }
 .fw-bar .fw-c { font-size: 12.5px; color: var(--text-2); }
+.fw-bar .fw-t { flex: 1; }
+.fw-rank { border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.fw-rank b { font-family: var(--font-serif); font-size: 16px; font-weight: 500; }
+.board { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 14px 10px; padding: 8px 0 4px; min-height: 150px; }
+.board .who { display: grid; justify-items: center; gap: 4px; width: 84px; text-align: center; animation: rise .5s ease-out backwards; }
+.board .orb { position: relative; display: grid; place-content: center; border-radius: 50%; color: #fff; font-family: var(--font-serif); font-size: 18px; background: radial-gradient(circle at 32% 28%, #F3DFA2, #C9A45C 72%); box-shadow: 0 6px 16px rgba(80, 60, 20, .15); }
+.board .r2 .orb { background: radial-gradient(circle at 32% 28%, #E9EDEF, #9FAAB1 72%); }
+.board .r3 .orb { background: radial-gradient(circle at 32% 28%, #F2D2BE, #C08A6A 72%); }
+.board .rn .orb { background: radial-gradient(circle at 32% 28%, #DCE6DA, #8FA88F 72%); }
+.board .me .orb { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--deep); }
+.board .crown { position: absolute; top: -18px; left: 50%; translate: -50% 0; width: 26px; height: 18px; color: #A4823F; }
+.board .nm { font-size: 13px; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board .rk { font-size: 11.5px; color: var(--text-2); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
 .fw-bar.bump svg { animation: fwspin .9s ease-out; }
 .fw-bar.bump .fw-n b { display: inline-block; animation: pop .6s ease-out; }
 @keyframes fwspin { 0% { rotate: 0deg; scale: .6; } 60% { scale: 1.25; } 100% { rotate: 180deg; scale: 1; } }
@@ -407,13 +421,13 @@ a { color: inherit; }
 
   // ---------- state ----------
   var memoryOnly = false;
-  function blankState() { return { v: 1, pv: 5, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'prio', fw: {}, pal: 0 }; }
+  function blankState() { return { v: 1, pv: 5, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'prio', fw: {}, pal: 0, uid: '' }; }
   function load() {
     try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) { s.drafts = s.drafts || []; s.fw = s.fw || {}; s.pal = s.pal || 0; s.sortBy = s.sortBy || 'prio'; if (!s.pv) { s.entries.concat(s.drafts).forEach(function (e) { if (e.prio) e.prio = { 1: 1, 2: 3, 3: 5 }[e.prio] || 3; }); s.pv = 5; } return s; } } } catch (e) { memoryOnly = true; }
     return blankState();
   }
   var S = load();
-  function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { memoryOnly = true; } }
+  function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { memoryOnly = true; } if (typeof BOARD !== 'undefined' && BOARD) boardPush(); }
 
   // ---------- demo ----------
   function demoState() {
@@ -1218,7 +1232,9 @@ a { color: inherit; }
     var n = fwCount(todayStr()), st = fwStreak(), just = fwJust; fwJust = false;
     var cheer = !n ? '双击完成的事，放一朵烟花' : n === 1 ? '第一朵，好的开始' : n === 2 ? '你也太棒了吧' : n === 3 ? '三连！手感来了' : n < 6 ? '今天的天空很热闹' : n < 9 ? '停不下来了吧' : '整片夜空都是你的';
     if (st > 1) cheer += ' · 连续 ' + st + ' 天';
-    return '<div class="fw-bar' + (just ? ' bump' : '') + '" role="status">' + FW_ICON + '<div class="fw-t"><span class="fw-n">今日已放飞烟花<b>' + n + '</b>朵</span><span class="fw-c">' + cheer + '</span></div></div>';
+    var rk = boardRank();
+    return '<div class="fw-bar' + (just ? ' bump' : '') + '" role="status">' + FW_ICON + '<div class="fw-t"><span class="fw-n">今日已放飞烟花<b>' + n + '</b>朵</span><span class="fw-c">' + cheer + '</span></div>' +
+      (BOARD.on ? '<button class="fw-rank" data-act="board" aria-label="烟花榜">烟花榜' + (rk ? ' <b>' + rk + '</b>' : '') + '</button>' : '') + '</div>';
   }
   var FW_COL = { p1: ['#F59A8E', '#D9483E'], p2: ['#F6A585', '#E5714A'], p3: ['#F9CFA3', '#EFA05E'], p4: ['#E9D9B6', '#C9B07E'], p5: ['#D5DCE0', '#9FAAB1'], pb: ['#D3DDE6', '#8C9FB1'] };
   var FW_MIX = ['#E8C872', '#F2A7A0', '#A9C8C4', '#C3B6CC', '#F3DFA2', '#9DB8A0'];
@@ -1304,6 +1320,74 @@ a { color: inherit; }
       for (var k = 0; k < 14; k++) noise(t0 + .3 + Math.random() * .7, .05, 2500 + Math.random() * 3000, 3, .12 + Math.random() * .1);
     } catch (e) { /* no sound is fine */ }
   }
+  // ---------- firework board: everyone who uses this page ----------
+  // In the claude.ai page it lives in the artifact's shared db (each person writes board/<their id>);
+  // on the self-hosted page it lives in web/server.py (/api/board). Demo data never goes up.
+  var BOARD = { on: false, kind: '', people: [], me: '', db: null, user: null, names: {} }, boardTab = 'day', boardTimer = 0;
+  function myDays() { var out = {}, t = todayStr(); for (var i = 0; i < 31; i++) { var d = addDays(t, -i); if (fwCount(d)) out[d] = fwCount(d); } return out; }
+  function boardScore(p, tab) { var t = todayStr(), days = p.days || {}; if (tab === 'day') return days[t] || 0; var n = 0; for (var i = 0; i < 7; i++) n += days[addDays(t, -i)] || 0; return n; }
+  function boardList(tab) {
+    var list = BOARD.people.slice();
+    if (S.mode === 'real' && BOARD.me) { list = list.filter(function (p) { return p.id !== BOARD.me; }); list.push({ id: BOARD.me, nick: S.name, days: myDays() }); }
+    return list.map(function (p) { return { id: p.id, nick: p.nick, n: boardScore(p, tab) }; }).filter(function (p) { return p.n > 0 || p.id === BOARD.me; })
+      .sort(function (a, b) { return b.n - a.n || (a.id === BOARD.me ? -1 : b.id === BOARD.me ? 1 : 0); });
+  }
+  function boardRank() { if (!BOARD.on || S.mode !== 'real' || !fwCount(todayStr())) return 0; var l = boardList('day'); for (var i = 0; i < l.length; i++) if (l[i].id === BOARD.me) return '第 ' + (i + 1) + ' 名'; return 0; }
+  function boardName(p) { if (p.id === BOARD.me) return S.name || '我'; return (BOARD.kind === 'db' ? BOARD.names[p.id] : p.nick) || '一位朋友'; }
+  var CROWN = '<svg class="crown" viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 15h20l1.5-10-6 4.5L13 2l-5.5 7.5-6-4.5z"/></svg>';
+  function boardSheet() {
+    var l = boardList(boardTab), max = l.length ? Math.max(1, l[0].n) : 1;
+    var body = l.length && l[0].n ? '<div class="board">' + l.slice(0, 12).map(function (p, i) {
+      var d = Math.round(46 + 40 * Math.sqrt(p.n / max)), cls = i < 3 ? 'r' + (i + 1) : 'rn';
+      return '<div class="who ' + cls + (p.id === BOARD.me ? ' me' : '') + '" style="animation-delay:' + (i * 70) + 'ms"><span class="orb" style="width:' + d + 'px;height:' + d + 'px">' + (i === 0 ? CROWN : '') + p.n + '</span>' +
+        '<span class="nm">' + esc(boardName(p)) + '</span><span class="rk">第 ' + (i + 1) + ' 名</span></div>';
+    }).join('') + '</div>' : '<p class="empty">' + (boardTab === 'day' ? '今天还没有人放烟花，来当第一个' : '这周还没有烟花') + '</p>';
+    openSheet('<h2 style="font-size:22px">烟花榜</h2><div class="seg" role="group" aria-label="范围"><button data-act="board-tab" data-d="day" aria-pressed="' + (boardTab === 'day') + '">今天</button><button data-act="board-tab" data-d="week" aria-pressed="' + (boardTab === 'week') + '">近 7 天</button></div>' + body +
+      '<p class="small muted">' + (S.mode === 'real' ? '' : '示例数据不上榜。') + (BOARD.kind === 'srv' && !S.name ? '在设置里填个称呼，大家就知道是你。' : '一起用这个页面的人都在这里。') + '</p><button class="btn wide" data-act="close">好</button>');
+  }
+  function boardPush() {
+    if (!BOARD.on || S.mode !== 'real' || !BOARD.me) return;
+    var sig = JSON.stringify([myDays(), S.name]); if (sig === BOARD.sent) return; BOARD.sent = sig;
+    clearTimeout(boardTimer);
+    boardTimer = setTimeout(function () {
+      var days = myDays();
+      if (BOARD.kind === 'db') BOARD.db.doc('board/' + BOARD.me).set({ days: days }).catch(function () { });
+      else fetch('api/board', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: BOARD.me, nick: S.name || '', days: days }) }).then(function () { boardPull(); }).catch(function () { });
+    }, 600);
+  }
+  function boardPull() {
+    if (BOARD.kind !== 'srv') return;
+    fetch('api/board', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.people) return; BOARD.people = j.people; boardShow();
+    }).catch(function () { });
+  }
+  function boardShow() {
+    var was = BOARD.on; BOARD.on = true;
+    var bar = document.querySelector('.fw-bar'); if (bar && !document.querySelector('.overlay')) { var tmp = document.createElement('div'); fwJust = false; tmp.innerHTML = fwBar(); bar.replaceWith(tmp.firstChild); }
+    if (document.querySelector('.overlay .board, .overlay .empty') && document.querySelector('.overlay h2') && document.querySelector('.overlay h2').textContent === '烟花榜') boardSheet();
+    if (!was) boardPush();
+  }
+  function boardInit() {
+    if (window.claude && typeof window.claude.use === 'function') {
+      Promise.all([Promise.resolve(window.claude.use('db')).catch(function () { return null; }), Promise.resolve(window.claude.use('user')).catch(function () { return null; })]).then(function (r) {
+        var db = r[0], user = r[1]; if (!db || !user) return;
+        user.id().then(function (id) {
+          if (!id) return;
+          BOARD.kind = 'db'; BOARD.db = db; BOARD.user = user; BOARD.me = id;
+          db.collection('board').onSnapshot(function (snap) {
+            BOARD.people = snap.docs.map(function (d) { var b = d.data() || {}; return { id: d.id, days: b.days || {} }; });
+            var ids = BOARD.people.map(function (p) { return p.id; });
+            Promise.resolve(user.profiles(ids)).then(function (ps) { ids.forEach(function (i) { BOARD.names[i] = ps && ps[i] && ps[i].name || ''; }); boardShow(); }, function () { boardShow(); });
+          }, function () { });
+        });
+      });
+      return;
+    }
+    if (!/^https?:$/.test(location.protocol)) return;
+    if (!S.uid) { S.uid = 'u' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36); save(); }
+    BOARD.kind = 'srv'; BOARD.me = S.uid; boardPull(); setInterval(boardPull, 60000);
+  }
+
   // ---------- firework calendar (Monet palettes) ----------
   var calMon = null;
   var PALS = [
@@ -1396,6 +1480,8 @@ a { color: inherit; }
     if (act === 'unsel') { bubSel = null; render(); return; }
     if (act === 'fw-undo') { if (undoFw) { undoFw(); undoFw = null; } var tu = document.querySelector('.toast'); if (tu) tu.hidden = true; return; }
     if (act === 'cal-mon') { var cm = (calMon || todayStr().slice(0, 7)).split('-'), cd = new Date(+cm[0], +cm[1] - 1 + +el.getAttribute('data-d'), 1); calMon = cd.getFullYear() + '-' + pad(cd.getMonth() + 1); render(); return; }
+    if (act === 'board') { boardTab = 'day'; return boardSheet(); }
+    if (act === 'board-tab') { boardTab = el.getAttribute('data-d'); return boardSheet(); }
     if (act === 'cal-pal') { S.pal = +el.getAttribute('data-v'); save(); render(); return; }
     if (act === 'prio-up' || act === 'prio-down') {
       var es = bubSel && byId(bubSel); if (!es) return;
@@ -1427,7 +1513,7 @@ a { color: inherit; }
       if (act === 'ob-demo') S = demoState(); else S.mode = 'real';
       if (nm) S.name = nm; save(); closeSheet(); render(); return;
     }
-    if (act === 'start-real') { S.entries = []; S.trials = []; S.drafts = []; S.ideal = null; S.mode = 'real'; S.name = ''; save(); render(); toast('已清空'); return; }
+    if (act === 'start-real') { S.entries = []; S.trials = []; S.drafts = []; S.ideal = null; S.fw = {}; S.mode = 'real'; S.name = ''; save(); render(); toast('已清空'); return; }
     if (act === 'ai-test') {
       readAI();
       var tg = L.mode === 'custom' ? customTarget() : L.mode === 'off' ? null : serverTarget();
@@ -1483,6 +1569,7 @@ a { color: inherit; }
 
   window.__leubaiParse = ruleParse;
   render();
+  boardInit();
   if (!S.mode) onboard();
 })();
 </script>
