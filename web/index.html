@@ -100,6 +100,7 @@ a { color: inherit; }
 .kind.blank { background: transparent !important; color: var(--text-2); border: 1.5px dashed var(--k-blank); }
 
 .blank-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border: 1.5px dashed var(--k-blank); border-radius: 20px; }
+.blank-card.ask { border: 0; padding: 2px 4px; border-radius: 0; }
 .blank-card .when { font-family: var(--font-serif); font-size: 20px; }
 
 .saved { margin-top: 6px; font-size: 13.5px; color: var(--k-restore); }
@@ -121,6 +122,8 @@ a { color: inherit; }
 .tile-av .av { display: block; width: 40px; height: 40px; }
 .ink { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .ink .f { fill: currentColor; stroke: none; }
+.tile-av { position: relative; }
+.tile-av .clk { position: absolute; top: 5px; right: 6px; width: 14px; height: 14px; color: #6A746D; }
 .pick-tip { margin: 0 0 10px; padding: 0 4px; color: var(--text-2); font-size: 14px; }
 .tile-av:active { transform: scale(.94); }
 .tile-av.on { border-color: var(--deep); background: var(--spring); box-shadow: 0 0 0 2px var(--deep); transform: rotate(-3deg); }
@@ -141,7 +144,8 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) { .oops, .oops .drop { animation: none; } }
 
 :root { --p1: #D9483E; --p2: #E5714A; --p3: #EFA05E; --p4: #D8C29C; --p5: #BFC6CB; --field: var(--moss); --field-line: var(--moss-line); }
-.bubbles { position: relative; height: 380px; border-radius: 28px; background: radial-gradient(120% 80% at 50% 0%, #A3B7A2, var(--field) 72%); border: 1px solid var(--field-line); overflow: hidden; touch-action: none; }
+.bubbles { position: relative; height: 380px; overflow: hidden; touch-action: none; }
+.bubbles .axes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; color: var(--deep); }
 .bubble { position: absolute; left: 0; top: 0; display: grid; place-content: center; gap: 1px; text-align: center; border: 0; padding: 0 3px; cursor: grab; color: #fff; background: none; user-select: none; -webkit-user-select: none; will-change: transform; isolation: isolate; transition: opacity .4s; }
 .bubble::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%; animation: cell 5s ease-in-out infinite alternate, spin 14s linear infinite;
   box-shadow: inset -7px -9px 16px rgba(0,0,0,.10), 0 8px 18px rgba(120,70,30,.12); }
@@ -157,7 +161,7 @@ a { color: inherit; }
 .bubble.p5::before { background: radial-gradient(circle at 32% 28%, #ECEFF1, var(--p5) 70%); }
 .bubble.pb::before { background: radial-gradient(circle at 32% 28%, #D3DDE6, var(--haze) 70%); }
 .bubble.pb { color: #fff; }
-.bub-empty { position: absolute; inset: 0; display: grid; place-content: center; padding: 24px; text-align: center; color: rgba(255, 255, 255, .92); font-size: 14px; pointer-events: none; }
+.bub-empty { position: absolute; inset: 0; display: grid; place-content: center; padding: 24px; text-align: center; color: var(--text-2); font-size: 14px; pointer-events: none; }
 .bubble.p3 { opacity: .92; }
 .bubble.p4 { color: #4E4634; opacity: .85; }
 .bubble.p5 { color: #4A545B; opacity: .75; }
@@ -765,6 +769,11 @@ a { color: inherit; }
     1380: iP('M10 30q-6 0-6-6t7-6q2-7 10-7 7 0 9 6 8-1 9 6t-6 7z') + iZ(18, 21, 4) + iZ(25, 17, 3) + iS(40, 38, 2) + iS(10, 40, 1.6),
     1410: iS(10, 10, 2.5) + iS(30, 6, 1.8) + iS(42, 16, 2.2) + iS(20, 22, 1.5) + iP('M6 42q18-14 36-8') + iC(36, 32, .9, 1) + iC(15, 33, .9, 1)
   };
+  function clock(m) {
+    var h = Math.floor(m / 60) % 12, mm = m % 60, ah = (h + mm / 60) * 30 * Math.PI / 180, am = mm * 6 * Math.PI / 180;
+    var hx = (8 + 3.4 * Math.sin(ah)).toFixed(1), hy = (8 - 3.4 * Math.cos(ah)).toFixed(1), mx = (8 + 5.2 * Math.sin(am)).toFixed(1), my = (8 - 5.2 * Math.cos(am)).toFixed(1);
+    return '<svg class="clk" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="7" stroke-width="1.1"/><path d="M8 8L' + hx + ' ' + hy + '" stroke-width="1.5"/><path d="M8 8L' + mx + ' ' + my + '" stroke-width="1"/></svg>';
+  }
   function ink(m) { return '<svg class="ink" viewBox="0 0 48 48" aria-hidden="true">' + (INK[m] || '') + '</svg>'; }
   var BLOBS = ['46% 54% 42% 58% / 55% 45% 55% 45%', '18px', '60% 40% 55% 45% / 45% 60% 40% 55%', '50%', '40% 60% 50% 50% / 60% 40% 60% 40%', '22px 10px 22px 10px'];
   var pick = {};
@@ -779,7 +788,7 @@ a { color: inherit; }
     for (var m = from; m <= 1410; m += 30) {
       var st = slotState(m), on = !!pick[m], sl = SLOTS[m];
       tiles += '<button class="tile-av ' + st + (on ? ' on' : '') + '" style="border-radius:' + BLOBS[(m / 30) % BLOBS.length] + '" data-act="pick" data-m="' + m + '"' + (st === 'kept' ? ' disabled' : '') +
-        ' title="' + toHM(m) + '" aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已留白' : '') + '"><span class="av">' + ink(m) + '</span></button>';
+        ' title="' + toHM(m) + '" aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已留白' : '') + '"><span class="av">' + ink(m) + '</span>' + clock(m) + '</button>';
     }
     if (!tiles) return '';
     var n = Object.keys(pick).length;
@@ -812,8 +821,8 @@ a { color: inherit; }
   }
   function bubbleField() {
     var now = nowMin(), list = entriesOn(todayStr()).filter(function (e) { return e.kind !== 'blank' || e.state !== 'taken'; });
-    return '<section class="block"><div class="plan-head"><h2>今天</h2><div class="seg" role="group" aria-label="排列"><button data-act="sort" data-d="prio" aria-pressed="' + (S.sortBy !== 'time') + '">按优先</button><button data-act="sort" data-d="time" aria-pressed="' + (S.sortBy === 'time') + '">按时间</button></div></div>' +
-      '<div class="bubbles" id="bubbles" data-mode="' + (S.sortBy === 'time' ? 'time' : 'prio') + '">' + (list.length ? '' : '<p class="bub-empty">说一句今天要做的事，它会变成泡泡</p>') + list.map(function (e) {
+    return '<section class="block"><div class="plan-head"><h2>今天</h2></div>' +
+      '<div class="bubbles" id="bubbles"><svg class="axes" aria-hidden="true"></svg>' + (list.length ? '' : '<p class="bub-empty">说一句今天要做的事，它会变成泡泡</p>') + list.map(function (e) {
         var bl = e.kind === 'blank', p = P(e), over = toMin(e.end) <= now, a = !over && !bl && aiPlan(e);
         if (bl) return '<button class="bubble pb' + (over ? ' over' : '') + (bubSel === e.id ? ' sel' : '') + '" data-id="' + e.id + '" data-act="bubble" aria-label="留白，' + e.start + '–' + e.end + '">' +
           '<span class="bt">留白</span><span class="bs">' + e.start + '</span></button>';
@@ -829,24 +838,30 @@ a { color: inherit; }
     var area = 0;
     els.forEach(function (el) { var e = byId(el.getAttribute('data-id')); el._e = e; el._r = 30 + Math.sqrt(Math.min(dur(e), 240) / 240) * 30; area += Math.PI * el._r * el._r; });
     var k = Math.min(1, Math.sqrt(W * H * 0.5 / Math.max(area, 1)));
-    var times = [].map.call(els, function (el) { return toMin(el._e.start); }), t0 = Math.min.apply(null, times), t1 = Math.max.apply(null, times);
-    els.forEach(function (el, i) {
-      var e = el._e, r = Math.max(24, el._r * k), id = e.id, p = P(e), over = toMin(e.end) <= now;
-      var f = t1 > t0 ? (toMin(e.start) - t0) / (t1 - t0) : .5;
-      var tx = S.sortBy === 'time' ? W * (i % 2 ? .66 : .34) : null;
-      var ty = S.sortBy === 'time' ? r + (H - 2 * r) * f : H * (over ? .92 : e.kind === 'blank' ? .4 : [0, .1, .28, .48, .66, .82][p]);
+    // x axis = time of day, y axis = priority (higher floats up)
+    var L = 16, B = 16, times = [].map.call(els, function (el) { return toMin(el._e.start); });
+    var t0 = Math.min.apply(null, [420].concat(times)), t1 = 1440, X = function (t) { return L + (W - L - 8) * (t - t0) / (t1 - t0); };
+    var ax = '<path d="M' + L + ' 6V' + (H - B) + 'H' + (W - 4) + '" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
+      '<path d="M' + (L - 4) + ' 12L' + L + ' 5L' + (L + 4) + ' 12M' + (W - 11) + ' ' + (H - B - 4) + 'L' + (W - 4) + ' ' + (H - B) + 'L' + (W - 11) + ' ' + (H - B + 4) + '" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    for (var hh = Math.ceil(t0 / 120) * 120; hh < t1; hh += 120) ax += '<path d="M' + X(hh).toFixed(1) + ' ' + (H - B) + 'v5" stroke="currentColor" stroke-width="1.2" opacity=".55"/>';
+    if (now > t0 && now < t1) ax += '<path d="M' + X(now).toFixed(1) + ' 10V' + (H - B) + '" stroke="currentColor" stroke-width="1" stroke-dasharray="2 4" opacity=".35"/>';
+    var axes = box.querySelector('.axes'); if (axes) axes.innerHTML = ax;
+    els.forEach(function (el) {
+      var e = el._e, r = Math.max(24, el._r * k), id = e.id, p = P(e);
+      var tx = Math.max(L + r, Math.min(W - r, X(toMin(e.start)) + r * .6));
+      var ty = r + (H - B - 2 * r) * (e.kind === 'blank' ? .5 : [0, 0, .25, .5, .75, 1][p]);
       var b = bub[id] || (bub[id] = { x: W / 2 + (Math.random() - .5) * W * .5, y: H + r, vx: 0, vy: 0, ph: Math.random() * 6.28 });
       b.r = r; b.tx = tx; b.ty = Math.max(r, Math.min(H - r, ty)); b.el = el;
       el.style.width = el.style.height = (2 * r) + 'px'; el.style.fontSize = Math.max(11, Math.min(14, r / 3.5)) + 'px';
       items.push(b);
     });
-    box._items = items; box._W = W; box._H = H;
+    box._items = items; box._W = W; box._H = H; box._L = L; box._B = B;
     var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (still) { for (var n = 0; n < 240; n++) bubStep(box, 0); bubPaint(box); return; }
     if (!bubRaf) bubRaf = requestAnimationFrame(bubLoop);
   }
   function bubStep(box, time) {
-    var it = box._items, W = box._W, H = box._H;
+    var it = box._items, W = box._W, H = box._H, L = box._L || 0, B = box._B || 0;
     it.forEach(function (b) {
       if (b === bubDrag) return;
       b.vy += (b.ty - b.y) * 0.004; if (b.tx != null) b.vx += (b.tx - b.x) * 0.004;
@@ -863,8 +878,8 @@ a { color: inherit; }
       }
     }
     it.forEach(function (b) {
-      if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx) * .6; } if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx) * .6; }
-      if (b.y < b.r) { b.y = b.r; b.vy = Math.abs(b.vy) * .6; } if (b.y > H - b.r) { b.y = H - b.r; b.vy = -Math.abs(b.vy) * .6; }
+      if (b.x < L + b.r) { b.x = L + b.r; b.vx = Math.abs(b.vx) * .6; } if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx) * .6; }
+      if (b.y < b.r) { b.y = b.r; b.vy = Math.abs(b.vy) * .6; } if (b.y > H - B - b.r) { b.y = H - B - b.r; b.vy = -Math.abs(b.vy) * .6; }
     });
   }
   function bubPaint(box) { box._items.forEach(function (b) { b.el.style.transform = 'translate(' + (b.x - b.r).toFixed(1) + 'px,' + (b.y - b.r).toFixed(1) + 'px)'; }); }
@@ -909,7 +924,7 @@ a { color: inherit; }
 
   function blankCard() {
     var pend = pendingBlanks()[0];
-    if (pend) return '<div class="blank-card"><div><div class="label">' + esc(dateLabel(pend.date)) + '的留白</div><div class="when">留住了吗？</div></div>' +
+    if (pend) return '<div class="blank-card ask"><div><div class="label">' + esc(dateLabel(pend.date)) + '的留白</div><div class="when">留住了吗？</div></div>' +
       '<div class="btns"><button class="btn sm primary" data-act="kept" data-id="' + pend.id + '">留住了</button><button class="btn sm" data-act="taken" data-id="' + pend.id + '">没有</button></div></div>';
     return '';
     var up = upcomingBlanks()[0];
