@@ -183,6 +183,35 @@ a { color: inherit; }
 @keyframes spin { to { rotate: 360deg; } }
 @keyframes pop { 0% { scale: 1; } 35% { scale: 1.18; } 100% { scale: 1; } }
 .bub-hint { text-align: center; }
+.bubble.boom { pointer-events: none; animation: boom .38s cubic-bezier(.3,1.6,.5,1) forwards; }
+@keyframes boom { 0% { scale: 1; opacity: 1; } 40% { scale: 1.28; opacity: 1; } 100% { scale: 0; opacity: 0; } }
+.fw-cv { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 40; }
+.fw-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.fw-bar svg { flex: none; width: 30px; height: 30px; color: var(--deep); }
+.fw-bar .fw-t { display: grid; gap: 1px; line-height: 1.3; }
+.fw-bar .fw-n { font-size: 15px; }
+.fw-bar .fw-n b { font-family: var(--font-serif); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; margin: 0 2px; }
+.fw-bar .fw-c { font-size: 12.5px; color: var(--text-2); }
+.fw-bar.bump svg { animation: fwspin .9s ease-out; }
+.fw-bar.bump .fw-n b { display: inline-block; animation: pop .6s ease-out; }
+@keyframes fwspin { 0% { rotate: 0deg; scale: .6; } 60% { scale: 1.25; } 100% { rotate: 180deg; scale: 1; } }
+.toast button { margin-left: 12px; border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
+.cal-head { display: flex; align-items: center; gap: 8px; }
+.cal-head h2 { flex: 1; }
+.cal-head button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; width: 32px; height: 32px; cursor: pointer; color: var(--text); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal-w { text-align: center; font-size: 11.5px; color: var(--text-2); padding-bottom: 2px; }
+.cal-d { aspect-ratio: 1; border-radius: 12px; display: grid; grid-template-rows: auto 1fr; padding: 4px 6px; font-size: 11.5px; font-variant-numeric: tabular-nums; min-width: 0; }
+.cal-d .f { align-self: end; justify-self: end; display: inline-flex; align-items: center; gap: 1px; font-size: 13px; font-weight: 500; }
+.cal-d .f svg { width: 12px; height: 12px; }
+.cal-d.today { box-shadow: 0 0 0 2px var(--deep); }
+.cal-d.future { opacity: .45; }
+.cal-d.pad { background: none !important; }
+.cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.cal-pal { display: flex; gap: 6px; flex-wrap: wrap; }
+.cal-pal button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; overflow: hidden; }
+.cal-pal button[aria-pressed="true"] { border-color: var(--deep); box-shadow: 0 0 0 2px var(--surface) inset; }
+
 .pdot { border: 0; border-radius: 999px; padding: 3px 9px; font-size: 12px; cursor: pointer; color: #fff; white-space: nowrap; }
 .pdot.p1, .pchip.p1[aria-pressed="true"] { background: var(--p1); color: #fff; border-color: var(--p1); }
 .pdot.p2, .pchip.p2[aria-pressed="true"] { background: var(--p2); color: #fff; border-color: var(--p2); }
@@ -378,9 +407,9 @@ a { color: inherit; }
 
   // ---------- state ----------
   var memoryOnly = false;
-  function blankState() { return { v: 1, pv: 5, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'prio' }; }
+  function blankState() { return { v: 1, pv: 5, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'prio', fw: {}, pal: 0 }; }
   function load() {
-    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) { s.drafts = s.drafts || []; s.sortBy = s.sortBy || 'prio'; if (!s.pv) { s.entries.concat(s.drafts).forEach(function (e) { if (e.prio) e.prio = { 1: 1, 2: 3, 3: 5 }[e.prio] || 3; }); s.pv = 5; } return s; } } } catch (e) { memoryOnly = true; }
+    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && s.v === 1) { s.drafts = s.drafts || []; s.fw = s.fw || {}; s.pal = s.pal || 0; s.sortBy = s.sortBy || 'prio'; if (!s.pv) { s.entries.concat(s.drafts).forEach(function (e) { if (e.prio) e.prio = { 1: 1, 2: 3, 3: 5 }[e.prio] || 3; }); s.pv = 5; } return s; } } } catch (e) { memoryOnly = true; }
     return blankState();
   }
   var S = load();
@@ -432,6 +461,7 @@ a { color: inherit; }
       { id: uid(), date: t, title: '文献筛选', before: 60, after: 25, method: 'AI 摘要做初筛' }
     ];
     s.ideal = { restore: 15, create: 35, connect: 25, explore: 25 };
+    for (var fd = -40; fd < 0; fd++) { var fv = hashInt(addDays(t, fd) + 'fw') % 7; if (fv > 1) s.fw[addDays(t, fd)] = fv - 1; }
     return s;
   }
 
@@ -821,7 +851,7 @@ a { color: inherit; }
       '<button class="btn sm" data-act="edit">修改</button><button class="btn sm" data-act="del" data-id="' + e.id + '">删除</button><button class="btn sm" data-act="unsel">取消</button></div></div>';
   }
   function bubbleField() {
-    var now = nowMin(), list = entriesOn(todayStr()).filter(function (e) { return e.kind !== 'blank' || e.state !== 'taken'; });
+    var now = nowMin(), list = entriesOn(todayStr()).filter(function (e) { return e.kind === 'blank' ? e.state === 'reserved' : !e.done; });
     return '<section class="block"><div class="plan-head"><h2>今天</h2></div>' +
       '<div class="bubbles" id="bubbles"><svg class="axes" aria-hidden="true"></svg>' + (list.length ? '' : '<p class="bub-empty">说一句今天要做的事，它会变成泡泡</p>') + list.map(function (e) {
         var bl = e.kind === 'blank', p = P(e), over = toMin(e.end) <= now, a = !over && !bl && aiPlan(e);
@@ -830,7 +860,7 @@ a { color: inherit; }
         var t = e.title.length > 6 ? e.title.slice(0, 5) + '…' : e.title;
         return '<button class="bubble p' + p + (over ? ' over' : '') + (bubSel === e.id ? ' sel' : '') + '" data-id="' + e.id + '" data-act="bubble" aria-label="' + esc(e.title) + '，' + PRIO_NAME[p] + '，' + e.start + '–' + e.end + '">' +
           '<span class="bt">' + esc(t) + '</span><span class="bs">' + e.start + (a ? ' ✦' : e.ai ? ' ✓' : '') + '</span></button>';
-      }).join('') + '</div>' + (list.length ? selBar() : '') + '</section>';
+      }).join('') + '</div>' + (list.length ? '<p class="small muted bub-hint">单击修改 · 双击完成</p>' : '') + fwBar() + '</section>';
   }
   function bubSetup() {
     var box = document.getElementById('bubbles');
@@ -1039,7 +1069,7 @@ a { color: inherit; }
   function pageReview() {
     var x = mix(inRange(range)), m = x.m, fi = freedom(inRange(range)), kept = keptTotal();
     var html = '<div class="seg full" role="group" aria-label="范围"><button data-act="range" data-d="7" aria-pressed="' + (range === 7) + '">7 天</button><button data-act="range" data-d="30" aria-pressed="' + (range === 30) + '">30 天</button></div>';
-    html += '<div class="col">' + blankCard() + '<div class="pair"><div class="tile"><span class="label">留住的时间</span><span class="v">' + fmtShort(kept) + '</span></div>' +
+    html += '<div class="col">' + blankCard() + fwCalendar() + '<div class="pair"><div class="tile"><span class="label">留住的时间</span><span class="v">' + fmtShort(kept) + '</span></div>' +
       '<div class="tile"><span class="label">自由指数</span><span class="v">' + (fi ? fi.score : '—') + '</span></div></div>';
     var keys = ['create', 'connect', 'explore', 'restore', 'necessary', 'blank'].filter(function (k) { return m[k] > 0; });
     html += '<section class="block"><h2>时间去向</h2>' + (x.total ? '<div class="stack-bar" role="img" aria-label="' + keys.map(function (k) { return KINDS[k].label + pct(m[k] / x.total) + '%'; }).join('，') + '">' +
@@ -1084,11 +1114,13 @@ a { color: inherit; }
 
   // ---------- sheets ----------
   function openSheet(html) { var tt = document.querySelector('.toast'); if (tt) tt.hidden = true; document.getElementById('layer').innerHTML = '<div class="overlay" data-act="layer-bg"><div class="sheet" role="dialog" aria-modal="true">' + html + '</div></div>'; var f = document.querySelector('.sheet input, .sheet button'); if (f) f.focus(); }
-  function closeSheet() { document.getElementById('layer').innerHTML = ''; }
+  function closeSheet() { document.getElementById('layer').innerHTML = ''; if (bubSel) { bubSel = null; var sb = document.querySelector('.bubble.sel'); if (sb) sb.classList.remove('sel'); } }
   var toastTimer;
-  function toast(msg) {
+  function toast(msg, undo) {
     var el = document.querySelector('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
-    el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.hidden = true; }, 2000);
+    el.textContent = msg; el.hidden = false; clearTimeout(toastTimer);
+    if (undo) { var ub = document.createElement('button'); ub.setAttribute('data-act', 'fw-undo'); ub.textContent = '撤销'; el.appendChild(ub); }
+    toastTimer = setTimeout(function () { el.hidden = true; }, undo ? 4000 : 2000);
   }
   var resMin = 60;
   function reserveSheet() {
@@ -1177,6 +1209,126 @@ a { color: inherit; }
     } catch (e) { /* no sound is fine */ }
   }
 
+  // ---------- fireworks: double-tap a bubble to finish it ----------
+  var tapTimer = 0, tapId = null, undoFw = null, fwJust = false;
+  var FW_ICON = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M16 3v6M16 23v6M3 16h6M23 16h6M6.8 6.8l4.2 4.2M21 21l4.2 4.2M25.2 6.8L21 11M11 21l-4.2 4.2"/><circle cx="16" cy="16" r="2.2"/></svg>';
+  function fwCount(d) { return (S.fw && S.fw[d]) || 0; }
+  function fwStreak() { var n = 0, d = todayStr(); if (!fwCount(d)) d = addDays(d, -1); while (fwCount(d)) { n++; d = addDays(d, -1); } return n; }
+  function fwBar() {
+    var n = fwCount(todayStr()), st = fwStreak(), just = fwJust; fwJust = false;
+    var cheer = !n ? '双击完成的事，放一朵烟花' : n === 1 ? '第一朵，好的开始' : n === 2 ? '你也太棒了吧' : n === 3 ? '三连！手感来了' : n < 6 ? '今天的天空很热闹' : n < 9 ? '停不下来了吧' : '整片夜空都是你的';
+    if (st > 1) cheer += ' · 连续 ' + st + ' 天';
+    return '<div class="fw-bar' + (just ? ' bump' : '') + '" role="status">' + FW_ICON + '<div class="fw-t"><span class="fw-n">今日已放飞烟花<b>' + n + '</b>朵</span><span class="fw-c">' + cheer + '</span></div></div>';
+  }
+  var FW_COL = { p1: ['#F59A8E', '#D9483E'], p2: ['#F6A585', '#E5714A'], p3: ['#F9CFA3', '#EFA05E'], p4: ['#E9D9B6', '#C9B07E'], p5: ['#D5DCE0', '#9FAAB1'], pb: ['#D3DDE6', '#8C9FB1'] };
+  var FW_MIX = ['#E8C872', '#F2A7A0', '#A9C8C4', '#C3B6CC', '#F3DFA2', '#9DB8A0'];
+  function finishBubble(id, el) {
+    var e = byId(id); if (!e) return;
+    if (e.kind === 'blank' && !blankEnded(e)) { toast('留白过完再放烟花吧'); return; }
+    var d = todayStr(), prev = e.kind === 'blank' ? { state: e.state, kept: e.kept } : null;
+    if (e.kind === 'blank') { e.state = 'kept'; e.kept = dur(e); } else e.done = true;
+    S.fw[d] = fwCount(d) + 1; fwJust = true; save();
+    var cls = (el.className.match(/\bp([1-5b])\b/) || [])[0] || 'p3', r = el.getBoundingClientRect();
+    fireworks(r.left + r.width / 2, r.top + r.height / 2, FW_COL[cls] || FW_COL.p3);
+    el.classList.add('boom'); delete bub[id];
+    setTimeout(function () { if (bubSel === id) bubSel = null; render(); }, 380);
+    undoFw = function () { if (prev) { e.state = prev.state; e.kept = prev.kept; } else e.done = false; S.fw[d] = Math.max(0, fwCount(d) - 1); save(); render(); };
+    toast('「' + (e.title.length > 8 ? e.title.slice(0, 7) + '…' : e.title) + '」完成啦', true);
+  }
+  var fwCv = null, fwP = [], fwRaf = 0;
+  function fireworks(x, y, own) {
+    fwSound();
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!fwCv) { fwCv = document.createElement('canvas'); fwCv.className = 'fw-cv'; fwCv.setAttribute('aria-hidden', 'true'); document.body.appendChild(fwCv); }
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (fwCv.width !== innerWidth * dpr || fwCv.height !== innerHeight * dpr) { fwCv.width = innerWidth * dpr; fwCv.height = innerHeight * dpr; }
+    var cols = own.concat(FW_MIX);
+    function shell(cx, cy, n, sp, delay) {
+      setTimeout(function () {
+        fwP.push({ ring: 1, x: cx, y: cy, r: 4, life: 1, c: own[1] });
+        for (var i = 0; i < n; i++) {
+          var a = Math.PI * 2 * i / n + Math.random() * .2, v = sp * (.55 + Math.random() * .6);
+          fwP.push({ x: cx, y: cy, px: cx, py: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, fade: .011 + Math.random() * .012, s: 1.6 + Math.random() * 2.2, c: cols[Math.floor(Math.random() * cols.length)], tw: Math.random() < .35 });
+        }
+        if (!fwRaf) fwRaf = requestAnimationFrame(fwLoop);
+      }, delay);
+    }
+    shell(x, y, 80, 6.5, 0);
+    // two rockets climb out of the bubble and pop above it
+    [-1, 1].forEach(function (sd, k) {
+      var tx = x + sd * (50 + Math.random() * 60), ty = Math.max(40, y - 120 - Math.random() * 80);
+      fwP.push({ rocket: 1, x: x, y: y, px: x, py: y, tx: tx, ty: ty, t: 0, dl: 6 + k * 8, c: own[0], done: function (rx, ry) { shell(rx, ry, 56, 4.8, 0); } });
+    });
+    if (!fwRaf) fwRaf = requestAnimationFrame(fwLoop);
+  }
+  function fwLoop() {
+    var c = fwCv.getContext('2d'), dpr = fwCv.width / innerWidth;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, innerWidth, innerHeight);
+    fwP = fwP.filter(function (p) {
+      if (p.rocket) {
+        if (p.dl-- > 0) return true;
+        p.t += .06; var k = 1 - Math.pow(1 - Math.min(1, p.t), 2); p.px = p.x0 == null ? p.x : p.cx; p.py = p.y0 == null ? p.y : p.cy;
+        if (p.x0 == null) { p.x0 = p.x; p.y0 = p.y; }
+        p.cx = p.x0 + (p.tx - p.x0) * k; p.cy = p.y0 + (p.ty - p.y0) * k;
+        c.strokeStyle = p.c; c.lineWidth = 2.4; c.lineCap = 'round'; c.beginPath(); c.moveTo(p.px, p.py); c.lineTo(p.cx, p.cy); c.stroke();
+        c.fillStyle = '#FFF6DA'; c.beginPath(); c.arc(p.cx, p.cy, 2.4, 0, 6.29); c.fill();
+        if (p.t >= 1) { p.done(p.cx, p.cy); return false; }
+        return true;
+      }
+      if (p.ring) { p.r += 5; p.life -= .06; c.globalAlpha = Math.max(0, p.life) * .6; c.strokeStyle = p.c; c.lineWidth = 2; c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.29); c.stroke(); c.globalAlpha = 1; return p.life > 0; }
+      p.px = p.x; p.py = p.y; p.vx *= .965; p.vy = p.vy * .965 + .07; p.x += p.vx; p.y += p.vy; p.life -= p.fade;
+      var al = Math.max(0, p.life); if (p.tw && Math.random() < .3) al *= .25;
+      c.globalAlpha = al * .55; c.strokeStyle = p.c; c.lineWidth = p.s; c.lineCap = 'round'; c.beginPath(); c.moveTo(p.px - p.vx * 2, p.py - p.vy * 2); c.lineTo(p.x, p.y); c.stroke();
+      c.globalAlpha = al; c.fillStyle = p.c; c.beginPath(); c.arc(p.x, p.y, p.s * .9, 0, 6.29); c.fill(); c.globalAlpha = 1;
+      return p.life > 0;
+    });
+    if (fwP.length) fwRaf = requestAnimationFrame(fwLoop); else { fwRaf = 0; c.clearRect(0, 0, innerWidth, innerHeight); }
+  }
+  function fwSound() {
+    if (S.sound === false) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      actx = actx || new AC(); var t0 = actx.currentTime + .02, sr = actx.sampleRate;
+      var buf = actx.createBuffer(1, sr, sr), dd = buf.getChannelData(0); for (var i = 0; i < dd.length; i++) dd[i] = Math.random() * 2 - 1;
+      function noise(at, len, f, q, vol) {
+        var src = actx.createBufferSource(), bp = actx.createBiquadFilter(), g = actx.createGain(); src.buffer = buf;
+        bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+        g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(.001, at + len);
+        src.connect(bp); bp.connect(g); g.connect(actx.destination); src.start(at, Math.random() * .5); src.stop(at + len + .02);
+      }
+      var o = actx.createOscillator(), og = actx.createGain(); o.type = 'sine';
+      o.frequency.setValueAtTime(900, t0); o.frequency.exponentialRampToValueAtTime(1500, t0 + .16);
+      og.gain.setValueAtTime(0, t0); og.gain.linearRampToValueAtTime(.06, t0 + .03); og.gain.exponentialRampToValueAtTime(.001, t0 + .18);
+      o.connect(og); og.connect(actx.destination); o.start(t0); o.stop(t0 + .2);
+      noise(t0 + .18, .45, 400, .7, .35);
+      for (var k = 0; k < 14; k++) noise(t0 + .3 + Math.random() * .7, .05, 2500 + Math.random() * 3000, 3, .12 + Math.random() * .1);
+    } catch (e) { /* no sound is fine */ }
+  }
+  // ---------- firework calendar (Monet palettes) ----------
+  var calMon = null;
+  var PALS = [
+    ['睡莲', ['#EEF1EC', '#D2E2DB', '#AFCBC6', '#92AFBA', '#7A8BAE']],
+    ['日出印象', ['#F1EEEA', '#EAD7C8', '#E3B897', '#CF9374', '#8A8DA4']],
+    ['干草堆', ['#F3EFE4', '#EBDFBD', '#DDC58F', '#C8A66C', '#A2805A']],
+    ['撑阳伞的女人', ['#EFF2F1', '#D5E2E6', '#B4CCD7', '#94B0BF', '#6F8E9E']],
+    ['吉维尼花园', ['#F2EEEF', '#EBD5DB', '#DAB4C2', '#BF95AC', '#957891']],
+    ['鲁昂大教堂', ['#F2EFE8', '#E7DCC6', '#D7C1A2', '#BAA58E', '#8E8597']],
+    ['雾中国会', ['#F0EEF1', '#DDD7E3', '#C4B8CD', '#A898B3', '#7F7596']]
+  ];
+  function fwCalendar() {
+    var mon = calMon || todayStr().slice(0, 7), pm = mon.split('-'), y = +pm[0], mo = +pm[1], t = todayStr();
+    var pal = (PALS[S.pal] || PALS[0])[1], first = new Date(y, mo - 1, 1), days = new Date(y, mo, 0).getDate(), lead = (first.getDay() + 6) % 7, total = 0;
+    var g = '一二三四五六日'.split('').map(function (w) { return '<span class="cal-w">' + w + '</span>'; }).join('');
+    for (var i = 0; i < lead; i++) g += '<span class="cal-d pad"></span>';
+    for (var d = 1; d <= days; d++) {
+      var ds = y + '-' + pad(mo) + '-' + pad(d), n = fwCount(ds), bg = pal[Math.min(4, n)], dark = n >= 4; total += n;
+      g += '<div class="cal-d' + (ds === t ? ' today' : '') + (ds > t ? ' future' : '') + '" style="background:' + bg + ';color:' + (dark ? '#fff' : '#3B4339') + '" aria-label="' + mo + '月' + d + '日，' + n + ' 朵烟花"><span>' + d + '</span>' + (n ? '<span class="f">' + FW_ICON + n + '</span>' : '') + '</div>';
+    }
+    var sw = PALS.map(function (p, k) { return '<button data-act="cal-pal" data-v="' + k + '" aria-pressed="' + ((S.pal || 0) === k) + '" title="' + p[0] + '" aria-label="配色：' + p[0] + '" style="background:linear-gradient(135deg,' + p[1][1] + ' 0 33%,' + p[1][2] + ' 33% 66%,' + p[1][4] + ' 66%)"></button>'; }).join('');
+    return '<section class="block"><div class="cal-head"><h2>' + y + ' 年 ' + mo + ' 月</h2><button data-act="cal-mon" data-d="-1" aria-label="上个月">‹</button><button data-act="cal-mon" data-d="1" aria-label="下个月">›</button></div>' +
+      '<div class="cal-grid">' + g + '</div><div class="cal-foot"><span class="small muted">这个月放飞 <b class="num">' + total + '</b> 朵烟花</span><div class="cal-pal" role="group" aria-label="配色">' + sw + '</div></div></section>';
+  }
+
   // ---------- router ----------
   function route() { var h = (location.hash || '').replace('#', ''); return ['today', 'line', 'review', 'settings'].indexOf(h) >= 0 ? h : 'today'; }
   function render() {
@@ -1235,9 +1387,16 @@ a { color: inherit; }
     if (act === 'bubble') {
       var bx = document.getElementById('bubbles'), bb = bx && bx._items && bx._items.filter(function (x) { return x.el === el; })[0];
       if (bb && bb.justDragged) { bb.justDragged = false; return; }
-      var id0 = el.getAttribute('data-id'); bubSel = bubSel === id0 ? null : id0; render(); return;
+      var id0 = el.getAttribute('data-id');
+      if (tapTimer && tapId === id0) { clearTimeout(tapTimer); tapTimer = 0; finishBubble(id0, el); return; }
+      clearTimeout(tapTimer); tapId = id0;
+      tapTimer = setTimeout(function () { tapTimer = 0; if (!byId(id0)) return; bubSel = id0; render(); editSheet(); }, 270);
+      return;
     }
     if (act === 'unsel') { bubSel = null; render(); return; }
+    if (act === 'fw-undo') { if (undoFw) { undoFw(); undoFw = null; } var tu = document.querySelector('.toast'); if (tu) tu.hidden = true; return; }
+    if (act === 'cal-mon') { var cm = (calMon || todayStr().slice(0, 7)).split('-'), cd = new Date(+cm[0], +cm[1] - 1 + +el.getAttribute('data-d'), 1); calMon = cd.getFullYear() + '-' + pad(cd.getMonth() + 1); render(); return; }
+    if (act === 'cal-pal') { S.pal = +el.getAttribute('data-v'); save(); render(); return; }
     if (act === 'prio-up' || act === 'prio-down') {
       var es = bubSel && byId(bubSel); if (!es) return;
       var np = Math.max(1, Math.min(5, P(es) + (act === 'prio-up' ? -1 : 1))); es.prio = np; save();
