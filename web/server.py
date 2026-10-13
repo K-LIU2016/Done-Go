@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""留白 self-hosted server: serves this folder and forwards AI calls to a local LLM.
+"""探戈 Done&Go self-hosted server: serves this folder and forwards AI calls to a local LLM.
 
     python3 web/server.py --port 8737 --config ~/.config/leubai/llm.json
 
