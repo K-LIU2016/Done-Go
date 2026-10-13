@@ -712,6 +712,8 @@ a { color: inherit; }
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     var ta = document.getElementById('cap-text');
     var fallback = function (msg) { if (ta) ta.focus(); setCap(msg || '这个浏览器不能直接录音，可以用键盘上的话筒', true); };
+    var framed = false; try { framed = window.top !== window.self; } catch (e) { framed = true; }
+    var isSafari = /Safari\//.test(navigator.userAgent) && !/Chrome|Chromium|Edg\//.test(navigator.userAgent);
     if (!SR) return fallback();
     if (rec) { rec.stop(); return; }
     var heard = '', finalTxt = '';
@@ -726,7 +728,9 @@ a { color: inherit; }
       };
       rec.onerror = function (ev) {
         var e = ev.error; rec = null; clearTimeout(recQuiet); clearTimeout(recMax); capState.listening = false; micUi();
-        if (e === 'not-allowed' || e === 'service-not-allowed') fallback('话筒没有被允许，在浏览器地址栏里允许话筒后再点一次');
+        if (framed && (e === 'not-allowed' || e === 'service-not-allowed')) fallback('这个页面嵌在 claude.ai 里，浏览器不让它用话筒。用键盘上的听写（Mac 连按两下 fn），或打开留白自己的网址');
+        else if (e === 'service-not-allowed' && isSafari) fallback('Safari 要先打开听写：系统设置 → 键盘 → 听写，打开后再点一次');
+        else if (e === 'not-allowed' || e === 'service-not-allowed') fallback('话筒被关掉了：点地址栏左边的图标，把「麦克风」改成允许；还不行就到系统设置 → 隐私与安全性 → 麦克风，打开浏览器');
         else if (e === 'audio-capture') fallback('没找到话筒');
         else if (e === 'network') fallback('语音服务连不上，可以先打字');
         else if (e === 'no-speech') setCap('没听到声音，再点一次说', true);
