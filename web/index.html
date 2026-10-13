@@ -114,7 +114,21 @@ a { color: inherit; }
 .ai-tip { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
 .ai-tip b { font-weight: 500; color: var(--k-restore); }
 .ai-tip.done { display: block; border-style: dashed; }
-.ai-mini { color: var(--k-restore); margin-left: 6px; white-space: nowrap; }
+.ai-mini { color: var(--k-restore); margin-left: 6px; white-space: nowrap; border: 1px solid currentColor; background: none; border-radius: 999px; padding: 1px 8px; font-size: 12px; cursor: pointer; }
+.ai-pick { border: 0; background: none; padding: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.ai-row { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.tools-h { display: flex; align-items: center; justify-content: space-between; }
+.tools { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-height: 58vh; overflow: auto; }
+.tool { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--bg); }
+.tool.top { border: 1.5px solid var(--deep); }
+.tool p { margin: 0; }
+.tool-h { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.tool-h b { font-size: 16px; font-weight: 500; }
+.tool-i { font-family: var(--font-serif); color: var(--text-2); }
+.tool-tag { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--deep); color: var(--spring); }
+.tool-s { margin-left: auto; color: var(--k-restore); font-size: 13px; white-space: nowrap; }
+.tool-fp { display: grid; gap: 2px; color: var(--text-2); }
+.tool-fp i { font-style: normal; display: inline-block; min-width: 2.6em; color: var(--text); }
 
 .picker { border: 2px solid var(--deep); border-radius: 26px; padding: 18px 16px; }
 .avs { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 10px; }
@@ -213,18 +227,25 @@ a { color: inherit; }
 .cal-head { display: flex; align-items: center; gap: 8px; }
 .cal-head h2 { flex: 1; }
 .cal-head button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; width: 32px; height: 32px; cursor: pointer; color: var(--text); }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal-head button:disabled { opacity: .35; cursor: default; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
 .cal-w { text-align: center; font-size: 11.5px; color: var(--text-2); padding-bottom: 2px; }
-.cal-d { aspect-ratio: 1; border-radius: 12px; display: grid; grid-template-rows: auto 1fr; padding: 4px 6px; font-size: 11.5px; font-variant-numeric: tabular-nums; min-width: 0; }
-.cal-d .f { align-self: end; justify-self: end; display: inline-flex; align-items: center; gap: 1px; font-size: 13px; font-weight: 500; }
-.cal-d .f svg { width: 12px; height: 12px; }
+.cal-d { aspect-ratio: 1; border-radius: 12px; display: grid; grid-template-rows: auto 1fr; padding: 4px 5px; font-size: 11.5px; color: #3B4339; font-variant-numeric: tabular-nums; min-width: 0; overflow: hidden; animation: calin .35s ease-out backwards; }
+.cal.r7 .cal-d { aspect-ratio: auto; min-height: 92px; border-radius: 16px; font-size: 13px; }
+.cal-d .f { align-self: end; display: flex; flex-wrap: wrap; gap: 1px; color: var(--deep); line-height: 1; }
+.cal-d .f svg { width: 10px; height: 10px; }
+.cal.r7 .cal-d .f svg { width: 15px; height: 15px; }
+.cal-d .f small { font-size: 10px; align-self: center; }
 .cal-d.today { box-shadow: 0 0 0 2px var(--deep); }
 .cal-d.future { opacity: .45; }
-.cal-d.pad { background: none !important; }
+.cal-d.pad { background: none !important; animation: none; }
+@keyframes calin { from { opacity: 0; transform: translateY(6px) scale(.96); } }
+@media (prefers-reduced-motion: reduce) { .cal-d { animation: none; } }
 .cal-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.cal-pal { display: flex; gap: 6px; flex-wrap: wrap; }
-.cal-pal button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; overflow: hidden; }
-.cal-pal button[aria-pressed="true"] { border-color: var(--deep); box-shadow: 0 0 0 2px var(--surface) inset; }
+.cal-pal { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cal-pal button { width: 16px; height: 16px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; position: relative; }
+.cal-pal button::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
+.cal-pal button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--deep); }
 
 .pdot { border: 0; border-radius: 999px; padding: 3px 9px; font-size: 12px; cursor: pointer; color: #fff; white-space: nowrap; }
 .pdot.p1, .pchip.p1[aria-pressed="true"] { background: var(--p1); color: #fff; border-color: var(--p1); }
@@ -264,6 +285,12 @@ a { color: inherit; }
 .tree .lt { font-size: 13px; fill: var(--text); font-family: var(--font-sans); }
 .tree .ls { font-size: 10.5px; fill: var(--text-2); font-variant-numeric: tabular-nums; }
 .tree .spark { font-size: 11px; fill: var(--warm); }
+.tree .hr.minor { fill-opacity: .55; font-size: 9.5px; }
+.tree .cl { font-size: 11.5px; fill: var(--warm); }
+.tree .cs { font-size: 10.5px; fill: var(--text-2); }
+.tree .care { cursor: pointer; }
+.tree .care.future { opacity: .55; }
+.care-list { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
 .tree .leaf { cursor: pointer; transition: opacity .2s; }
 .tree .leaf.future { opacity: .62; }
 .tree .leaf:hover, .tree .leaf:focus-visible { opacity: 1; outline: none; }
@@ -361,16 +388,16 @@ a { color: inherit; }
   var PAGES = [{ id: 'today', label: '今天' }, { id: 'line', label: '时间线' }, { id: 'review', label: '回顾' }];
   var STORE_KEY = 'leubai.web.v1';
   var RULES = [
-    { re: /读论文|看论文|读文献|看文献|论文阅读|阅读文献|读报告|看报告/, low: 0.7, high: 0.9, method: 'AI 先读，给你摘要和要点' },
-    { re: /修改|改稿|润色|校对|写论文|写报告/, low: 0.2, high: 0.4, method: 'AI 帮你润色、查错' },
-    { re: /邮件|email|回复|消息/i, low: 0.3, high: 0.55, method: 'AI 起草，你来改' },
-    { re: /会议|纪要|组会|周会|例会|开会/, low: 0.3, high: 0.6, method: '自动纪要' },
-    { re: /论文|文献|筛选|初筛|材料|审稿/, low: 0.3, high: 0.6, method: 'AI 摘要初筛' },
-    { re: /报销|行政|表格|填报|审批|整理|申请/, low: 0.2, high: 0.45, method: '自动填表' },
-    { re: /批改|作业|出题/, low: 0.2, high: 0.4, method: 'AI 初评' },
-    { re: /通勤|路上|排队/, low: 0, high: 0, method: '难以压缩' }
+    { cat: 'read', re: /读论文|看论文|读文献|看文献|论文阅读|阅读文献|读报告|看报告/, low: 0.7, high: 0.9, method: 'AI 先读，给你摘要和要点' },
+    { cat: 'write', re: /修改|改稿|润色|校对|写论文|写报告/, low: 0.2, high: 0.4, method: 'AI 帮你润色、查错' },
+    { cat: 'mail', re: /邮件|email|回复|消息/i, low: 0.3, high: 0.55, method: 'AI 起草，你来改' },
+    { cat: 'meet', re: /会议|纪要|组会|周会|例会|开会/, low: 0.3, high: 0.6, method: '自动纪要' },
+    { cat: 'screen', re: /论文|文献|筛选|初筛|材料|审稿/, low: 0.3, high: 0.6, method: 'AI 摘要初筛' },
+    { cat: 'admin', re: /报销|行政|表格|填报|审批|整理|申请/, low: 0.2, high: 0.45, method: '自动填表' },
+    { cat: 'grade', re: /批改|作业|出题/, low: 0.2, high: 0.4, method: 'AI 初评' },
+    { cat: 'none', re: /通勤|路上|排队/, low: 0, high: 0, method: '难以压缩' }
   ];
-  var DEFAULT_RULE = { low: 0.1, high: 0.3, method: '先记一周再看' };
+  var DEFAULT_RULE = { cat: 'other', low: 0.1, high: 0.3, method: '先记一周再看' };
 
   // keyword → kind, checked in order; the first hit wins
   var KIND_WORDS = [
@@ -556,6 +583,7 @@ a { color: inherit; }
       var date = baseDate;
       var dm = seg.match(/大后天|后天|明天|今天|昨天|前天|今晚/);
       if (dm) { date = addDays(t, { '大后天': 3, '后天': 2, '明天': 1, '今天': 0, '今晚': 0, '昨天': -1, '前天': -2 }[dm[0]]); baseDate = date; }
+      seg = seg.replace(/(\d{1,2})[.．](\d{2})(?!\d)/g, '$1:$2');
       var times = [], m, lastPeriod = null, rest = seg;
       TIME_RE.lastIndex = 0;
       while ((m = TIME_RE.exec(seg))) {
@@ -577,7 +605,7 @@ a { color: inherit; }
       if (!times.length && !d && prio !== 3 && !title.replace(/[这那个件事是它就也都很]/g, '').trim() && out.length) { out[out.length - 1].prio = prio; return; }
       if (kind === 'blank') title = '留白';
       if (!title) title = KINDS[kind].label;
-      out.push({ id: uid(), title: title.slice(0, 30), kind: kind, prio: prio, date: date, start: start == null ? '' : toHM(start), end: end == null ? '' : toHM(end) });
+      out.push({ id: uid(), title: title.slice(0, 30), kind: kind, prio: prio, date: date, start: start == null ? '' : toHM(start), end: end == null ? '' : toHM(end), at: times.length > 0 });
     });
     return out;
   }
@@ -649,6 +677,7 @@ a { color: inherit; }
     var btn = document.getElementById('capGo'); if (btn) btn.disabled = true;
     var done = function (items, how) {
       capState.busy = false;
+      if (how === 'ai') { var rp = ruleParse(text); if (rp.length === items.length) items.forEach(function (it, i) { if (rp[i].at) { it.start = rp[i].start; it.end = rp[i].end; } }); }
       var b2 = document.getElementById('capGo'); if (b2) b2.disabled = false;
       if (!items.length) { setCap('没听出时间，再具体一点', true); return; }
       S.drafts = S.drafts.concat(items); save();
@@ -729,8 +758,8 @@ a { color: inherit; }
     var html = '<div class="drafts">' + list.map(function (d) {
       var prob = draftProblem(d);
       return '<div class="draft' + (prob ? ' bad' : '') + '" data-id="' + d.id + '"><div class="t"><input data-f="title" value="' + esc(d.title) + '" aria-label="事情" maxlength="30">' +
-        '<div class="times">' + (d.date !== todayStr() ? esc(dateLabel(d.date)) + ' ' : '') + '<input data-f="start" value="' + d.start + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="开始">–<input data-f="end" value="' + d.end + '" inputmode="numeric" maxlength="5" placeholder="--:--" aria-label="结束">' +
-        (!prob && aiPlan(d) ? '<span class="ai-mini">AI 可省 ' + fmtPlain(aiPlan(d).saved) + '</span>' : '') +
+        '<div class="times">' + (d.date !== todayStr() ? esc(dateLabel(d.date)) + ' ' : '') + '<input data-f="start" value="' + d.start + '" inputmode="text" maxlength="8" placeholder="--:--" aria-label="开始">–<input data-f="end" value="' + d.end + '" inputmode="text" maxlength="8" placeholder="--:--" aria-label="结束">' +
+        (!prob && aiPlan(d) ? '<button class="ai-mini" data-act="ai-tools" data-draft="' + d.id + '">AI 可省 ' + fmtPlain(aiPlan(d).saved) + ' ›</button>' : '') +
         (prob ? '<span style="color:var(--warm)">' + prob + '</span>' : '') + '</div></div>' +
         (d.kind === 'blank' ? '' : '<button class="pdot p' + P(d) + '" data-act="draft-prio" aria-label="优先级：' + PRIO_NAME[P(d)] + '，点按切换">' + PRIO_NAME[P(d)] + '</button>') +
         kindBtn(d.kind, 'draft-kind') + '<button class="x" data-act="draft-del" aria-label="删掉">×</button></div>';
@@ -814,11 +843,6 @@ a { color: inherit; }
     1380: iP('M10 30q-6 0-6-6t7-6q2-7 10-7 7 0 9 6 8-1 9 6t-6 7z') + iZ(18, 21, 4) + iZ(25, 17, 3) + iS(40, 38, 2) + iS(10, 40, 1.6),
     1410: iS(10, 10, 2.5) + iS(30, 6, 1.8) + iS(42, 16, 2.2) + iS(20, 22, 1.5) + iP('M6 42q18-14 36-8') + iC(36, 32, .9, 1) + iC(15, 33, .9, 1)
   };
-  function clock(m) {
-    var h = Math.floor(m / 60) % 12, mm = m % 60, ah = (h + mm / 60) * 30 * Math.PI / 180, am = mm * 6 * Math.PI / 180;
-    var hx = (8 + 3.4 * Math.sin(ah)).toFixed(1), hy = (8 - 3.4 * Math.cos(ah)).toFixed(1), mx = (8 + 5.2 * Math.sin(am)).toFixed(1), my = (8 - 5.2 * Math.cos(am)).toFixed(1);
-    return '<svg class="clk" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="7" stroke-width="1.1"/><path d="M8 8L' + hx + ' ' + hy + '" stroke-width="1.5"/><path d="M8 8L' + mx + ' ' + my + '" stroke-width="1"/></svg>';
-  }
   function ink(m) { return '<svg class="ink" viewBox="0 0 48 48" aria-hidden="true">' + (INK[m] || '') + '</svg>'; }
   var BLOBS = ['46% 54% 42% 58% / 55% 45% 55% 45%', '18px', '60% 40% 55% 45% / 45% 60% 40% 55%', '50%', '40% 60% 50% 50% / 60% 40% 60% 40%', '22px 10px 22px 10px'];
   var pick = {};
@@ -958,19 +982,65 @@ a { color: inherit; }
     b.x = Math.max(b.r, Math.min(box._W - b.r, ev.clientX - rect.left - b.ox)); b.y = Math.max(b.r, Math.min(box._H - b.r, ev.clientY - rect.top - b.oy));
   });
   document.addEventListener('pointerup', function () { if (bubDrag) { var b = bubDrag; bubDrag = null; b.justDragged = b.moved > 8; } });
+  // ---------- which AI for this task ----------
+  // what each tool is good at, and what paying changes; prices and quotas move, so the sheet says so
+  var TOOLS = {
+    claude: ['Claude', 'Anthropic', '长文阅读和写作改稿很稳，一次能读整篇论文', '免费版有用量上限', 'Pro 约 20 美元/月：用量更多、对话更长，可建项目放资料'],
+    chatgpt: ['ChatGPT', 'OpenAI', '全能型：写作、改稿、读文件、做表、语音都行', '免费版有次数和模型限制', 'Plus 约 20 美元/月：更强的模型、更多次数、更大的文件'],
+    gemini: ['Gemini', 'Google', '和 Gmail、Google 文档、表格打通', '免费可用', '付费版约 20 美元/月：更强的模型，可直接在 Gmail 和文档里用'],
+    notebooklm: ['NotebookLM', 'Google', '只根据你上传的资料回答，每句都标出处', '免费可用', '付费版：更多笔记本和资料来源'],
+    kimi: ['Kimi', '月之暗面', '中文长文档阅读，一次能丢进多篇 PDF', '免费可用，高峰时可能要等', '付费：高峰时优先，速度更快'],
+    deepseek: ['DeepSeek', '深度求索', '推理强、中文好，适合理思路、写初稿', '网页和 App 免费', '没有会员，免费版就是完整能力'],
+    doubao: ['豆包', '字节跳动', '日常问答、写消息、语音对话，手机上最顺手', '免费', '没有必要付费'],
+    qwen: ['通义', '阿里', '读文档、写作；「通义听悟」能把录音转成纪要', '基础功能免费', '听悟转写时长不够时可买时长'],
+    metaso: ['秘塔 AI 搜索', '秘塔科技', '学术搜索，答案带论文出处，适合先筛一遍', '免费可用', '付费：更深的研究模式和更多次数'],
+    feishu: ['飞书妙记', '飞书', '会议录音自动转文字、分段，出纪要和待办', '个人版可用，有时长限制', '企业版：转写时长更多'],
+    tmeet: ['腾讯会议 AI 小助手', '腾讯', '开会时实时记，会后出总结和待办', '基础可用', '会员：转写更长、AI 次数更多'],
+    wps: ['WPS AI', '金山办公', '在 WPS 里直接填表、写公式、写公文', '有免费次数', '会员：次数更多']
+  };
+  var TOOL_FIT = {
+    read: [['claude', .95, '整篇 PDF 一次读完，摘要和追问都稳'], ['kimi', .9, '中文长文档免费读，适合一次读好几篇'], ['notebooklm', .85, '只按你给的论文回答，不乱编'], ['chatgpt', .85, '读完还能顺手做对比表']],
+    write: [['claude', .95, '改稿能保留你的语气，长文不跑题'], ['chatgpt', .9, '改写、扩写、翻译都在行'], ['deepseek', .85, '中文写作和逻辑梳理强，而且免费']],
+    mail: [['doubao', .9, '说一句话就出草稿，免费'], ['chatgpt', .9, '中英文邮件都写得得体'], ['gemini', .85, '用 Gmail 的话可以直接在邮箱里写'], ['deepseek', .8, '免费，适合批量起草']],
+    meet: [['feishu', .95, '录音转文字后自动出纪要和待办'], ['tmeet', .9, '在腾讯会议里一键开，会后出总结'], ['qwen', .85, '会后上传录音也能出纪要']],
+    screen: [['notebooklm', .9, '把几十篇丢进去，按你的问题筛'], ['metaso', .85, '先搜一遍，结果带出处'], ['kimi', .85, '中文免费，一次读多篇看摘要'], ['claude', .8, '筛完能直接写综述草稿']],
+    admin: [['wps', .9, '表格、公文就在 WPS 里改'], ['chatgpt', .8, '把规则讲清楚，帮你核对'], ['doubao', .75, '简单的表随手问']],
+    grade: [['chatgpt', .85, '按评分标准给初评和评语'], ['claude', .85, '长作业也能逐段点评'], ['deepseek', .8, '免费，适合批量初评']],
+    other: [['chatgpt', .7, '通用，什么都能先试试'], ['claude', .7, '需要读长资料时更稳'], ['deepseek', .65, '免费，中文好'], ['doubao', .65, '手机上最顺手']]
+  };
+  function aiTools(title, minutes, id) {
+    var r = ruleFor(title), fits = TOOL_FIT[r.cat] || TOOL_FIT.other, base = minutes * (r.low + r.high) / 2;
+    var cards = fits.slice().sort(function (a, b) { return b[1] - a[1]; }).map(function (f, i) {
+      var t = TOOLS[f[0]], save = Math.max(5, Math.round(base * f[1] / 5) * 5), more = Math.max(5, Math.round(save * .15 / 5) * 5), paid = !/没有/.test(t[4]);
+      return '<li class="tool' + (i ? '' : ' top') + '"><div class="tool-h"><span class="tool-i">' + (i + 1) + '</span><b>' + t[0] + '</b><span class="small muted">' + t[1] + '</span>' + (i ? '' : '<span class="tool-tag">推荐</span>') + '<span class="tool-s">省约 ' + fmtPlain(save) + '</span></div>' +
+        '<p>' + t[2] + '</p><p class="small"><span class="muted">为什么：</span>' + f[2] + '</p>' +
+        '<p class="small tool-fp"><span><i>免费</i>' + t[3] + '</span><span><i>会员</i>' + t[4] + (paid ? '，约再省 ' + fmtPlain(more) : '') + '</span></p></li>';
+    }).join('');
+    openSheet('<div class="tools-h"><h2 style="font-size:22px">交给哪个 AI？</h2><button class="x" data-act="close" aria-label="关闭">×</button></div>' +
+      '<p class="muted small">' + esc(title) + ' · 原 ' + fmtPlain(minutes) + ' · ' + esc(r.method) + '</p><ol class="tools">' + cards + '</ol>' +
+      '<p class="small muted">省时是按这类事估的，用过以后以你自己的感受为准。价格和额度会变，以各家官网为准。</p>' +
+      (id ? '<button class="btn primary wide" data-act="to-ai" data-id="' + id + '">交给 AI，把省下的留白</button>' : ''));
+  }
   var editPrio = 3;
   function editSheet() {
     var e = bubSel && byId(bubSel); if (!e) return;
     var bl = e.kind === 'blank', over = toMin(e.end) <= nowMin(), a = !over && !bl && aiPlan(e); editPrio = P(e);
     openSheet('<h2 style="font-size:22px">修改</h2>' +
       '<div class="field"><label for="ed-title">事情</label><input id="ed-title" maxlength="30" value="' + esc(e.title) + '"></div>' +
-      '<div class="pair"><div class="field"><label for="ed-start">开始</label><input id="ed-start" inputmode="numeric" maxlength="5" value="' + e.start + '"></div><div class="field"><label for="ed-end">结束</label><input id="ed-end" inputmode="numeric" maxlength="5" value="' + e.end + '"></div></div>' +
+      '<div class="pair"><div class="field"><label for="ed-start">开始</label><input id="ed-start" inputmode="text" maxlength="8" value="' + e.start + '"></div><div class="field"><label for="ed-end">结束</label><input id="ed-end" inputmode="text" maxlength="8" value="' + e.end + '"></div></div>' +
       (bl ? '' : '<div class="chips" role="group" aria-label="优先级">' + [1, 2, 3, 4, 5].map(function (n) { return '<button class="pchip p' + n + '" data-act="ed-prio" data-v="' + n + '" aria-pressed="' + (editPrio === n) + '">' + PRIO_NAME[n] + '</button>'; }).join('') + '</div>') +
       (e.ai ? '<div class="ai-tip done">交给 AI 了 · 原 ' + fmtPlain(e.ai.before) + '，省下的已留白</div>' :
-        a ? '<div class="ai-tip"><span>' + esc(a.method) + '：约 ' + fmtPlain(a.after) + '，可省 <b>' + fmtPlain(a.saved) + '</b></span><button class="btn sm" data-act="to-ai" data-id="' + e.id + '">交给 AI</button></div>' : '') +
+        a ? '<div class="ai-tip"><button class="ai-pick" data-act="ai-tools" data-id="' + e.id + '">' + esc(a.method) + '：约 ' + fmtPlain(a.after) + '，可省 <b>' + fmtPlain(a.saved) + '</b> ›</button><button class="btn sm" data-act="to-ai" data-id="' + e.id + '">交给 AI</button></div>' : '') +
       '<button class="btn primary wide" data-act="ed-save">保存</button><div class="clash-btns"><button class="btn" data-act="del" data-id="' + e.id + '">删除</button><button class="btn" data-act="close">取消</button></div>');
   }
-  function hm(v) { v = String(v || '').trim().replace('：', ':'); var m = v.match(/^(\d{1,2})(?::?(\d{2}))?$/); return m && +m[1] <= 24 ? pad(+m[1]) + ':' + (m[2] || '00') : v; }
+  function hm(v) {
+    v = String(v || '').trim().replace(/[：.．]/g, ':'); var m = v.match(/^(\d{1,2})(?::?(\d{2}))?$/); if (m && +m[1] <= 24 && +(m[2] || 0) < 60) return pad(+m[1]) + ':' + (m[2] || '00');
+    TIME_RE.lastIndex = 0; var t = TIME_RE.exec(v);
+    if (t) { var c = cnNum(t[2]), tail = (t[3] || '').replace(/[\s分]/g, ''); return toHM(t[1] ? clock(t[1], c, tail) : c * 60 + (tail === '半' ? 30 : tail === '一刻' ? 15 : tail === '三刻' ? 45 : tail ? cnNum(tail) : 0)); }
+    return v;
+  }
+  // a title that carries its own time ("十二点吃饭") moves the time into the time boxes
+  function titleTime(v) { var r = ruleParse(v)[0]; return r && r.at ? r : null; }
 
   function blankCard() {
     var pend = pendingBlanks()[0];
@@ -1007,7 +1077,7 @@ a { color: inherit; }
     return p + '<circle r="3" fill="var(--warm)"/>';
   }
   function treeSvg(date, list) {
-    var W = 360, cx = 180, K = 0.95, isToday = date === todayStr(), now = nowMin();
+    var W = 404, X0 = 52, cx = 228, K = 0.95, isToday = date === todayStr(), now = nowMin();
     var first = list.length ? Math.min.apply(null, list.map(function (e) { return toMin(e.start); })) : 420;
     var last = list.length ? Math.max.apply(null, list.map(function (e) { return toMin(e.end); })) : 1380;
     var top = Math.min(420, Math.floor(first / 60) * 60), bot = Math.max(1380, Math.ceil(last / 60) * 60);
@@ -1019,14 +1089,13 @@ a { color: inherit; }
       '<defs><linearGradient id="skyBg" gradientUnits="userSpaceOnUse" x1="0" y1="' + y(top) + '" x2="0" y2="' + y(bot) + '">' + skyStops(top, bot, .22) + '</linearGradient>' +
       '<linearGradient id="skyTr" gradientUnits="userSpaceOnUse" x1="0" y1="' + y(top) + '" x2="0" y2="' + y(bot) + '">' + skyStops(top, bot) + '</linearGradient>' +
       '<filter id="glow" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="4"/></filter></defs>' +
-      '<rect x="0" y="0" width="' + W + '" height="' + H + '" rx="28" fill="url(#skyBg)" pointer-events="none"/>';
+      '<rect x="' + X0 + '" y="0" width="' + (W - X0) + '" height="' + H + '" rx="28" fill="url(#skyBg)" pointer-events="none"/>';
     // hour marks
-    var hours = [], leftYs = [];
-    var ICON = { 6: '🌅', 9: '🌤️', 12: '☀️', 15: '🌳', 18: '🌇', 21: '🌙', 24: '✨' };
+    var hours = [];
     for (var h = top; h <= bot; h += 60) {
       var yy = y(h), hh = h / 60;
       s += '<circle cx="' + tx0(h).toFixed(1) + '" cy="' + yy + '" r="1.6" fill="var(--text-2)" fill-opacity=".45"/>';
-      if (hh % 3 === 0) hours.push([yy, '<text x="16" y="' + (yy + 4) + '" class="hr">' + (ICON[hh] ? ICON[hh] + ' ' : '') + hh + ':00</text>']);
+      hours.push('<path d="M' + (X0 - 5) + ',' + yy + 'h5" stroke="var(--text-2)" stroke-opacity=".5"/><text x="' + (X0 - 8) + '" y="' + (yy + 3.5) + '" text-anchor="end" class="hr' + (hh % 3 ? ' minor' : '') + '">' + pad(hh % 24) + ':00</text>');
     }
     // trunk: lived part solid, the rest faint
     s += '<path d="' + trunk(top, bot) + '" fill="none" stroke="url(#skyTr)" stroke-width="5" stroke-linecap="round" opacity=".28"/>';
@@ -1035,7 +1104,7 @@ a { color: inherit; }
     var lastY = { l: -99, r: -99 };
     list.forEach(function (e) {
       var side = e.kind === 'necessary' ? -1 : 1, key = side < 0 ? 'l' : 'r';
-      var y0 = y(toMin(e.start)), d = dur(e), ly = Math.max(y0 - 6, lastY[key] + 40); lastY[key] = ly; if (side < 0) leftYs.push(ly);
+      var y0 = y(toMin(e.start)), d = dur(e), ly = Math.max(y0 - 6, lastY[key] + 40); lastY[key] = ly;
       var bx = 34, L = 26 + Math.min(d, 180) / 180 * 30, Wd = 8 + Math.min(d, 180) / 180 * 7, sx = tx0(toMin(e.start));
       var tipX = cx + side * (bx + L), sky = skyAt(toMin(e.start)), past = isToday ? toMin(e.end) <= now : date < todayStr();
       var col = e.kind === 'blank' ? sky : KINDS[e.kind].color;
@@ -1049,13 +1118,27 @@ a { color: inherit; }
           '<path d="M2,0 L' + (L - 4) + ',0" stroke="#fff" stroke-opacity=".55" stroke-width="1"/></g>';
         if (e.ai) s += '<text x="' + (tipX + side * 2) + '" y="' + (ly - 8) + '" class="spark" text-anchor="middle">✦</text>';
       }
-      var tx = tipX + side * 8, anchor = side < 0 ? 'end' : 'start', title = e.title.length > 8 ? e.title.slice(0, 7) + '…' : e.title;
-      var hx = side < 0 ? Math.max(0, tx - 112) : cx + 6, hw = side < 0 ? cx - 6 - hx : Math.min(W, tx + 112) - hx;
+      var tx = tipX + side * 8, anchor = side < 0 ? 'end' : 'start', cap = side < 0 ? 6 : 8, title = e.title.length > cap ? e.title.slice(0, cap - 1) + '…' : e.title;
+      var hx = side < 0 ? Math.max(X0, tx - 112) : cx + 6, hw = side < 0 ? cx - 6 - hx : Math.min(W, tx + 112) - hx;
       s += '<rect x="' + hx + '" y="' + (ly - 18) + '" width="' + hw + '" height="38" fill="transparent"/>';
       s += '<text x="' + tx + '" y="' + (ly - 1) + '" text-anchor="' + anchor + '" class="lt">' + esc(title) + '</text>' +
         '<text x="' + tx + '" y="' + (ly + 14) + '" text-anchor="' + anchor + '" class="ls">' + e.start + '–' + e.end + '</text></g>';
+      // every two hours on one thing grows a small care branch: eyes, back, water
+      if (CARE_KINDS.indexOf(e.kind) < 0) return;
+      var order = SCREEN_RE.test(e.title) ? ['eye', 'back', 'water'] : ['back', 'water', 'eye'];
+      for (var k = 1; k <= 3 && k * 120 <= d; k++) {
+        var cm = toMin(e.start) + k * 120, cy0 = y(cm), cly = Math.max(cy0, lastY[key] + 34), ck = order[k - 1], bx2 = cx + side * 30, ctx = bx2 + side * 21;
+        lastY[key] = cly;
+        s += '<g class="care' + (past && (!isToday || cm <= now) ? '' : ' future') + '" data-act="care" data-k="' + ck + '" data-h="' + (k * 2) + '" tabindex="0" role="button" aria-label="' + esc(CARE[ck][0].replace('{h}', k * 2) + '，' + CARE[ck][1]) + '">' +
+          '<path d="M' + tx0(cm).toFixed(1) + ',' + cy0 + ' C' + (cx + side * 12) + ',' + cy0 + ' ' + (cx + side * 12) + ',' + cly + ' ' + bx2 + ',' + cly + '" fill="none" stroke="var(--warm)" stroke-width="1.4" stroke-dasharray="3 3"/>' +
+          '<circle cx="' + (bx2 + side * 7) + '" cy="' + cly + '" r="9" fill="var(--surface)" stroke="var(--warm)" stroke-width="1.4"/>' +
+          '<g transform="translate(' + (bx2 + side * 7 - 6) + ',' + (cly - 6) + ')" fill="none" stroke="var(--warm)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">' + CARE_ICON[ck] + '</g>' +
+          '<rect x="' + (side < 0 ? Math.max(X0, ctx - 120) : bx2) + '" y="' + (cly - 13) + '" width="120" height="30" fill="transparent"/>' +
+          '<text x="' + ctx + '" y="' + (cly - 1) + '" text-anchor="' + anchor + '" class="cl">' + CARE[ck][0].replace('{h}', k * 2) + '</text>' +
+          '<text x="' + ctx + '" y="' + (cly + 12) + '" text-anchor="' + anchor + '" class="cs">' + CARE[ck][1] + '</text></g>';
+      }
     });
-    hours.forEach(function (h) { if (!leftYs.some(function (v) { return Math.abs(v - h[0]) < 26; })) s += h[1]; });
+    s += hours.join('');
     // now: a sun by day, a moon at night
     if (isToday && now >= top && now <= bot) {
       var ny = y(now), nx = +tx0(now).toFixed(1), day = now >= 360 && now < 1110, c = skyAt(now);
@@ -1064,6 +1147,22 @@ a { color: inherit; }
              : '<circle cx="' + nx + '" cy="' + ny + '" r="7.5" fill="#F4F1DE"/><circle cx="' + (nx + 3.5) + '" cy="' + (ny - 2.5) + '" r="6.5" fill="' + c + '"/>');
     }
     return s + '</svg>';
+  }
+  var CARE_KINDS = ['necessary', 'create', 'explore'];
+  var SCREEN_RE = /读|写|论文|文献|代码|编程|邮件|报告|设计|审稿|批改|材料|表格|看|改|画/;
+  var CARE = { eye: ['盯了 {h} 小时', '远眺 20 秒，眨眨眼'], back: ['坐了 {h} 小时', '起来走走，护腰护颈'], water: ['忙了 {h} 小时', '喝口水，伸个懒腰'] };
+  var CARE_MORE = {
+    eye: ['每 20 分钟，看 6 米外的东西 20 秒', '有意识地多眨几次眼', '屏幕放在视线稍下方，别离太近'],
+    back: ['站起来走 3–5 分钟', '收下巴、慢慢转转脖子，耸耸肩再放下', '坐回去时让椅背托住腰'],
+    water: ['喝一杯水', '站起来伸个懒腰，舒展肩背', '顺便看看窗外']
+  };
+  var CARE_ICON = {
+    eye: '<path d="M1 6q5-5 10 0-5 5-10 0z"/><circle cx="6" cy="6" r="1.6"/>',
+    back: '<path d="M6 1v10M4 3.5h4M4 6h4M4 8.5h4"/>',
+    water: '<path d="M3 2h6l-1 9h-4z"/><path d="M3.4 5h5.2"/>'
+  };
+  function careSheet(k, h) {
+    openSheet('<h2 style="font-size:22px">' + CARE[k][0].replace('{h}', h) + '了</h2><p class="muted">' + CARE[k][1] + '</p><ul class="care-list">' + CARE_MORE[k].map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul><button class="btn primary wide" data-act="close">好</button>');
   }
   function pageLine() {
     var date = lineDate || todayStr(), list = entriesOn(date), isToday = date === todayStr();
@@ -1091,7 +1190,7 @@ a { color: inherit; }
       '<div class="legend">' + keys.map(function (k) { return '<span><i style="background:' + KINDS[k].color + '"></i>' + KINDS[k].label + ' <b class="num">' + pct(m[k] / x.total) + '%</b></span>'; }).join('') + '</div>' : '<p class="muted">暂无记录</p>') + '</section></div>';
     var finds = compressFindings(range).filter(function (f) { return f.high > 0; }).slice(0, 4);
     html += '<div class="col"><section class="block"><h2>可以交给 AI</h2>' + (finds.length ? '<div>' + finds.map(function (f) {
-      return '<div class="ai-row"><span>' + esc(f.title) + '<br><span class="small muted">' + esc(f.method) + '</span></span><span class="small muted" style="white-space:nowrap">每天约省 <span class="num">' + f.low + '–' + f.high + '</span> 分</span></div>';
+      return '<button class="ai-row" data-act="ai-tools" data-t="' + esc(f.title) + '" data-m="' + f.perDay + '"><span>' + esc(f.title) + '<br><span class="small muted">' + esc(f.method) + '</span></span><span class="small muted" style="white-space:nowrap">每天约省 <span class="num">' + f.low + '–' + f.high + '</span> 分 ›</span></button>';
     }).join('') + '</div>' : '<p class="muted">记下会议、邮件这类事后出现</p>') + '</section></div>';
     return html;
   }
@@ -1389,7 +1488,6 @@ a { color: inherit; }
   }
 
   // ---------- firework calendar (Monet palettes) ----------
-  var calMon = null;
   var PALS = [
     ['睡莲', ['#EEF1EC', '#D2E2DB', '#AFCBC6', '#92AFBA', '#7A8BAE']],
     ['日出印象', ['#F1EEEA', '#EAD7C8', '#E3B897', '#CF9374', '#8A8DA4']],
@@ -1399,18 +1497,28 @@ a { color: inherit; }
     ['鲁昂大教堂', ['#F2EFE8', '#E7DCC6', '#D7C1A2', '#BAA58E', '#8E8597']],
     ['雾中国会', ['#F0EEF1', '#DDD7E3', '#C4B8CD', '#A898B3', '#7F7596']]
   ];
+  // the calendar follows the 7 天 / 30 天 switch; ‹ › step back a whole window
+  var calOff = 0;
+  function doneOn(ds) { return S.entries.filter(function (e) { return e.date === ds && (e.done || (e.kind === 'blank' && (e.state === 'kept' || e.state === 'partial'))); }).length; }
   function fwCalendar() {
-    var mon = calMon || todayStr().slice(0, 7), pm = mon.split('-'), y = +pm[0], mo = +pm[1], t = todayStr();
-    var pal = (PALS[S.pal] || PALS[0])[1], first = new Date(y, mo - 1, 1), days = new Date(y, mo, 0).getDate(), lead = (first.getDay() + 6) % 7, total = 0;
-    var g = '一二三四五六日'.split('').map(function (w) { return '<span class="cal-w">' + w + '</span>'; }).join('');
+    var t = todayStr(), end = addDays(t, -calOff * range), from = addDays(end, -(range - 1)), col = (PALS[S.pal] || PALS[0])[1][2];
+    var lead = range === 7 ? 0 : (function () { var p = from.split('-'); return (new Date(+p[0], +p[1] - 1, +p[2]).getDay() + 6) % 7; })();
+    var g = '', fws = 0, done = 0;
+    if (range === 7) for (var w = 0; w < 7; w++) g += '<span class="cal-w">' + weekday(addDays(from, w)) + '</span>';
+    else g = '一二三四五六日'.split('').map(function (w) { return '<span class="cal-w">' + w + '</span>'; }).join('');
     for (var i = 0; i < lead; i++) g += '<span class="cal-d pad"></span>';
-    for (var d = 1; d <= days; d++) {
-      var ds = y + '-' + pad(mo) + '-' + pad(d), n = fwCount(ds), bg = pal[Math.min(4, n)], dark = n >= 4; total += n;
-      g += '<div class="cal-d' + (ds === t ? ' today' : '') + (ds > t ? ' future' : '') + '" style="background:' + bg + ';color:' + (dark ? '#fff' : '#3B4339') + '" aria-label="' + mo + '月' + d + '日，' + n + ' 朵烟花"><span>' + d + '</span>' + (n ? '<span class="f">' + FW_ICON + n + '</span>' : '') + '</div>';
+    for (var k = 0; k < range; k++) {
+      var ds = addDays(from, k), n = fwCount(ds), dn = doneOn(ds), p = ds.split('-'), icons = '';
+      fws += n; done += dn;
+      for (var f = 0; f < Math.min(n, 12); f++) icons += FW_ICON;
+      if (n > 12) icons += '<small>+' + (n - 12) + '</small>';
+      g += '<div class="cal-d' + (ds === t ? ' today' : '') + (ds > t ? ' future' : '') + '" style="background:' + col + ';animation-delay:' + (k * (range === 7 ? 30 : 8)) + 'ms" aria-label="' + (+p[1]) + '月' + (+p[2]) + '日，' + n + ' 朵烟花">' +
+        '<span>' + (+p[2] === 1 || k === 0 ? (+p[1]) + '/' : '') + (+p[2]) + '</span><span class="f">' + icons + '</span></div>';
     }
-    var sw = PALS.map(function (p, k) { return '<button data-act="cal-pal" data-v="' + k + '" aria-pressed="' + ((S.pal || 0) === k) + '" title="' + p[0] + '" aria-label="配色：' + p[0] + '" style="background:linear-gradient(135deg,' + p[1][1] + ' 0 33%,' + p[1][2] + ' 33% 66%,' + p[1][4] + ' 66%)"></button>'; }).join('');
-    return '<section class="block"><div class="cal-head"><h2>' + y + ' 年 ' + mo + ' 月</h2><button data-act="cal-mon" data-d="-1" aria-label="上个月">‹</button><button data-act="cal-mon" data-d="1" aria-label="下个月">›</button></div>' +
-      '<div class="cal-grid">' + g + '</div><div class="cal-foot"><span class="small muted">这个月放飞 <b class="num">' + total + '</b> 朵烟花</span><div class="cal-pal" role="group" aria-label="配色">' + sw + '</div></div></section>';
+    var title = calOff ? dateLabel(from) + '–' + dateLabel(end) : '最近 ' + range + ' 天';
+    var sw = PALS.map(function (p, k) { return '<button data-act="cal-pal" data-v="' + k + '" aria-pressed="' + ((S.pal || 0) === k) + '" title="' + p[0] + '" aria-label="颜色：' + p[0] + '" style="background:' + p[1][2] + '"></button>'; }).join('');
+    return '<section class="block cal r' + range + '"><div class="cal-head"><h2>' + title + '</h2><button data-act="cal-mon" data-d="1" aria-label="往前">‹</button><button data-act="cal-mon" data-d="-1" aria-label="往后"' + (calOff ? '' : ' disabled') + '>›</button></div>' +
+      '<div class="cal-grid">' + g + '</div><div class="cal-foot"><span class="small muted">放飞 <b class="num">' + fws + '</b> 朵烟花 · 完成 <b class="num">' + done + '</b> 件事</span><div class="cal-pal" role="group" aria-label="日历颜色">' + sw + '</div></div></section>';
   }
 
   // ---------- router ----------
@@ -1456,6 +1564,7 @@ a { color: inherit; }
     }
     if (act === 'kept' || act === 'taken') { var e1 = byId(el.getAttribute('data-id')); if (e1) { e1.state = act; e1.kept = act === 'kept' ? dur(e1) : 0; save(); closeSheet(); render(); } return; }
     if (act === 'del') { var did = el.getAttribute('data-id'); S.entries = S.entries.filter(function (e) { return e.id !== did; }); if (bubSel === did) bubSel = null; save(); closeSheet(); render(); toast('已删除'); return; }
+    if (act === 'care') return careSheet(el.getAttribute('data-k'), el.getAttribute('data-h'));
     if (act === 'leaf') { var e4 = byId(el.getAttribute('data-id')); if (e4) leafSheet(e4); return; }
     if (act === 'day') { var n = +el.getAttribute('data-d'); lineDate = addDays(lineDate || todayStr(), n); if (lineDate === todayStr()) lineDate = null; render(); return; }
     if (act === 'pick') { var pm = +el.getAttribute('data-m'); if (pick[pm]) delete pick[pm]; else pick[pm] = 1; render(); return; }
@@ -1479,7 +1588,7 @@ a { color: inherit; }
     }
     if (act === 'unsel') { bubSel = null; render(); return; }
     if (act === 'fw-undo') { if (undoFw) { undoFw(); undoFw = null; } var tu = document.querySelector('.toast'); if (tu) tu.hidden = true; return; }
-    if (act === 'cal-mon') { var cm = (calMon || todayStr().slice(0, 7)).split('-'), cd = new Date(+cm[0], +cm[1] - 1 + +el.getAttribute('data-d'), 1); calMon = cd.getFullYear() + '-' + pad(cd.getMonth() + 1); render(); return; }
+    if (act === 'cal-mon') { calOff = Math.max(0, calOff + +el.getAttribute('data-d')); render(); return; }
     if (act === 'board') { boardTab = 'day'; return boardSheet(); }
     if (act === 'board-tab') { boardTab = el.getAttribute('data-d'); return boardSheet(); }
     if (act === 'cal-pal') { S.pal = +el.getAttribute('data-v'); save(); render(); return; }
@@ -1491,10 +1600,18 @@ a { color: inherit; }
       return;
     }
     if (act === 'edit') return editSheet();
+    if (act === 'ai-tools') {
+      var dr = el.getAttribute('data-draft') && S.drafts.filter(function (x) { return x.id === el.getAttribute('data-draft'); })[0], en = el.getAttribute('data-id') && byId(el.getAttribute('data-id'));
+      if (dr) return aiTools(dr.title, dur(dr));
+      if (en) return aiTools(en.title, dur(en), en.id);
+      return aiTools(el.getAttribute('data-t') || '', +el.getAttribute('data-m') || 60);
+    }
     if (act === 'ed-prio') { editPrio = +el.getAttribute('data-v'); el.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === el)); }); return; }
     if (act === 'ed-save') {
       var ee = bubSel && byId(bubSel); if (!ee) return closeSheet();
-      var t1 = document.getElementById('ed-title').value.trim(), a1 = hm(document.getElementById('ed-start').value), b1 = hm(document.getElementById('ed-end').value);
+      var t1 = document.getElementById('ed-title').value.trim(), a1 = hm(document.getElementById('ed-start').value), b1 = hm(document.getElementById('ed-end').value), tt1 = ee.kind !== 'blank' && titleTime(t1);
+      if (tt1) { t1 = tt1.title; a1 = tt1.start; b1 = tt1.end; }
+      if (isHM(a1) && (!isHM(b1) || toMin(b1) <= toMin(a1)) && document.getElementById('ed-end').value.trim() === ee.end) b1 = toHM(Math.min(1440, toMin(a1) + dur(ee)));
       if (!isHM(a1) || !isHM(b1) || toMin(b1) <= toMin(a1)) { toast('时间不对'); return; }
       if (t1 && ee.kind !== 'blank') ee.title = t1; ee.start = a1; ee.end = b1; if (ee.kind !== 'blank') ee.prio = editPrio;
       save(); closeSheet(); render(); toast('改好了'); return;
@@ -1507,7 +1624,7 @@ a { color: inherit; }
       S.entries.push({ id: uid(), date: e3.date, start: toHM(newEnd), end: toHM(oldEnd), title: '留白', kind: 'blank', state: 'reserved', kept: 0, use: null, note: '', intent: '', from: e3.id });
       save(); closeSheet(); render(); toast('省下 ' + fmtPlain(a3.saved) + '，已留白'); return;
     }
-    if (act === 'range') { range = +el.getAttribute('data-d'); render(); return; }
+    if (act === 'range') { range = +el.getAttribute('data-d'); calOff = 0; render(); return; }
     if (act === 'ob-real' || act === 'ob-demo') {
       var nm = (document.getElementById('o-name').value || '').trim();
       if (act === 'ob-demo') S = demoState(); else S.mode = 'real';
@@ -1545,9 +1662,10 @@ a { color: inherit; }
     var f = ev.target.getAttribute && ev.target.getAttribute('data-f'); if (!f) return;
     var d = draftById(ev.target); if (!d) return;
     var v = ev.target.value.trim();
-    if (f !== 'title') { v = v.replace('：', ':'); var mm = v.match(/^(\d{1,2})(?::?(\d{2}))?$/); if (mm && +mm[1] <= 24) v = pad(+mm[1]) + ':' + (mm[2] || '00'); d.force = false; }
+    if (f !== 'title') { v = hm(v); d.force = false; if (f === 'start' && isHM(v) && (!isHM(d.end) || toMin(d.end) <= toMin(v))) d.end = toHM(Math.min(1440, toMin(v) + 60)); }
+    else { var tt = titleTime(v); if (tt) { d.start = tt.start; d.end = tt.end; v = tt.title; } }
     d[f] = v;
-    save(); render();
+    save(); setTimeout(render, 0);
   });
   document.addEventListener('submit', function (ev) {
     ev.preventDefault();
@@ -1562,7 +1680,7 @@ a { color: inherit; }
   });
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape' && document.querySelector('.overlay')) { var cb = clashCb; clashCb = null; closeSheet(); if (cb) cb('cancel'); }
-    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList && ev.target.classList.contains('leaf')) { ev.preventDefault(); ev.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList && (ev.target.classList.contains('leaf') || ev.target.classList.contains('care'))) { ev.preventDefault(); ev.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   });
   window.addEventListener('resize', function () { clearTimeout(window.__bt); window.__bt = setTimeout(bubSetup, 150); });
   window.addEventListener('hashchange', function () { capState.msg = ''; render(); window.scrollTo(0, 0); });
