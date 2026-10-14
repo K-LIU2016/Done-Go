@@ -318,6 +318,11 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 16px; display: grid; gap: 4px; }
 .tile .v { font-family: var(--font-serif); font-size: 32px; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .tile .v small { font-family: var(--font-sans); font-size: 13px; color: var(--text-2); margin-left: .2em; }
+.review-metrics { display: grid; gap: 14px; }
+.review-metrics .tile { gap: 10px; }
+.review-metrics .v { font-size: clamp(34px, 4.5vw, 52px); overflow-wrap: anywhere; }
+.metric-calculation { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 13px; color: var(--text-2); }
+.metric-calculation b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
 .ai-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .ai-row:last-child { border-bottom: 0; }
 
@@ -465,6 +470,17 @@ window.TangoTime = (function () {
       return sum + Math.max(0, trial.before - trial.after);
     }, 0);
   }
+  function recordedDurations(trials, from, to) {
+    var seen = {}, totals = { before: 0, after: 0, difference: 0, samples: 0 };
+    trials.forEach(function (trial) {
+      if (!validTrial(trial) || (from && trial.date < from) || (to && trial.date > to)) return;
+      var key = trial.taskId && trial.date + ':' + trial.taskId;
+      if (key && seen[key]) return; if (key) seen[key] = true;
+      totals.before += trial.before; totals.after += trial.after; totals.samples++;
+    });
+    totals.difference = totals.before - totals.after;
+    return totals;
+  }
   function estimate(trials, category, minutes) {
     if (!category || category === 'other' || category === 'none' || !Number.isFinite(minutes) || minutes <= 0) return null;
     var seen = {};
@@ -487,7 +503,7 @@ window.TangoTime = (function () {
     var freed = actual < before ? { minutes: before - actual, start: clock(start + actual), end: entry.end } : null;
     return { entry: updated, trial: { taskId: entry.id, date: entry.date, title: entry.title, before: before, after: actual, usedAI: !!usedAI, category: category, confirmed: true }, freed: freed };
   }
-  return { occupiedMinutes: occupiedMinutes, unplannedMinutes: function (entries, wake) { return Math.max(0, (Number.isFinite(wake) ? wake : 960) - occupiedMinutes(entries)); }, confirmedSavings: confirmedSavings, estimate: estimate, completeTask: completeTask };
+  return { occupiedMinutes: occupiedMinutes, unplannedMinutes: function (entries, wake) { return Math.max(0, (Number.isFinite(wake) ? wake : 960) - occupiedMinutes(entries)); }, confirmedSavings: confirmedSavings, recordedDurations: recordedDurations, estimate: estimate, completeTask: completeTask };
 })();
 </script>
 <script>
@@ -904,8 +920,8 @@ window.TangoTime = (function () {
     var occupied = Time.occupiedMinutes(list), reserved = Time.occupiedMinutes(list.filter(function (e) { return e.kind === 'blank' && e.state === 'reserved'; }));
     var html = '<div class="col"><p class="hello">' + greet + (S.name ? '，' + esc(S.name) : '') + '</p>' +
       '<section class="time-overview" aria-label="今日时间"><div class="label">全天未排</div><div class="big" data-metric="unplanned">' + fmt(Time.unplannedMinutes(list, S.wake)) + '</div>' +
-      '<div class="budget-row"><span class="budget-chip">预算 <b>' + fmtPlain(S.wake) + '</b></span><span class="budget-chip">已排 <b>' + fmtPlain(occupied) + '</b></span><span class="budget-chip">预留 <b>' + fmtPlain(reserved) + '</b></span></div>' + savedLine() +
-      '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>全天未排 = 清醒预算 − 已安排。重叠时段只计一次，预留已包含在已排中；不代表睡前剩余时间。</p><p>腾出 ✓ = 已确认的计划 − 实际用时，最低为 0。实际用时包含准备、核对和返工；差值不等于 AI 的贡献。</p></details></section>' +
+      '<div class="budget-row"><span class="budget-chip">预算 <b>' + fmtPlain(S.wake) + '</b></span><span class="budget-chip">已排 <b>' + fmtPlain(occupied) + '</b></span><span class="budget-chip">预留 <b>' + fmtPlain(reserved) + '</b></span></div>' +
+      '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>全天未排 = 清醒预算 − 已安排。重叠时段只计一次，预留已包含在已排中；不代表睡前剩余时间。</p></details></section>' +
       '<section class="voice" aria-label="记录"><button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section>' +
@@ -946,6 +962,8 @@ window.TangoTime = (function () {
   function saveCompletion(e) {
     var result = e && Time.completeTask(e, document.getElementById('finish-min').value, document.getElementById('finish-ai').checked, ruleFor(e.title).cat);
     if (!result) { var error = document.getElementById('finish-error'); error.hidden = false; error.textContent = '请输入 0–1440 的整数分钟'; return; }
+    var estimate = guidanceEstimate(ruleFor(e.title).cat, result.trial.before);
+    result.entry.forecast = { before: result.trial.before, low: estimate.low, high: estimate.high, source: estimate.source };
     if (result.freed) result.entry.freed = Object.assign({ pending: true }, result.freed);
     replaceEntry(e, [result.entry]); S.trials.push(result.trial); save(); closeSheet(); render();
     fireworks(innerWidth / 2, Math.min(innerHeight * .35, 300), FW_COL.p3);
@@ -1055,9 +1073,6 @@ window.TangoTime = (function () {
       '<button class="btn primary wide" data-act="pick-save"' + (n ? '' : ' disabled') + '>' + (n ? '预留 ' + fmtPlain(n * 30) + span : '选择时段') + '</button></section></div>';
   }
   var PRIO = ['necessary', 'create', 'connect', 'explore', 'restore'];
-  function savedLine() {
-    return '<div class="metric-row"><span class="label" title="已确认腾出">腾出 ✓</span><span class="saved-value" data-metric="saved">' + trialsSaved(todayStr()) + ' <small>min</small></span></div>';
-  }
   // ---------- today as bubbles: priority floats up and turns red ----------
   var PRIO_RE = [[1, /最优先|最重要|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧/], [5, /不急|不重要|有空再|有空的话|随便|可做可不做/], [4, /次要|顺便|晚点也行|可以晚点|稍后|缓一缓|不那么急/], [2, /优先|重要|要紧|尽快|早点/]];
   var PRIO_STRIP = /(这|这件事|这个)?(是|很|非常|特别)?(最优先级?|最重要的?|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧|不急|不重要|有空再|有空的话|随便|次要|顺便|可做可不做|晚点也行|可以晚点|稍后|缓一缓|不那么急|尽快|早点|优先级?|重要的?|要紧)(的事)?/g;
@@ -1469,14 +1484,33 @@ window.TangoTime = (function () {
   }
 
   var range = 7;
+  function reviewForecast(records) {
+    var seen = {}, totals = { before: 0, low: 0, high: 0 };
+    records.forEach(function (e) {
+      if (e.kind === 'blank') return;
+      var key = e.date + ':' + (e.id || e.title + ':' + e.start + ':' + e.end);
+      if (seen[key]) return; seen[key] = true;
+      var before = e.completion && Number.isInteger(e.completion.before) ? e.completion.before : dur(e);
+      if (!Number.isFinite(before) || before <= 0 || before > 1440) return;
+      var f = e.forecast;
+      if (!f || f.before !== before || !Number.isInteger(f.low) || !Number.isInteger(f.high) || f.low < 0 || f.high < f.low || f.high > before) f = guidanceEstimate(ruleFor(e.title).cat, before);
+      totals.before += before; totals.low += f.low; totals.high += f.high;
+    });
+    totals.afterLow = totals.before - totals.high; totals.afterHigh = totals.before - totals.low;
+    return totals;
+  }
+  function rangeText(low, high) { return low === high ? String(low) : low + '–' + high; }
+  function signedMinutes(value) { return value < 0 ? '−' + Math.abs(value) : String(value); }
   function pageReview() {
     var end = addDays(todayStr(), -calOff * range), from = addDays(end, -(range - 1));
     var records = S.entries.filter(function (e) { return e.date >= from && e.date <= end; }), x = mix(records), m = x.m;
-    var personal = records.filter(function (e) { return e.kind === 'blank' && (e.state === 'kept' || e.state === 'partial'); }).reduce(function (n, e) { return n + Math.min(dur(e), Math.max(0, +e.kept || 0)); }, 0);
-    var saved = Time.confirmedSavings(S.trials, from, end);
+    var forecast = reviewForecast(records), actual = Time.recordedDurations(S.trials, from, end);
     var html = '<div class="seg full" role="group" aria-label="范围"><button data-act="range" data-d="7" aria-pressed="' + (range === 7) + '">7 天</button><button data-act="range" data-d="30" aria-pressed="' + (range === 30) + '">30 天</button></div>' +
-      '<div class="col"><div class="pair"><div class="tile"><span class="label">已确认腾出</span><span class="v" data-metric="review-saved">' + saved + '<small> min</small></span></div><div class="tile"><span class="label">已用到自己的时间</span><span class="v" data-metric="personal-used">' + fmt(personal) + '</span></div></div>' +
-      '<p class="scope-note">' + from + ' → ' + end + ' · 仅计已确认记录。腾出时间不等于全部由 AI 带来。</p>' + blankCard() + fwCalendar();
+      '<div class="col"><section class="review-metrics" aria-label="腾出时间"><div class="tile estimated-tile"><span class="label">预计腾出</span><span class="v" data-metric="review-estimated">' + rangeText(forecast.low, forecast.high) + ' <small>min</small></span>' +
+      '<div class="metric-calculation"><span>不用 AI <b data-metric="review-estimated-before">' + forecast.before + '</b> min</span><span>−</span><span>用 AI <b data-metric="review-estimated-after">' + rangeText(forecast.afterLow, forecast.afterHigh) + '</b> min</span></div></div>' +
+      '<div class="tile actual-tile"><span class="label">实际腾出</span><span class="v" data-metric="review-actual">' + signedMinutes(actual.difference) + ' <small>min</small></span>' +
+      '<div class="metric-calculation"><span>原计划 <b>' + actual.before + '</b> min</span><span>−</span><span>实际 <b>' + actual.after + '</b> min</span></div><p class="small muted">' + actual.samples + ' 项完成</p></div></section>' +
+      '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>预计：原计划时长 − AI 预计用时。按事项累计，含准备与核对；场景比例尚未实测，完成时保留预计值。</p><p>实际：原计划时长 − 已确认实际用时。超时显示负值，差值不等于 AI 的贡献。</p></details><p class="scope-note">' + from + ' → ' + end + '</p>' + blankCard() + fwCalendar();
     var keys = ['create', 'connect', 'explore', 'restore', 'necessary', 'blank'].filter(function (k) { return m[k] > 0; });
     html += '<section class="block"><h2>时间去向</h2>' + (x.total ? '<div class="stack-bar" role="img" aria-label="时间去向">' + keys.map(function (k) { return '<span style="width:' + (m[k] / x.total * 100).toFixed(2) + '%;background:' + KINDS[k].color + '"></span>'; }).join('') + '</div><div class="legend">' + keys.map(function (k) { return '<span><i style="background:' + KINDS[k].color + '"></i>' + KINDS[k].label + ' <b class="num">' + fmtPlain(m[k]) + '</b></span>'; }).join('') + '</div><p class="scope-note">按事项记录累计；重叠事项可能重复计算。</p>' : '<p class="muted">暂无记录</p>') + '</section></div>';
     var seen = {}, finds = records.filter(function (e) { var r = ruleFor(e.title); if (e.kind === 'blank' || !r.method || seen[e.title]) return false; seen[e.title] = true; return true; }).slice(0, 4);
@@ -1935,6 +1969,14 @@ window.TangoTime = (function () {
   var newCopy = {"全天未安排":["Unscheduled today","Не запланировано за день","เวลาที่ยังไม่ได้วางแผนวันนี้","وقت غير مجدول اليوم","오늘 미배정 시간"],"已确认腾出":["Confirmed time gained","Подтвержденное свободное время","เวลาที่ประหยัดได้ยืนยันแล้ว","وقت مستعاد مؤكد","확인된 확보 시간"],"事项池":["Tasks","Задачи","งาน","المهام","할 일"],"查看模型能力":["Model capabilities","Возможности модели","ความสามารถของโมเดล","قدرات النموذج","모델 기능"],"自己的时间":["Personal time","Личное время","เวลาส่วนตัว","وقت شخصي","나만의 시간"],"自由安排":["Keep it open","Оставить свободным","จัดเอง","اتركه مفتوحًا","자유롭게"],"时间树":["Time tree","Дерево времени","ต้นไม้เวลา","شجرة الوقت","시간 나무"],"列表":["List","Список","รายการ","قائمة","목록"],"AI 辅助机会":["AI assistance","Помощь ИИ","ความช่วยเหลือ AI","مساعدة الذكاء الاصطناعي","AI 도움"],"腾出时间记录":["Time gained","Освобожденное время","เวลาที่ได้คืน","الوقت المستعاد","확보 시간 기록"],"已用到自己的时间":["Personal time used","Личное время использовано","เวลาส่วนตัวที่ใช้จริง","وقت شخصي مستخدم","사용한 개인 시간"]};
   ["en", "ru", "th", "ar", "ko"].forEach(function (lang, i) { I18N[lang] = I18N[lang] || {}; Object.keys(newCopy).forEach(function (key) { I18N[lang][key] = newCopy[key][i]; }); });
   var flowCopy = {
+    '预计腾出': ['Estimated time gained', 'Ожидаемый выигрыш', 'เวลาที่คาดว่าจะได้คืน', 'الوقت المتوقع استعادته', '예상 확보 시간'],
+    '实际腾出': ['Actual time gained', 'Фактический выигрыш', 'เวลาที่ได้คืนจริง', 'الوقت المستعاد فعليًا', '실제 확보 시간'],
+    '腾出时间': ['Time gained', 'Выигрыш времени', 'เวลาที่ได้คืน', 'الوقت المستعاد', '확보 시간'],
+    '不用 AI': ['Without AI', 'Без ИИ', 'ไม่ใช้ AI', 'بدون AI', 'AI 미사용'],
+    '用 AI': ['With AI', 'С ИИ', 'ใช้ AI', 'مع AI', 'AI 사용'],
+    '原计划': ['Planned', 'План', 'แผนเดิม', 'المخطط', '원래 계획'],
+    '实际': ['Actual', 'Факт', 'ใช้จริง', 'الفعلي', '실제'],
+    '{n} 项完成': ['{n} completed', 'Завершено: {n}', 'เสร็จ {n} งาน', 'مكتمل: {n}', '{n}개 완료'],
     '时间之树': ['Time tree', 'Дерево времени', 'ต้นไม้เวลา', 'شجرة الوقت', '시간 나무'],
     '点叶子查看、完成或修改。': ['Tap a leaf to view, complete or edit.', 'Нажмите лист, чтобы открыть, завершить или изменить.', 'แตะใบไม้เพื่อดู ทำเสร็จ หรือแก้ไข', 'اضغط الورقة للعرض أو الإكمال أو التعديل.', '잎을 눌러 확인, 완료하거나 수정하세요.'],
     '✦ AI 辅助 · 预计省 {n}–{n} min': ['✦ AI help · Est. save {n}–{n} min', '✦ ИИ · Экономия ~{n}–{n} min', '✦ AI ช่วย · ประหยัดประมาณ {n}–{n} min', '✦ مساعدة AI · توفير تقديري {n}–{n} min', '✦ AI 도움 · 예상 절약 {n}–{n} min'],
@@ -2031,6 +2073,8 @@ window.TangoTime = (function () {
   };
   ["en", "ru", "th", "ar", "ko"].forEach(function (lang, i) { Object.keys(flowCopy).forEach(function (key) { I18N[lang][key] = flowCopy[key][i]; }); });
   var guidanceCopy = {
+    '预计：原计划时长 − AI 预计用时。按事项累计，含准备与核对；场景比例尚未实测，完成时保留预计值。': 'Estimated: original planned duration − estimated AI duration. Summed by task, including preparation and checking. Scenario ratios are untested; the estimate is saved on completion.',
+    '实际：原计划时长 − 已确认实际用时。超时显示负值，差值不等于 AI 的贡献。': 'Actual: original planned duration − confirmed actual duration. Overruns are negative; the difference is not proof of AI impact.',
     '同类任务的个人计划与实际差值；任务难度可能不同，差值不等于 AI 的贡献。': 'Your planned–actual differences for similar tasks; difficulty varies and the difference is not proof of AI impact.',
     '按任务类型与计划时长估算，含准备与核对成本；实际可能为 {n}，完成后记录用时。': 'Estimated by task type and duration, including setup and checking; actual savings may be {n}. Log time after finishing.',
     '只估算准备与整理，原事项时长保留。': 'Only preparation and organization are estimated; keep the original activity time.',

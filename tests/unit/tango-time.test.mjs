@@ -62,3 +62,16 @@ test('duplicated imports cannot turn one AI attempt into sufficient personal evi
   const record = trial('2026-10-14', 60, 40, { taskId: 'paper' });
   assert.equal(core.estimate([record, { ...record }], 'read', 60), null);
 });
+
+test('review subtracts all actual durations from plans including overruns once per task', () => {
+  const early = trial('2026-10-14', 60, 40, { taskId: 'early' });
+  const late = trial('2026-10-14', 60, 90, { taskId: 'late', usedAI: false });
+  const result = core.recordedDurations([
+    early, { ...early }, late, trial('2026-10-01', 60, 10),
+    trial('2026-10-14', 60, -10), trial('2026-10-14', 60, 10, { confirmed: false }),
+  ], '2026-10-08', '2026-10-14');
+  assert.equal(result.before, 120);
+  assert.equal(result.after, 130);
+  assert.equal(result.difference, -10);
+  assert.equal(result.samples, 2);
+});

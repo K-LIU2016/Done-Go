@@ -48,7 +48,7 @@ test('generic work and meals receive scoped guidance without counting estimates 
   await expect(page.locator('.sheet')).toContainText('准备环节');
   await expect(page.locator('.sheet')).toContainText('吃饭时长不压缩');
   await page.locator('[data-act="close"]').first().click();
-  await expect(page.locator('[data-metric="saved"]')).toContainText('0');
+  await expect(page.locator('[data-metric="saved"]')).toHaveCount(0);
   expect((await state(page)).trials).toHaveLength(0);
   await page.goto('/#review');
   await expect(page.locator('.ai-row')).toHaveCount(2);
@@ -93,11 +93,18 @@ test('confirmed completion creates a choice, not an automatic reservation, and s
   const saved = await state(page);
   expect(saved.trials).toHaveLength(1);
   expect(saved.trials[0]).toMatchObject({ before: 60, after: 40, confirmed: true, taskId: 'paper', usedAI: true });
+  expect(saved.entries[0].forecast).toMatchObject({ before: 60, low: 15, high: 20 });
   expect(saved.entries.filter((item: { kind: string }) => item.kind === 'blank')).toHaveLength(0);
+  // Later history must not rewrite this task's original completion-time forecast.
+  saved.trials.push({ taskId: 'later', date: '2026-10-01', before: 60, after: 10, usedAI: true, category: 'read', confirmed: true });
+  await page.evaluate(value => localStorage.setItem('leubai.web.v1', JSON.stringify(value)), saved);
   await page.reload();
-  await expect(page.locator('[data-metric="saved"]')).toContainText('20');
+  await expect(page.locator('[data-metric="saved"]')).toHaveCount(0);
   await expect(page.locator('[data-act="task-finish"][data-id="paper"]')).toHaveCount(0);
   await expect(page.locator('[data-act="time-use"]')).toHaveCount(3);
+  await page.goto('/#review');
+  await expect(page.locator('[data-metric="review-actual"]')).toContainText('20');
+  await expect(page.locator('[data-metric="review-estimated"]')).toContainText('15–20');
 });
 test('a walk is reserved only after the user chooses it', async ({ page }) => {
   await open(page);
@@ -120,8 +127,9 @@ test('an overrun produces no fabricated time or booking invitation', async ({ pa
   await open(page);
   await finish(page, '80');
   await expect(page.locator('[data-act="time-use"]')).toHaveCount(0);
-  await expect(page.locator('[data-metric="saved"]')).toContainText('0');
   expect((await state(page)).trials[0].after).toBe(80);
+  await page.goto('/#review');
+  await expect(page.locator('[data-metric="review-actual"]')).toContainText('−20');
 });
 test('historical freed intervals do not get silently booked into the past', async ({ page }) => {
   await open(page, { entries: [{ ...paper, start: '07:00', end: '08:00' }] });
@@ -132,10 +140,10 @@ test('historical freed intervals do not get silently booked into the past', asyn
 test('review respects range selection and ignores legacy unconfirmed reductions', async ({ page }) => {
   await open(page, { entries: [{ ...paper, ai: { before: 60, after: 10 } }], trials: [{ date: '2026-10-01', before: 60, after: 20, confirmed: true }, { date: '2026-10-14', before: 60, after: 40 }] });
   await page.goto('/#review');
-  await expect(page.locator('[data-metric="review-saved"]')).toContainText('0');
+  await expect(page.locator('[data-metric="review-actual"]')).toContainText('0');
   await expect(page.locator('#view')).not.toContainText('自由指数');
   await page.locator('[data-act="range"][data-d="30"]').click();
-  await expect(page.locator('[data-metric="review-saved"]')).toContainText('40');
+  await expect(page.locator('[data-metric="review-actual"]')).toContainText('40');
 });
 test('time tree alone preserves task times and opens task details from leaves', async ({ page }) => {
   await open(page);
@@ -174,7 +182,7 @@ test('personal estimates remain separate from confirmed gains', async ({ page })
   await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
   await expect(page.locator('.sheet')).toContainText('20–30 min');
   await expect(page.locator('.estimate-help summary')).toContainText('个人历史 · 2 次');
-  await expect(page.locator('[data-metric="saved"]')).toContainText('0');
+  await expect(page.locator('[data-metric="saved"]')).toHaveCount(0);
 });
 
 test('a canceled booking conflict preserves the task and pending choice', async ({ page }) => {
@@ -204,14 +212,33 @@ test('custom use rejects past times and lets the user choose a future interval',
   expect((await state(page)).entries.find((item: { kind: string }) => item.kind === 'blank')).toMatchObject({ title: '陪家人', use: 'connect', start: '18:00', end: '18:20' });
 });
 
-test('personal-time use is counted only after confirmation', async ({ page }) => {
+test('confirming personal-time use never inflates predicted or actual task savings', async ({ page }) => {
   await open(page, { entries: [{ id: 'walk', title: '散步', kind: 'blank', use: 'restore', state: 'reserved', kept: 0, date: '2026-10-14', start: '08:00', end: '08:20' }] });
   await page.goto('/#review');
-  await expect(page.locator('[data-metric="personal-used"]')).toContainText('0');
+  await expect(page.locator('[data-metric="review-estimated"]')).toContainText('0');
+  await expect(page.locator('[data-metric="review-actual"]')).toContainText('0');
   await page.locator('[data-act="kept"][data-id="walk"]').click();
-  await expect(page.locator('[data-metric="personal-used"]')).toContainText('20');
+  expect((await state(page)).entries[0].kept).toBe(20);
   await page.reload();
-  await expect(page.locator('[data-metric="personal-used"]')).toContainText('20');
+  expect((await state(page)).entries[0].kept).toBe(20);
+  await expect(page.locator('[data-metric="review-actual"]')).toContainText('0');
+});
+
+test('review stacks estimated and actual differences while today only shows the daily budget', async ({ page }, info) => {
+  await open(page, { entries: [paper, { ...paper, id: 'old', date: '2026-10-01' }, { ...paper, id: 'free', kind: 'blank' } ] });
+  await expect(page.locator('[data-metric="saved"]')).toHaveCount(0);
+  await page.goto('/#review');
+  await expect(page.locator('[data-metric="review-estimated"]')).toHaveText('15–20 min');
+  await expect(page.locator('[data-metric="review-estimated-before"]')).toHaveText('60');
+  await expect(page.locator('[data-metric="review-estimated-after"]')).toHaveText('40–45');
+  await expect(page.locator('[data-metric="review-actual"]')).toHaveText('0 min');
+  await expect(page.locator('[data-metric="personal-used"]')).toHaveCount(0);
+  const first = await page.locator('.estimated-tile').boundingBox();
+  const second = await page.locator('.actual-tile').boundingBox();
+  expect(second!.y).toBeGreaterThanOrEqual(first!.y + first!.height);
+  await page.screenshot({ path: info.outputPath('review-differences.png') });
+  await page.locator('[data-act="range"][data-d="30"]').click();
+  await expect(page.locator('[data-metric="review-estimated"]')).toHaveText('30–40 min');
 });
 
 test('model dialog traps keyboard focus and restores the opener', async ({ page }) => {
@@ -259,4 +286,11 @@ test('screens and dialogs fit the viewport in both themes and English', async ({
   const box = await page.locator('.sheet').boundingBox();
   expect(box!.width).toBeLessThanOrEqual(info.project.use.viewport!.width);
   await page.screenshot({ path: info.outputPath('model-sheet.png') });
+  await page.locator('[data-act="close"]').first().click();
+  await page.goto('/#review');
+  await expect(page.locator('.estimated-tile')).toContainText('Estimated time gained');
+  await expect(page.locator('.estimated-tile')).toContainText('Without AI');
+  await expect(page.locator('.actual-tile')).toContainText('Actual time gained');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: info.outputPath('english-review.png'), fullPage: true });
 });
