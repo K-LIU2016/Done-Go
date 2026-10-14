@@ -33,6 +33,12 @@ test('the daily budget counts overlapping reservations once', async ({ page }) =
   await expect(page.locator('[data-metric="unplanned"]')).toContainText('14');
   await expect(page.locator('[data-metric="unplanned"]')).toContainText('30');
   await expect(page.getByText('全天未排', { exact: true })).toBeVisible();
+  const input = await page.locator('#cap-text').boundingBox();
+  expect(input!.y + input!.height).toBeLessThan(test.info().project.use.viewport!.height);
+  const overview = await page.locator('.time-overview').boundingBox();
+  const contentBottom = await page.locator('.page > .col').evaluateAll(cols => Math.max(...cols.map(col => col.getBoundingClientRect().bottom)));
+  expect(overview!.y).toBeGreaterThanOrEqual(contentBottom);
+  expect(await page.locator('.time-overview').evaluate(el => el === el.parentElement!.lastElementChild)).toBe(true);
 });
 test('model guidance has named companies and models without changing the plan', async ({ page }) => {
   await open(page);

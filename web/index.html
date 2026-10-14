@@ -928,14 +928,14 @@ window.TangoTime = (function () {
     var t = todayStr(), h = new Date().getHours(), list = entriesOn(t);
     var greet = h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
     var occupied = Time.occupiedMinutes(list), reserved = Time.occupiedMinutes(list.filter(function (e) { return e.kind === 'blank' && e.state === 'reserved'; }));
-    var html = '<div class="col"><p class="hello">' + greet + (S.name ? '，' + esc(S.name) : '') + '</p>' +
-      '<section class="time-overview" aria-label="今日时间"><div class="label">全天未排</div><div class="big" data-metric="unplanned">' + fmt(Time.unplannedMinutes(list, S.wake)) + '</div>' +
+    var overview = '<section class="time-overview full" aria-label="今日时间"><div class="label">全天未排</div><div class="big" data-metric="unplanned">' + fmt(Time.unplannedMinutes(list, S.wake)) + '</div>' +
       '<div class="budget-row"><span class="budget-chip">预算 <b>' + fmtPlain(S.wake) + '</b></span><span class="budget-chip">已排 <b>' + fmtPlain(occupied) + '</b></span><span class="budget-chip">预留 <b>' + fmtPlain(reserved) + '</b></span></div>' +
-      '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>全天未排 = 清醒预算 − 已安排。重叠时段只计一次，预留已包含在已排中；不代表睡前剩余时间。</p></details></section>' +
+      '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>全天未排 = 清醒预算 − 已安排。重叠时段只计一次，预留已包含在已排中；不代表睡前剩余时间。</p></details></section>';
+    var html = '<div class="col"><p class="hello">' + greet + (S.name ? '，' + esc(S.name) : '') + '</p>' +
       '<section class="voice" aria-label="记录"><button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section>' +
-      pendingChoices() + taskList(list, true) + '</div><div class="col">' + bubbleField() + picker() + '</div>';
+      pendingChoices() + taskList(list, true) + '</div><div class="col">' + bubbleField() + picker() + '</div>' + overview;
     return html;
   }
   function assistance(e) {
