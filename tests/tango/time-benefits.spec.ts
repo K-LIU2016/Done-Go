@@ -16,7 +16,12 @@ async function open(page: Page, patch: Record<string, unknown> = {}) {
   await page.goto('/');
 }
 async function state(page: Page) { return page.evaluate(() => JSON.parse(localStorage.getItem('leubai.web.v1')!)); }
+async function expandTasks(page: Page) {
+  const panel = page.locator('#task-advice');
+  if (await panel.getAttribute('open') === null) await panel.locator('summary').click();
+}
 async function finish(page: Page, minutes: string) {
+  await expandTasks(page);
   await page.locator('[data-act="task-finish"][data-id="paper"]').first().click();
   await page.locator('#finish-min').fill(minutes);
   await page.locator('#finish-ai').check();
@@ -31,6 +36,7 @@ test('the daily budget counts overlapping reservations once', async ({ page }) =
 });
 test('model guidance has named companies and models without changing the plan', async ({ page }) => {
   await open(page);
+  await expandTasks(page);
   const before = await state(page);
   await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
   await expect(page.locator('.sheet')).toContainText('Anthropic');
@@ -43,6 +49,7 @@ test('model guidance has named companies and models without changing the plan', 
 });
 test('generic work and meals receive scoped guidance without counting estimates as savings', async ({ page }) => {
   await open(page, { entries: [{ ...paper, id: 'work', title: '工作', kind: 'necessary' }, { ...paper, id: 'food', title: '吃饭', kind: 'connect', start: '12:00', end: '13:00' }] });
+  await expandTasks(page);
   await expect(page.locator('.task-list [data-act="ai-tools"]')).toHaveCount(2);
   await page.locator('[data-act="ai-tools"][data-id="food"]').click();
   await expect(page.locator('.sheet')).toContainText('准备环节');
@@ -57,6 +64,7 @@ test('generic work and meals receive scoped guidance without counting estimates 
 
 test('task-specific guidance prioritizes different models and includes executable prompts', async ({ page }, info) => {
   await open(page, { entries: [paper, { ...paper, id: 'code', title: '修复登录代码', kind: 'create' }, { ...paper, id: 'meeting', title: '世界旅游大会', kind: 'necessary' }] });
+  await expandTasks(page);
   const before = await state(page);
   const cases = [
     { id: 'paper', model: 'Claude', prompt: /页码/ },
@@ -78,6 +86,7 @@ test('task-specific guidance prioritizes different models and includes executabl
 
 test('short tasks cannot claim more saved minutes than their duration', async ({ page }) => {
   await open(page, { entries: [{ ...paper, end: '09:01' }] });
+  await expandTasks(page);
   const text = await page.locator('.task-list .ai-inline').innerText();
   const range = text.match(/(\d+)–(\d+) min/);
   expect(range).not.toBeNull();
@@ -116,6 +125,7 @@ test('a walk is reserved only after the user chooses it', async ({ page }) => {
 });
 test('completion rejects blank and negative actual durations', async ({ page }) => {
   await open(page);
+  await expandTasks(page);
   await page.locator('[data-act="task-finish"][data-id="paper"]').first().click();
   await page.locator('[data-act="finish-save"]').click();
   await expect(page.locator('#finish-error')).toBeVisible();
@@ -179,6 +189,7 @@ test('personal estimates remain separate from confirmed gains', async ({ page })
     { taskId: 'p1', date: '2026-10-12', before: 60, after: 40, usedAI: true, category: 'read', confirmed: true },
     { taskId: 'p2', date: '2026-10-13', before: 60, after: 30, usedAI: true, category: 'read', confirmed: true },
   ] });
+  await expandTasks(page);
   await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
   await expect(page.locator('.sheet')).toContainText('20–30 min');
   await expect(page.locator('.estimate-help summary')).toContainText('个人历史 · 2 次');
@@ -243,6 +254,7 @@ test('review stacks estimated and actual differences while today only shows the 
 
 test('model dialog traps keyboard focus and restores the opener', async ({ page }) => {
   await open(page);
+  await expandTasks(page);
   const opener = page.locator('[data-act="ai-tools"][data-id="paper"]').first();
   await opener.click();
   const last = page.locator('.sheet summary').last();
@@ -282,6 +294,7 @@ test('screens and dialogs fit the viewport in both themes and English', async ({
   await page.locator('#lang').selectOption('en');
   await expect(page.getByText('Unscheduled today', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await expandTasks(page);
   await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
   const box = await page.locator('.sheet').boundingBox();
   expect(box!.width).toBeLessThanOrEqual(info.project.use.viewport!.width);
@@ -293,4 +306,39 @@ test('screens and dialogs fit the viewport in both themes and English', async ({
   await expect(page.locator('.actual-tile')).toContainText('Actual time gained');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: info.outputPath('english-review.png'), fullPage: true });
+});
+
+test('task advice starts collapsed and keyboard expansion preserves tasks and the open state', async ({ page }, info) => {
+  await open(page);
+  const before = await state(page);
+  const panel = page.locator('#task-advice');
+  const summary = panel.locator('summary');
+  await expect(summary).toContainText('事项 · AI 建议');
+  await expect(panel.locator('.task-count')).toHaveText('1');
+  await expect(panel.locator('.task-card')).toBeHidden();
+  await expect(page.locator('.bubble').filter({ hasText: '读论文' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('task-advice-collapsed.png') });
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(panel.locator('.task-card')).toBeVisible();
+  await expect(panel).toContainText('预计省 15–20 min');
+  await page.locator('#lang').selectOption('en');
+  await expect(panel.locator('summary')).toContainText('Tasks · AI tips');
+  await expect(panel.locator('.task-card')).toBeVisible();
+  await page.locator('#lang').selectOption('zh');
+  await page.screenshot({ path: info.outputPath('task-advice-expanded.png') });
+  await summary.click();
+  await expect(panel.locator('.task-card')).toBeHidden();
+  expect(await state(page)).toEqual(before);
+  await page.reload();
+  await expect(panel.locator('.task-card')).toBeHidden();
+});
+
+test('empty task advice shows zero and its example is reachable after expansion', async ({ page }) => {
+  await open(page, { entries: [] });
+  await expect(page.locator('#task-advice .task-count')).toHaveText('0');
+  await expandTasks(page);
+  await expect(page.locator('#task-advice')).toContainText('还没有事项');
+  await page.locator('#task-advice [data-act="capture-example"]').click();
+  await expect(page.locator('#cap-text')).toHaveValue('上午九点到十点读论文');
 });

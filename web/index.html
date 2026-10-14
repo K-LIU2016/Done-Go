@@ -369,6 +369,16 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .metric-help[open] summary { color: var(--text); }
 .metric-help p { max-width: 48ch; margin-top: 8px; }
 .task-list { display: grid; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
+.task-list.task-advice { display: block; }
+.task-advice > summary { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; list-style: none; }
+.task-advice > summary::-webkit-details-marker { display: none; }
+.task-advice > summary h2 { margin: 0; min-width: 0; }
+.task-advice > summary:active { transform: translateY(1px); }
+.task-count { margin-inline-start: auto; color: var(--text-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.task-chevron { flex-shrink: 0; width: 18px; height: 18px; color: var(--text-2); }
+.task-advice[open] .task-chevron { transform: rotate(180deg); }
+.task-list-body { display: grid; gap: 12px; }
+.task-advice[open] .task-list-body { margin-top: 16px; }
 .timeline-list { padding: 0; border: 0; background: none; }
 .task-list > h2 { margin-bottom: 4px; }
 .task-card { padding: 16px; border: 1px solid var(--line); border-radius: 16px; display: grid; gap: 10px; }
@@ -932,14 +942,16 @@ window.TangoTime = (function () {
     var a = aiPlan(e); if (!a) return '';
     return '<div class="ai-inline"><span>✦ AI 辅助 · 预计省 ' + a.estimate.low + '–' + a.estimate.high + ' min</span><button class="btn sm" data-act="ai-tools" data-id="' + esc(e.id) + '">查看模型能力</button></div>';
   }
+  var taskAdviceOpen = false;
   function taskList(list, priority) {
     var tasks = list.slice().sort(function (a, b) { return priority ? P(a) - P(b) || toMin(a.start) - toMin(b.start) : toMin(a.start) - toMin(b.start); });
-    return '<section class="task-list' + (priority ? '' : ' timeline-list') + '" aria-label="事项列表">' + (priority ? '<h2>事项池</h2>' : '') + (tasks.length ? tasks.map(function (e) {
+    var header = priority ? '<details class="task-list task-advice" id="task-advice"' + (taskAdviceOpen ? ' open' : '') + '><summary><h2>事项 · AI 建议</h2><span class="task-count">' + tasks.length + '</span><svg class="task-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="task-list-body">' : '<section class="task-list timeline-list" aria-label="事项列表">';
+    return header + (tasks.length ? tasks.map(function (e) {
       var personal = e.kind === 'blank', title = personal && e.title === '留白' ? '自由安排' : e.title;
       return '<article class="task-card' + (priority ? '' : ' timeline-item') + '"><div class="task-head"><div class="task-title"><b>' + esc(title) + '</b><time>' + e.start + '–' + e.end + '</time></div><span class="small muted">' + (e.done ? '✓ 已完成' : personal ? '自己的时间' : PRIO_NAME[P(e)]) + '</span></div>' +
         (priority ? '' : '<p class="task-meta">' + (e.completion ? e.completion.actual : dur(e)) + ' min</p>') + assistance(e) +
         '<div class="task-actions"><button class="btn sm" data-act="leaf" data-id="' + esc(e.id) + '">详情</button>' + (!personal && !e.done ? '<button class="btn sm" data-act="task-finish" data-id="' + esc(e.id) + '">完成</button>' : '') + '</div></article>';
-    }).join('') : '<p class="muted">还没有事项</p><button class="btn sm" data-act="capture-example">＋ 试一条</button>') + '</section>';
+    }).join('') : '<p class="muted">还没有事项</p><button class="btn sm" data-act="capture-example">＋ 试一条</button>') + (priority ? '</div></details>' : '</section>');
   }
   function canUseTime(e) { return e.freed && (e.date > todayStr() || e.date === todayStr() && toMin(e.freed.start) >= nowMin()); }
   function timeChoice(e) {
@@ -1773,6 +1785,7 @@ window.TangoTime = (function () {
   // ---------- router ----------
   function route() { var h = (location.hash || '').replace('#', ''); return ['today', 'line', 'review', 'settings'].indexOf(h) >= 0 ? h : 'today'; }
   function render() {
+    var advice = document.getElementById('task-advice'); if (advice) taskAdviceOpen = advice.open;
     var r = route();
     document.getElementById('tabs').innerHTML = PAGES.map(function (p) { return '<a href="#' + p.id + '"' + (p.id === r ? ' aria-current="page"' : '') + '>' + p.label + '</a>'; }).join('');
     var fs = document.getElementById('footSet'); if (r === 'settings') fs.setAttribute('aria-current', 'page'); else fs.removeAttribute('aria-current');
@@ -1875,7 +1888,7 @@ window.TangoTime = (function () {
       }
       reserveFreed(ue, ud, us, +um, ut, guessKind(ut)); return;
     }
-    if (act === 'capture-example') { location.hash = '#today'; render(); var input = document.getElementById('cap-text'); input.value = '上午九点到十点读论文'; input.focus(); return; }
+    if (act === 'capture-example') { render(); var input = document.getElementById('cap-text'); input.value = '上午九点到十点读论文'; input.focus(); return; }
     if (act === 'copy-prompt') {
       var promptEl = document.getElementById('model-prompt');
       if (navigator.clipboard) navigator.clipboard.writeText(promptEl.value).then(function () { toast('已复制'); }, function () { promptEl.select(); toast('已选中'); }); else { promptEl.select(); toast('已选中'); } return;
@@ -1969,6 +1982,7 @@ window.TangoTime = (function () {
   var newCopy = {"全天未安排":["Unscheduled today","Не запланировано за день","เวลาที่ยังไม่ได้วางแผนวันนี้","وقت غير مجدول اليوم","오늘 미배정 시간"],"已确认腾出":["Confirmed time gained","Подтвержденное свободное время","เวลาที่ประหยัดได้ยืนยันแล้ว","وقت مستعاد مؤكد","확인된 확보 시간"],"事项池":["Tasks","Задачи","งาน","المهام","할 일"],"查看模型能力":["Model capabilities","Возможности модели","ความสามารถของโมเดล","قدرات النموذج","모델 기능"],"自己的时间":["Personal time","Личное время","เวลาส่วนตัว","وقت شخصي","나만의 시간"],"自由安排":["Keep it open","Оставить свободным","จัดเอง","اتركه مفتوحًا","자유롭게"],"时间树":["Time tree","Дерево времени","ต้นไม้เวลา","شجرة الوقت","시간 나무"],"列表":["List","Список","รายการ","قائمة","목록"],"AI 辅助机会":["AI assistance","Помощь ИИ","ความช่วยเหลือ AI","مساعدة الذكاء الاصطناعي","AI 도움"],"腾出时间记录":["Time gained","Освобожденное время","เวลาที่ได้คืน","الوقت المستعاد","확보 시간 기록"],"已用到自己的时间":["Personal time used","Личное время использовано","เวลาส่วนตัวที่ใช้จริง","وقت شخصي مستخدم","사용한 개인 시간"]};
   ["en", "ru", "th", "ar", "ko"].forEach(function (lang, i) { I18N[lang] = I18N[lang] || {}; Object.keys(newCopy).forEach(function (key) { I18N[lang][key] = newCopy[key][i]; }); });
   var flowCopy = {
+    '事项 · AI 建议': ['Tasks · AI tips', 'Задачи · советы ИИ', 'งาน · คำแนะนำ AI', 'المهام · نصائح AI', '할 일 · AI 팁'],
     '预计腾出': ['Estimated time gained', 'Ожидаемый выигрыш', 'เวลาที่คาดว่าจะได้คืน', 'الوقت المتوقع استعادته', '예상 확보 시간'],
     '实际腾出': ['Actual time gained', 'Фактический выигрыш', 'เวลาที่ได้คืนจริง', 'الوقت المستعاد فعليًا', '실제 확보 시간'],
     '腾出时间': ['Time gained', 'Выигрыш времени', 'เวลาที่ได้คืน', 'الوقت المستعاد', '확보 시간'],
