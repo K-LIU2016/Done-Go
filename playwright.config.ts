@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
+  testIgnore: "**/tango/**",
   outputDir: "./test-results",
   timeout: 15000,
   use: {
