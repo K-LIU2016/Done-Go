@@ -355,6 +355,14 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .metric-row .big { margin-top: 10px; font-size: clamp(44px, 4.6vw, 64px); }
 .metric-row .saved-value { font-size: 34px; margin-top: 10px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .scope-note { margin-top: 12px; font-size: 13px; color: var(--text-2); }
+.budget-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 18px; }
+.budget-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; color: var(--text-2); }
+.budget-chip b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+.metric-help { margin-top: 12px; font-size: 12px; color: var(--text-2); }
+.metric-help summary { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 0; list-style: none; cursor: pointer; }
+.metric-help summary::-webkit-details-marker { display: none; }
+.metric-help[open] summary { color: var(--text); }
+.metric-help p { max-width: 48ch; margin-top: 8px; }
 .task-list { display: grid; gap: 0; }
 .task-card { padding: 16px 0; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
 .task-card.is-done { color: var(--text-2); }
@@ -525,10 +533,10 @@ window.TangoTime = (function () {
   function dur(e) { var a = toMin(e.start), b = toMin(e.end); return b > a ? b - a : 0; }
   function fmt(m) {
     m = Math.max(0, Math.round(m)); var h = Math.floor(m / 60), r = m % 60;
-    if (!h) return '<span class="num">' + r + '</span><small>分钟</small>';
-    return '<span class="num">' + h + '</span><small>小时</small>' + (r ? '<span class="num">' + r + '</span><small>分</small>' : '');
+    if (!h) return '<span class="num">' + r + '</span><small> min</small>';
+    return '<span class="num">' + h + '</span><small> h</small>' + (r ? ' <span class="num">' + r + '</span><small> min</small>' : '');
   }
-  function fmtPlain(m) { m = Math.max(0, Math.round(m)); var h = Math.floor(m / 60), r = m % 60; return h ? h + ' 小时' + (r ? ' ' + r + ' 分' : '') : r + ' 分钟'; }
+  function fmtPlain(m) { m = Math.max(0, Math.round(m)); var h = Math.floor(m / 60), r = m % 60; return h ? h + ' h' + (r ? ' ' + r + ' min' : '') : r + ' min'; }
   function pct(x) { return Math.round(x * 100); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function uid() { return Math.random().toString(36).slice(2, 10); }
@@ -880,10 +888,11 @@ window.TangoTime = (function () {
     var greet = h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
     var occupied = Time.occupiedMinutes(list), reserved = Time.occupiedMinutes(list.filter(function (e) { return e.kind === 'blank' && e.state === 'reserved'; }));
     var html = '<div class="col"><p class="hello">' + greet + (S.name ? '，' + esc(S.name) : '') + '</p>' +
-      '<div><div class="label">全天未安排</div><div class="big" data-metric="unplanned">' + fmt(Time.unplannedMinutes(list, S.wake)) + '</div>' +
-      '<p class="scope-note">清醒预算 ' + fmtPlain(S.wake) + ' · 已安排 ' + fmtPlain(occupied) + '（含为自己预留 ' + fmtPlain(reserved) + '）</p><p class="scope-note">全天预算，不代表从现在到睡前的剩余时间。</p>' + savedLine() + '</div>' +
+      '<section class="time-overview" aria-label="今日时间"><div class="label">全天未排</div><div class="big" data-metric="unplanned">' + fmt(Time.unplannedMinutes(list, S.wake)) + '</div>' +
+      '<div class="budget-row"><span class="budget-chip">预算 <b>' + fmtPlain(S.wake) + '</b></span><span class="budget-chip">已排 <b>' + fmtPlain(occupied) + '</b></span><span class="budget-chip">预留 <b>' + fmtPlain(reserved) + '</b></span></div>' + savedLine() +
+      '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>全天未排 = 清醒预算 − 已安排。重叠时段只计一次，预留已包含在已排中；不代表睡前剩余时间。</p><p>腾出 ✓ = 已确认的计划 − 实际用时，最低为 0。实际用时包含准备、核对和返工；差值不等于 AI 的贡献。</p></details></section>' +
       '<section class="voice" aria-label="记录"><button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
-      '<form id="capForm" class="say"><input id="cap-text" maxlength="600" placeholder="说或写：下午两点到三点开会" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
+      '<form id="capForm" class="say"><input id="cap-text" maxlength="600" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section>' +
       pendingChoices() + taskList(list, true) + '</div><div class="col">' + bubbleField() + picker() + '</div>';
     return html;
@@ -1032,7 +1041,7 @@ window.TangoTime = (function () {
   }
   var PRIO = ['necessary', 'create', 'connect', 'explore', 'restore'];
   function savedLine() {
-    return '<div class="metric-row"><span class="label">已确认腾出</span><span class="saved-value" data-metric="saved">' + trialsSaved(todayStr()) + ' <small>min</small></span></div><p class="scope-note">计划 − 实际；AI 的贡献需另行验证。</p>';
+    return '<div class="metric-row"><span class="label" title="已确认腾出">腾出 ✓</span><span class="saved-value" data-metric="saved">' + trialsSaved(todayStr()) + ' <small>min</small></span></div>';
   }
   // ---------- today as bubbles: priority floats up and turns red ----------
   var PRIO_RE = [[1, /最优先|最重要|第一优先|优先级最高|非常重要|特别重要|一定要|必须|务必|紧急|十万火急|头等大事|最要紧/], [5, /不急|不重要|有空再|有空的话|随便|可做可不做/], [4, /次要|顺便|晚点也行|可以晚点|稍后|缓一缓|不那么急/], [2, /优先|重要|要紧|尽快|早点/]];
@@ -1815,6 +1824,17 @@ window.TangoTime = (function () {
   var newCopy = {"全天未安排":["Unscheduled today","Не запланировано за день","เวลาที่ยังไม่ได้วางแผนวันนี้","وقت غير مجدول اليوم","오늘 미배정 시간"],"已确认腾出":["Confirmed time gained","Подтвержденное свободное время","เวลาที่ประหยัดได้ยืนยันแล้ว","وقت مستعاد مؤكد","확인된 확보 시간"],"事项池":["Tasks","Задачи","งาน","المهام","할 일"],"查看模型能力":["Model capabilities","Возможности модели","ความสามารถของโมเดล","قدرات النموذج","모델 기능"],"自己的时间":["Personal time","Личное время","เวลาส่วนตัว","وقت شخصي","나만의 시간"],"自由安排":["Keep it open","Оставить свободным","จัดเอง","اتركه مفتوحًا","자유롭게"],"时间树":["Time tree","Дерево времени","ต้นไม้เวลา","شجرة الوقت","시간 나무"],"列表":["List","Список","รายการ","قائمة","목록"],"AI 辅助机会":["AI assistance","Помощь ИИ","ความช่วยเหลือ AI","مساعدة الذكاء الاصطناعي","AI 도움"],"腾出时间记录":["Time gained","Освобожденное время","เวลาที่ได้คืน","الوقت المستعاد","확보 시간 기록"],"已用到自己的时间":["Personal time used","Личное время использовано","เวลาส่วนตัวที่ใช้จริง","وقت شخصي مستخدم","사용한 개인 시간"]};
   ["en", "ru", "th", "ar", "ko"].forEach(function (lang, i) { I18N[lang] = I18N[lang] || {}; Object.keys(newCopy).forEach(function (key) { I18N[lang][key] = newCopy[key][i]; }); });
   var flowCopy = {
+    '{n}:{n}–{n}:{n} 开会': ['{n}:{n}–{n}:{n} Meeting', '{n}:{n}–{n}:{n} Встреча', '{n}:{n}–{n}:{n} ประชุม', '{n}:{n}–{n}:{n} اجتماع', '{n}:{n}–{n}:{n} 회의'],
+    '说或写事项': ['Speak or type a task', 'Назовите или введите задачу', 'พูดหรือพิมพ์งาน', 'قل أو اكتب مهمة', '할 일을 말하거나 입력하세요'],
+    '全天未排': ['Unscheduled today', 'Без плана', 'ยังไม่ได้วางแผน', 'غير مجدول اليوم', '오늘 미배정'],
+    '预算': ['Budget', 'Бюджет', 'งบเวลา', 'الميزانية', '예산'],
+    '已排': ['Scheduled', 'В плане', 'วางแผนแล้ว', 'مجدول', '배정'],
+    '腾出 ✓': ['Gained ✓', 'Выигрыш ✓', 'ได้คืน ✓', 'مستعاد ✓', '확보 ✓'],
+    '口径': ['How counted', 'Расчёт', 'วิธีนับ', 'طريقة الحساب', '계산 기준'],
+    '今日时间': ['Today’s time', 'Время сегодня', 'เวลาวันนี้', 'وقت اليوم', '오늘 시간'],
+    '查看计算口径': ['Show calculation details', 'Показать расчёт', 'ดูรายละเอียดการคำนวณ', 'عرض تفاصيل الحساب', '계산 기준 보기'],
+    '全天未排 = 清醒预算 − 已安排。重叠时段只计一次，预留已包含在已排中；不代表睡前剩余时间。': ['Unscheduled = awake budget − scheduled. Overlaps count once; reserved time is included in scheduled time. This is not the time left before bed.', 'Без плана = время бодрствования − запланированное. Пересечения считаются один раз; личное время включено в план. Это не остаток до сна.', 'เวลาที่ยังไม่ได้วางแผน = เวลาตื่น − เวลาที่วางแผน ช่วงซ้อนนับครั้งเดียว เวลาจองรวมในแผนแล้ว ไม่ใช่เวลาที่เหลือก่อนนอน', 'غير المجدول = ميزانية اليقظة − المجدول. يُحسب التداخل مرة واحدة، ويشمل المجدول الوقت المحجوز. ليس الوقت المتبقي قبل النوم.', '미배정 = 깨어 있는 시간 − 배정 시간. 겹치는 시간은 한 번만 집계하고 예약 시간은 배정에 포함합니다. 취침 전 남은 시간이 아닙니다.'],
+    '腾出 ✓ = 已确认的计划 − 实际用时，最低为 {n}。实际用时包含准备、核对和返工；差值不等于 AI 的贡献。': ['Gained ✓ = confirmed planned − actual time, minimum {n}. Include setup, checking and rework; the difference is not proof of AI impact.', 'Выигрыш ✓ = подтверждённый план − факт, минимум {n}. Включает подготовку, проверку и переделки; разница не доказывает вклад ИИ.', 'ได้คืน ✓ = แผนที่ยืนยัน − ใช้จริง ต่ำสุด {n} รวมเตรียม ตรวจสอบ และแก้ไข ส่วนต่างไม่ได้พิสูจน์ผลของ AI', 'مستعاد ✓ = المخطط المؤكد − الفعلي، بحد أدنى {n}. يشمل التحضير والتحقق وإعادة العمل؛ الفرق لا يثبت تأثير الذكاء الاصطناعي.', '확보 ✓ = 확인된 계획 − 실제 시간, 최솟값 {n}. 준비, 확인, 재작업을 포함하며 차이가 AI 효과를 입증하지는 않습니다.'],
     '提取摘要、方法与关键结论': ['Extract the summary, methods and key conclusions', 'Выдели резюме, методы и ключевые выводы', 'สรุปบทคัดย่อ วิธีการ และข้อสรุปหลัก', 'استخرج الملخص والطرق والنتائج الرئيسية', '요약, 방법, 핵심 결론 추출'],
     '起草、润色与查错': ['Draft, revise and check errors', 'Подготовь черновик, отредактируй и проверь ошибки', 'ร่าง ปรับภาษา และตรวจข้อผิดพลาด', 'اكتب مسودة ونقحها وافحص الأخطاء', '초안, 다듬기, 오류 확인'],
     '起草回复，由你确认': ['Draft a reply for your review', 'Черновик ответа для вашей проверки', 'ร่างคำตอบให้คุณตรวจสอบ', 'مسودة رد لمراجعتك', '확인할 답장 초안'],

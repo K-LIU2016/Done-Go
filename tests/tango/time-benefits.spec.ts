@@ -27,7 +27,7 @@ test('the daily budget counts overlapping reservations once', async ({ page }) =
   await open(page, { entries: [paper, { ...paper, id: 'second', start: '09:30', end: '10:30', kind: 'necessary' }] });
   await expect(page.locator('[data-metric="unplanned"]')).toContainText('14');
   await expect(page.locator('[data-metric="unplanned"]')).toContainText('30');
-  await expect(page.getByText('全天未安排', { exact: true })).toBeVisible();
+  await expect(page.getByText('全天未排', { exact: true })).toBeVisible();
 });
 test('model guidance has named companies and models without changing the plan', async ({ page }) => {
   await open(page);
