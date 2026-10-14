@@ -34,17 +34,55 @@ test('model guidance has named companies and models without changing the plan', 
   const before = await state(page);
   await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
   await expect(page.locator('.sheet')).toContainText('Anthropic');
-  await expect(page.locator('.sheet')).toContainText('Claude Sonnet 4.6');
-  await expect(page.locator('.sheet')).toContainText('待估算');
+  await expect(page.locator('.sheet')).toContainText('Claude Sonnet');
+  await expect(page.locator('.sheet')).toContainText('预计省 15–20 min');
+  await expect(page.locator('.guidance-steps li')).toHaveCount(3);
+  await expect(page.locator('#model-prompt')).toHaveValue(/页码/);
   await expect(page.locator('.sheet a[href^="https://"]')).not.toHaveCount(0);
   expect(await state(page)).toEqual(before);
 });
-test('generic work and meals do not acquire invented AI savings', async ({ page }) => {
+test('generic work and meals receive scoped guidance without counting estimates as savings', async ({ page }) => {
   await open(page, { entries: [{ ...paper, id: 'work', title: '工作', kind: 'necessary' }, { ...paper, id: 'food', title: '吃饭', kind: 'connect', start: '12:00', end: '13:00' }] });
-  await expect(page.locator('[data-act="ai-tools"]')).toHaveCount(0);
+  await expect(page.locator('.task-list [data-act="ai-tools"]')).toHaveCount(2);
+  await page.locator('[data-act="ai-tools"][data-id="food"]').click();
+  await expect(page.locator('.sheet')).toContainText('准备环节');
+  await expect(page.locator('.sheet')).toContainText('吃饭时长不压缩');
+  await page.locator('[data-act="close"]').first().click();
+  await expect(page.locator('[data-metric="saved"]')).toContainText('0');
+  expect((await state(page)).trials).toHaveLength(0);
   await page.goto('/#review');
-  await expect(page.locator('.ai-row')).toHaveCount(0);
+  await expect(page.locator('.ai-row')).toHaveCount(2);
   await expect(page.locator('#view')).not.toContainText('每天约省');
+});
+
+test('task-specific guidance prioritizes different models and includes executable prompts', async ({ page }, info) => {
+  await open(page, { entries: [paper, { ...paper, id: 'code', title: '修复登录代码', kind: 'create' }, { ...paper, id: 'meeting', title: '世界旅游大会', kind: 'necessary' }] });
+  const before = await state(page);
+  const cases = [
+    { id: 'paper', model: 'Claude', prompt: /页码/ },
+    { id: 'code', model: 'GPT', prompt: /复现|测试/ },
+    { id: 'meeting', model: 'Gemini', prompt: /纪要|待办/ },
+  ];
+  for (const item of cases) {
+    await page.locator('.task-list [data-act="ai-tools"][data-id="' + item.id + '"]').click();
+    await expect(page.locator('.tool').first()).toContainText(item.model);
+    await expect(page.locator('.tool').first().locator('.model-reason')).not.toBeEmpty();
+    await expect(page.locator('.guidance-steps li')).toHaveCount(3);
+    await expect(page.locator('#model-prompt')).toHaveValue(item.prompt);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    if (item.id === 'paper') await page.screenshot({ path: info.outputPath('task-guidance.png') });
+    await page.locator('[data-act="close"]').first().click();
+  }
+  expect(await state(page)).toEqual(before);
+});
+
+test('short tasks cannot claim more saved minutes than their duration', async ({ page }) => {
+  await open(page, { entries: [{ ...paper, end: '09:01' }] });
+  const text = await page.locator('.task-list .ai-inline').innerText();
+  const range = text.match(/(\d+)–(\d+) min/);
+  expect(range).not.toBeNull();
+  expect(Number(range![1])).toBeGreaterThanOrEqual(0);
+  expect(Number(range![2])).toBeLessThanOrEqual(1);
 });
 test('confirmed completion creates a choice, not an automatic reservation, and survives reload', async ({ page }) => {
   await open(page);
@@ -125,7 +163,7 @@ test('personal estimates remain separate from confirmed gains', async ({ page })
   ] });
   await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
   await expect(page.locator('.sheet')).toContainText('20–30 min');
-  await expect(page.locator('.sheet')).toContainText('2 次确认记录');
+  await expect(page.locator('.estimate-help summary')).toContainText('个人历史 · 2 次');
   await expect(page.locator('[data-metric="saved"]')).toContainText('0');
 });
 
@@ -170,8 +208,12 @@ test('model dialog traps keyboard focus and restores the opener', async ({ page 
   await open(page);
   const opener = page.locator('[data-act="ai-tools"][data-id="paper"]').first();
   await opener.click();
-  const last = page.locator('.sheet a').last();
+  const last = page.locator('.sheet summary').last();
   await last.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('.sheet button').first()).toBeFocused();
+  await last.click();
+  await page.locator('.sheet a').last().focus();
   await page.keyboard.press('Tab');
   await expect(page.locator('.sheet button').first()).toBeFocused();
   await page.keyboard.press('Escape');

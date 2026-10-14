@@ -363,16 +363,22 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .metric-help summary::-webkit-details-marker { display: none; }
 .metric-help[open] summary { color: var(--text); }
 .metric-help p { max-width: 48ch; margin-top: 8px; }
-.task-list { display: grid; gap: 0; }
-.task-card { padding: 16px 0; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.task-list { display: grid; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
+.timeline-list { padding: 0; border: 0; background: none; }
+.task-list > h2 { margin-bottom: 4px; }
+.task-card { padding: 16px; border: 1px solid var(--line); border-radius: 16px; display: grid; gap: 10px; }
 .task-card.is-done { color: var(--text-2); }
 .task-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .task-head h3 { margin: 0; font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
 .task-head b { min-width: 0; overflow-wrap: anywhere; }
+.task-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
+.task-title time { color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.task-head > .small { flex-shrink: 0; }
 .task-meta { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .task-actions, .tool-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .task-actions .btn { min-height: 40px; }
 .ai-inline { font-size: 13px; color: var(--text-2); display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.task-card .ai-inline { align-items: flex-start; flex-direction: column; gap: 2px; }
 .ai-inline button { border: 0; padding: 4px 0; background: none; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
 .time-choice { padding: 16px 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); display: grid; gap: 10px; }
 .choice-value { font-size: 24px; font-variant-numeric: tabular-nums; }
@@ -383,6 +389,11 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .tool { border-radius: 14px; padding: 14px; }
 .tool-links a { font-size: 13px; text-underline-offset: 3px; }
 .tools { max-height: none; overflow: visible; }
+.tool.is-recommended { border-color: var(--accent); }
+.model-rank { color: var(--accent); font-size: 12px; }
+.guidance-steps { margin: 10px 0 16px; padding-inline-start: 22px; font-size: 14px; }
+.guidance-steps li { padding: 5px 0 5px 4px; line-height: 1.65; }
+.estimate-help { margin: 10px 0; font-size: 12px; color: var(--text-2); }
 .form-error { color: var(--warm); font-size: 14px; }
 .bubbles.is-empty { height: 240px; }
 .bub-empty { pointer-events: auto; gap: 12px; }
@@ -498,16 +509,22 @@ window.TangoTime = (function () {
   var PAGES = [{ id: 'today', label: '今天' }, { id: 'line', label: '时间线' }, { id: 'review', label: '回顾' }];
   var STORE_KEY = 'leubai.web.v1';
   var RULES = [
-    { cat: 'read', re: /读论文|看论文|读文献|看文献|论文阅读|阅读文献|读报告|看报告/, method: '提取摘要、方法与关键结论' },
-    { cat: 'write', re: /修改|改稿|润色|校对|写论文|写报告/, method: '起草、润色与查错' },
+    { cat: 'code', re: /代码|编程|程序|开发|debug|bug|coding/i, method: '定位问题、生成修改与测试' },
+    { cat: 'read', re: /读论文|看论文|读文献|看文献|论文阅读|阅读文献|读报告|看报告|read.*paper/i, method: '提取摘要、方法与关键结论' },
+    { cat: 'write', re: /修改|改稿|润色|校对|写论文|写报告|撰写|文案|写作|写.*稿|writing/i, method: '起草、润色与查错' },
     { cat: 'mail', re: /邮件|email|回复|消息/i, method: '起草回复，由你确认' },
-    { cat: 'meet', re: /会议|纪要|组会|周会|例会|开会/, method: '整理会后纪要与待办' },
+    { cat: 'meet', re: /会议|大会|纪要|组会|周会|例会|开会|meeting|conference/i, method: '准备议程、整理纪要与待办' },
     { cat: 'screen', re: /论文|文献|筛选|初筛|材料|审稿/, method: '按问题筛选资料，核对出处' },
     { cat: 'admin', re: /报销|行政|表格|填报|审批|整理|申请/, method: '整理材料与检查表格' },
     { cat: 'grade', re: /批改|作业|出题/, method: '按标准生成初评，逐项复核' },
-    { cat: 'none', re: /通勤|路上|排队|吃饭|午饭|晚饭|早餐/, method: '' }
+    { cat: 'study', re: /学习|复习|备考|答疑|课程|上课|读书|看书|study|learn/i, method: '拆解知识点并生成自测' },
+    { cat: 'food', re: /吃饭|吃午饭|午饭|晚饭|早餐|聚餐|做饭|买菜|lunch|dinner|breakfast/i, method: '准备菜单与采购清单' },
+    { cat: 'travel', re: /旅行|旅游|行程|通勤|路上|出差|排队|travel|commute/i, method: '对比路线与准备清单' },
+    { cat: 'exercise', re: /运动|健身|跑步|游泳|散步|瑜伽|exercise|workout/i, method: '准备运动安排与装备' },
+    { cat: 'connect', re: /陪|家人|朋友|约会|聊天|聚会|电话|交流|沟通|面谈|family|friend/i, method: '准备活动与沟通提纲' },
+    { cat: 'none', re: /睡觉|睡眠|午睡|午休|休息|冥想|发呆|sleep|rest/i, method: '整理休息前待办' }
   ];
-  var DEFAULT_RULE = { cat: 'other', method: '' };
+  var DEFAULT_RULE = { cat: 'other', method: '拆解目标、资料与下一步' };
   var Time = window.TangoTime;
 
   // keyword → kind, checked in order; the first hit wins
@@ -549,11 +566,11 @@ window.TangoTime = (function () {
   function wk(d) { return (WEEK[LANG] || WEEK.zh)[d]; }
   function weekday(s) { var p = s.split('-'); return '日一二三四五六'.charAt(new Date(+p[0], +p[1] - 1, +p[2]).getDay()); }
   function hashInt(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
-  // Task guidance is optional; estimates come only from confirmed personal history.
+  // Advice is read-only. Scenario estimates never become confirmed savings.
   function aiPlan(e) {
     if (e.kind === 'blank' || e.done) return null;
-    var r = ruleFor(e.title); if (!r.method) return null;
-    return { before: dur(e), method: r.method, category: r.cat, estimate: Time.estimate(S.trials || [], r.cat, dur(e)) };
+    var r = ruleFor(e.title);
+    return { before: dur(e), method: r.method, category: r.cat, estimate: guidanceEstimate(r.cat, dur(e)) };
   }
   function ruleFor(title) { for (var i = 0; i < RULES.length; i++) if (RULES[i].re.test(title)) return RULES[i]; return DEFAULT_RULE; }
 
@@ -899,14 +916,14 @@ window.TangoTime = (function () {
   }
   function assistance(e) {
     var a = aiPlan(e); if (!a) return '';
-    return '<div class="ai-inline"><span>' + (a.category === 'read' ? '✦ 可用 AI 辅助理解论文' : '✦ 可用 AI 辅助') + '</span><button class="btn sm" data-act="ai-tools" data-id="' + esc(e.id) + '">查看模型能力</button></div>';
+    return '<div class="ai-inline"><span>✦ AI 辅助 · 预计省 ' + a.estimate.low + '–' + a.estimate.high + ' min</span><button class="btn sm" data-act="ai-tools" data-id="' + esc(e.id) + '">查看模型能力</button></div>';
   }
   function taskList(list, priority) {
     var tasks = list.slice().sort(function (a, b) { return priority ? P(a) - P(b) || toMin(a.start) - toMin(b.start) : toMin(a.start) - toMin(b.start); });
     return '<section class="task-list' + (priority ? '' : ' timeline-list') + '" aria-label="事项列表">' + (priority ? '<h2>事项池</h2>' : '') + (tasks.length ? tasks.map(function (e) {
       var personal = e.kind === 'blank', title = personal && e.title === '留白' ? '自由安排' : e.title;
-      return '<article class="task-card' + (priority ? '' : ' timeline-item') + '"><div class="task-head"><b>' + esc(title) + '</b><span class="small muted">' + (e.done ? '✓ 已完成' : personal ? '自己的时间' : PRIO_NAME[P(e)]) + '</span></div>' +
-        '<p class="task-meta">' + e.start + '–' + e.end + ' · ' + (e.completion ? e.completion.actual : dur(e)) + ' min</p>' + assistance(e) +
+      return '<article class="task-card' + (priority ? '' : ' timeline-item') + '"><div class="task-head"><div class="task-title"><b>' + esc(title) + '</b><time>' + e.start + '–' + e.end + '</time></div><span class="small muted">' + (e.done ? '✓ 已完成' : personal ? '自己的时间' : PRIO_NAME[P(e)]) + '</span></div>' +
+        (priority ? '' : '<p class="task-meta">' + (e.completion ? e.completion.actual : dur(e)) + ' min</p>') + assistance(e) +
         '<div class="task-actions"><button class="btn sm" data-act="leaf" data-id="' + esc(e.id) + '">详情</button>' + (!personal && !e.done ? '<button class="btn sm" data-act="task-finish" data-id="' + esc(e.id) + '">完成</button>' : '') + '</div></article>';
     }).join('') : '<p class="muted">还没有事项</p><button class="btn sm" data-act="capture-example">＋ 试一条</button>') + '</section>';
   }
@@ -1157,19 +1174,112 @@ window.TangoTime = (function () {
   // ---------- which AI for this task ----------
   // Capability examples link directly to the provider's model documentation.
   var MODEL_REFERENCES = [
-    ['Anthropic', 'Claude Sonnet 4.6', '长文与图像理解、写作修改；适合逐段解释论文或核对论证。', 'https://claude.ai/', 'https://platform.claude.com/docs/en/models/sonnet-4-6/overview'],
-    ['OpenAI', 'GPT-5.4', '推理、文件与图像分析；适合整理方法、比较结果和生成表格。', 'https://chatgpt.com/', 'https://developers.openai.com/api/docs/models/gpt-5.4'],
+    ['Anthropic', 'Claude Sonnet 5.5', '长上下文、可调推理；适合长资料梳理与修改。', 'https://claude.ai/', 'https://platform.claude.com/docs/en/models/sonnet-5-5/overview'],
+    ['OpenAI', 'GPT-5.4', '代码、推理与结构化输出；适合调试、分析和表格。', 'https://chatgpt.com/', 'https://developers.openai.com/api/docs/models/gpt-5.4'],
     ['Google', 'Gemini 3.1 Pro Preview', '多模态与长上下文；适合结合文档、图表整理资料。预览型号可能调整。', 'https://gemini.google.com/', 'https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview']
   ];
+  // Product hypotheses, not provider benchmarks. Rates are net planning estimates;
+  // capped preparation profiles never compress the physical activity itself.
+  var GUIDANCE = {
+    read: { order: [0, 2, 1], rate: [.25, 1 / 3], cap: 40,
+      reason: ['长上下文适合把论文放在同一对话中，围绕页码逐段追问；优先用于摘要初读。', 'Long context keeps the paper in one conversation for page-based follow-up. Start with an overview.'],
+      steps: [['电脑上传 PDF，补充研究问题与阅读目标。', 'Upload the PDF on a computer and state your research question.'], ['生成「问题／方法／结论／局限」表，每项附页码。', 'Request a question / method / result / limitation table with page references.'], ['对照原文核对关键图表，再让模型解释不懂的段落。', 'Check key figures against the paper, then ask about unclear passages.']],
+      prompt: ['按问题、方法、结论、局限整理这篇论文，每项附页码。先给摘要初读路线，再列出必须精读的段落。不要编造引用。', 'Summarize the paper by question, method, result and limitation, with page references. Suggest a first-pass reading path and sections to read closely. Do not invent citations.'],
+      device: ['电脑 · PDF 与原文并排', 'Computer · PDF beside the source'] },
+    write: { order: [0, 1, 2], rate: [.2, .35], cap: 45,
+      reason: ['长上下文便于连同要求和原稿修改，先保留观点，再调整结构与措辞。', 'Long context lets you revise the draft alongside its requirements, retaining your arguments.'],
+      steps: [['贴原稿，写明受众、字数与语气。', 'Paste the draft, audience, length and tone.'], ['先要修改提纲，再分段改写并标出改动。', 'Request an edit outline, then revise section by section with changes marked.'], ['核对事实、引用和语气，只采纳需要的修改。', 'Verify facts, citations and tone; accept only useful edits.']],
+      prompt: ['先指出结构问题，再给修改提纲。保留我的观点，逐段改写并标出改动；列出需要核对的事实与引用。', 'Identify structural issues before giving an edit outline. Keep my arguments, revise section by section, mark changes and list facts and citations to check.'],
+      device: ['电脑 · 原稿与修改稿对照', 'Computer · compare draft and revision'] },
+    code: { order: [1, 0, 2], rate: [.2, .4], cap: 60,
+      reason: ['代码能力与结构化输出适合定位报错、给最小修改及测试清单。', 'Coding and structured outputs suit error diagnosis, minimal patches and test plans.'],
+      steps: [['贴最小复现代码、报错与预期行为，移除密钥。', 'Provide minimal reproduction code, the error and expected behavior; remove secrets.'], ['要求解释根因，再给最小补丁与回归测试。', 'Ask for the root cause, a minimal patch and regression tests.'], ['本地运行测试，贴失败输出继续修正。', 'Run tests locally and share failing output for the next revision.']],
+      prompt: ['依据复现代码和报错定位根因。给最小补丁、运行命令和回归测试，解释边界情况；不要假设测试已经通过。', 'Find the root cause from the reproduction and error. Provide a minimal patch, commands, regression tests and edge cases. Do not assume tests passed.'],
+      device: ['电脑 · 编辑器与终端', 'Computer · editor and terminal'] },
+    meet: { order: [2, 0, 1], rate: [.1, 1 / 6], cap: 20, prep: true,
+      reason: ['多模态输入便于一起整理议程、讲义和转写；优先省准备与会后整理时间。', 'Multimodal input suits agendas, slides and transcripts together, saving preparation and follow-up time.'],
+      steps: [['会前上传议程与讲义，列出关注主题。', 'Before the meeting, upload the agenda and slides and list your priorities.'], ['生成 3 个提问；会后贴经许可取得的转写。', 'Generate 3 questions, then provide an authorized transcript after the meeting.'], ['输出「决策／负责人／截止时间」，逐项确认。', 'Extract decisions, owners and deadlines, then confirm each item.']],
+      prompt: ['会前按议程整理重点和 3 个提问；会后仅依据转写生成纪要与待办，注明负责人、截止时间和原文依据，未提及的写待确认。', 'Before the meeting, create agenda highlights and 3 questions. After it, extract minutes and actions from the transcript with owners, deadlines and source excerpts; flag missing details.'],
+      device: ['电脑 · 议程、讲义、转写', 'Computer · agenda, slides and transcript'] },
+    mail: { order: [0, 1, 2], rate: [.2, .4], cap: 15,
+      reason: ['把邮件上下文与语气要求放在一起，适合起草多种回复供你选择。', 'Combine message context and tone requirements to draft replies for your review.'],
+      steps: [['贴需要回复的内容，写清立场与收件人。', 'Paste the message, your position and the recipient.'], ['生成简短版与正式版，明确下一步。', 'Generate a short and a formal reply, both with a next step.'], ['核对姓名、日期与承诺，由你发送。', 'Check names, dates and commitments, then send it yourself.']],
+      prompt: ['按我的立场生成简短版和正式版回复。不要替我承诺未确认的事项，标出姓名、日期和需要我决定的内容。', 'Draft a short and a formal reply based on my position. Do not make unconfirmed commitments. Mark names, dates and decisions I must make.'],
+      device: ['手机 · 短回复；电脑 · 多封邮件', 'Phone · short replies; computer · multiple emails'] },
+    screen: { order: [2, 0, 1], rate: [.2, .35], cap: 40,
+      reason: ['长上下文与多模态输入适合并排整理多份材料，按统一标准初筛。', 'Long context and multimodal input suit comparing several documents against one screening rubric.'],
+      steps: [['上传材料，给出纳入与排除标准。', 'Upload the materials and inclusion / exclusion criteria.'], ['输出逐项对照表，附出处与不确定项。', 'Request a comparison table with sources and uncertainties.'], ['抽查原文，亲自决定保留哪些资料。', 'Check the source and make the final selection yourself.']],
+      prompt: ['按给定标准初筛材料，逐项列出符合、排除或待确认，并附页码或出处。不要补造缺失信息。', 'Screen the materials against my criteria. Mark include, exclude or uncertain with page references or sources. Do not invent missing information.'],
+      device: ['电脑 · 多份材料对照', 'Computer · compare multiple documents'] },
+    admin: { order: [1, 2, 0], rate: [.15, .3], cap: 30,
+      reason: ['结构化输出便于把零散材料变成字段表，并检查缺项和金额一致性。', 'Structured outputs turn scattered documents into fields and help identify missing items and inconsistent totals.'],
+      steps: [['上传脱敏材料与空表，写清字段规则。', 'Provide redacted materials, the blank form and field rules.'], ['生成字段表与缺项清单，保留来源。', 'Generate a field table and missing-item list with sources.'], ['逐项核对金额、日期与编号后再提交。', 'Check amounts, dates and IDs before submitting.']],
+      prompt: ['按字段规则提取材料，输出表格与缺项清单。每项保留来源；检查金额和日期，不猜缺失值。', 'Extract the materials using the field rules. Provide a table and missing-item list with sources. Check amounts and dates; do not guess missing values.'],
+      device: ['电脑 · 表格与材料', 'Computer · spreadsheet and documents'] },
+    grade: { order: [1, 0, 2], rate: [.15, .3], cap: 30,
+      reason: ['推理与结构化输出适合逐条对照评分标准，生成有依据的初评。', 'Reasoning and structured output suit rubric-based draft feedback with evidence.'],
+      steps: [['提供题目、评分标准与匿名作业。', 'Provide the task, rubric and anonymous submission.'], ['按评分项给证据与初评，标出不确定项。', 'Request evidence and draft feedback for each rubric item, with uncertainties.'], ['复核每项，亲自确定最终反馈与分数。', 'Review each item and determine the final feedback and score.']],
+      prompt: ['逐项对照评分标准给出证据和初评，标记不确定项，不替我确定最终分数。', 'Compare the work to each rubric item, provide evidence and draft feedback, flag uncertainties and leave final scores to me.'],
+      device: ['电脑 · 标准与作业并排', 'Computer · rubric beside the submission'] },
+    study: { order: [1, 0, 2], rate: [.15, .25], cap: 25,
+      reason: ['推理能力适合把难点拆成步骤，再用自测检查是否理解。', 'Reasoning suits step-by-step explanations followed by a self-test.'],
+      steps: [['贴教材片段，说明已有基础与难点。', 'Provide the textbook passage, your background and the difficult point.'], ['要求逐步解释，再出 3 道自测题。', 'Ask for a step-by-step explanation and 3 self-test questions.'], ['先自己作答，再对照教材核验讲解。', 'Answer yourself first, then check the explanation against the textbook.']],
+      prompt: ['根据教材解释我的难点，用一个例子逐步说明，再出 3 道自测题，先不提供答案。标出需要回看教材的地方。', 'Explain my difficulty from the textbook with a worked example. Give 3 self-test questions without answers first, and flag passages to reread.'],
+      device: ['电脑 · 教材；手机 · 追问', 'Computer · textbook; phone · follow-up questions'] },
+    food: { order: [1, 2, 0], rate: [.02, .05], cap: 5, prep: true,
+      reason: ['结构化输出适合把偏好、预算和现有食材变成菜单与清单。吃饭时长不压缩。', 'Structured output turns preferences, budget and ingredients into a menu and shopping list. Keep the meal time.'],
+      steps: [['输入人数、预算、忌口与现有食材。', 'Enter people, budget, dietary restrictions and available ingredients.'], ['要 2 个菜单或选店条件，生成采购清单。', 'Request 2 menus or restaurant criteria and a shopping list.'], ['自行核对食材、营业时间与价格再选择。', 'Verify ingredients, opening hours and prices before choosing.']],
+      prompt: ['按人数、预算、忌口和现有食材给 2 个菜单与采购清单。不虚构餐厅、价格或营业时间；吃饭时长不压缩。', 'Give 2 menus and a shopping list using my people count, budget, dietary restrictions and ingredients. Do not invent restaurants, prices or opening hours; keep meal time.'],
+      device: ['手机 · 菜单与采购清单', 'Phone · menu and shopping list'] },
+    travel: { order: [2, 1, 0], rate: [.03, .1], cap: 10, prep: true,
+      reason: ['多模态适合结合地图截图与行程约束对比路线；路况仍需地图应用确认。', 'Multimodal input combines map screenshots and itinerary constraints; verify traffic in a map app.'],
+      steps: [['输入起终点、到达时间、预算与交通偏好。', 'Enter endpoints, arrival time, budget and transport preferences.'], ['贴地图路线截图，要对比表与出门清单。', 'Provide route screenshots for a comparison table and departure checklist.'], ['在地图应用确认实时路况与班次，再出发。', 'Confirm live traffic and schedules in a map app before leaving.']],
+      prompt: ['按提供的路线截图比较耗时、换乘和费用，列出出门清单。不编造实时路况或班次，不承诺缩短实际路程。', 'Compare duration, transfers and cost from my route screenshots and create a departure checklist. Do not invent live traffic or schedules or promise a shorter journey.'],
+      device: ['手机 · 地图与行程', 'Phone · maps and itinerary'] },
+    exercise: { order: [1, 0, 2], rate: [.02, .05], cap: 5, prep: true,
+      reason: ['结构化输出适合整理已有运动计划与装备；运动时长按原计划保留。', 'Structured output organizes your existing exercise plan and equipment; keep the planned exercise time.'],
+      steps: [['输入已有运动计划、地点与可用装备。', 'Enter your existing exercise plan, venue and equipment.'], ['生成出门清单与准备顺序。', 'Generate a departure checklist and preparation order.'], ['核对装备与场地，按原计划运动。', 'Check equipment and venue, then follow your original plan.']],
+      prompt: ['根据我已有的运动计划整理装备清单和准备顺序，不缩短运动时长，不擅自提高强度。', 'Organize equipment and preparation for my existing exercise plan. Do not shorten exercise or increase intensity.'],
+      device: ['手机 · 装备与准备清单', 'Phone · equipment and preparation'] },
+    connect: { order: [0, 1, 2], rate: [.02, .05], cap: 5, prep: true,
+      reason: ['根据活动背景生成沟通提纲与选项，减少准备；陪伴和聊天时间保留。', 'Use the activity context for conversation outlines and options, keeping the time spent together.'],
+      steps: [['输入对象、共同兴趣与活动预算。', 'Enter who, shared interests and the activity budget.'], ['生成 2 个活动选项与准备清单。', 'Generate 2 activity options and a preparation checklist.'], ['与对方确认安排，把相处时间留给彼此。', 'Confirm with the other person and keep your time together.']],
+      prompt: ['根据共同兴趣与预算给 2 个活动选项和准备清单，不替对方作决定，不压缩陪伴时间。', 'Give 2 activity options and a checklist from our shared interests and budget. Do not decide for the other person or reduce time together.'],
+      device: ['手机 · 活动准备', 'Phone · activity preparation'] },
+    none: { order: [0, 1, 2], rate: [0, 0], cap: 0, prep: true,
+      reason: ['可整理休息前的待办，减少挂念；休息本身不估算省时。', 'Organize pending tasks before resting; no time saving is estimated for rest itself.'],
+      steps: [['仅在休息前，写下仍挂念的事项。', 'Before resting, list what is still on your mind.'], ['生成明天的简短待办，不追加任务。', 'Make a short list for tomorrow without adding work.'], ['保存清单，放下设备，按计划休息。', 'Save the list, put down the device and rest as planned.']],
+      prompt: ['把这些挂念整理成明天的简短待办，不添加任务，不压缩睡眠或休息时间。', 'Turn these concerns into a short list for tomorrow. Do not add tasks or reduce sleep or rest.'],
+      device: ['休息前 · 保存清单后放下设备', 'Before rest · save the list, then put down the device'] },
+    other: { order: [1, 0, 2], rate: [0, .05], cap: 5, prep: true,
+      reason: ['事项目标还不明确，先用结构化输出拆解准备工作，再确定适合的辅助方式。', 'The goal is unclear. Start by structuring preparation, then identify a suitable kind of assistance.'],
+      steps: [['补充要交付什么、已有资料与限制。', 'State the deliverable, available materials and constraints.'], ['把事项拆成准备、执行、核对 3 步。', 'Split it into preparation, execution and checking.'], ['只选可辅助的准备步骤，亲自确认结果。', 'Select an assistable preparation step and verify the result yourself.']],
+      prompt: ['先问清这项任务的交付物和约束，再拆成准备、执行、核对 3 步。只建议可辅助的部分，不假设已经完成。', 'Clarify the deliverable and constraints, then split preparation, execution and checking. Suggest only assistable steps; do not assume completion.'],
+      device: ['手机 · 拆解；电脑 · 资料处理', 'Phone · planning; computer · working with materials'] }
+  };
+  function guidanceText(pair) { return pair[LANG === 'zh' ? 0 : 1]; }
+  function guidanceEstimate(category, minutes) {
+    var p = GUIDANCE[category] || GUIDANCE.other;
+    minutes = Number.isFinite(minutes) ? Math.max(0, Math.min(1440, minutes)) : 0;
+    var history = !p.prep && Time.estimate(S.trials || [], category, minutes);
+    if (history) return { low: Math.min(minutes, history.low), high: Math.min(minutes, history.high), samples: history.samples, source: 'history' };
+    var ceiling = Math.min(minutes, p.cap);
+    return { low: Math.min(ceiling, Math.floor(minutes * p.rate[0])), high: Math.min(ceiling, Math.round(minutes * p.rate[1])), source: 'scenario' };
+  }
   function aiTools(title, minutes) {
-    var r = ruleFor(title), estimate = Time.estimate(S.trials, r.cat, minutes);
-    var prompt = '请帮助我完成「' + title + '」。' + (r.method || '') + '。只依据我提供的资料，标出依据的页码或原文；区分原文结论与推测，缺失的信息请明确说明。最后列出我需要亲自核对的内容。';
+    var r = ruleFor(title), p = GUIDANCE[r.cat] || GUIDANCE.other, estimate = guidanceEstimate(r.cat, minutes);
+    var prompt = (LANG === 'zh' ? '事项：「' + title + '」。' : 'Task: ' + title + '. ') + guidanceText(p.prompt);
+    function modelCard(index, rank) {
+      var m = MODEL_REFERENCES[index];
+      return '<li class="tool' + (rank === 0 ? ' is-recommended' : '') + '"><div class="tool-h"><b>' + m[1] + '</b><span class="small muted">' + m[0] + '</span></div><p class="model-rank">' + (rank === 0 ? '优先推荐' : '备选') + '</p><p class="small model-reason">' + esc(rank === 0 ? guidanceText(p.reason) : tr(m[2])) + '</p><div class="tool-links"><a href="' + m[3] + '" target="_blank" rel="noopener noreferrer">打开应用 ↗</a><a href="' + m[4] + '" target="_blank" rel="noopener noreferrer">官方能力说明 ↗</a></div></li>';
+    }
     openSheet('<div class="tools-h"><h2>查看模型能力</h2><button class="x" data-act="close" aria-label="关闭">×</button></div><p class="muted small">' + esc(title) + ' · 计划 ' + minutes + ' min</p>' +
-      '<p class="ai-tip">' + (estimate ? '个人历史差值 ' + estimate.low + '–' + estimate.high + ' min · ' + estimate.samples + ' 次确认记录' : '省时：待估算 · 完成后记录实际用时') + '</p>' +
-      '<p class="small muted">历史差值仅供参考，任务难度可能不同，不代表 AI 的因果贡献。</p>' +
-      '<details open><summary>怎么用</summary><p class="small">① 上传相关资料　② 提问　③ 核对原文</p><p class="small muted">电脑：阅读 PDF、核对图表；手机：短问题、语音追问。上传前检查资料是否可分享。</p><textarea class="prompt" id="model-prompt" readonly aria-label="可复制的提示词">' + esc(tr(prompt)) + '</textarea><button class="btn sm" data-act="copy-prompt">复制提问</button></details>' +
-      '<ol class="tools">' + MODEL_REFERENCES.map(function (m) { return '<li class="tool"><div class="tool-h"><b>' + m[1] + '</b><span class="small muted">' + m[0] + '</span></div><p class="small">' + m[2] + '</p><div class="tool-links"><a href="' + m[3] + '" target="_blank" rel="noopener noreferrer">打开应用 ↗</a><a href="' + m[4] + '" target="_blank" rel="noopener noreferrer">官方能力说明 ↗</a></div></li>'; }).join('') + '</ol>' +
-      '<p class="small muted">参考型号；应用内可选型号、价格与额度以官方为准。请在应用内核对实际所选型号。</p>');
+      '<p class="ai-tip">预计省 ' + estimate.low + '–' + estimate.high + ' min' + (p.prep ? ' · 准备环节' : '') + '</p>' +
+      '<details class="estimate-help"><summary>' + (estimate.source === 'history' ? '个人历史 · ' + estimate.samples + ' 次' : '场景估算 · 待实测') + ' ⓘ</summary><p>' + (estimate.source === 'history' ? '同类任务的个人计划与实际差值；任务难度可能不同，差值不等于 AI 的贡献。' : '按任务类型与计划时长估算，含准备与核对成本；实际可能为 0，完成后记录用时。') + '</p>' + (p.prep ? '<p>只估算准备与整理，原事项时长保留。</p>' : '') + '</details>' +
+      '<ul class="tools">' + modelCard(p.order[0], 0) + '</ul><h3>怎么用</h3><ol class="guidance-steps">' + p.steps.map(function (step) { return '<li>' + esc(guidanceText(step)) + '</li>'; }).join('') + '</ol>' +
+      '<p class="small muted">' + esc(guidanceText(p.device)) + '</p><details><summary>可复制的提示词</summary><textarea class="prompt" id="model-prompt" readonly aria-label="可复制的提示词">' + esc(prompt) + '</textarea><button class="btn sm" data-act="copy-prompt">复制提问</button></details>' +
+      '<details><summary>备选模型 · 2</summary><ul class="tools">' + p.order.slice(1).map(function (index) { return modelCard(index, 1); }).join('') + '</ul></details>' +
+      '<p class="small muted">参考型号；应用内可选型号、价格与额度以官方为准。上传前检查资料是否可分享。</p>');
   }
   var editPrio = 3;
   function editSheet() {
@@ -1800,7 +1910,14 @@ window.TangoTime = (function () {
   document.addEventListener('keydown', function (ev) {
     var sheet = document.querySelector('.sheet');
     if (sheet && ev.key === 'Tab') {
-      var focusable = Array.prototype.filter.call(sheet.querySelectorAll('a[href], button, input, textarea, select, summary, [tabindex="0"]'), function (e) { return !e.disabled && e.getClientRects().length; });
+      var focusable = Array.prototype.filter.call(sheet.querySelectorAll('a[href], button, input, textarea, select, summary, [tabindex="0"]'), function (e) {
+        if (e.disabled || !e.getClientRects().length) return false;
+        // Closed details can retain layout boxes, but only their summary is tabbable.
+        for (var parent = e.parentElement; parent && parent !== sheet; parent = parent.parentElement) {
+          if (parent.tagName === 'DETAILS' && !parent.open && parent.firstElementChild !== e) return false;
+        }
+        return true;
+      });
       var first = focusable[0], last = focusable[focusable.length - 1];
       if (!first) { ev.preventDefault(); sheet.focus(); }
       else if (ev.shiftKey && (document.activeElement === first || document.activeElement === sheet)) { ev.preventDefault(); last.focus(); }
@@ -1824,6 +1941,14 @@ window.TangoTime = (function () {
   var newCopy = {"全天未安排":["Unscheduled today","Не запланировано за день","เวลาที่ยังไม่ได้วางแผนวันนี้","وقت غير مجدول اليوم","오늘 미배정 시간"],"已确认腾出":["Confirmed time gained","Подтвержденное свободное время","เวลาที่ประหยัดได้ยืนยันแล้ว","وقت مستعاد مؤكد","확인된 확보 시간"],"事项池":["Tasks","Задачи","งาน","المهام","할 일"],"查看模型能力":["Model capabilities","Возможности модели","ความสามารถของโมเดล","قدرات النموذج","모델 기능"],"自己的时间":["Personal time","Личное время","เวลาส่วนตัว","وقت شخصي","나만의 시간"],"自由安排":["Keep it open","Оставить свободным","จัดเอง","اتركه مفتوحًا","자유롭게"],"时间树":["Time tree","Дерево времени","ต้นไม้เวลา","شجرة الوقت","시간 나무"],"列表":["List","Список","รายการ","قائمة","목록"],"AI 辅助机会":["AI assistance","Помощь ИИ","ความช่วยเหลือ AI","مساعدة الذكاء الاصطناعي","AI 도움"],"腾出时间记录":["Time gained","Освобожденное время","เวลาที่ได้คืน","الوقت المستعاد","확보 시간 기록"],"已用到自己的时间":["Personal time used","Личное время использовано","เวลาส่วนตัวที่ใช้จริง","وقت شخصي مستخدم","사용한 개인 시간"]};
   ["en", "ru", "th", "ar", "ko"].forEach(function (lang, i) { I18N[lang] = I18N[lang] || {}; Object.keys(newCopy).forEach(function (key) { I18N[lang][key] = newCopy[key][i]; }); });
   var flowCopy = {
+    '✦ AI 辅助 · 预计省 {n}–{n} min': ['✦ AI help · Est. save {n}–{n} min', '✦ ИИ · Экономия ~{n}–{n} min', '✦ AI ช่วย · ประหยัดประมาณ {n}–{n} min', '✦ مساعدة AI · توفير تقديري {n}–{n} min', '✦ AI 도움 · 예상 절약 {n}–{n} min'],
+    '预计省 {n}–{n} min': ['Est. save {n}–{n} min', 'Экономия ~{n}–{n} min', 'ประหยัดประมาณ {n}–{n} min', 'توفير تقديري {n}–{n} min', '예상 절약 {n}–{n} min'],
+    '准备环节': ['Preparation only', 'Только подготовка', 'เฉพาะการเตรียม', 'التحضير فقط', '준비 단계만'],
+    '优先推荐': ['First choice', 'Первый выбор', 'แนะนำอันดับแรก', 'الخيار الأول', '우선 추천'],
+    '备选': ['Alternative', 'Альтернатива', 'ตัวเลือกอื่น', 'بديل', '대안'],
+    '备选模型 · {n}': ['Other models · {n}', 'Другие модели · {n}', 'โมเดลอื่น · {n}', 'نماذج أخرى · {n}', '다른 모델 · {n}'],
+    '场景估算 · 待实测': ['Scenario estimate · untested', 'Оценка сценария · без замера', 'ประมาณตามงาน · ยังไม่วัดจริง', 'تقدير حسب المهمة · غير مقاس', '작업별 추정 · 미측정'],
+    '个人历史 · {n} 次': ['Your history · {n} records', 'Ваша история · {n} записей', 'ประวัติของคุณ · {n} ครั้ง', 'سجلك · {n} قياسات', '개인 기록 · {n}회'],
     '{n}:{n}–{n}:{n} 开会': ['{n}:{n}–{n}:{n} Meeting', '{n}:{n}–{n}:{n} Встреча', '{n}:{n}–{n}:{n} ประชุม', '{n}:{n}–{n}:{n} اجتماع', '{n}:{n}–{n}:{n} 회의'],
     '说或写事项': ['Speak or type a task', 'Назовите или введите задачу', 'พูดหรือพิมพ์งาน', 'قل أو اكتب مهمة', '할 일을 말하거나 입력하세요'],
     '全天未排': ['Unscheduled today', 'Без плана', 'ยังไม่ได้วางแผน', 'غير مجدول اليوم', '오늘 미배정'],
@@ -1909,6 +2034,22 @@ window.TangoTime = (function () {
     '只依据我提供的资料，标出依据的页码或原文；区分原文结论与推测，缺失的信息请明确说明。最后列出我需要亲自核对的内容。': ['Use only my sources and cite pages or passages. Separate source conclusions from inference, state missing information, and list what I must verify.', 'Используй только мои источники, указывай страницы или цитаты. Отделяй выводы источника от предположений, отмечай пробелы и что мне проверить.', 'ใช้เฉพาะข้อมูลที่ให้ ระบุหน้าหรือข้อความ แยกข้อสรุปต้นฉบับกับการคาดการณ์ ระบุข้อมูลที่ขาดและสิ่งที่ฉันต้องตรวจสอบ', 'استخدم مصادري فقط وحدد الصفحات أو النصوص. افصل النتائج عن الاستنتاجات، ووضح المعلومات الناقصة وما يجب علي التحقق منه.', '제공한 자료만 사용하고 페이지나 원문을 인용하세요. 원문 결론과 추측을 구분하고, 누락 정보와 직접 확인할 항목을 적어주세요.']
   };
   ["en", "ru", "th", "ar", "ko"].forEach(function (lang, i) { Object.keys(flowCopy).forEach(function (key) { I18N[lang][key] = flowCopy[key][i]; }); });
+  var guidanceCopy = {
+    '同类任务的个人计划与实际差值；任务难度可能不同，差值不等于 AI 的贡献。': 'Your planned–actual differences for similar tasks; difficulty varies and the difference is not proof of AI impact.',
+    '按任务类型与计划时长估算，含准备与核对成本；实际可能为 {n}，完成后记录用时。': 'Estimated by task type and duration, including setup and checking; actual savings may be {n}. Log time after finishing.',
+    '只估算准备与整理，原事项时长保留。': 'Only preparation and organization are estimated; keep the original activity time.',
+    '长上下文、可调推理；适合长资料梳理与修改。': 'Long context and adjustable reasoning for organizing and revising long documents.',
+    '代码、推理与结构化输出；适合调试、分析和表格。': 'Coding, reasoning and structured output for debugging, analysis and tables.',
+    '参考型号；应用内可选型号、价格与额度以官方为准。上传前检查资料是否可分享。': 'Reference models; check availability, pricing and limits in the app. Check sharing permission before uploading.'
+  };
+  // English fallback for newly added detailed recipes in other locales.
+  Object.keys(GUIDANCE).forEach(function (key) {
+    var p = GUIDANCE[key];
+    [p.reason, p.prompt, p.device].concat(p.steps).forEach(function (pair) { guidanceCopy[pair[0]] = pair[1]; });
+  });
+  ["en", "ru", "th", "ar", "ko"].forEach(function (lang) {
+    Object.keys(guidanceCopy).forEach(function (key) { I18N[lang][key] = guidanceCopy[key]; });
+  });
   var NUM_RE = /\d+(?:[.:]\d+)?/g, CJK_RE = /[一-鿿]/;
   var trCache = {}, fragRe = {};
   function fragmentsOf(lang) {
