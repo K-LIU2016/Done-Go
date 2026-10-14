@@ -68,9 +68,9 @@
 
 ## 本轮验证
 
-- `TANGO_REUSE_SERVER=1 node node_modules/@playwright/test/cli.js test --config playwright.tango.config.ts --reporter=line`：46/46 通过，覆盖桌面与 390px 手机、事项建议默认折叠、键盘展开、切换语言保留展开状态、折叠不改事项数据、空态示例、回顾减法公式、上下排列、预计快照保留、超时负值、日期范围、模型排序、步骤与提示词、估算上限、个人历史、完成与预留流程、数据保留、折叠面板焦点、明暗主题和英文。
+- `TANGO_REUSE_SERVER=1 node node_modules/@playwright/test/cli.js test --config playwright.tango.config.ts --reporter=line`：58/58 通过，覆盖桌面与 390px 手机、事项建议默认折叠、键盘展开、切换语言保留展开状态、折叠不改事项数据、空态示例、回顾减法公式、上下排列、预计快照保留、超时负值、日期范围、模型排序、步骤与提示词、估算上限、个人历史、完成与预留流程、数据保留、折叠面板焦点、明暗主题和英文；新增语音与时间树核验见 [tango-voice-and-tree.md](tango-voice-and-tree.md)。
 - `node --test tests/unit/tango-time.test.mjs`：11/11 通过，新增实际差值的超时、去重与日期筛选核验。
-- `node scripts/test-unit.mjs`：605 项，587 通过，18 失败；失败名称与本任务之前已验证的既有失败一致。该结果不代表整个仓库通过。
+- `node scripts/test-unit.mjs`：609 项，591 通过，18 失败；失败名称与本任务之前已验证的既有失败一致。该结果不代表整个仓库通过。
 - 用户实际回顾页：预计 24–43 min（360 − 317–336），实际 75 min（120 − 45），1 项完成；已观察到两块卡片依次上下排列。浏览器真实数据未注入测试样例。
 
 既有失败名称：
