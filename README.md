@@ -72,6 +72,7 @@ npm run build
 ## 文档
 
 - [本轮产品口径与实现说明](docs/TANGO-TIME-BENEFITS.md)
+- [本轮验证记录](docs/TANGO-VALIDATION-2026-10-14.md)
 - [修改计划](docs/superpowers/plans/2026-10-14-tango-time-benefits.md)
 - [工程参考记录](docs/ENGINEERING-REFERENCE-2026-10.md)（独立工程的历史资料，不作为当前网页的能力承诺）
 - [认证与会话](docs/AUTH.md)

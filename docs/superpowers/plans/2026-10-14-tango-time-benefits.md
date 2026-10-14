@@ -68,5 +68,4 @@
 - [x] Run static-app unit and browser tests, existing unit suite, build, and lint; distinguish existing failures.
 - [x] Inspect real light/dark desktop and mobile renders, selected task, completion, model sheet, empty state, and English/RTL navigation.
 - [x] Review the final diff for scope, storage compatibility, and accidental secrets.
-- [ ] Commit the changes, push to the authorized repository, and verify the remote commit. Report synchronization separately from deployment.
-
+- [x] Commit the changes, push to the authorized repository, and verify the remote commit. Report synchronization separately from deployment.
