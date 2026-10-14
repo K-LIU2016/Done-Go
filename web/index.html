@@ -1561,7 +1561,7 @@ window.TangoTime = (function () {
     lineDate = date;
     return '<div class="daynav full"><button data-act="day" data-d="-1" aria-label="前一天"><span class="arr">‹</span><span class="nb">' + esc(fmtDate(addDays(date, -1))) + '</span></button>' +
       '<div class="dn-mid"><span class="dn-full">' + esc(fmtDate(date, true)) + '</span></div><button data-act="day" data-d="1" aria-label="后一天"><span class="nb">' + esc(fmtDate(addDays(date, 1))) + '</span><span class="arr">›</span></button></div>' +
-      '<section class="full" aria-label="时间之树"><div class="tree-key"><span>嫩芽 → 花朵 → 果子</span></div><div class="tree-wrap">' + treeSvg(date, list) + '</div><p class="scope-note tree-hint">临近 1 h 开花 · 完成结果 · 记录保留</p></section>';
+      '<section class="full" aria-label="时间之树"><div class="tree-wrap">' + treeSvg(date, list) + '</div><p class="scope-note tree-hint">临近 1 h 开花 · 完成结果 · 记录保留</p></section>';
   }
   function leafSheet(e) {
     bubSel = e.id;
@@ -2074,7 +2074,6 @@ window.TangoTime = (function () {
     '嫩芽': ['Bud', 'Росток', 'ต้นอ่อน', 'برعم', '새싹'],
     '花朵': ['Flower', 'Цветок', 'ดอกไม้', 'زهرة', '꽃'],
     '果子': ['Fruit', 'Плод', 'ผล', 'ثمرة', '열매'],
-    '嫩芽 → 花朵 → 果子': ['Bud → Flower → Fruit', 'Росток → Цветок → Плод', 'ต้นอ่อน → ดอกไม้ → ผล', 'برعم → زهرة → ثمرة', '새싹 → 꽃 → 열매'],
     '临近 {n} h 开花 · 完成结果 · 记录保留': ['Blooms {n} h before · Fruit when done · Records stay', 'Цветёт за {n} h · Плод после завершения · Записи сохраняются', 'บานก่อน {n} h · เสร็จเป็นผล · เก็บบันทึก', 'تزهر قبل {n} h · ثمرة عند الإكمال · تبقى السجلات', '{n} h 전 개화 · 완료 시 열매 · 기록 유지'],
     '准备话筒…': ['Preparing microphone…', 'Подготовка микрофона…', 'เตรียมไมโครโฟน…', 'تجهيز الميكروفون…', '마이크 준비 중…'],
     '转写中…': ['Transcribing…', 'Распознавание…', 'ถอดเสียง…', 'تحويل الكلام إلى نص…', '받아쓰는 중…'],
