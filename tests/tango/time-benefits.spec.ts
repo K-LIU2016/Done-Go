@@ -137,14 +137,24 @@ test('review respects range selection and ignores legacy unconfirmed reductions'
   await page.locator('[data-act="range"][data-d="30"]').click();
   await expect(page.locator('[data-metric="review-saved"]')).toContainText('40');
 });
-test('time bands and list views both expose real task durations', async ({ page }) => {
+test('time tree alone preserves task times and opens task details from leaves', async ({ page }) => {
   await open(page);
   await page.goto('/#line');
-  await expect(page.locator('.duration-band')).toHaveCount(1);
-  await page.locator('[data-act="line-view"][data-v="list"]').click();
-  await expect(page.locator('.timeline-list')).toContainText('09:00–10:00');
-  await expect(page.locator('.timeline-list')).toContainText('60 min');
-  await page.screenshot({ path: test.info().outputPath('timeline-list.png'), fullPage: true });
+  await expect(page.locator('#tabs a[href="#line"]')).toHaveText('时间之树');
+  await expect(page.locator('[data-act="line-view"]')).toHaveCount(0);
+  await expect(page.locator('.duration-band')).toHaveCount(0);
+  await expect(page.locator('.timeline-list')).toHaveCount(0);
+  await expect(page.locator('.tree .leaf')).toHaveCount(1);
+  await expect(page.locator('.tree')).toContainText('09:00–10:00');
+  await page.locator('.tree .leaf').click();
+  await expect(page.locator('.sheet')).toContainText('09:00–10:00');
+  await expect(page.locator('.sheet')).toContainText('60 min');
+  await page.locator('[data-act="close"]').first().click();
+  await page.locator('[data-act="day"][data-d="1"]').click();
+  await expect(page.locator('.tree .leaf')).toHaveCount(0);
+  await page.locator('[data-act="day"][data-d="-1"]').click();
+  await expect(page.locator('.tree .leaf')).toHaveCount(1);
+  await page.screenshot({ path: test.info().outputPath('time-tree.png'), fullPage: true });
 });
 test('typing a task still creates an editable draft and preserves priority', async ({ page }) => {
   await open(page, { entries: [] });

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500&display=swap">
 <style>
-/* Layout: three screens (今天 / 时间线 / 回顾). One big number, one mic, one blank block. Phone: bottom tabs; ≥1100px: side rail. */
+/* Layout: three screens (今天 / 时间之树 / 回顾). One big number, one mic, one blank block. Phone: bottom tabs; ≥1100px: side rail. */
 :root {
   --bg: #EEF3EC;
   --surface: #FFFFFF;
@@ -405,14 +405,12 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .timeline-item { display: grid; gap: 8px; padding-block: 14px; border-bottom: 1px solid var(--line); }
 .timeline-item button { min-height: 44px; padding: 0; border: 0; background: none; text-align: start; color: var(--text); cursor: pointer; }
 .timeline-item .duration { color: var(--text-2); font-size: 13px; }
-.timeline-layout { display: grid; gap: 24px; align-items: start; }
-.timeline-help { display: grid; gap: 14px; }
-.duration-band { cursor: pointer; }
+.tree-hint { text-align: center; }
 .daynav .nb { display: none; }
 .tile-av .slot-label { font-size: 12px; }
 .fw-bar { background: none; border: 0; padding: 0; }
 button:active, .btn:active { transform: scale(.98); }
-@media (min-width: 1100px) { .timeline-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } .timeline-help { position: sticky; top: 24px; } .daynav .nb { display: inline; } }
+@media (min-width: 1100px) { .daynav .nb { display: inline; } }
 @media (max-width: 420px) { .app { padding-inline: 16px; } .draft { grid-template-columns: minmax(0, 1fr) auto; } .draft .pdot { grid-column: 1; justify-self: start; } .draft .kind { grid-column: 2; grid-row: 1; } .draft .x { grid-column: 2; grid-row: 2; } .draft .times { flex-wrap: wrap; } .metric-row .big small { font-size: 13px; } .metric-row .saved-value { font-size: 28px; } }
 @media (prefers-reduced-motion: reduce) { .mic.on::after { animation: none; } }
 </style>
@@ -506,7 +504,7 @@ window.TangoTime = (function () {
   };
   var KIND_ORDER = ['necessary', 'create', 'connect', 'explore', 'restore', 'blank'];
   var QUADS = ['restore', 'create', 'connect', 'explore'];
-  var PAGES = [{ id: 'today', label: '今天' }, { id: 'line', label: '时间线' }, { id: 'review', label: '回顾' }];
+  var PAGES = [{ id: 'today', label: '今天' }, { id: 'line', label: '时间之树' }, { id: 'review', label: '回顾' }];
   var STORE_KEY = 'leubai.web.v1';
   var RULES = [
     { cat: 'code', re: /代码|编程|程序|开发|debug|bug|coding/i, method: '定位问题、生成修改与测试' },
@@ -1367,7 +1365,7 @@ window.TangoTime = (function () {
     var tx0 = function (m) { return cx + 7 * Math.sin(m / 150); };
     var trunk = function (a, b) { var d = 'M' + tx0(a).toFixed(1) + ',' + y(a).toFixed(1); for (var m = a + 10; m <= b; m += 10) d += ' L' + tx0(Math.min(m, b)).toFixed(1) + ',' + y(Math.min(m, b)).toFixed(1); return d; };
     var cut = isToday ? Math.max(top, Math.min(bot, now)) : date < todayStr() ? bot : top;
-    var s = '<svg class="tree" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(dateLabel(date)) + '的时间树">' +
+    var s = '<svg class="tree" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="时间之树">' +
       '<defs><linearGradient id="skyBg" gradientUnits="userSpaceOnUse" x1="0" y1="' + y(top) + '" x2="0" y2="' + y(bot) + '">' + skyStops(top, bot, .22) + '</linearGradient>' +
       '<linearGradient id="skyTr" gradientUnits="userSpaceOnUse" x1="0" y1="' + y(top) + '" x2="0" y2="' + y(bot) + '">' + skyStops(top, bot) + '</linearGradient>' +
       '<filter id="glow" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="4"/></filter></defs>' +
@@ -1398,7 +1396,6 @@ window.TangoTime = (function () {
       var bx = 34, L = 26 + Math.min(d, 180) / 180 * 30, Wd = 8 + Math.min(d, 180) / 180 * 7, sx = tx0(toMin(e.start));
       var tipX = cx + side * (bx + L), sky = skyAt(toMin(e.start)), past = isToday ? toMin(e.end) <= now : date < todayStr();
       var col = e.kind === 'blank' ? sky : KINDS[e.kind].color;
-      s += '<rect class="duration-band" x="' + (cx - 12 - (list.indexOf(e) % 3) * 9) + '" y="' + y0 + '" width="6" height="' + Math.max(2, y(toMin(e.end)) - y0) + '" rx="3" fill="' + col + '"><title>' + esc(e.title) + ' · ' + d + ' min</title></rect>';
       s += '<g class="leaf' + (past ? '' : ' future') + '" data-act="leaf" data-id="' + e.id + '" tabindex="0" role="button" aria-label="' + esc(e.title) + ' ' + e.start + '–' + e.end + '">';
       s += '<path d="M' + sx.toFixed(1) + ',' + y0 + ' C' + (cx + side * 16) + ',' + y0 + ' ' + (cx + side * 14) + ',' + ly + ' ' + (cx + side * bx) + ',' + ly + '" fill="none" stroke="' + sky + '" stroke-width="2" stroke-linecap="round"/>';
       if (e.kind === 'blank') {
@@ -1457,13 +1454,11 @@ window.TangoTime = (function () {
   function careSheet(k, h) {
     openSheet('<h2 style="font-size:22px">' + CARE[k][0].replace('{h}', h) + '了</h2><p class="muted">' + CARE[k][1] + '</p><ul class="care-list">' + CARE_MORE[k].map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul><button class="btn primary wide" data-act="close">好</button>');
   }
-  var lineView = 'tree';
   function pageLine() {
     var date = lineDate || todayStr(), list = entriesOn(date);
     return '<div class="daynav full"><button data-act="day" data-d="-1" aria-label="前一天"><span class="arr">‹</span><span class="nb">' + esc(fmtDate(addDays(date, -1))) + '</span></button>' +
       '<div class="dn-mid"><span class="dn-full">' + esc(fmtDate(date, true)) + '</span></div><button data-act="day" data-d="1" aria-label="后一天"><span class="nb">' + esc(fmtDate(addDays(date, 1))) + '</span><span class="arr">›</span></button></div>' +
-      '<div class="seg full" role="group" aria-label="时间线视图"><button data-act="line-view" data-v="tree" aria-pressed="' + (lineView === 'tree') + '">时间树</button><button data-act="line-view" data-v="list" aria-pressed="' + (lineView === 'list') + '">列表</button></div>' +
-      (lineView === 'list' ? '<div class="full">' + taskList(list, false) + '</div>' : '<div class="timeline-layout full"><div class="tree-wrap">' + treeSvg(date, list) + '</div><aside class="timeline-help"><h2>这一天</h2><p class="small muted">色带长度 = 时长 · 叶子 = 事项<br>点叶子查看、完成或修改。</p>' + taskList(list, false) + '</aside></div>');
+      '<section class="full" aria-label="时间之树"><div class="tree-wrap">' + treeSvg(date, list) + '</div><p class="scope-note tree-hint">点叶子查看、完成或修改。</p></section>';
   }
   function leafSheet(e) {
     bubSel = e.id;
@@ -1846,7 +1841,6 @@ window.TangoTime = (function () {
       }
       reserveFreed(ue, ud, us, +um, ut, guessKind(ut)); return;
     }
-    if (act === 'line-view') { lineView = el.getAttribute('data-v') === 'list' ? 'list' : 'tree'; render(); return; }
     if (act === 'capture-example') { location.hash = '#today'; render(); var input = document.getElementById('cap-text'); input.value = '上午九点到十点读论文'; input.focus(); return; }
     if (act === 'copy-prompt') {
       var promptEl = document.getElementById('model-prompt');
@@ -1941,6 +1935,8 @@ window.TangoTime = (function () {
   var newCopy = {"全天未安排":["Unscheduled today","Не запланировано за день","เวลาที่ยังไม่ได้วางแผนวันนี้","وقت غير مجدول اليوم","오늘 미배정 시간"],"已确认腾出":["Confirmed time gained","Подтвержденное свободное время","เวลาที่ประหยัดได้ยืนยันแล้ว","وقت مستعاد مؤكد","확인된 확보 시간"],"事项池":["Tasks","Задачи","งาน","المهام","할 일"],"查看模型能力":["Model capabilities","Возможности модели","ความสามารถของโมเดล","قدرات النموذج","모델 기능"],"自己的时间":["Personal time","Личное время","เวลาส่วนตัว","وقت شخصي","나만의 시간"],"自由安排":["Keep it open","Оставить свободным","จัดเอง","اتركه مفتوحًا","자유롭게"],"时间树":["Time tree","Дерево времени","ต้นไม้เวลา","شجرة الوقت","시간 나무"],"列表":["List","Список","รายการ","قائمة","목록"],"AI 辅助机会":["AI assistance","Помощь ИИ","ความช่วยเหลือ AI","مساعدة الذكاء الاصطناعي","AI 도움"],"腾出时间记录":["Time gained","Освобожденное время","เวลาที่ได้คืน","الوقت المستعاد","확보 시간 기록"],"已用到自己的时间":["Personal time used","Личное время использовано","เวลาส่วนตัวที่ใช้จริง","وقت شخصي مستخدم","사용한 개인 시간"]};
   ["en", "ru", "th", "ar", "ko"].forEach(function (lang, i) { I18N[lang] = I18N[lang] || {}; Object.keys(newCopy).forEach(function (key) { I18N[lang][key] = newCopy[key][i]; }); });
   var flowCopy = {
+    '时间之树': ['Time tree', 'Дерево времени', 'ต้นไม้เวลา', 'شجرة الوقت', '시간 나무'],
+    '点叶子查看、完成或修改。': ['Tap a leaf to view, complete or edit.', 'Нажмите лист, чтобы открыть, завершить или изменить.', 'แตะใบไม้เพื่อดู ทำเสร็จ หรือแก้ไข', 'اضغط الورقة للعرض أو الإكمال أو التعديل.', '잎을 눌러 확인, 완료하거나 수정하세요.'],
     '✦ AI 辅助 · 预计省 {n}–{n} min': ['✦ AI help · Est. save {n}–{n} min', '✦ ИИ · Экономия ~{n}–{n} min', '✦ AI ช่วย · ประหยัดประมาณ {n}–{n} min', '✦ مساعدة AI · توفير تقديري {n}–{n} min', '✦ AI 도움 · 예상 절약 {n}–{n} min'],
     '预计省 {n}–{n} min': ['Est. save {n}–{n} min', 'Экономия ~{n}–{n} min', 'ประหยัดประมาณ {n}–{n} min', 'توفير تقديري {n}–{n} min', '예상 절약 {n}–{n} min'],
     '准备环节': ['Preparation only', 'Только подготовка', 'เฉพาะการเตรียม', 'التحضير فقط', '준비 단계만'],
