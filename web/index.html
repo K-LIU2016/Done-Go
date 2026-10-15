@@ -702,7 +702,7 @@ window.TangoTime = (function () {
     return entriesOn(date).filter(function (e) { return e.kind === 'blank' && e.state === 'reserved' && toMin(e.start) < b && a < toMin(e.end); });
   }
 
-  // ---------- speech → drafts ----------
+  // ---------- capture → tasks ----------
   var CN = { '零': 0, '〇': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
   function cnNum(s) {
     if (/^\d+(\.\d+)?$/.test(s)) return +s;
@@ -822,18 +822,36 @@ window.TangoTime = (function () {
         return JSON.parse(txt.slice(a, b + 1));
       }, function (e) { clearTimeout(timer); throw e; });
   }
-  var capState = { busy: false, msg: '', warn: false, listening: false };
+  var capState = { busy: false, msg: '', warn: false, listening: false, text: '', pendingText: '' };
   function setCap(msg, warn) { capState.msg = msg; capState.warn = !!warn; var el = document.getElementById('capStatus'); if (el) { el.textContent = msg; el.className = 'status' + (warn ? ' warn' : ''); } }
-  function parseInput(text) {
+  function parseInput(text, voiceSession) {
     text = String(text || '').trim();
     if (!text || capState.busy) return;
-    capState.busy = true; setCap('整理中…');
+    var voice = typeof voiceSession === 'number';
+    capState.busy = true; if (voice) micTranscribing = true; setCap('整理中…');
     var btn = document.getElementById('capGo'); if (btn) btn.disabled = true;
     var done = function (items, how) {
+      if (voice && voiceSession !== micSession) return;
+      if (voice) micTranscribing = false;
       capState.busy = false;
       if (how === 'ai') { var rp = ruleParse(text); if (rp.length === items.length) items.forEach(function (it, i) { if (rp[i].at) { it.start = rp[i].start; it.end = rp[i].end; } }); }
       var b2 = document.getElementById('capGo'); if (b2) b2.disabled = false;
       if (!items.length) { setCap('没听出时间，再具体一点', true); return; }
+      if (voice) {
+        var ready = [], pending = [];
+        items.forEach(function (item) {
+          item.prio = 3;
+          if (draftProblem(item)) pending.push(item);
+          else ready.push(item.kind === 'blank' ? blankEntry(item.date, item.start, item.end) : item);
+        });
+        S.drafts = S.drafts.concat(pending);
+        voiceBusy(true);
+        return place(ready, function (n) {
+          voiceBusy(false);
+          setCap((n ? '✓ ' + n + ' 项' : '未新增') + (pending.length ? ' · ' + pending.length + ' 项待补时间' : ''), pending.length > 0);
+        });
+      }
+      if (capState.pendingText.trim() === text) { capState.text = ''; capState.pendingText = ''; }
       S.drafts = S.drafts.concat(items); save();
       capState.msg = ''; capState.warn = false;
       render();
@@ -859,6 +877,16 @@ window.TangoTime = (function () {
         done(ruleParse(text), 'rule');
       });
     });
+  }
+  function showTranscript(text) {
+    capState.text = (capState.pendingText.trim() ? capState.pendingText.trim() + '；' : '') + text;
+    var input = document.getElementById('cap-text'); if (input) input.value = capState.text;
+  }
+  function acceptSpeech(text, session) {
+    text = window.TangoSpeech ? window.TangoSpeech.normalizeTranscript(text).trim() : String(text || '').trim();
+    if (!text) return setCap('没听到声音，再点一次说', true);
+    showTranscript(text);
+    parseInput(text, session);
   }
   // tap once to talk; it stops by itself after a short pause (or 30 s), then sorts what was said
   var rec = null, recQuiet = 0, recMax = 0;
@@ -906,11 +934,7 @@ window.TangoTime = (function () {
       }).then(function (data) {
         if (session !== micSession) return;
         voiceBusy(false);
-        var text = data && typeof data.text === 'string' ? window.TangoSpeech.normalizeTranscript(data.text).trim() : '';
-        if (!text) return setCap('没听到声音，再点一次说', true);
-        var input = document.getElementById('cap-text'); if (!input) return;
-        input.value = (input.value.trim() ? input.value.trim() + '\n' : '') + text;
-        parseInput(input.value);
+        acceptSpeech(data && typeof data.text === 'string' ? data.text : '', session);
       }).catch(function () {
         if (session === micSession) { voiceBusy(false); setCap('转写未成功 · 点击话筒重试', true); }
       }).finally(function () { clearTimeout(timer); if (speechRequest === controller) speechRequest = null; });
@@ -932,14 +956,14 @@ window.TangoTime = (function () {
     var isSafari = /Safari\//.test(navigator.userAgent) && !/Chrome|Chromium|Edg\//.test(navigator.userAgent);
     if (!SR) return fallback();
     if (rec) { rec.stop(); return; }
-    var heard = '', finalTxt = '';
+    var heard = '', finalTxt = '', session = micSession;
     var quiet = function (ms) { clearTimeout(recQuiet); recQuiet = setTimeout(function () { if (rec) rec.stop(); }, ms); };
     try {
       rec = new SR(); rec.lang = SPEECH_LANG[LANG] || 'zh-CN'; rec.interimResults = true; rec.continuous = true;
       rec.onresult = function (ev) {
         var interim = '';
         for (var i = ev.resultIndex; i < ev.results.length; i++) { if (ev.results[i].isFinal) finalTxt += ev.results[i][0].transcript; else interim += ev.results[i][0].transcript; }
-        heard = finalTxt + interim; if (ta) ta.value = heard;
+        heard = finalTxt + interim; showTranscript(heard);
         quiet(1600);
       };
       rec.onerror = function (ev) {
@@ -954,7 +978,7 @@ window.TangoTime = (function () {
       };
       rec.onend = function () {
         var had = rec !== null; rec = null; clearTimeout(recQuiet); clearTimeout(recMax); capState.listening = false; micUi();
-        if (had && ta && heard.trim()) parseInput(ta.value); else if (had) setCap('没听到声音，再点一次说', true);
+        if (had && session === micSession) acceptSpeech(heard, session);
       };
       rec.start(); capState.listening = true; micUi(); setCap('在听…说完会自动停');
       quiet(8000); recMax = setTimeout(function () { if (rec) rec.stop(); }, 30000);
@@ -996,7 +1020,7 @@ window.TangoTime = (function () {
       '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>全天未排 = 清醒预算 − 已安排。重叠时段只计一次，预留已包含在已排中；不代表睡前剩余时间。</p></details></section>';
     var html = '<div class="col"><p class="hello">' + greet + (S.name ? '，' + esc(S.name) : '') + '</p>' +
       '<section class="voice" aria-label="记录"><button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
-      '<form id="capForm" class="say"><input id="cap-text" maxlength="600" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
+      '<form id="capForm" class="say"><input id="cap-text" maxlength="600" value="' + esc(capState.text) + '" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section>' +
       pendingChoices() + taskList(list, true) + '</div><div class="col">' + bubbleField() + picker() + '</div>' + overview;
     return html;
@@ -1965,7 +1989,7 @@ window.TangoTime = (function () {
       }
       reserveFreed(ue, ud, us, +um, ut, guessKind(ut)); return;
     }
-    if (act === 'capture-example') { render(); var input = document.getElementById('cap-text'); input.value = '上午九点到十点读论文'; input.focus(); return; }
+    if (act === 'capture-example') { capState.text = capState.pendingText = '上午九点到十点读论文'; render(); document.getElementById('cap-text').focus(); return; }
     if (act === 'copy-prompt') {
       var promptEl = document.getElementById('model-prompt');
       if (navigator.clipboard) navigator.clipboard.writeText(promptEl.value).then(function () { toast('已复制'); }, function () { promptEl.select(); toast('已选中'); }); else { promptEl.select(); toast('已选中'); } return;
@@ -2014,9 +2038,12 @@ window.TangoTime = (function () {
     d[f] = v;
     save(); setTimeout(render, 0);
   });
+  document.addEventListener('input', function (ev) {
+    if (ev.target.id === 'cap-text') capState.text = capState.pendingText = ev.target.value;
+  });
   document.addEventListener('submit', function (ev) {
     ev.preventDefault();
-    if (ev.target.id === 'capForm') return parseInput(document.getElementById('cap-text').value);
+    if (ev.target.id === 'capForm') { if (!capState.listening && !micLoading) return parseInput(capState.pendingText); return; }
     if (ev.target.id === 'setForm') {
       S.name = document.getElementById('s-name').value.trim();
       S.sound = document.getElementById('s-sound').checked;

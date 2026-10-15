@@ -15,7 +15,9 @@ try {
   $recognizer.LoadGrammar([System.Speech.Recognition.DictationGrammar]::new())
   $recognizer.SetInputToWaveFile($AudioPath)
   $phrases = [System.Collections.Generic.List[string]]::new()
-  while ($null -ne ($result = $recognizer.Recognize([TimeSpan]::FromSeconds(8)))) {
+  # At EOF the desktop recognizer can detach its input after returning the last
+  # phrase. Calling Recognize again then throws and used to discard every phrase.
+  while ($null -ne $recognizer.AudioFormat -and $null -ne ($result = $recognizer.Recognize([TimeSpan]::FromSeconds(8)))) {
     if ($result.Confidence -ge 0.15) { $phrases.Add($result.Text) }
     if (($phrases -join ' ').Length -ge 600) { break }
   }
