@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { isIP } from 'node:net';
 import { readFile } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +31,10 @@ export function createTangoServer(options = {}) {
     if (pathname === '/api/status' || pathname === '/api/speech' || pathname === '/api/speech/transcribe' || pathname.startsWith('/api/assistant/') || pathname === '/api/discovery') {
       apiRequest = true;
       const port = server.address()?.port;
-      const allowedHost = req.headers.host === 'localhost:' + port || req.headers.host === '127.0.0.1:' + port;
+      const boundAddress = server.address()?.address;
+      const allowedHosts = ['localhost:' + port, '127.0.0.1:' + port];
+      if (isIP(boundAddress) === 4 && boundAddress !== '127.0.0.1' && boundAddress !== '0.0.0.0') allowedHosts.push(boundAddress + ':' + port);
+      const allowedHost = allowedHosts.includes(req.headers.host);
       if (!allowedHost || (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host)) { send(403, { error: 'origin-rejected' }); return; }
       if (pathname.startsWith('/api/assistant/') || pathname === '/api/discovery') {
         if (pathname === '/api/assistant/config') {
@@ -117,7 +121,7 @@ export function createTangoServer(options = {}) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const bind = process.env.TANGO_BIND === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1';
+  const bind = isIP(process.env.TANGO_BIND) ? process.env.TANGO_BIND : '127.0.0.1';
   const port = Number.isInteger(Number(process.env.TANGO_PORT)) && Number(process.env.TANGO_PORT) > 0 ? Number(process.env.TANGO_PORT) : 5207;
   const projectRoot = fileURLToPath(new URL('../', import.meta.url));
   try { await applyDotEnv({ projectRoot }); } catch { process.stderr.write('TANGO_DOTENV_INVALID: .env could not be read; environment unchanged.\n'); }
@@ -127,5 +131,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   let assistant = createAssistant({ config });
   const delegate = { configuration: () => assistant.configuration(), chat: (input, signal) => assistant.chat(input, signal), streamChat: (input, signal) => assistant.streamChat(input, signal) };
   const store = { save: async patch => { await saveAssistantMetadata({ projectRoot, patch }); config = await loadAssistantConfig({ projectRoot }); assistant = createAssistant({ config }); } };
-  createTangoServer({ assistant: delegate, assistantConfigStore: store }).listen(port, bind, () => process.stdout.write('Tango local server: http://127.0.0.1:' + port + '\n'));
+  createTangoServer({ assistant: delegate, assistantConfigStore: store }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
 }

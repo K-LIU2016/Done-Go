@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { request } from 'node:http';
+import { networkInterfaces } from 'node:os';
 import { createTangoServer } from '../../scripts/serve-tango.mjs';
 import { createAssistant } from '../../scripts/ai-assistant.mjs';
 
@@ -113,4 +114,20 @@ test('assistant chat streams SSE frames and surfaces mid-stream failures as erro
   const failed = await rawCall(failPort, '/api/assistant/chat', { method: 'POST', headers: failHeaders, body: '{"prompt":"hello","mode":"chat","stream":true}' });
   assert.equal(failed.status, 200);
   assert.equal(failed.text, 'data: {"text":"一"}\n\ndata: {"error":"ai-upstream-failed"}\n\n');
+});
+
+test('assistant routes admit the explicitly bound IPv4 host and still reject unbound hosts', async t => {
+  const address = Object.values(networkInterfaces()).flat().find(i => i && i.family === 'IPv4' && !i.internal)?.address;
+  if (!address) { t.skip('no external IPv4 interface to bind'); return; }
+  const server = createTangoServer({ assistant: { configuration: () => ({ available: false, provider: null, model: null, destination: null }), chat: async () => ({ content: [{ type: 'text', text: 'unused' }] }) }, discovery: { get: async topic => ({ items: [], retrievedAt: '2026-10-18T00:00:00Z', stale: false, failures: [], topic }) } });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, address, resolve); });
+  const port = server.address().port;
+  const ask = hostHeader => new Promise((resolve, reject) => {
+    const req = request({ host: address, port, path: '/api/assistant/config', headers: { Host: hostHeader } }, res => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+    req.on('error', reject); req.end();
+  });
+  assert.equal(await ask(address + ':' + port), 200);
+  assert.equal(await ask('192.0.2.1:' + port), 403);
+  assert.equal(await ask('evil.example:' + port), 403);
 });
