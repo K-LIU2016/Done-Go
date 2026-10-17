@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """探戈 Done&Go self-hosted server: serves this folder and forwards AI calls to a local LLM.
 
-    python3 web/server.py --port 8737 --config ~/.config/leubai/llm.json
+    python3 web/server.py --port 8737 --config ~/.config/tango-donego/llm.json
 
 The config file stays on the host (never in the repo):
 
@@ -166,8 +166,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--host', default='127.0.0.1')
     ap.add_argument('--port', type=int, default=8737)
-    ap.add_argument('--config', default=os.path.expanduser('~/.config/leubai/llm.json'))
-    ap.add_argument('--board', default=os.path.expanduser('~/.local/share/leubai/board.json'))
+    ap.add_argument('--config', default=os.path.expanduser('~/.config/tango-donego/llm.json'))
+    ap.add_argument('--board', default=os.path.expanduser('~/.local/share/tango-donego/board.json'))
     a = ap.parse_args()
     Handler.cfg_path = a.config
     Handler.board_path = a.board

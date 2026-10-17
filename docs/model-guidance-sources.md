@@ -14,7 +14,7 @@
 
 ## 估算假设
 
-没有至少 2 条同类已确认个人记录时，按类型和计划时长给出场景区间；这些比例尚未经过用户实验。不是厂商提供的省时数据，不写入已确认腾出时间，不自动更改计划。
+当前版本不再把场景比例直接展示为“预计省 X–Y 分钟”。下面的比例保留为历史产品假设，供实验设计和回归分析使用；它们尚未经过用户实验，也不是厂商提供的省时数据。没有至少 2 条同类、去重、使用 AI 且已验收的个人记录时，界面显示“时间收益待实测 · 样本不足”，不会把假设写入已确认腾出时间，也不会自动更改计划。
 
 | 场景 | 初始净省时假设 | 上限 |
 | --- | --- | --- |
@@ -31,7 +31,7 @@
 | 不明确任务的计划准备 | 0%–5% | 5 min |
 | 睡眠、休息 | 0% | 0 min |
 
-例如 60 min 论文摘要初读展示 15–20 min，不表示完整精读或理解已完成。比例按包含准备、核对、返工的净用时设定，实际收益可能为 0 或负值。低值向下取整、高值四舍五入，并限制在计划时长及场景上限内。
+这些比例只用于历史数据迁移、实验分层和内部对照。例如旧版本曾把 60 min 论文摘要初读映射为 15–20 min；这不是当前 UI 承诺，也不表示完整精读或理解已完成。实际收益可能为 0 或负值，且应包含准备、执行、核对和返工。
 
 准备类建议仅处理菜单、路线比较、装备或活动清单；保留吃饭、参会、运动、陪伴及休息本身的时长。未知任务建议先明确交付物，避免虚构具体任务内容。
 
@@ -68,10 +68,13 @@
 
 ## 本轮验证
 
-- `TANGO_REUSE_SERVER=1 node node_modules/@playwright/test/cli.js test --config playwright.tango.config.ts --reporter=line`：58/58 通过，覆盖桌面与 390px 手机、事项建议默认折叠、键盘展开、切换语言保留展开状态、折叠不改事项数据、空态示例、回顾减法公式、上下排列、预计快照保留、超时负值、日期范围、模型排序、步骤与提示词、估算上限、个人历史、完成与预留流程、数据保留、折叠面板焦点、明暗主题和英文；新增语音与时间树核验见 [tango-voice-and-tree.md](tango-voice-and-tree.md)。
-- `node --test tests/unit/tango-time.test.mjs`：11/11 通过，新增实际差值的超时、去重与日期筛选核验。
+- 既有浏览器场景此前记录为 58/58 通过；本轮新增的 P0 场景未完成真实浏览器执行：原端口 5207 被占用，临时端口 5208 请求本机服务返回 EACCES，Edge 也因当前环境权限退出。因此不能把本轮新增场景标为浏览器通过。
+- `node --test tests/unit/tango-time.test.mjs tests/unit/tango-privacy.test.mjs`：19/19 通过，覆盖已验收收益、待验收/返工、个人样本、导入校验、密钥与自定义接口约束。
+- `npm run build`：通过。
+- `node --check web/privacy.js`：通过。
+- `git diff --check`：通过。
 - `node scripts/test-unit.mjs`：609 项，591 通过，18 失败；失败名称与本任务之前已验证的既有失败一致。该结果不代表整个仓库通过。
-- 用户实际回顾页：预计 24–43 min（360 − 317–336），实际 75 min（120 − 45），1 项完成；已观察到两块卡片依次上下排列。浏览器真实数据未注入测试样例。
+- 浏览器真实数据未注入测试样例；页面/UI行为以单元测试、静态代码核验和既有场景记录为依据。
 
 既有失败名称：
 
@@ -82,7 +85,7 @@
 5. desktop startOperation uses shared immutable workflow command execution
 6. desktop readbackOperation uses shared immutable workflow command execution
 7. public Host requires an Origin for writes and matching Origin lets an admin save verified settings
-8. LEUBAI_AUTH_DISABLED=1 preserves loopback settings access and skips sqlite initialization
+8. TANGO_AUTH_DISABLED=1 preserves loopback settings access and skips sqlite initialization
 9. store: unreadable file is an explicit error, not an empty config
 10. save requires matching proof; verified save persists safe settings with 0600/0700 modes
 11. restart keeps verified config and generate returns model text with requestId
@@ -92,6 +95,6 @@
 15. oversized bodies receive the typed 413 response instead of a connection reset
 16. ModelScope launcher rejects unsafe origins before creating runtime state
 17. ModelScope launcher cannot disable authentication
-18. loopback LEUBAI_HOST starts, reports the bound port and exits cleanly on SIGTERM
+18. loopback TANGO_HOST starts, reports the bound port and exits cleanly on SIGTERM
 
 未验证：省时区间的用户实验、每种模型的任务对照评测、所有外部消费应用的账户型号可用性；详细步骤未完整翻译为俄文、泰文、阿拉伯文或韩文。

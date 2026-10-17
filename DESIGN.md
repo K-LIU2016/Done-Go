@@ -1,10 +1,10 @@
-# LeuBai V2 Design System
+# Tango Done&Go Design System
 
 Existing-system extraction, 2026-09-12. This codifies the shipped token layer and known component patterns, not a new visual direction or a claim that all 18 screens have passed fidelity QA. Source priority: explicit user instructions, supplied `design/` references, `docs/PRD.md`, `docs/SETTINGS-AND-INK-ADDENDUM.md`, then existing code. Default porcelain and optional ink are separate acceptance surfaces.
 
 ## 1. Atmosphere & Identity
 
-LeuBai / 留白 is a quiet personal-time instrument. Default porcelain follows the supplied 18-screen references: light ceramic surfaces, clear Song-style headings, a narrow icon rail, readable responsibilities and protected time. Optional ink is contemporary Eastern paper-and-ink, not antique decoration: warmer paper, restrained cinnabar, precise labels, sparse ornaments outside reading areas. Never rename the product LiuBai. Business fixture state remains explicitly labelled independently of LLM connectivity.
+Canonical product identity: **探戈 Done&Go**. The product is a personal agency layer for recording intent, negotiating responsibility, authorizing bounded execution, and making recovered time visible. Historical porcelain references may inform visual tokens only; they do not define product identity or business behavior. Business fixture state remains explicitly labelled independently of LLM connectivity.
 
 ## 2. Color
 
@@ -43,7 +43,7 @@ Final measured alignment adjustment: S08 content starts at x156 and heading is 6
 - Shell / MobileChrome: existing shared navigation and framing components. Navigation uses links, active state plus text, visible keyboard focus. Preserve routes and scroll ownership.
 - Paper/porcelain panels: existing screen CSS, semantic surface/divider/radius/shadow tokens; heading and content hierarchy. Loading, empty and error content must use the same panel layout rather than fake data.
 - Main/secondary buttons: existing screen classes, explicit labels, native disabled state, focus-visible, visible busy/error outcomes. No success before durable acknowledgement.
-- AppearanceSettings: native radio group 默认·瓷白 / 水墨, check plus 已选择 text, status feedback for failed read/write and invalid stored values. Stored key `leubai.appearance.v1`; only ink sets `html[data-theme=ink]`.
+- AppearanceSettings: native radio group 默认·瓷白 / 水墨, check plus 已选择 text, status feedback for failed read/write and invalid stored values. Stored key `tango-donego.appearance.v1`; only ink sets `html[data-theme=ink]`.
 - DraftAssistant: one selected section, exact outbound preview, explicit generate, proposal and explicit apply; local failure keeps user text. It is not a global auto-sending chat box.
 - Editors and approvals: label every field; preserve pending text on conflict, name selected object and version. Plan preview is distinct from applied state, confirmed is distinct from sent.
 

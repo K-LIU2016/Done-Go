@@ -43,6 +43,7 @@ import {
   verifyPersistedRequestStatus,
   verifyRequestStatus,
 } from "./inboxAdapter.ts";
+import { AgreementPanel } from "./AgreementPanel.tsx";
 import type {
   CommitmentEditPatch,
   DecidedStatus,
@@ -264,6 +265,7 @@ function S03Ready({
       ) : null}
 
       <div className="s03-side">
+        <AgreementPanel handle={handle} />
         <aside className="s03-panel" aria-label="提取不是承诺">
           <p className="s03-panel-kicker">01 · 提取不是承诺</p>
           <ol className="s03-steps">

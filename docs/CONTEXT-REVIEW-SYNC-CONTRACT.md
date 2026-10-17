@@ -1,5 +1,7 @@
 # S11–S13 shared-state completion contract
 
+> **历史资料边界（2026-10-16）**：本文保留旧 React/服务端共享状态合同，供追溯与后续研究使用。它不定义当前产品入口、当前实现或上线标准。当前唯一产品基准是 http://localhost:5207/#today，主架构以 DONEGO-CANONICAL-ARCHITECTURE-2026-10-16.md 为准。
+
 Status: implementation contract with partial runtime acceptance. The original inspection on 2026-09-13 found missing entities/commands; the later shared-model integration and bounded browser results are recorded below. This preserves original DELIVERY-MATRIX requirements and does not introduce a second storage system.
 
 ## Evidence and chosen boundary

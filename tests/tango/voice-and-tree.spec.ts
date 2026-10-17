@@ -7,9 +7,9 @@ async function open(page: Page, entries: Record<string, unknown>[] = [paper], ti
   await page.route('https://**', route => route.abort());
   await page.addInitScript(state => {
     if (!localStorage.getItem('tango.test.initialized')) {
-      localStorage.setItem('leubai.web.v1', JSON.stringify(state));
-      localStorage.setItem('leubai.llm.v1', JSON.stringify({ mode: 'off' }));
-      localStorage.setItem('leubai.lang', 'zh');
+      localStorage.setItem('tango-donego.web.v1', JSON.stringify(state));
+      localStorage.setItem('tango-donego.llm.v1', JSON.stringify({ mode: 'off' }));
+      localStorage.setItem('tango-donego.lang', 'zh');
       localStorage.setItem('tango.test.initialized', '1');
     }
   }, { v: 1, pv: 5, mode: 'real', wake: 960, entries, trials: [], drafts, fw: {}, sound: false });
@@ -41,6 +41,7 @@ test('finishing on today turns the same tree event into fruit and preserves the 
   await page.locator('#task-advice > summary').click();
   await page.locator('[data-act="task-finish"][data-id="paper"]').click();
   await page.locator('#finish-min').fill('40');
+  await page.locator('#finish-quality').selectOption('accepted');
   await page.locator('[data-act="finish-save"]').click();
   await page.locator('.sheet [data-act="close"]').click();
   await page.goto('/#line');
@@ -88,7 +89,7 @@ test.describe('local speech capture', () => {
     await expect(page.locator('.bubble')).toContainText('开会');
     await expect(page.locator('.draft')).toHaveCount(0);
     await expect(page.locator('#cap-text')).toHaveValue('下午2:00到三点开会');
-    const entries = () => page.evaluate(() => JSON.parse(localStorage.getItem('leubai.web.v1')!).entries);
+    const entries = () => page.evaluate(() => JSON.parse(localStorage.getItem('tango-donego.web.v1')!).entries);
     expect(await entries()).toEqual([expect.objectContaining({ title: '开会', start: '14:00', end: '15:00', prio: 3 })]);
     await page.locator('#capGo').click();
     await expect(page.locator('.draft')).toHaveCount(0);
@@ -138,18 +139,18 @@ test.describe('local speech capture', () => {
     await expect(page.locator('#cap-text')).toHaveValue('晚上七点到八点跑步');
     await page.locator('#capGo').click();
     await expect(page.locator('.draft')).toHaveCount(0);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('leubai.web.v1')!).entries.map((e: any) => [e.title, e.start, e.end, e.prio]))).toEqual([
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tango-donego.web.v1')!).entries.map((e: any) => [e.title, e.start, e.end, e.prio]))).toEqual([
       ['开会', '14:00', '15:00', 3], ['读书', '16:00', '17:00', 3], ['跑步', '19:00', '20:00', 3],
     ]);
   });
 
   test('voice asks before replacing personal time and cancellation preserves it', async ({ page }) => {
-    await open(page, [{ ...paper, id: 'blank', kind: 'blank', title: '自由安排', start: '14:00', end: '15:00', state: 'reserved' }]);
+    await open(page, [{ ...paper, id: 'stillness', kind: 'stillness', title: '自由安排', start: '14:00', end: '15:00', state: 'reserved' }]);
     await say(page, '下午两点到三点开会');
     await expect(page.locator('.sheet [data-act="clash"]')).toHaveCount(3);
     await page.locator('[data-act="clash"][data-v="cancel"]').click();
     await expect(page.locator('.bubble')).toHaveCount(1);
-    await expect(page.locator('.bubble')).toHaveAttribute('data-id', 'blank');
+    await expect(page.locator('.bubble')).toHaveAttribute('data-id', 'stillness');
     await expect(page.locator('#cap-text')).toHaveValue('下午两点到三点开会');
     await expect(page.locator('#capGo')).toBeEnabled();
   });
@@ -173,7 +174,7 @@ test.describe('local speech capture', () => {
 
   test('leaving during AI task parsing cancels automatic event creation', async ({ page }) => {
     await open(page, []);
-    await page.evaluate(() => localStorage.setItem('leubai.llm.v1', JSON.stringify({ mode: 'custom', url: '/voice-test-llm', model: 'fixture' })));
+    await page.evaluate(() => localStorage.setItem('tango-donego.llm.v1', JSON.stringify({ mode: 'custom', url: 'https://example.test/voice-test-llm', model: 'fixture', consent: true })));
     await page.reload();
     let release!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; });
@@ -183,6 +184,7 @@ test.describe('local speech capture', () => {
     });
     const parsing = page.waitForRequest('**/voice-test-llm');
     await say(page, '下午两点到三点开会');
+    await page.locator('[data-act="send-confirm"]').click();
     await parsing;
     await page.locator('#tabs a[href="#review"]').click();
     const parsed = page.waitForResponse('**/voice-test-llm');

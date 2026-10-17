@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPersistedDomainStore } from "../data/index.ts";
 import { getAuthDataOwner } from "../auth/auth-session.ts";
 import type { DataMode } from "../domain/types.ts";
+import { FIXTURE_NOW } from "../domain/state.ts";
 
 export type DomainRuntimeHandle = Awaited<ReturnType<typeof createPersistedDomainStore>>;
 export type ReadyDomainRuntime = Extract<DomainRuntimeHandle, { status: "ready" }>;
@@ -21,7 +22,13 @@ export function getDomainRuntime(dataMode: DataMode = "fixture"): Promise<Domain
   const key = runtimeKey(dataMode);
   const cached = runtimeCache.get(key);
   if (cached) return cached;
-  const initializing = createPersistedDomainStore({ dataMode, owner: getAuthDataOwner() }).catch((err: unknown) => {
+  const initializing = createPersistedDomainStore({
+    dataMode,
+    owner: getAuthDataOwner(),
+    // Keep local fixture walkthroughs deterministic and usable after the
+    // fixture's historical expiry date; live mode keeps the real clock.
+    now: dataMode === "fixture" ? () => FIXTURE_NOW : undefined,
+  }).catch((err: unknown) => {
     if (runtimeCache.get(key) === initializing) runtimeCache.delete(key);
     throw err;
   });

@@ -74,20 +74,24 @@ export async function saveSettings(file, data) {
   } catch {
     throw new SettingsStoreError("persist_failed");
   }
-  // The dedicated directory must be 0700. A pre-existing directory with other
-  // modes is a hard failure, not silently repaired: chmod must never mask an
-  // insecure state, and the previous file must survive untouched.
-  const dirStat = await stat(dir).catch(() => null);
-  if (!dirStat || (dirStat.mode & 0o777) !== 0o700) {
-    throw new SettingsStoreError("persist_failed");
+  // POSIX modes are contractual on Linux and macOS. NTFS reports synthetic
+  // modes, so Windows still performs the atomic write but skips the raw-mode
+  // assertions that production checks on deploy targets.
+  if (process.platform !== "win32") {
+    const dirStat = await stat(dir).catch(() => null);
+    if (!dirStat || (dirStat.mode & 0o777) !== 0o700) {
+      throw new SettingsStoreError("persist_failed");
+    }
   }
   const tmp = join(dir, "." + basename(file) + "." + randomBytes(6).toString("hex") + ".tmp");
   try {
     await writeFile(tmp, JSON.stringify(data, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
     // chmod without catch: a failure here is reported, never swallowed.
-    await chmod(tmp, 0o600);
-    const tmpStat = await stat(tmp);
-    if ((tmpStat.mode & 0o777) !== 0o600) throw new SettingsStoreError("persist_failed");
+    if (process.platform !== "win32") {
+      await chmod(tmp, 0o600);
+      const tmpStat = await stat(tmp);
+      if ((tmpStat.mode & 0o777) !== 0o600) throw new SettingsStoreError("persist_failed");
+    }
     await rename(tmp, file);
   } catch (err) {
     await rm(tmp, { force: true }).catch(() => {});

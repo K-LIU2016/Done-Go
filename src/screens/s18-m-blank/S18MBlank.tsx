@@ -84,7 +84,7 @@ function S18Runtime({ blockIdQuery, onRetrySettled, onClearBlockId }: S18Runtime
     return (
       <div className="s18-state" data-page="s18" data-quiet-state="loading">
         <p>正在连接本地领域数据…</p>
-        <p>确认本地的留白记录之前，这里不会显示或记录任何选择。</p>
+        <p>确认本地的静默记录之前，这里不会显示或记录任何选择。</p>
       </div>
     );
   }
@@ -96,7 +96,7 @@ function S18Runtime({ blockIdQuery, onRetrySettled, onClearBlockId }: S18Runtime
         data-quiet-state="unavailable"
         data-quiet-reason={runtime.reason}
       >
-        <p>留白界面暂时读不到本地记录。</p>
+        <p>静默界面暂时读不到本地记录。</p>
         <p className="s18-error">原因：{runtime.reason}</p>
         <p>已保存的数据仍在本地，没有被清除。</p>
         <button
@@ -301,7 +301,7 @@ function S18Active({ handle, block }: S18ActiveProps) {
       const close = planQuietClose(store.getState(), handle.persistence.readFreshState(), latest.id);
       if (close === "preserve") { navigate(exitTarget); return; }
       if (close === "unverified") {
-        setActionError(current => current ?? { code: "STORAGE_READBACK_UNVERIFIED", reason: "留白选择的本地读回尚未一致，暂不关闭或改写选择；请重试读回后再关闭。", retryPlan: "rederiveFromState", command: null });
+        setActionError(current => current ?? { code: "STORAGE_READBACK_UNVERIFIED", reason: "静默选择的本地读回尚未一致，暂不关闭或改写选择；请重试读回后再关闭。", retryPlan: "rederiveFromState", command: null });
         return;
       }
     }
@@ -350,7 +350,7 @@ function S18Active({ handle, block }: S18ActiveProps) {
       <MobileChrome time={surface.start ?? ""} active="" hideNavigation>
         <section
           className="s18"
-          aria-label="移动端留白时刻"
+          aria-label="移动端静默时刻"
           data-quiet-state="ready"
           data-quiet-decision={decision ?? "none"}
           data-quiet-confirmed={decidedKeepBlank && keepBlankVerified ? "true" : "false"}
@@ -360,13 +360,13 @@ function S18Active({ handle, block }: S18ActiveProps) {
         >
           <header className="s18-top">
             <span className="s18-brand">
-              <img className="mchrome-brandmark" src="/brand/leubai-mark-256.png" alt="" draggable={false} />
-              留白
+              <img className="mchrome-brandmark" src="/brand/tango-mark.svg" alt="" draggable={false} />
+              探戈
             </span>
             <button
               type="button"
               className="s18-exit"
-              aria-label="退出留白时刻"
+              aria-label="退出静默时刻"
               disabled={pendingAction !== null}
               onClick={() => runDecide("exit")}
             >
@@ -391,7 +391,7 @@ function S18Active({ handle, block }: S18ActiveProps) {
           )}
           <p className="s18-meta">
             时区 {surface.timezone} · 时段用途：
-            {surface.purpose === null ? "未指定（留白允许没有用途）" : surface.purpose}
+            {surface.purpose === null ? "未指定（静默允许没有用途）" : surface.purpose}
           </p>
           <p className="s18-note">不自动填入工作，也不催促你选择。</p>
           <button

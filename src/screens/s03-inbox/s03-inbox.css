@@ -318,6 +318,114 @@
   box-shadow: var(--shadow-panel);
 }
 
+.s03-agreement {
+  gap: 12px;
+  border-color: rgba(77, 119, 113, 0.28);
+  background: linear-gradient(180deg, rgba(77, 119, 113, 0.08), var(--surface));
+}
+
+.s03-agreement-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.s03-agreement .s03-panel-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.s03-agreement-status {
+  padding: 4px 9px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-pill);
+  color: var(--ok);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.s03-agreement-terms {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+
+.s03-agreement-terms div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 13px;
+}
+
+.s03-agreement-terms dt { color: var(--text-2); }
+.s03-agreement-terms dd { margin: 0; text-align: right; }
+
+.s03-agreement-parties {
+  display: grid;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.s03-agreement-parties b { color: var(--text); }
+
+.s03-agreement-switch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.s03-agreement-switch button {
+  padding: 5px 9px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.s03-agreement-switch button.is-on {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.s03-agreement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.s03-agreement-actions button {
+  margin-top: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.s03-agreement-formed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ok);
+  font-size: 13px;
+}
+
+.s03-agreement-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .s03-panel-kicker {
   margin: 0;
   color: var(--info);

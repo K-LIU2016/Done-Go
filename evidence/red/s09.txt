@@ -14,7 +14,7 @@
       189 |     const root = page.locator('[data-page="s09"]');
       190 |     await expect(root).toBeVisible();
       191 |     const copy = [
-        at /Users/chillbit/Proj/leubai-v2/tests/groupB.spec.ts:188:16
+        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:188:16
 
     Error Context: test-results/groupB-s09-attention-s09-renders-shared-attention-budget-desktop/error-context.md
 
@@ -38,7 +38,7 @@
       230 |     const root = page.locator('[data-page="s09"]');
       231 |     await root.getByRole("button", { name: "查看差异" }).click();
       232 |     await expect(root.getByText("旧：沿用成本说明（未核对）")).toBeVisible();
-        at /Users/chillbit/Proj/leubai-v2/tests/groupB.spec.ts:229:16
+        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:229:16
 
     Error Context: test-results/groupB-s09-attention-s09-budget-arithmetic-stays-consistent-desktop/error-context.md
 

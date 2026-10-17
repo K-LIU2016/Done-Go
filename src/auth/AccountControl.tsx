@@ -20,7 +20,7 @@ export function AccountControl() {
   }, [loading, owner]);
   const name = user?.displayName || user?.email || "登录";
   return <div className="shell-account">
-    <button type="button" className="shell-account-button" data-shell-avatar="" title={user ? `${name} · ${user.email}` : "登录 LeuBai"} aria-label={user ? `${name} · ${user.email} · 我的账号` : "登录 LeuBai"} onClick={() => setOpen(true)}>
+    <button type="button" className="shell-account-button" data-shell-avatar="" title={user ? `${name} · ${user.email}` : "登录 Tango Done&Go"} aria-label={user ? `${name} · ${user.email} · 我的账号` : "登录 Tango Done&Go"} onClick={() => setOpen(true)}>
       <span className="shell-avatar-disc" aria-hidden="true">{user ? Array.from(name).slice(0, 2).join("").toUpperCase() : "入"}</span>
       <span className="shell-account-label">{loading ? "确认中" : name}</span>
     </button>

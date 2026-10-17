@@ -5,6 +5,6 @@ edge-ip-version: "4"
 metrics: 127.0.0.1:20246
 
 ingress:
-  - hostname: leubai.udify.fun
+  - hostname: tango-donego.udify.fun
     service: http://127.0.0.1:5220
   - service: http_status:404

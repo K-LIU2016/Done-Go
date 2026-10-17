@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { chromium } from "playwright";
 
-const APP_URL = process.env.LEUBAI_RACE_APP_URL ?? "http://127.0.0.1:5199";
-const KEY = "leubai-v2:domain:v1:fixture";
-const LIVE_KEY = "leubai-v2:domain:v1:live";
+const APP_URL = process.env.TANGO_RACE_APP_URL ?? "http://127.0.0.1:5199";
+const KEY = "tango-donego:domain:v1:fixture";
+const LIVE_KEY = "tango-donego:domain:v1:live";
 const ROUNDS = 5;
 // Computed so tsc never treats the dynamic import inside page.evaluate as a
 // literal module specifier that must be resolved at build time.
@@ -53,8 +53,8 @@ test("two real Chromium pages contend on the same expected revision: exactly one
         w.__locksAvailable = Boolean((navigator as unknown as { locks?: unknown }).locks);
         w.__handle = handle;
         const proto = Storage.prototype as unknown as Record<string, unknown>;
-        if (!proto.__leubaiRacePatched) {
-          proto.__leubaiRacePatched = true;
+        if (!proto.__tangoRacePatched) {
+          proto.__tangoRacePatched = true;
           const original = (proto.setItem as (k: string, v: string) => void).bind(window.localStorage);
           proto.setItem = function (this: Storage, k: string, v: string) {
             if (w.__stallOnce === true && k === key) {

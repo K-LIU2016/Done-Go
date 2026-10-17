@@ -87,7 +87,7 @@ export async function runQuietMusic(adapter: QuietMusicAdapter, requestId: strin
       if (receipt.requestId !== requestId || receipt.providerId !== access.providerId || !receipt.playbackRef.trim() || !Number.isFinite(Date.parse(receipt.confirmedAt))) {
         return result("unknown", "音乐来源返回的播放回执不完整或不匹配，尚不能确认恢复播放。");
       }
-      return { ...result("success", "音乐来源已确认恢复播放；这不会改变你的留白选择，也不计为时间收益。"), receipt };
+      return { ...result("success", "音乐来源已确认恢复播放；这不会改变你的静默选择，也不计为时间收益。"), receipt };
     };
     const timedOut = new Promise<QuietMusicResult>(resolve => {
       timer = setTimeout(() => {

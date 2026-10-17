@@ -5,6 +5,7 @@ export const FIXTURE_IDS = {
   intent: "fx-intent-01",
   protectedBlock: "fx-protected-01",
   request: "fx-request-01",
+  agreementRequest: "fx-agreement-01",
   commitmentReport: "fx-commitment-01",
   commitmentMeeting: "fx-commitment-02",
   commitmentAdmin: "fx-commitment-03",

@@ -34,8 +34,8 @@ export function MobileChrome({
       </div>
       {hideNavigation ? null : (
         <header className="mchrome-heading">
-          <img className="mchrome-brandmark" src="/brand/leubai-mark-256.png" alt="" draggable={false} />
-          <span className="mchrome-page-title">{pageTitle ?? (active === "plan" ? "可行方案" : active === "auth" ? "变更预览" : active === "settings" ? "设置" : "留白")}</span>
+          <img className="mchrome-brandmark" src="/brand/tango-mark.svg" alt="" draggable={false} />
+          <span className="mchrome-page-title">{pageTitle ?? (active === "plan" ? "可行方案" : active === "auth" ? "变更预览" : active === "settings" ? "设置" : "Done&Go")}</span>
           <details className="mchrome-more">
             <summary aria-label="更多页面"><MoreHorizontal size={22} aria-hidden="true" /></summary>
             <div className="mchrome-more-menu">

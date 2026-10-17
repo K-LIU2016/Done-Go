@@ -50,10 +50,10 @@ async function opened(dataMode: "fixture" | "live", storage: StorageLike) {
 
 test("owner namespaces preserve exact anonymous keys and separate users", () => {
   for (const dataMode of ["fixture", "live"] as const) {
-    const anonymous = "leubai-v2:domain:v1:" + dataMode;
+    const anonymous = "tango-donego:domain:v1:" + dataMode;
     assert.equal(storageKeyFor(dataMode), anonymous);
     assert.equal(storageKeyFor(dataMode, ""), anonymous);
-    assert.equal(storageKeyFor(dataMode, "user-1"), "leubai-v2:domain:v1:u:user-1:" + dataMode);
+    assert.equal(storageKeyFor(dataMode, "user-1"), "tango-donego:domain:v1:u:user-1:" + dataMode);
     assert.notEqual(storageKeyFor(dataMode, "user-1"), anonymous);
     assert.notEqual(storageKeyFor(dataMode, "user-1"), storageKeyFor(dataMode, "user-2"));
   }
@@ -91,10 +91,10 @@ test("owner locks and external changes isolate users while same-owner handles sy
   const sameOwner = expectReady(await createPersistedDomainStore({ dataMode: "fixture", owner: "user-1", storage, locks }));
   const other = expectReady(await createPersistedDomainStore({ dataMode: "fixture", owner: "user-2", storage, locks }));
   assert.deepEqual(lockNames, [
-    "leubai-v2:domain-lock:v1:fixture",
-    "leubai-v2:domain-lock:v1:u:user-1:fixture",
-    "leubai-v2:domain-lock:v1:u:user-1:fixture",
-    "leubai-v2:domain-lock:v1:u:user-2:fixture",
+    "tango-donego:domain-lock:v1:fixture",
+    "tango-donego:domain-lock:v1:u:user-1:fixture",
+    "tango-donego:domain-lock:v1:u:user-1:fixture",
+    "tango-donego:domain-lock:v1:u:user-2:fixture",
   ]);
   const changes = { anonymous: 0, sameOwner: 0, other: 0 };
   anonymous.persistence.subscribeExternal(() => { changes.anonymous += 1; });
@@ -104,7 +104,7 @@ test("owner locks and external changes isolate users while same-owner handles sy
   expectOk(await first.persistence.commit(base.globalRevision, bumpRuleset(base, 91)));
   assert.deepEqual(changes, { anonymous: 0, sameOwner: 1, other: 0 });
   assert.equal(sameOwner.store.getState().ruleset.dailyCapacityMinutes, 91);
-  assert.equal(lockNames.at(-1), "leubai-v2:domain-lock:v1:u:user-1:fixture");
+  assert.equal(lockNames.at(-1), "tango-donego:domain-lock:v1:u:user-1:fixture");
 });
 
 test("resetting an owner fixture leaves other owner and anonymous data untouched", async () => {
@@ -135,6 +135,36 @@ test("seed: first open persists fixture state and never touches live namespace",
   assert.equal(raw.state.dataMode, "fixture");
   assert.equal(raw.state.commitments[FIXTURE_IDS.commitmentReport].effortEstimateMinutes, 60);
   assert.equal(storage.getItem(storageKeyFor("live")), null);
+});
+
+test("legacy keepBlank quiet decisions upgrade to keepStill on read", () => {
+  const storage = new InMemoryStorage();
+  const rawState = JSON.parse(JSON.stringify(createInitialState("fixture"))) as DomainState;
+  rawState.quietSessions["legacy-quiet"] = {
+    id: "legacy-quiet",
+    dataMode: "fixture",
+    provenance: { source: "fixture" },
+    revision: 1,
+    createdAt: "2026-09-13T10:00:00.000Z",
+    updatedAt: "2026-09-13T10:01:00.000Z",
+    blockId: "legacy-block",
+    originRoute: "/stillness",
+    decision: "keepBlank",
+    dismissedAt: null,
+    suppressPrompts: true,
+    coverageSnapshot: { known: true, intervals: [] },
+  } as unknown as DomainState["quietSessions"][string];
+  storage.setItem(storageKeyFor("fixture"), JSON.stringify({
+    schemaVersion: DOMAIN_SCHEMA_VERSION,
+    dataMode: "fixture",
+    savedAt: "2026-09-13T10:01:00.000Z",
+    state: rawState,
+  }));
+  const parsed = readPersistedState(storage, "fixture");
+  assert.equal(parsed.kind, "ok");
+  if (parsed.kind !== "ok") throw new Error("unreachable");
+  assert.equal(parsed.envelope.state.quietSessions["legacy-quiet"].decision, "keepStill");
+  assert.equal(parsed.envelope.state.quietSessions["legacy-quiet"].suppressPrompts, true);
 });
 
 test("durability: a fresh handle reads what a previous handle wrote", async () => {

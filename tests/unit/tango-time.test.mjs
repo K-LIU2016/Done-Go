@@ -9,10 +9,10 @@ const context = vm.createContext({ window: {} });
 if (script) vm.runInContext(script, context);
 const core = context.window.TangoTime || {};
 const entry = (start, end, extra = {}) => ({ start, end, kind: 'necessary', ...extra });
-const trial = (date, before, after, extra = {}) => ({ date, before, after, confirmed: true, usedAI: true, category: 'read', ...extra });
+const trial = (date, before, after, extra = {}) => ({ taskId: date + ':' + before + ':' + after, date, before, after, quality: 'accepted', confirmed: true, usedAI: true, category: 'read', ...extra });
 
 test('overlapping tasks and personal intervals occupy each minute once', () => {
-  assert.equal(core.occupiedMinutes([entry('09:00', '11:00'), entry('10:00', '12:00'), entry('11:30', '12:30', { kind: 'blank' })]), 210);
+  assert.equal(core.occupiedMinutes([entry('09:00', '11:00'), entry('10:00', '12:00'), entry('11:30', '12:30', { kind: 'stillness' })]), 210);
 });
 test('the whole-day unplanned budget subtracts all scheduled categories and clamps at zero', () => {
   assert.equal(core.unplannedMinutes([entry('09:00', '11:00'), entry('12:00', '13:00', { kind: 'restore' })], 960), 780);
@@ -24,11 +24,11 @@ test('malformed intervals do not poison the time budget', () => {
 test('estimated legacy reductions and unconfirmed measurements never count as confirmed time', () => {
   assert.equal(core.confirmedSavings([trial('2026-10-14', 60, 40), trial('2026-10-14', 100, 10, { confirmed: false }), { date: '2026-10-14', before: 100, after: 10 }]), 20);
 });
-test('review totals respect the selected date interval and ignore overruns and invalid measurements', () => {
-  assert.equal(core.confirmedSavings([trial('2026-10-01', 60, 20), trial('2026-10-14', 60, 40), trial('2026-10-14', 30, 50), trial('2026-10-14', 60, -10), trial('2026-10-14', 60, NaN)], '2026-10-08', '2026-10-14'), 20);
+test('review totals retain overruns and respect the selected date interval', () => {
+  assert.equal(core.confirmedSavings([trial('2026-10-01', 60, 20), trial('2026-10-14', 60, 40), trial('2026-10-14', 30, 50), trial('2026-10-14', 60, -10), trial('2026-10-14', 60, NaN)], '2026-10-08', '2026-10-14'), 0);
 });
 test('a completed task releases the unused tail of its planned interval', () => {
-  const result = core.completeTask({ id: 'paper', date: '2026-10-14', ...entry('09:00', '10:00') }, '40', true, 'read');
+  const result = core.completeTask({ id: 'paper', date: '2026-10-14', ...entry('09:00', '10:00') }, '40', true, 'read', { quality: 'accepted' });
   assert.equal(result.entry.end, '09:40');
   assert.equal(result.entry.done, true);
   assert.equal(result.trial.before, 60);
@@ -37,6 +37,42 @@ test('a completed task releases the unused tail of its planned interval', () => 
   assert.equal(result.freed.minutes, 20);
   assert.equal(result.freed.start, '09:40');
   assert.equal(result.freed.end, '10:00');
+});
+
+test('legacy, pending and rework results cannot count as accepted gains or personal evidence', () => {
+  const records = ['pending', 'rework', undefined].map((quality, i) => trial('2026-10-14', 60, 10, { quality, taskId: 'p' + i }));
+  assert.equal(core.confirmedSavings(records), 0);
+  assert.equal(core.estimate(records, 'read', 60), null);
+  assert.equal(core.recordedDurations(records).samples, 0);
+  assert.equal(core.recordedDurations(records).pending, 3);
+});
+
+test('personal intervals preserve negative and mixed outcomes', () => {
+  const estimate = core.estimate([trial('2026-10-13', 60, 90), trial('2026-10-14', 60, 40)], 'read', 120);
+  assert.equal(estimate.low, -60);
+  assert.equal(estimate.high, 40);
+});
+
+test('preparation, checking and rework add to execution time exactly once', () => {
+  const item = { id: 'p', date: '2026-10-14', ...entry('09:00', '10:00') };
+  const result = core.completeTask(item, '30', true, 'read', { quality: 'accepted', preparation: '5', checking: '10', rework: '20' });
+  assert.equal(result.trial.after, 65);
+  assert.equal(result.entry.completion.actual, 65);
+  assert.equal(result.freed, null);
+  assert.equal(core.confirmedSavings([result.trial]), -5);
+  for (const options of [{ quality: 'unknown' }, { quality: 'accepted', checking: '-1' }, { quality: 'accepted', rework: '1440' }]) {
+    assert.equal(core.completeTask(item, '30', true, 'read', options), null);
+  }
+});
+
+test('recording time requires later acceptance before offering freed time', () => {
+  const result = core.completeTask({ id: 'p', date: '2026-10-14', ...entry('09:00', '10:00') }, '40', true, 'read');
+  assert.equal(result.trial.quality, 'pending');
+  assert.equal(result.freed, null);
+  const accepted = core.reviseCompletion(result.entry, '40', true, 'read', { quality: 'accepted', checking: '5' });
+  assert.equal(accepted.trial.after, 45);
+  assert.equal(accepted.trial.before, 60);
+  assert.equal(accepted.freed.minutes, 15);
 });
 test('empty, negative, out-of-range, and repeated completions are rejected', () => {
   const item = { id: 'paper', date: '2026-10-14', ...entry('09:00', '10:00') };

@@ -9,11 +9,11 @@ import { readAuthConfig } from "../../server/auth/config.mjs";
 import { createEmailSender } from "../../server/auth/email.mjs";
 
 const PASSWORD = "A locally tested password 123";
-const HEADERS = { "x-leubai-client": "leubai-settings/1", "content-type": "application/json" };
-const config = (extra = {}) => readAuthConfig({ LEUBAI_AUTH_SECRET: "test-only-secret-with-more-than-32-characters", EMAIL_TRANSPORT: "console", ADMIN_EMAILS: "admin@example.test", ...extra });
+const HEADERS = { "x-tango-client": "tango-settings/1", "content-type": "application/json" };
+const config = (extra = {}) => readAuthConfig({ TANGO_AUTH_SECRET: "test-only-secret-with-more-than-32-characters", EMAIL_TRANSPORT: "console", ADMIN_EMAILS: "admin@example.test", ...extra });
 
 async function fixture(t, overrides = {}) {
-  const directory = await mkdtemp(join(tmpdir(), "leubai-auth-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "tango-donego-auth-test-"));
   const databaseFile = join(directory, "auth.sqlite");
   const sent = [];
   let clock = Date.now();
@@ -111,8 +111,8 @@ test("password reset revokes all sessions and only the replacement password logs
 test("profile update cannot escalate role; password change revokes the previous session", async (t) => {
   const f = await fixture(t);
   const alice = await f.register("alice@example.test");
-  const update = await f.request("/api/auth/me", { method: "PUT", cookie: alice.cookie, body: { displayName: "留白用户", role: "admin", settings: { theme: "ink" } } });
-  assert.equal(update.body.user.displayName, "留白用户");
+  const update = await f.request("/api/auth/me", { method: "PUT", cookie: alice.cookie, body: { displayName: "Done&Go 用户", role: "admin", settings: { theme: "ink" } } });
+  assert.equal(update.body.user.displayName, "Done&Go 用户");
   assert.equal(update.body.user.role, "user");
   assert.deepEqual(update.body.user.settings, { theme: "ink" });
   const change = await f.request("/api/auth/me/password", { method: "PUT", cookie: alice.cookie, body: { oldPassword: PASSWORD, newPassword: "A new password for testing" } });
@@ -147,10 +147,10 @@ test("admin RBAC, disable, enable, deletion and resource hooks enforce account b
 test("authentication rejects forged tokens, expired sessions, foreign origins and missing client header", async (t) => {
   const f = await fixture(t);
   const alice = await f.register("alice@example.test");
-  const forged = alice.cookie.replace("leubai_session=", "leubai_session=x");
+  const forged = alice.cookie.replace("tango_session=", "tango_session=x");
   assert.equal((await f.request("/api/auth/me", { cookie: forged })).status, 401);
   assert.equal((await f.request("/api/auth/me", { cookie: alice.cookie, headers: { origin: "https://attacker.example" } })).status, 403);
-  assert.equal((await f.request("/api/auth/me", { cookie: alice.cookie, headers: { "x-leubai-client": "" } })).status, 403);
+  assert.equal((await f.request("/api/auth/me", { cookie: alice.cookie, headers: { "x-tango-client": "" } })).status, 403);
   f.advance(73 * 3600000);
   assert.equal((await f.request("/api/auth/me", { cookie: alice.cookie })).status, 401);
 });
@@ -178,9 +178,9 @@ test("delivery failure returns a redacted failure and cannot verify a pending co
 
 test("public configuration forbids console codes and requires a strong signing secret", () => {
   assert.throws(() => readAuthConfig({}), /32 bytes/);
-  assert.throws(() => config({ LEUBAI_PUBLIC_ORIGIN: "https://leubai.udify.fun" }), /prohibited/);
+  assert.throws(() => config({ TANGO_PUBLIC_ORIGIN: "https://tango-donego.udify.fun" }), /prohibited/);
   assert.throws(() => config({ ENV: "production" }), /prohibited/);
-  assert.throws(() => config({ LEUBAI_PUBLIC_ORIGIN: "http://leubai.udify.fun" }), /HTTPS/);
+  assert.throws(() => config({ TANGO_PUBLIC_ORIGIN: "http://tango-donego.udify.fun" }), /HTTPS/);
   assert.throws(() => config({ EMAIL_TRANSPORT: "resend" }), /RESEND_API_KEY/);
 });
 
@@ -211,8 +211,8 @@ test("resending a code invalidates the previous code while preserving the new co
 });
 
 test("public email mode sets secure cookies and never returns verification codes", async (t) => {
-  const f = await fixture(t, { config: config({ LEUBAI_PUBLIC_ORIGIN: "https://leubai.udify.fun", EMAIL_TRANSPORT: "resend", RESEND_API_KEY: "test-only", MAIL_FROM: "LeuBai <noreply@example.test>" }) });
-  const headers = { origin: "https://leubai.udify.fun" };
+  const f = await fixture(t, { config: config({ TANGO_PUBLIC_ORIGIN: "https://tango-donego.udify.fun", EMAIL_TRANSPORT: "resend", RESEND_API_KEY: "test-only", MAIL_FROM: "Tango Done&Go <noreply@example.test>" }) });
+  const headers = { origin: "https://tango-donego.udify.fun" };
   const result = await f.request("/api/auth/send-code", { method: "POST", body: { email: "alice@example.test" }, headers });
   assert.equal(result.status, 200);
   assert.equal(result.body.devCode, undefined);

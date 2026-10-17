@@ -1,4 +1,4 @@
-export const APPEARANCE_STORAGE_KEY = "leubai.appearance.v1";
+export const APPEARANCE_STORAGE_KEY = "tango-donego.appearance.v1";
 
 export const APPEARANCE_THEMES = ["porcelain", "ink"] as const;
 

@@ -6,7 +6,7 @@ import { InMemoryStorage } from "./storage.ts";
 
 test("explicit guest preserves legacy default keys and existing data without a migration", async () => {
   for (const dataMode of ["fixture", "live"] as const) {
-    assert.equal(storageKeyFor(dataMode, "guest"), "leubai-v2:domain:v1:" + dataMode);
+    assert.equal(storageKeyFor(dataMode, "guest"), "tango-donego:domain:v1:" + dataMode);
     assert.equal(storageKeyFor(dataMode, "guest"), storageKeyFor(dataMode));
     const storage = new InMemoryStorage();
     const previous = await createPersistedDomainStore({ dataMode, storage });
@@ -44,5 +44,5 @@ test("two accounts and guest have separate keys, locks and visible persisted cha
     assert.equal(reopened.status, "ready");
     if (reopened.status === "ready") assert.equal(reopened.store.getState().ruleset.dailyCapacityMinutes, 101 + index);
   }
-  assert.deepEqual([...new Set(lockNames)], ["leubai-v2:domain-lock:v1:live", "leubai-v2:domain-lock:v1:u:account-a:live", "leubai-v2:domain-lock:v1:u:account-b:live"]);
+  assert.deepEqual([...new Set(lockNames)], ["tango-donego:domain-lock:v1:live", "tango-donego:domain-lock:v1:u:account-a:live", "tango-donego:domain-lock:v1:u:account-b:live"]);
 });

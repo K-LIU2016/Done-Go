@@ -155,7 +155,7 @@ test.describe("shell design contract", () => {
     expect(shellFooterHasCoverage, "shell footer must not invent the universal coverage claim").toBe(false);
     expect(homeCoverageCount, "coverage claim appears exactly once on home (s01-local)").toBe(1);
     expect(Math.abs(dividerY - 1131.5), "footer row divider at source baseline 1131.5").toBeLessThanOrEqual(2.5);
-    await expect(footer).toContainText("LIUBAI / PORCELAIN");
+    await expect(footer).toContainText("探戈 Done&Go");
     await expect(footer).toContainText("界面为独立演示状态；不代表已连接、已执行或真实收益。");
   });
 
@@ -306,12 +306,12 @@ test.describe("shell design contract", () => {
   test("header and footer match the design contract", async ({ page }, testInfo) => {
     watch(page, testInfo, "header footer", "header-footer");
     await page.goto("/");
-    await expect(page.locator("[data-shell-brand]")).toContainText("留白");
-    await expect(page.locator("[data-shell-brand]")).toContainText("PERSONAL TIME");
+    await expect(page.locator("[data-shell-brand]")).toContainText("探戈");
+    await expect(page.locator("[data-shell-brand]")).toContainText("DONE&GO");
     await expect(page.locator("[data-shell-badge]")).toHaveText("概念设计 · 演示状态");
     await expect(page.locator("[data-shell-date]")).toContainText("· 星期");
     const footer = page.locator("[data-shell-footer]");
-    await expect(footer).toContainText("LIUBAI / PORCELAIN");
+    await expect(footer).toContainText("探戈 Done&Go");
     await expect(page.locator("[data-shell-footer-page]")).toHaveText("01 / 14");
     await page.goto("/capture");
     await expect(page.locator("[data-shell-footer-page]")).toHaveText("14 / 14");

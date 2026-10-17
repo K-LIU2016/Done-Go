@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseLlmSettingsText } from "../../src/settings/parser.ts";
 
-const FAKE_KEY = "sk-leubai-fake-unit-key-0001";
+const FAKE_KEY = "sk-tango-donego-fake-unit-key-0001";
 
 test("parses plain labelled lines with mixed Chinese and English labels", () => {
   const text = [
@@ -23,12 +23,12 @@ test("parses plain labelled lines with mixed Chinese and English labels", () => 
 
 test("parses markdown links on one line without eating labels", () => {
   const md =
-    "- [Base URL](http://127.0.0.1:65396/v1) [Messages URL](http://127.0.0.1:65396/v1/messages) 和 [Models URL](http://127.0.0.1:65396/v1/models) 以及 [API Key](sk-leubai-fake-unit-key-0002) [模型](glm-5.3-flash)";
+    "- [Base URL](http://127.0.0.1:65396/v1) [Messages URL](http://127.0.0.1:65396/v1/messages) 和 [Models URL](http://127.0.0.1:65396/v1/models) 以及 [API Key](sk-tango-donego-fake-unit-key-0002) [模型](glm-5.3-flash)";
   const parsed = parseLlmSettingsText(md);
   assert.equal(parsed.baseUrl, "http://127.0.0.1:65396/v1");
   assert.equal(parsed.messagesUrl, "http://127.0.0.1:65396/v1/messages");
   assert.equal(parsed.modelsUrl, "http://127.0.0.1:65396/v1/models");
-  assert.equal(parsed.apiKey, "sk-leubai-fake-unit-key-0002");
+  assert.equal(parsed.apiKey, "sk-tango-donego-fake-unit-key-0002");
   assert.equal(parsed.model, "glm-5.3-flash");
 });
 
@@ -37,14 +37,14 @@ test("supports common Chinese label aliases", () => {
     "服务地址: http://127.0.0.1:65396",
     "消息接口: http://127.0.0.1:65396/v1/messages",
     "模型列表: http://127.0.0.1:65396/v1/models",
-    "密钥: sk-leubai-fake-unit-key-0003",
+    "密钥: sk-tango-donego-fake-unit-key-0003",
     "模型: glm-5.3-flash",
   ].join("\n");
   const parsed = parseLlmSettingsText(text);
   assert.equal(parsed.baseUrl, "http://127.0.0.1:65396");
   assert.equal(parsed.messagesUrl, "http://127.0.0.1:65396/v1/messages");
   assert.equal(parsed.modelsUrl, "http://127.0.0.1:65396/v1/models");
-  assert.equal(parsed.apiKey, "sk-leubai-fake-unit-key-0003");
+  assert.equal(parsed.apiKey, "sk-tango-donego-fake-unit-key-0003");
   assert.equal(parsed.model, "glm-5.3-flash");
 });
 
@@ -90,14 +90,14 @@ test("parses the exact label:url markdown-link format for every field", () => {
     "Base URL: [http://127.0.0.1:65396](http://127.0.0.1:65396)",
     "Messages URL: [http://127.0.0.1:65396/v1/messages](http://127.0.0.1:65396/v1/messages)",
     "Models URL: [http://127.0.0.1:65396/v1/models](http://127.0.0.1:65396/v1/models)",
-    "API Key: [sk-leubai-fake-unit-key-0007](sk-leubai-fake-unit-key-0007)",
+    "API Key: [sk-tango-donego-fake-unit-key-0007](sk-tango-donego-fake-unit-key-0007)",
     "Model: [glm-5.3-flash](glm-5.3-flash)",
   ].join("\n");
   const parsed = parseLlmSettingsText(text);
   assert.equal(parsed.baseUrl, "http://127.0.0.1:65396");
   assert.equal(parsed.messagesUrl, "http://127.0.0.1:65396/v1/messages");
   assert.equal(parsed.modelsUrl, "http://127.0.0.1:65396/v1/models");
-  assert.equal(parsed.apiKey, "sk-leubai-fake-unit-key-0007");
+  assert.equal(parsed.apiKey, "sk-tango-donego-fake-unit-key-0007");
   assert.equal(parsed.model, "glm-5.3-flash");
   assert.deepEqual(parsed.errors, []);
 });

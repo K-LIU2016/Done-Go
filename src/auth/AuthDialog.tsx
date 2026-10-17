@@ -66,7 +66,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   return (
     <dialog ref={dialog} className="auth-dialog" aria-labelledby="auth-title" onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}>
       <div className="auth-heading">
-        <div><p className="auth-eyebrow"><img className="auth-brand-mark" src="/brand/leubai-mark-256.png" alt="" width={22} height={22} draggable={false} />LeuBai / 留白</p><h2 id="auth-title">{user ? "我的账号" : flow.mode === "reset" ? "找回密码" : "进入你的留白"}</h2></div>
+        <div><p className="auth-eyebrow"><img className="auth-brand-mark" src="/brand/tango-mark.svg" alt="" width={22} height={22} draggable={false} />探戈 Done&Go</p><h2 id="auth-title">{user ? "我的账号" : flow.mode === "reset" ? "找回密码" : "进入你的 Done&Go"}</h2></div>
         <button type="button" className="auth-close" aria-label="关闭账号面板" disabled={busy} onClick={onClose}>×</button>
       </div>
       {loading && <p className="auth-note" role="status">正在确认登录状态…</p>}

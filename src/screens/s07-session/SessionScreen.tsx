@@ -297,7 +297,7 @@ function SessionReady({ store, query }: SessionReadyProps) {
     return <SessionCheckpointPicker domain={domain} />;
   }
   if (query.value === null) {
-    return <SessionRefusal kind="blank" />;
+    return <SessionRefusal kind="stillness" />;
   }
   const checkpoint = domain.checkpoints[query.value];
   if (!checkpoint) {
@@ -372,8 +372,8 @@ function SessionCheckpointPicker({ domain }: { domain: DomainState }) {
   );
 }
 
-function SessionRefusal({ kind }: { kind: "blank" | "not-found" }) {
-  const blank = kind === "blank";
+function SessionRefusal({ kind }: { kind: "stillness" | "not-found" }) {
+  const blank = kind === "stillness";
   return (
     <div className="s07-boundary" data-checkpoint-state={blank ? "blank-id" : "not-found"}>
       <h2 className="s07-serif-lg">{blank ? "链接里的检查点 ID 是空的" : "找不到这个检查点"}</h2>

@@ -29,7 +29,7 @@ Running 1 test using 1 worker
       196 |     await expect(root.getByText("待批准 · 方案版本 03")).toBeVisible();
       197 |     await expect(
       198 |       root.getByRole("heading", { name: "准备报告草稿" }),
-        at /Users/chillbit/Proj/leubai-v2/tests/groupA.spec.ts:195:7
+        at /Users/chillbit/Proj/tango-donego/tests/groupA.spec.ts:195:7
 
     Error Context: test-results/groupA--s05-变更预览-·-有限授权-ap-6800e-s-task-and-nothing-executes-desktop/error-context.md
 

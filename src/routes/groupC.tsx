@@ -5,7 +5,7 @@ import { S14Capture } from "../screens/s14-capture/S14Capture";
 import { S15MNow } from "../screens/s15-m-now/S15MNow";
 import { S16MPlan } from "../screens/s16-m-plan/S16MPlan";
 import { S17MAuth } from "../screens/s17-m-auth/S17MAuth";
-import { S18MBlank } from "../screens/s18-m-blank/S18MBlank";
+import { S18MStillness } from "../screens/s18-m-stillness/S18MStillness";
 import { MobileStage } from "../shell/Shell";
 import type { RouteGroup } from "./types";
 
@@ -42,10 +42,10 @@ export const groupC: RouteGroup = {
       ),
     },
     {
-      path: "/m/blank",
+      path: "/m/stillness",
       element: (
         <MobileStage>
-          <S18MBlank />
+          <S18MStillness />
         </MobileStage>
       ),
     },

@@ -1,5 +1,6 @@
 import { FIXTURE_IDS } from "./ids.ts";
 import { createEmptyContextReviewState } from "./contextReviewModel.ts";
+import { createAgreementRequest } from "./agreementModel.ts";
 import type {
   AttentionBudget,
   Commitment,
@@ -18,6 +19,11 @@ import type {
 export const DOMAIN_SCHEMA_VERSION = 1;
 export const FIXTURE_DAY = "2026-09-12";
 export const FIXTURE_TIMEZONE = "Asia/Shanghai";
+/**
+ * The fixture namespace is a deterministic walkthrough, so its domain clock
+ * stays on the fixture day instead of expiring when the host clock advances.
+ */
+export const FIXTURE_NOW = "2026-09-12T12:00:00+08:00";
 const FIXTURE_CREATED_AT = "2026-09-12T09:00:00+08:00";
 
 export interface InitialStateOptions {
@@ -110,6 +116,24 @@ function fixtureRequest(dataMode: DataMode): Request {
     acceptedBy: null,
     commitmentId: null,
   };
+}
+
+function fixtureAgreementRequest() {
+  return createAgreementRequest({
+    id: FIXTURE_IDS.agreementRequest,
+    proposerId: "user",
+    recipientId: "colleague-chen",
+    terms: {
+      purpose: "整理本周复盘报告草稿",
+      dateRange: { start: "2026-09-12T19:00:00+08:00", end: "2026-09-12T20:00:00+08:00" },
+      timezone: FIXTURE_TIMEZONE,
+      effortRange: { min: 45, max: 60 },
+      deadline: "2026-09-13T18:00:00+08:00",
+      materials: [],
+    },
+    expiresAt: "2026-09-13T23:59:00+08:00",
+    now: FIXTURE_CREATED_AT,
+  });
 }
 
 function fixtureCommitments(dataMode: DataMode): Record<string, Commitment> {
@@ -208,6 +232,7 @@ export function createInitialState(dataMode: DataMode, options: InitialStateOpti
     captureDrafts: {},
     protectedBlocks: { [FIXTURE_IDS.protectedBlock]: fixtureProtectedBlock(dataMode) },
     requests: { [FIXTURE_IDS.request]: fixtureRequest(dataMode) },
+    agreementRequests: { [FIXTURE_IDS.agreementRequest]: fixtureAgreementRequest() },
     commitments: fixtureCommitments(dataMode),
     plans: {},
     changeSets: {},

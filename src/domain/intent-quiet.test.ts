@@ -267,16 +267,16 @@ test("openQuietSession creates an unchosen session and never charges attention b
   assert.equal(repeat.session.id, data.session.id);
 });
 
-test("keepBlank decision suppresses prompts for the block and persists across reload", async () => {
+test("keepStill decision suppresses prompts for the block and persists across reload", async () => {
   const storage = new InMemoryStorage();
   const first = expectReady(await createPersistedDomainStore({ dataMode: "fixture", storage }));
   const opened = asOk(
     await first.store.execute(cmd("openQuietSession", { entityId: null, expectedRevision: null, blockId: "protected-2026-09-12-evening", originRoute: "/now" })),
   );
   const decided = asOk(
-    await first.store.execute(cmd("decideQuiet", { entityId: opened.session.id, expectedRevision: 1, blockId: "protected-2026-09-12-evening", decision: "keepBlank" })),
+    await first.store.execute(cmd("decideQuiet", { entityId: opened.session.id, expectedRevision: 1, blockId: "protected-2026-09-12-evening", decision: "keepStill" })),
   );
-  assert.equal(decided.session.decision, "keepBlank");
+  assert.equal(decided.session.decision, "keepStill");
   assert.equal(decided.session.suppressPrompts, true);
   assert.equal(isProtectedSuppressed(first.store.getState(), "protected-2026-09-12-evening"), true);
   const second = expectReady(await createPersistedDomainStore({ dataMode: "fixture", storage }));

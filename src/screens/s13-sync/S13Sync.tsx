@@ -185,7 +185,7 @@ function SyncContent({ store }: { store: DomainStore }) {
 						.map((block) => (
 							<p key={block.id} className="s13-card-line">
 								{block.range.start.slice(0, 16).replace("T", " ")}—
-								{block.range.end.slice(11, 16)} 不接受留白内部的自动填充。
+								{block.range.end.slice(11, 16)} 不接受静驻内部的自动填充。
 							</p>
 						))}
 				</article>

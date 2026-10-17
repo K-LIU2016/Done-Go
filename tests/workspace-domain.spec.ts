@@ -4,7 +4,7 @@ import path from "node:path";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
 const EVIDENCE_DIR = path.join(process.cwd(), ".omo", "evidence");
-const STORAGE_KEY_PREFIX = "leubai-v2:domain:v1:";
+const STORAGE_KEY_PREFIX = "tango-donego:domain:v1:";
 
 interface PageWatch {
   errors: string[];

@@ -13,7 +13,7 @@ Running 19 tests using 1 worker
   ✓   6 [desktop] › tests/smoke.spec.ts:42:3 › route /preview renders s05 (180ms)
   ✓   7 [desktop] › tests/smoke.spec.ts:42:3 › route /workspace renders s06 (183ms)
   ✓   8 [desktop] › tests/smoke.spec.ts:42:3 › route /session renders s07 (184ms)
-  ✓   9 [desktop] › tests/smoke.spec.ts:42:3 › route /blank renders s08 (174ms)
+  ✓   9 [desktop] › tests/smoke.spec.ts:42:3 › route /stillness renders s08 (174ms)
   ✓  10 [desktop] › tests/smoke.spec.ts:42:3 › route /attention renders s09 (175ms)
   ✓  11 [desktop] › tests/smoke.spec.ts:42:3 › route /boundaries renders s10 (181ms)
   ✓  12 [desktop] › tests/smoke.spec.ts:42:3 › route /context renders s11 (181ms)
@@ -23,6 +23,6 @@ Running 19 tests using 1 worker
   ✓  16 [desktop] › tests/smoke.spec.ts:42:3 › route /m/now renders s15 (164ms)
   ✓  17 [desktop] › tests/smoke.spec.ts:42:3 › route /m/plan renders s16 (168ms)
   ✓  18 [desktop] › tests/smoke.spec.ts:42:3 › route /m/auth renders s17 (164ms)
-  ✓  19 [desktop] › tests/smoke.spec.ts:42:3 › route /m/blank renders s18 (164ms)
+  ✓  19 [desktop] › tests/smoke.spec.ts:42:3 › route /m/stillness renders s18 (164ms)
 
   19 passed (4.8s)

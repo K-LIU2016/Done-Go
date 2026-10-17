@@ -16,7 +16,7 @@ test("explicit plan uses its own date and timezone rather than global fixture da
   if (!model.ready) return;
   assert.equal(model.capacity.date, "2026-09-14");
   assert.match(model.dateLabel, /America\/New_York/);
-  assert.equal(model.chips.find(chip => chip.kind === "protected")?.label, "21:00—22:00 留白 · America/New_York");
+  assert.equal(model.chips.find(chip => chip.kind === "protected")?.label, "21:00—22:00 静驻 · America/New_York");
   assert.equal(model.capacity.committedKnownMinutes, 0);
   assert.equal(model.chips.find(chip => chip.kind === "meeting")?.label, "当日没有固定约定");
 });

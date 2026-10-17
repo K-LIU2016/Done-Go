@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "leubai-v2",
+      "name": "tango-donego",
       "dependencies": {
         "lucide-react": "^1.45.0",
         "react": "^19.2.8",

@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import net from "node:net";
 import { mkdtemp, mkdir, writeFile, readFile, stat, chmod, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -9,8 +10,8 @@ import { createAppServer } from "../../server/app.mjs";
 import { runLlmInference } from "../../server/upstream.mjs";
 import { validateUpstreamUrl, validateCandidate } from "../../server/urlguard.mjs";
 
-const CLIENT = "leubai-settings/1";
-const FAKE_KEY = "sk-leubai-fake-server-key-0042";
+const CLIENT = "tango-settings/1";
+const FAKE_KEY = "sk-tango-donego-fake-server-key-0042";
 
 function startFixture() {
   const state = { requests: [], hang: [] };
@@ -93,11 +94,11 @@ function rawRequest(port, method, path, headers, body) {
 }
 
 async function makeApp(t, options = {}) {
-  const dir = await mkdtemp(join(tmpdir(), "leubai-srv-"));
+  const dir = await mkdtemp(join(tmpdir(), "tango-donego-srv-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const distDir = join(dir, "dist");
   await mkdir(distDir);
-  await writeFile(join(distDir, "index.html"), "<html>leubai-test-dist</html>");
+  await writeFile(join(distDir, "index.html"), "<html>tango-donego-test-dist</html>");
   const logLines = [];
   const app = createAppServer({
     host: "127.0.0.1",
@@ -129,7 +130,7 @@ function api(port, method, path, body, extraHeaders = {}) {
     method,
     headers: {
       "content-type": "application/json",
-      "x-leubai-client": CLIENT,
+      "x-tango-client": CLIENT,
       origin: "http://127.0.0.1:" + port,
       ...extraHeaders,
     },
@@ -191,10 +192,12 @@ test("save requires matching proof; verified save persists safe settings with 06
   assert.equal(got.enabled, true);
   assert.equal(got.verified, true);
   assert.equal(got.apiKey, undefined);
-  const fileStat = await stat(settingsFile);
-  assert.equal(fileStat.mode & 0o777, 0o600);
-  const dirStat = await stat(join(settingsFile, ".."));
-  assert.equal(dirStat.mode & 0o777, 0o700);
+  if (process.platform !== "win32") {
+    const fileStat = await stat(settingsFile);
+    assert.equal(fileStat.mode & 0o777, 0o600);
+    const dirStat = await stat(join(settingsFile, ".."));
+    assert.equal(dirStat.mode & 0o777, 0o700);
+  }
   const stored = JSON.parse(await readFile(settingsFile, "utf8"));
   assert.equal(stored.apiKey, FAKE_KEY);
 });
@@ -211,7 +214,7 @@ test("editing model or key after a successful test invalidates the green proof",
   assert.equal(editedModel.status, 403);
   const editedKey = await api(port, "POST", "/api/settings/llm", {
     candidate,
-    apiKey: "sk-leubai-fake-other-key-0009",
+    apiKey: "sk-tango-donego-fake-other-key-0009",
     proofToken: tested.proofToken,
   });
   assert.equal(editedKey.status, 403);
@@ -338,20 +341,20 @@ test("mutations enforce client header, loopback host, trusted origin and json bo
   assert.equal(noClient.status, 403);
   const evilOrigin = await rawRequest(port, "POST", "/api/settings/llm/test", {
     "content-type": "application/json",
-    "x-leubai-client": CLIENT,
+    "x-tango-client": CLIENT,
     origin: "https://evil.example",
     host: "127.0.0.1:" + port,
   }, payload);
   assert.equal(evilOrigin.status, 403);
   const evilHost = await rawRequest(port, "POST", "/api/settings/llm/test", {
     "content-type": "application/json",
-    "x-leubai-client": CLIENT,
+    "x-tango-client": CLIENT,
     host: "evil.example",
   }, payload);
   assert.equal(evilHost.status, 403);
   const notJson = await rawRequest(port, "POST", "/api/settings/llm/test", {
     "content-type": "text/plain",
-    "x-leubai-client": CLIENT,
+    "x-tango-client": CLIENT,
     host: "127.0.0.1:" + port,
   }, payload);
   assert.equal(notJson.status, 415);
@@ -395,7 +398,7 @@ test("static serving blocks traversal and api unknown routes return json 404", a
   const { port } = await makeApp(t);
   const home = await rawRequest(port, "GET", "/", { host: "127.0.0.1:" + port });
   assert.equal(home.status, 200);
-  assert.ok(home.body.includes("leubai-test-dist"));
+  assert.ok(home.body.includes("tango-donego-test-dist"));
   const traversal = await rawRequest(port, "GET", "/../server/app.mjs", { host: "127.0.0.1:" + port });
   assert.equal(traversal.status, 403);
   const encoded = await rawRequest(port, "GET", "/%2e%2e/server/app.mjs", { host: "127.0.0.1:" + port });
@@ -412,14 +415,16 @@ test("save failure keeps previous settings and returns sanitized error", async (
   const tested = JSON.parse((await api(port, "POST", "/api/settings/llm/test", { candidate, apiKey: FAKE_KEY })).body);
   const firstSave = await api(port, "POST", "/api/settings/llm", { candidate, apiKey: FAKE_KEY, proofToken: tested.proofToken });
   assert.equal(firstSave.status, 200);
-  await chmod(join(settingsFile, ".."), 0o500);
-  try {
-    const second = await api(port, "POST", "/api/settings/llm", { candidate, apiKey: FAKE_KEY, proofToken: tested.proofToken });
-    assert.equal(second.status, 500);
-    assert.equal(JSON.parse(second.body).error, "persist_failed");
-    assert.ok(!second.body.includes(FAKE_KEY));
-  } finally {
-    await chmod(join(settingsFile, ".."), 0o700);
+  if (process.platform !== "win32") {
+    await chmod(join(settingsFile, ".."), 0o500);
+    try {
+      const second = await api(port, "POST", "/api/settings/llm", { candidate, apiKey: FAKE_KEY, proofToken: tested.proofToken });
+      assert.equal(second.status, 500);
+      assert.equal(JSON.parse(second.body).error, "persist_failed");
+      assert.ok(!second.body.includes(FAKE_KEY));
+    } finally {
+      await chmod(join(settingsFile, ".."), 0o700);
+    }
   }
 });
 
@@ -493,39 +498,33 @@ test("oversized bodies receive the typed 413 response instead of a connection re
   const { port } = await makeApp(t, { maxBodyBytes: 1024 });
   const total = 512 * 1024;
   const outcome = await new Promise((resolve) => {
-    const req = httpRequest({
-      host: "127.0.0.1",
-      port,
-      method: "POST",
-      path: "/api/llm/generate",
-      headers: {
-        "content-type": "application/json",
-        "x-leubai-client": CLIENT,
-        "content-length": String(total),
-      },
-    }, (res) => {
-      const chunks = [];
-      res.on("data", (c) => chunks.push(c));
-      res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString("utf8"), error: null }));
+    const socket = net.connect({ host: "127.0.0.1", port });
+    const chunks = [];
+    const headers = [
+      "POST /api/llm/generate HTTP/1.1",
+      "Host: 127.0.0.1:" + port,
+      "Content-Type: application/json",
+      "x-tango-client: " + CLIENT,
+      "Content-Length: " + total,
+      "Connection: close",
+      "",
+      "",
+    ].join("\r\n");
+    socket.on("connect", () => {
+      socket.write(headers);
+      const chunk = Buffer.alloc(16 * 1024, 0x61);
+      for (let written = 0; written < total; written += chunk.length) socket.write(chunk);
+      socket.end();
     });
-    req.on("error", (err) => resolve({ status: 0, body: "", error: err.code }));
-    let written = 0;
-    const chunk = Buffer.alloc(16 * 1024, 0x61);
-    const writeMore = () => {
-      while (written < total) {
-        written += chunk.length;
-        if (!req.write(chunk)) {
-          req.once("drain", writeMore);
-          return;
-        }
-      }
-      req.end();
-    };
-    writeMore();
+    socket.on("data", (chunk) => chunks.push(chunk));
+    socket.on("error", (err) => resolve({ status: 0, body: "", error: err.code }));
+    socket.on("close", () => resolve({ status: 0, body: Buffer.concat(chunks).toString("utf8"), error: null }));
   });
   assert.equal(outcome.error, null);
-  assert.equal(outcome.status, 413);
-  assert.equal(JSON.parse(outcome.body).error, "body_too_large");
+  const statusLine = outcome.body.split("\r\n", 1)[0];
+  assert.equal(statusLine, "HTTP/1.1 413 Payload Too Large");
+  const payloadStart = outcome.body.indexOf("\r\n\r\n") + 4;
+  assert.equal(JSON.parse(outcome.body.slice(payloadStart)).error, "body_too_large");
 });
 
 test("closing the response stops outstanding upstream inference work", async (t) => {
@@ -541,7 +540,7 @@ test("closing the response stops outstanding upstream inference work", async (t)
       path: "/api/llm/generate",
       headers: {
         "content-type": "application/json",
-        "x-leubai-client": CLIENT,
+        "x-tango-client": CLIENT,
       },
     }, () => resolve());
     req.on("error", () => resolve());

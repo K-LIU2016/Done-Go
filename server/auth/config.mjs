@@ -7,16 +7,16 @@ function integer(value, fallback, min, max, name) {
 }
 
 export function readAuthConfig(env = process.env) {
-  const publicOrigin = env.LEUBAI_PUBLIC_ORIGIN || "";
+  const publicOrigin = env.TANGO_PUBLIC_ORIGIN || "";
   const production = env.ENV === "production" || env.NODE_ENV === "production";
   if (publicOrigin) {
     const parsed = new URL(publicOrigin);
     if (parsed.origin !== publicOrigin || parsed.protocol !== "https:" || parsed.username || parsed.password) {
-      throw new Error("LEUBAI_PUBLIC_ORIGIN must be an exact HTTPS origin");
+      throw new Error("TANGO_PUBLIC_ORIGIN must be an exact HTTPS origin");
     }
   }
-  const secret = env.LEUBAI_AUTH_SECRET || env.JWT_SECRET || "";
-  if (Buffer.byteLength(secret) < 32) throw new Error("LEUBAI_AUTH_SECRET must contain at least 32 bytes");
+  const secret = env.TANGO_AUTH_SECRET || env.JWT_SECRET || "";
+  if (Buffer.byteLength(secret) < 32) throw new Error("TANGO_AUTH_SECRET must contain at least 32 bytes");
   const transport = env.EMAIL_TRANSPORT || "disabled";
   if (!["disabled", "console", "resend", "smtp"].includes(transport)) throw new Error("Invalid EMAIL_TRANSPORT");
   if ((publicOrigin || production) && transport === "console") throw new Error("Console verification is prohibited in production or for a public origin");
@@ -29,7 +29,7 @@ export function readAuthConfig(env = process.env) {
     production,
     transport,
     secureCookie: Boolean(publicOrigin || production),
-    trustProxy: env.LEUBAI_TRUST_CLOUDFLARE === "1",
+    trustProxy: env.TANGO_TRUST_CLOUDFLARE === "1",
     adminEmails: (env.ADMIN_EMAILS || "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean),
     sessionTtlSeconds: integer(env.JWT_EXPIRY_HOURS, 72, 1, 720, "JWT_EXPIRY_HOURS") * 3600,
     codeTtlSeconds: integer(env.CODE_TTL_SECONDS, 600, 60, 1800, "CODE_TTL_SECONDS"),
@@ -44,7 +44,7 @@ export function readAuthConfig(env = process.env) {
 }
 
 export function authRequestAllowed(req, config) {
-  if (req.headers["x-leubai-client"] !== "leubai-settings/1") return false;
+  if (req.headers["x-tango-client"] !== "tango-settings/1") return false;
   let host;
   try { host = new URL(`http://${req.headers.host}`).hostname; } catch { return false; }
   const loopback = isLoopbackHostname(host);

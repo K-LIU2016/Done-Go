@@ -84,8 +84,8 @@ function PorcelainMark() {
   return (
     <img
       className="shell-mark"
-      src="/brand/leubai-mark-256.png"
-      alt="LeuBai"
+      src="/brand/tango-mark.svg"
+      alt="Tango Done&Go"
       width={34}
       height={34}
       draggable={false}
@@ -110,7 +110,7 @@ const PAGE_NUMBERS: Record<string, string> = {
   "/preview": "05",
   "/workspace": "06",
   "/session": "07",
-  "/blank": "08",
+  "/stillness": "08",
   "/attention": "09",
   "/boundaries": "10",
   "/context": "11",
@@ -178,10 +178,10 @@ function ShellContent({ children }: { children: ReactNode }) {
       <div className="shell-main">
         <header className="shell-topbar" data-shell-topbar="">
           <div className="shell-brand" data-shell-brand="">
-            <img className="shell-brand-mark" src="/brand/leubai-mark-256.png" alt="" width={26} height={26} draggable={false} />
-            <span className="shell-brand-zh">留白</span>
+            <img className="shell-brand-mark" src="/brand/tango-mark.svg" alt="" width={26} height={26} draggable={false} />
+            <span className="shell-brand-zh">探戈</span>
             <span className="shell-brand-slash" aria-hidden="true">/</span>
-            <span className="shell-brand-en">PERSONAL TIME</span>
+            <span className="shell-brand-en">DONE&amp;GO</span>
           </div>
           <div className="shell-topbar-end">
             <span className="shell-badge" data-shell-badge="">概念设计 · 演示状态</span>
@@ -191,7 +191,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         <main className="shell-content" data-shell-content="">{children}</main>
         <footer className="shell-footer" data-shell-footer="">
           <div className="shell-footer-row">
-            <span className="shell-footer-brand">LeuBai / 留白</span>
+            <span className="shell-footer-brand">探戈 Done&Go</span>
             <span className="shell-footer-note">界面为独立演示状态；不代表已连接、已执行或真实收益。</span>
             <span className="shell-footer-page" data-shell-footer-page="">
               {pageLabel}

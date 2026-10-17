@@ -90,7 +90,7 @@ function BlankRuntime({ blockIdQuery, onRetrySettled, onClearBlockId, musicAdapt
     return (
       <div className="s08" data-page="s08" data-quiet-state="loading">
         <h1 className="s08-connecting">正在连接本地领域数据…</h1>
-        <p className="s08-note">确认本地的留白记录之前，这里不会显示或记录任何选择。</p>
+        <p className="s08-note">确认本地的静默记录之前，这里不会显示或记录任何选择。</p>
       </div>
     );
   }
@@ -102,7 +102,7 @@ function BlankRuntime({ blockIdQuery, onRetrySettled, onClearBlockId, musicAdapt
         data-quiet-state="unavailable"
         data-quiet-reason={runtime.reason}
       >
-        <h1 className="s08-connecting">留白界面暂时读不到本地记录</h1>
+        <h1 className="s08-connecting">静默界面暂时读不到本地记录</h1>
         <p className="s08-note">原因：{runtime.reason}</p>
         <p className="s08-note">
           已保存的数据仍在本地，没有被清除。恢复连接之前，这里不会显示时段，也不会记录任何选择。
@@ -245,7 +245,7 @@ function BlankActive({ handle, block, musicAdapter }: BlankActiveProps) {
 
   const runMusic = async () => {
     if (musicBlocked || openInFlight.current) return;
-    await musicController.run(() => "LeuBai-music-" + crypto.randomUUID());
+    await musicController.run(() => "Tango-music-" + crypto.randomUUID());
   };
 
   const needsOpen =
@@ -352,7 +352,7 @@ function BlankActive({ handle, block, musicAdapter }: BlankActiveProps) {
       const close = planQuietClose(store.getState(), handle.persistence.readFreshState(), latest.id);
       if (close === "preserve") { navigate(exitTarget); return; }
       if (close === "unverified") {
-        setActionError(current => current ?? { code: "STORAGE_READBACK_UNVERIFIED", reason: "留白选择的本地读回尚未一致，暂不关闭或改写选择；请重试读回后再关闭。", retryPlan: "rederiveFromState", command: null });
+        setActionError(current => current ?? { code: "STORAGE_READBACK_UNVERIFIED", reason: "静默选择的本地读回尚未一致，暂不关闭或改写选择；请重试读回后再关闭。", retryPlan: "rederiveFromState", command: null });
         return;
       }
     }
@@ -417,7 +417,7 @@ function BlankActive({ handle, block, musicAdapter }: BlankActiveProps) {
       <div className="s08-topline">
         <div className="s08-brand">
           <span className="s08-brand-mark" aria-hidden="true" />
-          <span className="s08-brand-zh">留白</span>
+          <span className="s08-brand-zh">探戈</span>
           <span className="s08-brand-en">A SPACE OF YOUR OWN</span>
         </div>
         <span className="s08-topline-right">
@@ -425,7 +425,7 @@ function BlankActive({ handle, block, musicAdapter }: BlankActiveProps) {
           <button
             type="button"
             className="s08-exit"
-            aria-label="退出留白时刻"
+            aria-label="退出静默时刻"
             data-quiet-action="exit"
             disabled={pendingAction !== null}
             onClick={() => runDecide("exit")}
@@ -454,7 +454,7 @@ function BlankActive({ handle, block, musicAdapter }: BlankActiveProps) {
           )}
           <p className="s08-meta">
             时区 {surface.timezone} · 时段用途：
-            {surface.purpose === null ? "未指定（留白允许没有用途）" : surface.purpose}
+            {surface.purpose === null ? "未指定（静默允许没有用途）" : surface.purpose}
           </p>
           <p className="s08-note">按你的边界保留。不自动补入下一件事。</p>
           <p className="s08-invite">你可以继续重要的事，也可以什么都不安排。</p>
@@ -584,7 +584,7 @@ function BlankActive({ handle, block, musicAdapter }: BlankActiveProps) {
         </div>
       </div>
       <footer className="s08-footer">
-        <span>留白 · 安静界面</span>
+        <span>探戈 · 安静界面</span>
         <span>保护不等于全渠道拦截；未接入的安排仍需你确认。</span>
         <span>08/14 · 设计演示</span>
       </footer>

@@ -673,10 +673,10 @@ export function buildPlanSurfaceModel(state: DomainState, explicitIntentIds: rea
             formatMinuteOfDay(minuteOfDay(protectedBlock.range.start)) +
             "—" +
             formatMinuteOfDay(minuteOfDay(protectedBlock.range.end)) +
-            " 留白 · " + protectedBlock.range.timezone,
+            " 静驻 · " + protectedBlock.range.timezone,
           tone: "default",
         }
-      : { kind: "protected", label: "当日没有已保存的留白", tone: "default" },
+      : { kind: "protected", label: "当日没有已保存的静驻", tone: "default" },
     modificationChip(selectModificationView(state).kind),
   ];
   const context = {

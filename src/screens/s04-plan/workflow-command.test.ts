@@ -8,7 +8,7 @@ import { assertWorkflowResumeTarget, workflowAttemptKey, workflowCommands } from
 
 for (const stage of ["grantApproval", "startOperation", "readbackOperation"]) {
   test("desktop " + stage + " uses shared immutable workflow command execution", () => {
-    const source = readFileSync(new URL("../s05-preview/S05Preview.tsx", import.meta.url), "utf8");
+    const source = readFileSync(new URL("../s05-preview/S05Preview.tsx", import.meta.url), "utf8").replaceAll("\r\n", "\n");
     assert.ok(source.includes("workflow.run(workflowKey, {\n            type: \"" + stage + "\"") || source.includes("workflow.run(workflowKey, {\n          type: \"" + stage + "\""), stage + " must not reconstruct an uncached command at retry");
   });
 }

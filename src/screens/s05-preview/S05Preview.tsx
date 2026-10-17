@@ -781,7 +781,7 @@ function S05NormalPreview({
             <h2 className="s05-object">
               {planKind === "B" ? "推迟本次承诺" : "准备报告草稿"}
             </h2>
-            <p className="s05-sub">{planKind === "B" ? "先核对实际延期日期与未来负担。只有批准后，内部安排才会改变。" : "只读取本次授权的材料，在留白中生成未发送的草稿。"}</p>
+            <p className="s05-sub">{planKind === "B" ? "先核对实际延期日期与未来负担。只有批准后，内部安排才会改变。" : "只读取本次授权的材料，在静驻中生成未发送的草稿。"}</p>
             {planKindRequest.kind === "invalid" ? (
               <p className="s05-withdrawn" role="alert" data-s05-kind-routing="fail-closed">
                 链接无效：kind 参数为空、重复或未知；未展示任何方案内容。

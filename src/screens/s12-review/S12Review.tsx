@@ -375,7 +375,7 @@ function ReviewContent({ store }: { store: DomainStore }) {
 					<article className="s12-card s12-card-feedback">
 						<h2 className="s12-card-title">02 真正的净节省，尚未测量</h2>
 						<p className="s12-note">
-							需要比较没有留白时的同类任务，并把监督、纠错与未来负担计入。当前不显示一个看似精确的“省时总数”。
+							需要比较没有静驻时的同类任务，并把监督、纠错与未来负担计入。当前不显示一个看似精确的“省时总数”。
 						</p>
 						<p className="s12-ask">这一周，你对自己的时间是否更有掌控?</p>
 						<div className="s12-feelings">

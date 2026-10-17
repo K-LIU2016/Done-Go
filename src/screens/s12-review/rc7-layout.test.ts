@@ -12,7 +12,7 @@ test("S07 left panel and ring do not stretch with the long right-hand checkpoint
 });
 
 test("S08 porcelain CTA geometry is scoped and still wraps on narrow layouts", () => {
-  const css = read("../s08-blank/s08-blank.css");
+  const css = read("../s08-stillness/s08-stillness.css");
   assert.ok(/html:not\(\[data-theme="ink"\]\) \.s08-actions \.s08-btn-primary\s*\{[^}]*min-width:\s*var\(--reference-quiet-primary\)/.test(css), "primary width must be porcelain-scoped");
   assert.ok(/html:not\(\[data-theme="ink"\]\) \.s08-actions \.s08-btn-ghost\s*\{[^}]*min-width:\s*var\(--reference-quiet-secondary\)/.test(css), "secondary width must be porcelain-scoped");
   assert.ok(/\.s08-actions\s*\{[^}]*flex-wrap:\s*wrap/.test(css));

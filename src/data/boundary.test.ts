@@ -329,9 +329,7 @@ function withBrowserGlobals(localStorageValue: unknown, locks: unknown): () => v
   const prevLocalStorage = g.localStorage;
   const prevNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   g.localStorage = localStorageValue;
-  if (locks !== undefined) {
-    Object.defineProperty(globalThis, "navigator", { value: { locks }, configurable: true, writable: true });
-  }
+  Object.defineProperty(globalThis, "navigator", { value: { locks }, configurable: true, writable: true });
   return () => {
     if (hadLocalStorage) g.localStorage = prevLocalStorage;
     else delete g.localStorage;
@@ -344,6 +342,7 @@ test("browser-like cross-tab storage without Web Locks fails closed; injected lo
     dataMode: "fixture",
     storage: new InMemoryStorage(),
     requireCrossTabLock: true,
+    locks: null,
   });
   assert.equal(refused.status, "unavailable");
   assert.match(refused.reason, /STORAGE_UNAVAILABLE|Web Locks/);

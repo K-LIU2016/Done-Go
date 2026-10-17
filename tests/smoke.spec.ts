@@ -8,7 +8,7 @@ const ROUTES: Array<[string, string]> = [
   ["/preview", "s05"],
   ["/workspace", "s06"],
   ["/session", "s07"],
-  ["/blank", "s08"],
+  ["/stillness", "s08"],
   ["/attention", "s09"],
   ["/boundaries", "s10"],
   ["/context", "s11"],
@@ -18,7 +18,7 @@ const ROUTES: Array<[string, string]> = [
   ["/m/now", "s15"],
   ["/m/plan", "s16"],
   ["/m/auth", "s17"],
-  ["/m/blank", "s18"],
+  ["/m/stillness", "s18"],
 ];
 
 function watchErrors(page: import("@playwright/test").Page): string[] {

@@ -1,4 +1,6 @@
-# 留白 V2 交付矩阵
+# 静驻 V2 交付矩阵
+
+> **历史资料说明（2026-10-16）**：本矩阵保留旧 V2/18 屏需求与证据分母，供追溯和后续研究使用；其中的 React 路由、`/inbox`、18 屏验收目标和旧品牌表述不定义当前探戈 Done&Go。当前唯一产品基准是 `http://localhost:5207/#today`，当前架构以 [DONEGO-CANONICAL-ARCHITECTURE-2026-10-16.md](DONEGO-CANONICAL-ARCHITECTURE-2026-10-16.md) 为准。
 
 日期：2026-09-12。状态：规划基线，尚未完成交付验收。目标为18屏1:1、全部功能与交互、用户C1–C5上线级本地交付验证。编码和产品验证由用户指定的GLM Ultra执行；原生/主监督独立只读验收，本轮仅文档规划与只读审查。外部账户实测及公开发布另需具体授权，不无限阻断本地交付。
 
@@ -28,7 +30,7 @@
 
 ## 已有评审与证据目录
 
-已完整读取 `.omo/evidence/leubai-v2-gate-review.md`（61行）；其第3行结论为REJECT。第7行把结果描述成local demo，是历史评审采用的范围，不作为用户全功能目标的缩减授权。
+已完整读取 `.omo/evidence/tango-donego-gate-review.md`（61行）；其第3行结论为REJECT。第7行把结果描述成local demo，是历史评审采用的范围，不作为用户全功能目标的缩减授权。
 
 | 引用 | 已有评审事实与原位置 | 映射用户C | 当前处理 |
 |---|---|---|---|
@@ -133,7 +135,7 @@
 | S06-I01同意；I02不同判断 | 分别保存本人选择/异议，不同意不等于确认 | [RC8交互](../.omo/evidence/rc8-interactions-20260913.md)疑问文字折叠保留、显式提交、刷新持续已证；既有逐节确认领域/正常链证据分别保留，其他不同判断语义不整体继承 | C2 | VERIFIED所列疑问链；其他语义OPEN |
 | S06-I03补材料 | 真实材料记录/引用与许可，上传失败可恢复 | [RC8交互](../.omo/evidence/rc8-interactions-20260913.md)材料名称/正文折叠重开保留；拒读提交后v1/关联节/未读取未应用未核实正确，刷新保持；既有16项材料领域测试含撤权拒绝。失败恢复仍独立验收 | C2/C5 | VERIFIED拒读登记正常链；失败恢复OPEN |
 | S06-I04确认已检查部分 | 指定section确认，未核对保留；无需强制补完全部材料 | [flow01-and-postwrite-20260913.md](../.omo/evidence/flow01-and-postwrite-20260913.md)实际仅确认第一节、第二节成本仍未知，并通过同草稿检查点重开；[s06-exact-retry-green-20260913.md](../.omo/evidence/s06-exact-retry-green-20260913.md)实际编辑后确认失效且未知写入精确恢复。未继承所有材料撤权故障UI通过 | C2/C5 | OPEN：正常部分确认已证，其他来源故障待验 |
-| S06-I05撤销；I06导出 | 实际撤销回执/可读导出件，包含未决状态 | [egolite-checkpoint-withdrawn-recheck-green.md](../.omo/evidence/egolite-checkpoint-withdrawn-recheck-green.md)证明已撤回草稿在S07只读核对且不恢复；不是撤销按钮本次点击证据。RC6已实际下载并读回[LeuBai草稿JSON](../.omo/evidence/LeuBai-draft-export-20260913.json)，含当前保存正文/来源/未决/未发送状态，不含其他草稿和材料正文 | C2 | OPEN：导出正常链已证，撤销点击及失败面仍待验 |
+| S06-I05撤销；I06导出 | 实际撤销回执/可读导出件，包含未决状态 | [egolite-checkpoint-withdrawn-recheck-green.md](../.omo/evidence/egolite-checkpoint-withdrawn-recheck-green.md)证明已撤回草稿在S07只读核对且不恢复；不是撤销按钮本次点击证据。RC6已实际下载并读回[Tango Done&Go草稿JSON](../.omo/evidence/TangoDoneGo-draft-export-20260913.json)，含当前保存正文/来源/未决/未发送状态，不含其他草稿和材料正文 | C2 | OPEN：导出正常链已证，撤销点击及失败面仍待验 |
 | S06-S01生成失败；S02来源变更；S03部分确认 | 保留旧草稿、失效受影响确认、不改sentAt | [domain-edit-section-result.md](../.omo/evidence/domain-edit-section-result.md)有版本/来源变更及失败commit不发布测试；[RC5及补充版本记录](../.omo/evidence/rc5-20260913/README.md)有正常编辑保存刷新；生成失败、并发保存冲突、未知存储结果的当前UI仍待验 | C5 | OPEN |
 | S06-AC01/02/03/04原四项 | 判断、未核对持续可见、不发送、来源与保存时间 | 不能以固定时间冒充自动保存 | C1/C2/C5 | OPEN |
 
@@ -151,18 +153,18 @@
 | S07-S01无检查点；S02来源版本变化；S03重开 | 空态无假进度；受影响确认复核，其余保留 | [rc-20260913/README.md](../.omo/evidence/rc-20260913/README.md)非法检查点直达拒绝；[egolite-checkpoint-withdrawn-recheck-green.md](../.omo/evidence/egolite-checkpoint-withdrawn-recheck-green.md)旧缺字段保持UNKNOWN；[iab-quiet-note-share-20260913.md](../.omo/evidence/iab-quiet-note-share-20260913.md)真实检查点/附注刷新已证，不再称checkpoint未实现，来源变更等故障UI仍待验 | C5 | OPEN |
 | S07-AC01/02/03/04原四项 | 保存时间/确认、候选未生效、无假进度、口述可达 | 需真实恢复及交互证据 | C1/C2/C5 | OPEN |
 
-## s08 留白时刻 · 不安排也成立
+## s08 静驻时刻 · 不安排也成立
 
-原文D:32：“没选择不再催促”；D:95清晰退出；PRD s08。原图：`design/01_桌面大图/08_留白时刻_不安排也成立.png`。实现：`src/screens/s08-blank/BlankScreen.tsx`及G2的Shell/route。继承E-B；所需E-S08-*。
+原文D:32：“没选择不再催促”；D:95清晰退出；PRD s08。原图：`design/01_桌面大图/08_静驻时刻_不安排也成立.png`。实现：`src/screens/s08-stillness/StillnessScreen.tsx`及G2的Shell/route。继承E-B；所需E-S08-*。
 
 | ID/功能 | 真实交互/持久结果 | 缺口或待证 | C | 状态 |
 |---|---|---|---|---|
 | S08-L01全屏/顶栏×/开放椭环/覆盖/页脚 | 隐藏普通导航，退出清楚，声明局部覆盖 | [RC5 S08瓷白图](../.omo/evidence/rc5-20260913/s08-porcelain.png)可见无普通导航、顶栏×与局部覆盖说明；[RC5及补充版本记录](../.omo/evidence/rc5-20260913/README.md)归档双主题视口图，历史“仍Shell/无×”失效；可见结构不等于×点击或整体1:1通过 | C1/C2 | OPEN：结构截图已证，完整C1/动作待证 |
-| S08-I01什么也不安排 | 保存suppressPrompts并关闭回来源，刷新/重进仍生效 | [quiet-cross-device-20260913.md](../.omo/evidence/quiet-cross-device-20260913.md)有退出覆盖keepBlank的真实RED→新build GREEN：S08选择、S18退出、重进刷新仍保留；[protected-create-cross-tab-20260913.md](../.omo/evidence/protected-create-cross-tab-20260913.md)另有双标签更新与退出证明 | C2/C5 | OPEN：正常/已发现退出回归已证，完整故障未验 |
+| S08-I01什么也不安排 | 保存suppressPrompts并关闭回来源，刷新/重进仍生效 | [quiet-cross-device-20260913.md](../.omo/evidence/quiet-cross-device-20260913.md)有退出覆盖keepStill的真实RED→新build GREEN：S08选择、S18退出、重进刷新仍保留；[protected-create-cross-tab-20260913.md](../.omo/evidence/protected-create-cross-tab-20260913.md)另有双标签更新与退出证明 | C2/C5 | OPEN：正常/已发现退出回归已证，完整故障未验 |
 | S08-I02音乐 | 获准来源真实恢复或可读失败，不扰主体 | music-adapter及共享控制器已实现，14项测试含迟到完成；unknown保留requestId并仅回读，跨mount保留busy。[RC9实际按钮](../.omo/evidence/rc9-visual/README.md)返回notConnected且未发起播放；测试成功不等于真实provider或音频成功 | C2/C5 | 本地适配及局部验证完成；真实provider待接入 |
 | S08-I03更多可能性及子入口 | 可达实际记录/保存片段功能，不自动创建责任 | [iab-quiet-note-share-20260913.md](../.omo/evidence/iab-quiet-note-share-20260913.md)记录实际文字保存→刷新→最近记录仅一条且未建责任；[RC5及补充版本记录](../.omo/evidence/rc5-20260913/README.md)有最终候选双主题图；全部子入口/异常仍非一并通过 | C2 | OPEN：文字正常UI已证，其他子项待证 |
-| S08-I04×退出 | 保存会话状态，回实际来源页 | [RC8交互附录](../.omo/evidence/rc8-interactions-20260913.md)S08自身×写后读失败停留/blank并禁用音乐；恢复读取重试返回/且写入仍1次，探针已清理。既有S18跨页/跨tab证据分别保留 | C2/C5 | VERIFIED所列写后未知恢复；其他故障OPEN |
-| S08-S01未选择；S02音乐失败；S03重开/新建议 | 无倒计时/催促；失败不打断；新建议不侵入时段 | [quiet-cross-device-20260913.md](../.omo/evidence/quiet-cross-device-20260913.md)新本地意图/提案/操作后keepBlank仍在且无再次选择提示；不等于后台外部AI通知渠道。音乐失败与未知存储完整UI未验 | C5 | OPEN |
+| S08-I04×退出 | 保存会话状态，回实际来源页 | [RC8交互附录](../.omo/evidence/rc8-interactions-20260913.md)S08自身×写后读失败停留/stillness并禁用音乐；恢复读取重试返回/且写入仍1次，探针已清理。既有S18跨页/跨tab证据分别保留 | C2/C5 | VERIFIED所列写后未知恢复；其他故障OPEN |
+| S08-S01未选择；S02音乐失败；S03重开/新建议 | 无倒计时/催促；失败不打断；新建议不侵入时段 | [quiet-cross-device-20260913.md](../.omo/evidence/quiet-cross-device-20260913.md)新本地意图/提案/操作后keepStill仍在且无再次选择提示；不等于后台外部AI通知渠道。音乐失败与未知存储完整UI未验 | C5 | OPEN |
 | S08-AC01/02/03/04原四项 | 无绩效、选择后不催促、退出与范围、时间与边界 | 行为与文案须同时验证 | C1/C2/C5 | OPEN |
 
 ## s09 注意力队列 · 同一份预算
@@ -269,7 +271,7 @@
 | S16-I01展开/选择A；I02展开/选择B | 保存选中方案，底部文案/目标跟随A或B | 共享准备命令及精确intentId/kind已接；内置浏览器展开B并生成独立预览已验 | C2 | OPEN：A及全部折叠重开待证 |
 | S16-I03预览授权 | 仅到s17正确plan/revision/change set，不执行 | A/B参数与共享状态待证 | C2/C5 | OPEN |
 | S16-I04⋯及四tab | 独立功能可达，使用GLOBAL导航逐项证据 | 每项未验证 | C2 | OPEN |
-| S16-S01无候选；S02失效；S03估计超额 | 禁用理由、重新检查、返回容量不侵入留白 | 合同§3–5 | C5 | OPEN |
+| S16-S01无候选；S02失效；S03估计超额 | 禁用理由、重新检查、返回容量不侵入静驻 | 合同§3–5 | C5 | OPEN |
 | S16-AC01/02/03/04原四项 | 数字限定、B收起说明、只预览、字体放大不遮挡 | 最终真浏览器待证 | C1/C2/C5 | OPEN |
 
 ## s17 移动端 · 一次性授权
@@ -285,15 +287,15 @@
 | S17-S01全无许可；S02缺依赖；S03失效/直达；S04重复/超时 | 精确禁用理由、无越权、去重与unknown回读 | 非法kind/不存在intent无批准入口已验；部分许可缺read不创建草稿，消费态刷新禁用；[RC6](../.omo/evidence/rc6-closeout-20260913.md)实际未知写入后同运行时离开/返回，许可锁定，精确重试仅1批准/1操作/1草稿。完整浏览器重启的未确认命令恢复不在现有保证内 | C5 | OPEN：同运行时unknown已证，其余场景分项待验 |
 | S17-AC01/02/03/04原四项 | 范围同屏、真实版本未执行、单次、排除完整 | 全部原AC继续有效 | C1/C2/C5 | OPEN |
 
-## s18 移动端 · 留白时刻
+## s18 移动端 · 静驻时刻
 
-原文D:42：“无绩效、打卡与倒计时压力”；D:95清晰退出；PRD s18。原图：`design/02_移动端大图/18_移动端_留白时刻.png`。实现：`src/screens/s18-m-blank/S18MBlank.tsx`。继承E-C、GR5；所需E-S18-*。
+原文D:42：“无绩效、打卡与倒计时压力”；D:95清晰退出；PRD s18。原图：`design/02_移动端大图/18_移动端_静驻时刻.png`。实现：`src/screens/s18-m-stillness/S18MStillness.tsx`。继承E-C、GR5；所需E-S18-*。
 
 | ID/功能 | 真实交互/持久结果 | 缺口或待证 | C | 状态 |
 |---|---|---|---|---|
 | S18-L01状态栏/品牌×/开放椭环/时间/唯一主动作/范围 | 隐藏tab，保留退出，原图1:1 | 逐区待GLM浏览器证据 | C1 | OPEN |
-| S18-I01什么也不安排 | 持久keepBlank/suppressPrompts，关闭回来源 | 新Ego证据S08选择→S18同block已保留；关闭→重入刷新保持；新本地A方案/操作后仍保留 | C2/C5 | OPEN：全部故障态待验 |
-| S18-I02× | 保存状态后回实际来源屏，后备移动首页 | 实际保留ledger查询返回，quiet循环目标拒绝；修复退出覆盖keepBlank及跨tab缓存核验问题，双页无刷新同步→关闭已验 | C2/C5 | OPEN：存储失败UI仍待验 |
+| S18-I01什么也不安排 | 持久keepStill/suppressPrompts，关闭回来源 | 新Ego证据S08选择→S18同block已保留；关闭→重入刷新保持；新本地A方案/操作后仍保留 | C2/C5 | OPEN：全部故障态待验 |
+| S18-I02× | 保存状态后回实际来源屏，后备移动首页 | 实际保留ledger查询返回，quiet循环目标拒绝；修复退出覆盖keepStill及跨tab缓存核验问题，双页无刷新同步→关闭已验 | C2/C5 | OPEN：存储失败UI仍待验 |
 | S18-S01未选择；S02刷新/跨屏；S03新建议；S04保存失败 | 不催促/不填充，不虚报已保存，安静状态保留 | 合同§8 | C5 | OPEN |
 | S18-AC01/02/03/04原四项 | 唯一主动作、无压力、退出、覆盖声明 | 行为与文案均要验证 | C1/C2/C5 | OPEN |
 
@@ -324,7 +326,7 @@
 
 2026-09-12 最新浏览器约束覆盖本文件较早的执行方式：浏览器验证只能使用 Codex 内置浏览器或 Ego Lite，不能运行独立 Playwright/Chromium、gstack 或其他浏览器。实现任务只做明确列出的非浏览器检查，主控统一使用 Ego Lite TaskSpace 1 完成页面验收。现有浏览器测试文件可以作为用例参考，但不得直接执行；历史结果与新约束下的实际验证分开记录。主控已在 Ego Lite 确认 `/settings` 尚未挂载、前端仍有旧英文品牌，截图为 `.omo/evidence/egolite-settings-red.png`；这是新增 B1/B2 的失败基线，不是完成证明。
 
-新增 B1–B5 当前均为 IN PROGRESS，未验收：前端 LeuBai 品牌、后台真实模型测试与密钥边界、实际草稿助手接入、默认/水墨风格跨屏持久切换、生产及浏览器验证。默认风格继续按附件 C1 验收；水墨风按用户新增视觉约束验收，不能把主题差异误判成默认风格已对齐。
+新增 B1–B5 当前均为 IN PROGRESS，未验收：前端 Tango Done&Go 品牌、后台真实模型测试与密钥边界、实际草稿助手接入、默认/水墨风格跨屏持久切换、生产及浏览器验证。默认风格继续按附件 C1 验收；水墨风按用户新增视觉约束验收，不能把主题差异误判成默认风格已对齐。
 
 接线注意：`Operation.resultRefs`实际类型是`EntityId[]`，不是含`draftId`的对象；须选择存在于`state.drafts`且`draft.operationId`匹配本操作的唯一ID，导航`/workspace?draftId=...&operationId=...`。旧实现创建空resultRefs而未填充，领域所有者须补齐，类型存在不证明运行结果可用。runtime采用实际导出类型统一（hook成功分支为`ready.runtime.store`），不为对象嵌套形式另建第二store。失败初始化应可重试；并行重试不能删除另一重试创建的新缓存而生成多个store，这一静态风险需运行反例验证。
 
@@ -343,12 +345,12 @@
 
 - 场景 `E-S05-I01-BASELINE` / `FLOW-01`：首页“看看可行的做法” → `/plan` 选择 A → `/preview` 点击“批准并准备草稿”。实际仍停在 `/preview`，仅显示“已批准·本次准备任务 尚未执行”，未得到可观察本地产物。C2：FAIL。
 - 场景 `E-S05-S03-RELOAD-BASELINE`：上述批准后 reload，回到待批准且批准按钮重新出现，审批/产物没有恢复。C5：FAIL；不能用重新显示按钮证明幂等执行。
-- 同次 walkthrough 的 console error/warn 为空，仅支持该操作路径的控制台观察，不关闭产品 C4 或抵消功能失败。主监督已归档[人工 CUA 操作日志](/Users/chillbit/Proj/AIGC/research/output/argus-omo-control-plane/LEUBAI-V2-BROWSER-BASELINE-20260912.md)，本任务已全文读取；它不是自动 trace，未保存观察时源码 hash。截图仅在监督任务中 inline 显示，没有 PNG 文件，不能虚构截图路径或计为逐屏视觉通过。
+- 同次 walkthrough 的 console error/warn 为空，仅支持该操作路径的控制台观察，不关闭产品 C4 或抵消功能失败。主监督已归档[人工 CUA 操作日志](/Users/chillbit/Proj/AIGC/research/output/argus-omo-control-plane/TANGO-V2-BROWSER-BASELINE-20260912.md)，本任务已全文读取；它不是自动 trace，未保存观察时源码 hash。截图仅在监督任务中 inline 显示，没有 PNG 文件，不能虚构截图路径或计为逐屏视觉通过。
 - 修复后的同案例必须证明：有效批准 → 真实本地产物及回读 → 刷新恢复同一操作/产物 → 重复请求不重复生成；保存对应该运行版本的浏览器操作、截图及持久结果，再关闭上述失败。
 
 ### 主监督 09:23 UTC 局部复测与跨屏失败
 
-同一[CUA 日志](/Users/chillbit/Proj/AIGC/research/output/argus-omo-control-plane/LEUBAI-V2-BROWSER-BASELINE-20260912.md)新增实测：`/preview` 批准后出现可编辑草稿，修改为指定验收文本后 reload 及新 tab 均恢复相同正文和已批准状态。原 `E-S05-I01-BASELINE` 的“无草稿”症状和 `E-S05-S03-RELOAD-BASELINE` 的“刷新丢状态”症状，在该快照的正常存储场景关闭；这不等于整个 S05-I01、C2/C5 或幂等/存储故障通过。
+同一[CUA 日志](/Users/chillbit/Proj/AIGC/research/output/argus-omo-control-plane/TANGO-V2-BROWSER-BASELINE-20260912.md)新增实测：`/preview` 批准后出现可编辑草稿，修改为指定验收文本后 reload 及新 tab 均恢复相同正文和已批准状态。原 `E-S05-I01-BASELINE` 的“无草稿”症状和 `E-S05-S03-RELOAD-BASELINE` 的“刷新丢状态”症状，在该快照的正常存储场景关闭；这不等于整个 S05-I01、C2/C5 或幂等/存储故障通过。
 
 新 tab 的 warning/error 为空；旧 tab 的 HMR 错误保留在日志中，未作为干净会话。点击“协同”进入 `/workspace` 后仍显示另一份固定示例正文与17:21保存时间，没有延续刚修改的产物：`FLOW-01` 共享草稿连续性仍为 FAIL。未执行存储故障注入或并发批准；截图未导出PNG。该日志保留09:23:34 UTC的 S05Preview/localDraft/WorkspaceScreen 三个源码 SHA256，后续变更需复核，不能沿用局部通过证明新版本。
 
