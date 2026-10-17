@@ -13,6 +13,15 @@ function call(port, path, { method = 'GET', body, headers = {} } = {}) {
   });
 }
 
+function rawCall(port, path, { method = 'GET', body, headers = {} } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port, path, method, headers }, res => {
+      let text = ''; res.setEncoding('utf8'); res.on('data', part => { text += part; });
+      res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], text }));
+    }); req.on('error', reject); req.end(body);
+  });
+}
+
 test('assistant routes guard fixed local origins, methods, JSON and byte limits before upstream calls', async t => {
   let calls = 0;
   const server = createTangoServer({ assistant: { configuration: () => ({ available: false, provider: null, model: null, destination: null }), chat: async () => { calls++; return { content: [{ type: 'text', text: '建议' }] }; } }, discovery: { get: async topic => ({ items: [], retrievedAt: '2026-10-17T00:00:00Z', stale: false, failures: [], topic }) } });
@@ -65,4 +74,43 @@ test('assistant client disconnect aborts the active provider operation', async t
   const req = request({ host: '127.0.0.1', port, path: '/api/assistant/chat', method: 'POST', headers: { Origin: 'http://127.0.0.1:' + port, 'Content-Type': 'application/json' } });
   req.on('error', () => {}); req.end('{"prompt":"hello"}'); await ready; req.destroy();
   await Promise.race([aborted, new Promise((_resolve, reject) => { const timer = setTimeout(() => reject(new Error('provider was not aborted')), 500); timer.unref(); })]);
+});
+
+test('assistant config accepts validated PUT patches and guards origin, store, and body shape', async t => {
+  const saved = [];
+  const server = createTangoServer({ assistant: { configuration: () => ({ available: true, provider: 'openai', model: 'saved-model', destination: 'https://api.example.com/v1/chat/completions' }), chat: async () => ({}) }, assistantConfigStore: { save: async patch => { if (!patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).length === 0) throw new Error('invalid'); saved.push(patch); } } });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port, headers = { Origin: 'http://127.0.0.1:' + port, 'Content-Type': 'application/json' };
+  const patch = { provider: 'openai', url: 'https://api.example.com/v1/chat/completions', model: 'saved-model' };
+  const put = await rawCall(port, '/api/assistant/config', { method: 'PUT', headers, body: JSON.stringify(patch) });
+  assert.equal(put.status, 200); assert.equal(JSON.parse(put.text).model, 'saved-model'); assert.deepEqual(saved, [patch]);
+  assert.equal((await rawCall(port, '/api/assistant/config', { method: 'PUT', headers, body: '{bad' })).status, 400);
+  assert.equal((await rawCall(port, '/api/assistant/config', { method: 'PUT', headers, body: '{}' })).status, 400);
+  assert.equal((await rawCall(port, '/api/assistant/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })).status, 403);
+});
+
+test('assistant config PUT returns 405 when no config store is wired', async t => {
+  const server = createTangoServer({ assistant: { configuration: () => ({}), chat: async () => ({}) } });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  assert.equal((await rawCall(port, '/api/assistant/config', { method: 'PUT', headers: { Origin: 'http://127.0.0.1:' + port, 'Content-Type': 'application/json' }, body: '{"model":"x"}' })).status, 405);
+});
+
+test('assistant chat streams SSE frames and surfaces mid-stream failures as error frames', async t => {
+  const okServer = createTangoServer({ assistant: { configuration: () => ({}), chat: async () => { throw new Error('unused'); }, streamChat: async function* () { yield '你'; yield '好'; } } });
+  t.after(() => new Promise(resolve => okServer.close(resolve)));
+  await new Promise(resolve => okServer.listen(0, '127.0.0.1', resolve));
+  const port = okServer.address().port, headers = { Origin: 'http://127.0.0.1:' + port, 'Content-Type': 'application/json' };
+  const ok = await rawCall(port, '/api/assistant/chat', { method: 'POST', headers, body: '{"prompt":"hello","mode":"chat","stream":true}' });
+  assert.equal(ok.status, 200); assert.match(ok.type, /text\/event-stream/);
+  assert.equal(ok.text, 'data: {"text":"你"}\n\ndata: {"text":"好"}\n\ndata: [DONE]\n\n');
+  const failServer = createTangoServer({ assistant: { configuration: () => ({}), chat: async () => { throw new Error('unused'); }, streamChat: async function* () { yield '一'; throw Object.assign(new Error('upstream'), { code: 'TANGO_AI_UPSTREAM_FAILED' }); } } });
+  t.after(() => new Promise(resolve => failServer.close(resolve)));
+  await new Promise(resolve => failServer.listen(0, '127.0.0.1', resolve));
+  const failPort = failServer.address().port, failHeaders = { Origin: 'http://127.0.0.1:' + failPort, 'Content-Type': 'application/json' };
+  const failed = await rawCall(failPort, '/api/assistant/chat', { method: 'POST', headers: failHeaders, body: '{"prompt":"hello","mode":"chat","stream":true}' });
+  assert.equal(failed.status, 200);
+  assert.equal(failed.text, 'data: {"text":"一"}\n\ndata: {"error":"ai-upstream-failed"}\n\n');
 });

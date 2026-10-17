@@ -50,7 +50,7 @@ test('assistant UI script parses and renders without a duplicate return failure'
   assert.doesNotMatch(html, /<details[^>]*\bopen[ >]/);
   assert.doesNotMatch(html, /我的目标与边界|assistant-notes/);
   assert.match(html, /select id="assistant-mode"/);
-  assert.match(html, /select id="assistant-model"/);
+  assert.doesNotMatch(html, /assistant-model/);
   assert.doesNotMatch(html, /data-companion-task=/, 'task choices stay out of view until sharing is enabled');
   assert.doesNotMatch(html, /id="assistant-share-tasks" checked/);
   assert.doesNotMatch(html, /测试事项/);
@@ -149,6 +149,7 @@ test('assistant UI uses the Done&Go support message for model connection failure
     refresh() { refreshCalls += 1; },
     connection: () => ({ label: '未配置', available: false, loading: false }),
     request: async () => { throw new Error('not configured'); },
+    requestText: async () => { throw new Error('not configured'); },
     tasks: () => [],
     metrics: () => ({ period: { from: '2026-10-17', to: '2026-10-17' } }),
     modelEvidence: () => [],
@@ -163,7 +164,7 @@ test('assistant UI uses the Done&Go support message for model connection failure
   assert.ok(refreshCalls > 0);
 });
 
-test('assistant chat shows a waiting state and locks purpose and model while a request is in flight', async () => {
+test('assistant chat shows a waiting state with a streaming bubble and locks purpose while a request is in flight', async () => {
   const listeners = {};
   const messageInput = { value: '请回答', trim() { return this.value.trim(); } };
   const document = {
@@ -194,9 +195,7 @@ test('assistant chat shows a waiting state and locks purpose and model while a r
     active: () => true,
     refresh() {},
     connection: () => ({ label: '已连接', available: true, loading: false }),
-    modelChoices: () => [{ value: 'fixture', label: '测试模型', selected: true }],
-    selectModel() {},
-    request: () => new Promise(resolve => { resolveRequest = resolve; }),
+    requestText: () => new Promise(resolve => { resolveRequest = resolve; }),
     tasks: () => [],
     metrics: () => ({ period: { from: '2026-10-17', to: '2026-10-17' } }),
     modelEvidence: () => [],
@@ -209,12 +208,13 @@ test('assistant chat shows a waiting state and locks purpose and model while a r
   const pendingHtml = ui.render();
   assert.match(pendingHtml, /正在等待回应/);
   assert.match(pendingHtml, /id="assistant-mode"[^>]*disabled/);
-  assert.match(pendingHtml, /id="assistant-model"[^>]*disabled/);
+  assert.match(pendingHtml, /id="assistant-stream"/);
   assert.match(pendingHtml, /id="assistant-send"[^>]*disabled[^>]*>等待中/);
 
-  resolveRequest({});
+  resolveRequest('流式回答完成');
   await new Promise(resolve => setTimeout(resolve, 0));
   const completeHtml = ui.render();
+  assert.match(completeHtml, /流式回答完成/);
   assert.doesNotMatch(completeHtml, /id="assistant-mode"[^>]*disabled/);
-  assert.doesNotMatch(completeHtml, /id="assistant-model"[^>]*disabled/);
+  assert.doesNotMatch(completeHtml, /id="assistant-stream"/);
 });

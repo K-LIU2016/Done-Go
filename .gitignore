@@ -19,6 +19,7 @@ test-results/
 
 # Tango Done&Go local private settings (0700 dir / 0600 file, never committed)
 .tango-donego/
+.env
 
 # Editor directories and files
 .vscode/*
