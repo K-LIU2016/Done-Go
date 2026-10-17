@@ -890,22 +890,23 @@ window.TangoTime = (function () {
       '用户的话：「' + String(text).slice(0, 600) + '」';
   }
   // ---------- own LLM ----------
-  // mode: auto (claude.ai → this host's /api/llm → rules), server, custom, off. Kept apart from S so export/wipe never carry the key.
+  // Only consent lives here; endpoint and credential stay server-side.
   var LLM_KEY = 'tango-donego.llm.v1', legacyLLMKeyFound = false;
   var L = (function () {
     try {
       var o = JSON.parse(localStorage.getItem(LLM_KEY) || 'null');
-      if (o && o.mode) {
-        if (o.key) legacyLLMKeyFound = true;
-        var clean = window.TangoPrivacy.preferences(o);
-        if (o.key) { try { localStorage.setItem(LLM_KEY, JSON.stringify(window.TangoPrivacy.storablePreferences(clean))); } catch (ignore) { } }
-        return Object.assign({ key: '' }, clean);
+      if (o && typeof o === 'object') {
+        if (o.mode || o.key || o.url || o.model) {
+          if (o.key) legacyLLMKeyFound = true;
+          try { localStorage.setItem(LLM_KEY, JSON.stringify({ consent: o.consent === true })); } catch (ignore) { }
+        }
+        return { consent: o.consent === true };
       }
     } catch (e) { }
-    return { mode: 'auto', path: '', url: '', key: '', model: '', consent: false };
+    return { consent: false };
   })();
   function saveLLM() {
-    try { localStorage.setItem(LLM_KEY, JSON.stringify(window.TangoPrivacy.storablePreferences(L))); if (legacyLLMKeyFound) { legacyLLMKeyFound = false; } return true; }
+    try { localStorage.setItem(LLM_KEY, JSON.stringify(L)); if (legacyLLMKeyFound) { legacyLLMKeyFound = false; } return true; }
     catch (e) { memoryOnly = true; return false; }
   }
   var serverCfg = null, assistantCfg = null, assistantConfigState = /^https?:$/.test(location.protocol) ? 'loading' : 'unavailable';
@@ -918,22 +919,21 @@ window.TangoTime = (function () {
   else serviceStatus.status = 'unavailable';
   var serverP = (/^https?:$/.test(location.protocol) ? fetch('/api/llm/config', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }) : Promise.resolve(null))
     .then(function (c) { serverCfg = c && c.endpoints && c.endpoints.length ? c : null; if (serverCfg && route() === 'settings') render(); if (companion) companion.connectionChanged(); return serverCfg; }, function () { if (companion) companion.connectionChanged(); return null; });
-  var assistantP = (/^https?:$/.test(location.protocol) ? fetch('/api/assistant/config', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }) : Promise.resolve(null)).then(function (c) {
-    assistantCfg = c && c.available === true && typeof c.model === 'string' && typeof c.destination === 'string' && window.TangoPrivacy.safeEndpoint(c.destination) ? { model: c.model, destination: c.destination } : null;
+  function adoptAssistantConfig(c) {
+    assistantCfg = c && c.available === true && (c.provider === 'openai' || c.provider === 'anthropic') && typeof c.model === 'string' && typeof c.destination === 'string' && window.TangoPrivacy.safeEndpoint(c.destination) ? { provider: c.provider, model: c.model, destination: c.destination } : null;
     if (assistantCfg && ['low', 'medium', 'high', 'xhigh'].indexOf(c.reasoningEffort) >= 0) assistantCfg.reasoningEffort = c.reasoningEffort;
+    if (assistantCfg && c.models && typeof c.models === 'object') assistantCfg.models = { standard: typeof c.models.standard === 'string' ? c.models.standard : '', light: typeof c.models.light === 'string' ? c.models.light : '' };
     assistantConfigState = assistantCfg ? 'ready' : 'unavailable';
     if (companion) companion.connectionChanged();
     return assistantCfg;
-  }, function () { assistantCfg = null; assistantConfigState = 'unavailable'; if (companion) companion.connectionChanged(); return null; });
+  }
+  var assistantP = (/^https?:$/.test(location.protocol) ? fetch('/api/assistant/config', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }) : Promise.resolve(null))
+    .then(adoptAssistantConfig, function () { return adoptAssistantConfig(null); });
   function serverTarget() {
     if (assistantCfg) return { url: '/api/assistant/chat', protocol: 'donego', model: assistantCfg.model, destination: assistantCfg.destination, reasoningEffort: assistantCfg.reasoningEffort };
     if (!serverCfg) return null;
-    var ep = serverCfg.endpoints.filter(function (e) { return e.path === L.path; })[0] || serverCfg.endpoints[0];
+    var ep = serverCfg.endpoints[0];
     return { url: '/api/llm' + ep.path, key: '', model: ep.model };
-  }
-  function customTarget(requireConsent) {
-    if ((requireConsent !== false && !L.consent) || !L.url || !L.model || !window.TangoPrivacy.safeEndpoint(L.url)) return null;
-    return { url: L.url, key: L.key, model: L.model };
   }
   var pendingSendPreview = null;
   function requestPreview(destination, model, prompt) {
@@ -947,7 +947,7 @@ window.TangoTime = (function () {
     var resolve = pendingSendPreview; pendingSendPreview = null;
     closeSheet(); if (resolve) resolve(approved === true);
   }
-  function llmJSON(tg, prompt, ms) {
+  function llmJSON(tg, prompt, ms, mode) {
     return requestPreview(tg.destination || tg.url, tg.model + (tg.reasoningEffort ? ' · 推理 ' + tg.reasoningEffort : ''), prompt).then(function (approved) {
     if (!approved) throw new Error('cancelled');
     var ac = window.AbortController ? new AbortController() : null;
@@ -955,7 +955,7 @@ window.TangoTime = (function () {
     var openai = /\/chat\/completions(?:\?|$)/.test(tg.url), h = { 'Content-Type': 'application/json' };
     if (tg.protocol !== 'donego' && !openai) h['anthropic-version'] = '2023-06-01';
     if (tg.key && tg.protocol !== 'donego') { if (openai) h['Authorization'] = 'Bearer ' + tg.key; else h['x-api-key'] = tg.key; }
-    var body = tg.protocol === 'donego' ? { prompt: prompt } : { model: tg.model, max_tokens: 3000, messages: [{ role: 'user', content: prompt }] };
+    var body = tg.protocol === 'donego' ? (mode ? { prompt: prompt, mode: mode } : { prompt: prompt }) : { model: tg.model, max_tokens: 3000, messages: [{ role: 'user', content: prompt }] };
     return fetch(tg.url, { method: 'POST', headers: h, redirect: 'error', signal: ac ? ac.signal : undefined, body: JSON.stringify(body) })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (d) {
@@ -967,6 +967,47 @@ window.TangoTime = (function () {
         if (a < 0 || b < a) throw new Error('no json');
         return JSON.parse(txt.slice(a, b + 1));
       }, function (e) { clearTimeout(timer); lastErrorCode = 'TANGO_MODEL_FAILED'; throw e; });
+    });
+  }
+  function readSSE(response, onChunk) {
+    var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = '', full = '', failure = null;
+    function handle(frame) {
+      if (!frame) return;
+      if (typeof frame.text === 'string') { full += frame.text; onChunk(frame.text); }
+      if (frame.error) failure = new Error(frame.error);
+    }
+    function pump() {
+      return reader.read().then(function (chunk) {
+        if (chunk.done) return;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        var parts = buffer.split('\n\n');
+        buffer = parts.pop();
+        parts.forEach(function (block) {
+          block.split('\n').forEach(function (line) {
+            if (line.indexOf('data:') !== 0) return;
+            var payload = line.slice(5).trim();
+            if (!payload || payload === '[DONE]') return;
+            try { handle(JSON.parse(payload)); } catch (e) { }
+          });
+        });
+        return pump();
+      });
+    }
+    return pump().then(function () {
+      decoder.decode();
+      if (failure) throw failure;
+      return full;
+    }).finally(function () { reader.cancel().catch(function () { }); });
+  }
+  function llmText(tg, prompt, onChunk, mode, ms) {
+    return requestPreview(tg.destination || tg.url, tg.model + (tg.reasoningEffort ? ' · 推理 ' + tg.reasoningEffort : ''), prompt).then(function (approved) {
+      if (!approved) throw new Error('cancelled');
+      var ac = window.AbortController ? new AbortController() : null;
+      var timer = setTimeout(function () { if (ac) ac.abort(); }, ms || (tg.reasoningEffort === 'xhigh' ? 130000 : 45000));
+      var body = { prompt: prompt, mode: mode, stream: true };
+      return fetch(tg.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, redirect: 'error', signal: ac ? ac.signal : undefined, body: JSON.stringify(body) })
+        .then(function (r) { if (!r.ok || !r.body) throw new Error('HTTP ' + r.status); return readSSE(r, onChunk); })
+        .then(function (full) { clearTimeout(timer); return full; }, function (e) { clearTimeout(timer); lastErrorCode = 'TANGO_MODEL_FAILED'; throw e; });
     });
   }
   var capState = { busy: false, msg: '', warn: false, listening: false, text: '', pendingText: '' };
@@ -1011,9 +1052,7 @@ window.TangoTime = (function () {
         done(items.length ? items : ruleParse(text), items.length ? 'ai' : 'rule');
       }, function () { done(ruleParse(text), 'rule'); });
     };
-    if (!L.consent || L.mode === 'off') return done(ruleParse(text), 'rule');
-    if (L.mode === 'custom') return viaLLM(customTarget(true));
-    if (L.mode === 'server') return serverP.then(function () { viaLLM(serverTarget()); });
+    if (!L.consent) return done(ruleParse(text), 'rule');
     (aiOff ? Promise.resolve(null) : withTimeout(sampleP, 1500)).then(function (sample) {
       if (!sample) return serverP.then(function () { viaLLM(serverTarget()); });
       var prompt = aiPrompt(text);
@@ -1158,31 +1197,12 @@ window.TangoTime = (function () {
       return { modelId: modelId, availability: modelAccount(index).state, measurement: 'self-report', dataMode: 'real', statistics: { samples: rows.length, accepted: totals.samples, rework: rows.filter(function (t) { return t.quality === 'rework'; }).length, before: totals.before, after: totals.after, netDifference: totals.netDifference } };
     });
   }
-  var COMPANION_MODEL_KEY = 'tango-donego.assistant-model.v1', companionModelSelection = '';
-  try { companionModelSelection = localStorage.getItem(COMPANION_MODEL_KEY) || ''; } catch (e) {}
-  function companionModelChoices() {
-    var out = [];
-    if (L.mode !== 'off' && assistantCfg) out.push({ value: 'assistant-gateway', label: assistantCfg.model + (assistantCfg.reasoningEffort ? ' · ' + assistantCfg.reasoningEffort : ''), target: serverTarget() });
-    if (L.mode !== 'off' && serverCfg) serverCfg.endpoints.forEach(function (ep, index) {
-      var path = typeof ep.path === 'string' ? ep.path : String(index);
-      out.push({ value: 'server:' + path, label: ep.model || '本机模型 ' + (index + 1), target: { url: '/api/llm' + ep.path, key: '', model: ep.model } });
-    });
-    var custom = L.mode !== 'off' && customTarget(true);
-    if (custom) out.push({ value: 'custom', label: custom.model + ' · 自定义接口', target: custom });
-    var defaultValue = L.mode === 'custom' && custom ? 'custom' : assistantCfg ? 'assistant-gateway' : serverCfg ? 'server:' + ((serverCfg.endpoints.filter(function (ep) { return ep.path === L.path; })[0] || serverCfg.endpoints[0]).path) : '';
-    out.forEach(function (item) { item.selected = item.value === (out.some(function (candidate) { return candidate.value === companionModelSelection; }) ? companionModelSelection : defaultValue); });
-    return out;
-  }
   function companionTarget() {
-    if (L.mode === 'off') return null;
-    var choices = companionModelChoices(), selected = choices.filter(function (item) { return item.value === companionModelSelection; })[0];
-    if (selected) return selected.target;
-    if (L.mode === 'custom') return customTarget(true);
     return serverTarget();
   }
   function companionConnection() {
     var target = companionTarget();
-    return target ? { available: true, loading: false, model: target.model, label: target.model + (target.reasoningEffort ? ' · ' + target.reasoningEffort : '') } : L.mode !== 'off' && L.mode !== 'custom' && assistantConfigState === 'loading' ? { available: false, loading: true, label: '正在连接所选模型…' } : { available: false, loading: false, label: L.mode === 'off' ? 'AI 已关闭，请在设置中打开' : 'AI 暂不可用，请检查配置或连接' };
+    return target ? { available: true, loading: false, model: target.model, label: target.model + (target.reasoningEffort ? ' · ' + target.reasoningEffort : '') + ' · 服务端网关' } : assistantConfigState === 'loading' ? { available: false, loading: true, label: '正在连接模型…' } : { available: false, loading: false, label: 'AI 暂不可用，请在设置中保存服务端端点' };
   }
   function applyCompanionSuggestion(proposal) {
     if (!canWriteStorage()) throw new Error('protected storage');
@@ -1204,9 +1224,8 @@ window.TangoTime = (function () {
     active: function () { return route() === 'assistant'; }, route: route, refresh: function () { render(); },
     navigate: function () { closeSheet(); if (route() === 'assistant') render(); else location.hash = 'assistant'; },
     tasks: companionTasks, metrics: companionMetrics, modelEvidence: companionModelEvidence, connection: companionConnection,
-    modelChoices: companionModelChoices,
-    selectModel: function (value) { var choice = companionModelChoices().filter(function (item) { return item.value === value; })[0]; if (!choice) return false; companionModelSelection = choice.value; try { localStorage.setItem(COMPANION_MODEL_KEY, companionModelSelection); } catch (e) {} return true; },
-    request: function (prompt) { return Promise.all([assistantP, serverP]).then(function () { var target = companionTarget(); if (!target) throw new Error('not configured'); return llmJSON(target, prompt); }); },
+    request: function (prompt, mode) { return Promise.all([assistantP, serverP]).then(function () { var target = companionTarget(); if (!target) throw new Error('not configured'); return llmJSON(target, prompt, undefined, mode); }); },
+    requestText: function (prompt, onChunk, mode) { return Promise.all([assistantP, serverP]).then(function () { var target = companionTarget(); if (!target) throw new Error('not configured'); return llmText(target, prompt, onChunk, mode); }); },
     apply: applyCompanionSuggestion,
     modelLabel: function (modelId) { var index = MODEL_IDS.indexOf(modelId); return index >= 0 ? MODEL_REFERENCES[index][1] : modelId; },
     support: function () {
@@ -2033,23 +2052,22 @@ window.TangoTime = (function () {
   }
 
   function aiSettings() {
-    var opt = function (v, t) { return '<option value="' + v + '"' + (L.mode === v ? ' selected' : '') + '>' + t + '</option>'; };
-    var eps = serverCfg ? serverCfg.endpoints : [];
-    return '<section><h2>和探戈聊聊</h2><p class="small" role="status">' + esc(companionConnection().label) + '</p><p class="small muted">对话、事项建议和回顾共用此连接。可填写 OpenAI 兼容的 /chat/completions 或 Anthropic /messages 完整接口；聊天上下文由对话页单独勾选。</p><button class="btn sm" type="button" data-act="assistant-open">打开对话</button></section><div class="field"><label for="s-ai">AI</label><select id="s-ai">' + opt('auto', '自动') + (eps.length || assistantCfg || L.mode === 'server' ? opt('server', '本机模型') : '') + opt('custom', '自定义接口') + opt('off', '关闭') + '</select></div>' +
-      '<div class="field" data-ai="server"' + (L.mode === 'server' ? '' : ' hidden') + '><label for="s-ai-ep">模型</label><select id="s-ai-ep">' +
-      eps.map(function (e) { return '<option value="' + esc(e.path) + '"' + (e.path === L.path ? ' selected' : '') + '>' + esc(e.model || e.path) + '</option>'; }).join('') + '</select></div>' +
-      '<div class="col" data-ai="custom" style="gap:14px"' + (L.mode === 'custom' ? '' : ' hidden') + '>' +
-      '<div class="field"><label for="s-ai-url">接口地址</label><input id="s-ai-url" inputmode="url" autocomplete="off" placeholder="http://127.0.0.1:3458/v1/messages" value="' + esc(L.url) + '"></div>' +
-      '<div class="field"><label for="s-ai-model">模型名</label><input id="s-ai-model" autocomplete="off" placeholder="glm-5.3-flash" value="' + esc(L.model) + '"></div>' +
-      '<div class="field"><label for="s-ai-key">密钥（仅本次浏览器会话）</label><input id="s-ai-key" type="password" autocomplete="off" value="' + esc(L.key) + '"></div>' +
+    var c = assistantCfg || {}, m = c.models || {};
+    var optP = function (v, t) { return '<option value="' + v + '"' + ((c.provider || 'openai') === v ? ' selected' : '') + '>' + t + '</option>'; };
+    var optR = function (v, t) { return '<option value="' + v + '"' + ((c.reasoningEffort || '') === v ? ' selected' : '') + '>' + t + '</option>'; };
+    return '<section><h2>和探戈聊聊</h2><p class="small" role="status">' + esc(companionConnection().label) + '</p><p class="small muted">对话、事项建议和回顾共用此连接。端点保存在服务器，模型档位由探戈自动选择；聊天上下文由对话页单独勾选。</p><button class="btn sm" type="button" data-act="assistant-open">打开对话</button></section>' +
+      '<div class="col" style="gap:14px">' +
+      '<div class="field"><label for="s-ai-provider">服务商</label><select id="s-ai-provider">' + optP('openai', 'OpenAI 兼容 /chat/completions') + optP('anthropic', 'Anthropic /messages') + '</select></div>' +
+      '<div class="field"><label for="s-ai-url">接口地址</label><input id="s-ai-url" inputmode="url" autocomplete="off" placeholder="https://api.openai-next.com/v1/chat/completions" value="' + esc(c.destination || '') + '"></div>' +
+      '<div class="field"><label for="s-ai-model">主力模型（聊天）</label><input id="s-ai-model" autocomplete="off" placeholder="gpt-6.1-sol" value="' + esc(c.model || '') + '"></div>' +
+      '<div class="field"><label for="s-ai-standard">标准档（建议与推荐）</label><input id="s-ai-standard" autocomplete="off" placeholder="gemini-2.5-flash" value="' + esc(m.standard || '') + '"></div>' +
+      '<div class="field"><label for="s-ai-light">轻量档（测试）</label><input id="s-ai-light" autocomplete="off" placeholder="gpt-5.3-nano" value="' + esc(m.light || '') + '"></div>' +
+      '<div class="field"><label for="s-ai-effort">推理强度（仅 OpenAI 兼容）</label><select id="s-ai-effort">' + optR('', '默认') + optR('low', 'low') + optR('medium', 'medium') + optR('high', 'high') + optR('xhigh', 'xhigh') + '</select></div>' +
       '</div><label class="check"><input type="checkbox" id="s-ai-consent"' + (L.consent ? ' checked' : '') + '> 允许使用所选 AI 服务，每次发送前预览确认</label>' +
-      '<p class="small muted">未启用或连接不可用时不会发送请求，也不会生成替代回答。每次发送前可查看提交文本、提示词及勾选的上下文；API 密钥仅保留在当前页面内存，刷新需重填，不进入导出或本地存储。处理方的保留期及训练政策尚未核验；关闭仅停止后续发送，不能撤回已发送副本。</p>' +
-      '<button class="btn sm" type="button" data-act="ai-test" style="justify-self:start">测试 AI</button>';
+      '<p class="small muted">密钥保存在服务器 .env（TANGO_AI_CREDENTIAL），不在浏览器填写、保存或导出。未启用或连接不可用时不会发送请求，也不会生成替代回答；处理方的保留期及训练政策尚未核验；关闭仅停止后续发送，不能撤回已发送副本。</p>' +
+      '<div class="btns"><button class="btn sm" type="button" data-act="ai-save-endpoint">保存端点</button><button class="btn sm" type="button" data-act="ai-test">测试 AI</button></div>';
   }
   function readAI() {
-    var g = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
-    L.mode = g('s-ai') || 'auto'; L.path = g('s-ai-ep'); L.url = g('s-ai-url'); L.model = g('s-ai-model');
-    var key = document.getElementById('s-ai-key'); if (key) L.key = key.value;
     var consent = document.getElementById('s-ai-consent'); L.consent = !!(consent && consent.checked);
   }
 
@@ -2422,10 +2440,26 @@ window.TangoTime = (function () {
     if (act === 'start-real') { var realState = emptyState(); realState.mode = 'real'; if (!replaceWithSnapshot(realState)) return; render(); toast('示例已备份，已开始真实记录'); return; }
     if (act === 'ai-test') {
       readAI();
-      var tg = L.mode === 'custom' ? customTarget(false) : L.mode === 'off' ? null : serverTarget();
-      if (!tg) { toast(L.mode === 'auto' ? '自动：在 Claude 里用 Claude，否则用规则' : '没有可用的接口'); return; }
+      var tg = companionTarget();
+      if (!tg) { toast('没有可用的接口，请先保存端点'); return; }
       toast('测试中…');
-      llmJSON(tg, '只输出 JSON：{"ok":true}', tg.reasoningEffort === 'xhigh' ? 130000 : 30000).then(function () { toast('连上了 · ' + tg.model); }, function (e) { toast('连不上：' + (e && e.message || '出错')); });
+      llmJSON(tg, '只输出 JSON：{"ok":true}', 30000, 'test').then(function () { toast('连上了 · ' + tg.model); }, function (e) { toast('连不上：' + (e && e.message || '出错')); });
+      return;
+    }
+    if (act === 'ai-save-endpoint') {
+      readAI();
+      var provider = (document.getElementById('s-ai-provider') || {}).value || 'openai';
+      var patch = { provider: provider, url: ((document.getElementById('s-ai-url') || {}).value || '').trim(), model: ((document.getElementById('s-ai-model') || {}).value || '').trim() };
+      if (!window.TangoPrivacy.safeEndpoint(patch.url) || !patch.model) { toast('端点或主力模型无效'); return; }
+      var effort = (document.getElementById('s-ai-effort') || {}).value || '';
+      if (provider === 'openai' && effort) patch.reasoningEffort = effort;
+      var tiers = {};
+      ['standard', 'light'].forEach(function (tier) { var v = ((document.getElementById('s-ai-' + tier) || {}).value || '').trim(); if (v) tiers[tier] = v; });
+      if (Object.keys(tiers).length) patch.models = tiers;
+      fetch('/api/assistant/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function (c) { adoptAssistantConfig(c); if (companion) companion.connectionChanged(); render(); toast('端点已保存'); }, function (e) { toast('保存失败：' + (e && e.message || '出错')); });
       return;
     }
     if (act === 'export' || act === 'corrupt-export') { openSheet('<h2>' + (act === 'export' ? '导出内存快照' : '导出受保护原始数据') + '</h2><p class="small muted">完整本地数据可能包含姓名和事项正文，请保存在自己的设备。</p><div class="field"><label for="exp">数据</label><textarea id="exp" readonly>' + esc(act === 'export' ? JSON.stringify(S) : corruptRaw || '') + '</textarea></div><div class="btns"><button class="btn sm" data-act="copy">复制</button><button class="btn sm" data-act="close">关闭</button></div>'); return; }
@@ -2502,7 +2536,6 @@ window.TangoTime = (function () {
     if (act === 'agreement-reset') { agreementState = null; saveAgreements(); render(); return; }
   });
   document.addEventListener('change', function (ev) {
-    if (ev.target.id === 's-ai') { var md = ev.target.value; document.querySelectorAll('[data-ai]').forEach(function (el) { el.hidden = el.getAttribute('data-ai') !== md; }); return; }
     var f = ev.target.getAttribute && ev.target.getAttribute('data-f'); if (!f) return;
     var d = draftById(ev.target); if (!d) return;
     var v = ev.target.value.trim();

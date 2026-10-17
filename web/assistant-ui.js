@@ -10,7 +10,7 @@
   function create(bridge) {
     var core = root.TangoAssistant, rawAtLoad = null, protectedSession = false;
     var session = core.sanitizeSession({ v: 1, messages: [], notes: '', useChatForSuggestions: false });
-    var ui = { mode: 'chat', message: '', notes: '', selected: [], shareTasks: false, shareMetrics: false, shareNotes: false, shareModels: false, period: 'today', busy: false, generation: 0, notice: '', proposals: [], context: null, applied: {}, clearConfirm: false, selectedModel: '', privacyOpen: false, recordsOpen: false };
+    var ui = { mode: 'chat', message: '', notes: '', selected: [], shareTasks: false, shareMetrics: false, shareNotes: false, shareModels: false, period: 'today', busy: false, generation: 0, notice: '', proposals: [], context: null, applied: {}, clearConfirm: false, streaming: false, streamText: '', privacyOpen: false, recordsOpen: false };
     var discovery = { busy: false, loaded: false, topic: 'all', items: [], retrievedAt: null, stale: false, failures: 0, error: '' };
     try { rawAtLoad = localStorage.getItem(STORE); if (rawAtLoad) session = core.sanitizeSession(JSON.parse(rawAtLoad)); }
     catch { protectedSession = true; ui.notice = '聊天记录无法读取，已保留原始内容；本次仅在内存中聊天，请先导出本机对话再刷新检查。'; }
@@ -59,17 +59,14 @@
       }).join('') + '</section>';
     }
     function render() {
-      var connection = bridge.connection(), tasks = candidates(), choices = bridge.modelChoices ? bridge.modelChoices() : [];
-      var selectedChoice = choices.filter(function (item) { return item.selected; })[0];
-      ui.selectedModel = selectedChoice ? selectedChoice.value : '';
+      var connection = bridge.connection(), tasks = candidates();
       var locked = ui.busy ? ' disabled' : '';
       var modeOptions = Object.keys(MODES).map(function (mode) { return '<option value="' + mode + '"' + (mode === ui.mode ? ' selected' : '') + '>' + MODES[mode] + '</option>'; }).join('');
-      var modelOptions = choices.length ? (ui.selectedModel ? '' : '<option value="">选择模型</option>') + choices.map(function (item) { return '<option value="' + esc(item.value) + '"' + (item.value === ui.selectedModel ? ' selected' : '') + '>' + esc(item.label) + '</option>'; }).join('') : '<option value="">暂无可用模型</option>';
       var taskOptions = !ui.shareTasks ? '<p class="small muted">勾选“分享事项”后，可选择具体事项</p>' : tasks.length ? tasks.map(function (task) { return '<label><input type="checkbox" data-companion-task="' + esc(task.id) + '"' + (ui.selected.indexOf(task.id) >= 0 ? ' checked' : '') + '> <span>' + esc(task.title) + ' · ' + esc(task.date) + ' ' + esc(task.start) + '–' + esc(task.end) + '</span></label>'; }).join('') : '<p class="small muted">暂无可选事项</p>';
       return '<section id="assistant-root" class="full"><div class="companion-heading"><h1>和探戈聊聊</h1><a href="#today" class="small">今天</a></div>' +
-        '<div class="companion-toolbar"><label><span>用途</span><select id="assistant-mode" aria-label="聊天用途"' + locked + '>' + modeOptions + '</select></label><label><span>模型</span><select id="assistant-model" aria-label="聊天模型"' + (choices.length ? locked : ' disabled') + '>' + modelOptions + '</select></label></div>' +
+        '<div class="companion-toolbar"><label><span>用途</span><select id="assistant-mode" aria-label="聊天用途"' + locked + '>' + modeOptions + '</select></label></div>' +
         '<p id="assistant-connection" class="companion-connection' + (connection.available ? ' sr' : '') + '" role="status">' + esc(connection.label) + '</p>' +
-        '<div class="companion-layout"><main class="companion-chat"><div class="companion-conversation" role="log" aria-label="与探戈的对话" aria-live="polite">' + (session.messages.length ? session.messages.map(messageView).join('') : '<div class="companion-empty"><p>今天想聊点什么？</p></div>') + '</div>' +
+        '<div class="companion-layout"><main class="companion-chat"><div class="companion-conversation" role="log" aria-label="与探戈的对话" aria-live="polite">' + (session.messages.length ? session.messages.map(messageView).join('') : '<div class="companion-empty"><p>今天想聊点什么？</p></div>') + (ui.streaming ? '<article class="companion-message"><span class="message-author">探戈 · AI</span><p id="assistant-stream">' + esc(ui.streamText) + '</p></article>' : '') + '</div>' +
         '<form id="assistant-form" class="companion-compose" aria-busy="' + ui.busy + '"><label for="assistant-message" class="sr">消息</label><textarea id="assistant-message" maxlength="4000" rows="2" placeholder="输入消息…">' + esc(ui.message) + '</textarea><div class="companion-send-row"><span class="small muted" role="status" aria-live="polite">' + (ui.busy ? '正在等待回应…' : connection.loading ? '正在连接模型…' : '') + '</span><button id="assistant-send" class="btn primary" type="submit"' + (ui.busy ? ' disabled' : '') + '>' + (ui.busy ? '等待中…' : '发送') + '</button></div></form><p id="assistant-notice" role="status" class="small">' + esc(ui.notice) + '</p>' + proposalsView() + '</main>' +
         '<section class="companion-context" aria-label="可选设置"><details id="assistant-privacy" class="companion-disclosure"' + (ui.privacyOpen ? ' open' : '') + '><summary>由你决定，分享多少</summary><div class="companion-disclosure-body"><label class="check"><input type="checkbox" id="assistant-use-chat"' + (session.useChatForSuggestions ? ' checked' : '') + '> 将聊天用于事项建议</label><label class="check"><input type="checkbox" id="assistant-share-tasks"' + (ui.shareTasks ? ' checked' : '') + '> 分享事项</label><div class="companion-task-options">' + taskOptions + '</div><label class="check"><input type="checkbox" id="assistant-share-models"' + (ui.shareModels ? ' checked' : '') + '> 分享模型使用统计</label><label class="check"><input type="checkbox" id="assistant-share-metrics"' + (ui.shareMetrics ? ' checked' : '') + '> 分享时间汇总</label><label class="small" for="assistant-period">时间范围</label> <select id="assistant-period"><option value="today"' + (ui.period === 'today' ? ' selected' : '') + '>今天</option><option value="week"' + (ui.period === 'week' ? ' selected' : '') + '>最近 7 天</option></select>' + factsView() + '</div></details>' +
         '<details id="assistant-records" class="companion-disclosure"' + (ui.recordsOpen ? ' open' : '') + '><summary>链接与记录</summary><div class="companion-disclosure-body"><p class="small muted">聊天保存在此浏览器</p><a class="btn sm" href="#settings">配置 AI</a><div class="btns"><button class="btn sm" data-companion-export>导出对话</button><button class="btn sm" data-companion-clear>' + (ui.clearConfirm ? '确认清空' : '清空对话') + '</button></div>' + (ui.clearConfirm ? '<p class="small">清空后无法恢复；已发送给模型的内容无法撤回。</p>' : '') + '</div></details></section></div>' +
@@ -83,16 +80,26 @@
       ui.proposals = []; ui.applied = {}; ui.context = context; ui.message = ''; ui.busy = true; ui.notice = '';
       append('user', message); refresh();
       try {
-        var response = await bridge.request(core.buildPrompt({ mode: mode, message: message, context: context }));
-        var source = 'model';
-        if (generation !== ui.generation) return;
-        var checked = core.validateReply(response, context);
-        append('assistant', checked.reply, source); ui.proposals = checked.suggestions; ui.context = context;
-        ui.notice = checked.suggestions.length ? '请核对下方建议，再决定是否应用。' : '';
+        if (mode === 'chat') {
+          ui.streaming = true; ui.streamText = ''; refresh();
+          var text = await bridge.requestText(core.buildPrompt({ mode: mode, message: message, context: context }), function (chunk) {
+            if (generation !== ui.generation) return;
+            ui.streamText += chunk; var el = document.getElementById('assistant-stream');
+            if (el) { el.textContent = ui.streamText; var log = document.querySelector('.companion-conversation'); if (log) log.scrollTop = log.scrollHeight; }
+          }, mode);
+          if (generation !== ui.generation) return;
+          append('assistant', String(text == null ? '' : text).trim() || '（这次没有返回内容）', 'model');
+        } else {
+          var response = await bridge.request(core.buildPrompt({ mode: mode, message: message, context: context }), mode);
+          if (generation !== ui.generation) return;
+          var checked = core.validateReply(response, context);
+          append('assistant', checked.reply, 'model'); ui.proposals = checked.suggestions; ui.context = context;
+          ui.notice = checked.suggestions.length ? '请核对下方建议，再决定是否应用。' : '';
+        }
       } catch (error) {
         if (generation !== ui.generation) return;
         ui.notice = error && error.message === 'cancelled' ? '已取消发送，没有调用模型。可以修改内容再试。' : error && error.message.indexOf('TANGO_ASSISTANT_CONTEXT_TOO_LARGE') >= 0 ? '本次上下文过长，尚未发送。请减少勾选事项或缩短内容再试。' : '歇一会儿我们再继续吧，或者联系技术支持人员来为你开通新的探戈通道吧。';
-      } finally { if (generation === ui.generation) { ui.busy = false; refresh(); } }
+      } finally { if (generation === ui.generation) { ui.busy = false; ui.streaming = false; ui.streamText = ''; refresh(); } }
     }
     function open(mode, targetId) {
       if (MODES[mode]) ui.mode = mode;
@@ -101,7 +108,7 @@
       if (mode === 'reflection') { ui.shareMetrics = true; ui.period = 'today'; }
       bridge.navigate();
     }
-    function onLeave() { ui.generation++; ui.busy = false; }
+    function onLeave() { ui.generation++; ui.busy = false; ui.streaming = false; ui.streamText = ''; }
     function connectionChanged() { if (active()) refresh(); else { var el = document.getElementById('assistant-connection'); if (el) el.textContent = bridge.connection().label; } }
     document.addEventListener('input', function (event) {
       if (event.target.id === 'assistant-message') ui.message = event.target.value;
@@ -109,7 +116,6 @@
     document.addEventListener('change', function (event) {
       var el = event.target;
       if (el.id === 'assistant-mode') { ui.mode = Object.prototype.hasOwnProperty.call(MODES, el.value) ? el.value : 'chat'; refresh(); return; }
-      if (el.id === 'assistant-model') { ui.selectedModel = el.value; if (bridge.selectModel) bridge.selectModel(el.value); connectionChanged(); return; }
       if (el.id === 'assistant-use-chat') { session.useChatForSuggestions = el.checked; if (saveSession()) ui.notice = '共享设置已保存，仅影响后续请求。'; else ui.notice += '当前开关仅在本页生效，刷新后可能恢复原值。'; refresh(); return; }
       var fields = { 'assistant-share-tasks': 'shareTasks', 'assistant-share-metrics': 'shareMetrics', 'assistant-share-models': 'shareModels' };
       if (fields[el.id]) { ui[fields[el.id]] = el.checked; refresh(); return; }
