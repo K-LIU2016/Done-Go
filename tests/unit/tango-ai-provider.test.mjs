@@ -177,12 +177,12 @@ test('streamChat emits redacted SSE deltas and validates streaming input', async
   for await (const chunk of app.streamChat({ prompt: 'hello', mode: 'chat', stream: true })) out.push(chunk);
   assert.deepEqual(out, ['你', '好用 [redacted]', '吗']);
   assert.equal(payload.stream, true);
-  for (const input of [{ prompt: '' }, { prompt: 'x', mode: 'nope' }, { prompt: 'x', stream: 'yes' }, { prompt: 'x', extra: 1 }]) await assert.rejects(async () => { for await (const chunk of app.streamChat(input)) chunk; }, error => error.code === 'TANGO_AI_INPUT_INVALID');
+  for (const input of [{ prompt: '' }, { prompt: 'x', mode: 'nope' }, { prompt: 'x', stream: 'yes' }, { prompt: 'x', extra: 1 }]) await assert.rejects(async () => { for await (const chunk of app.streamChat(input)) { void chunk; } }, error => error.code === 'TANGO_AI_INPUT_INVALID');
 });
 
 test('streamChat rejects empty streams and falls back to one-shot Anthropic responses', async () => {
   const empty = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); controller.close(); } });
-  await assert.rejects(async () => { for await (const chunk of createAssistant({ config, fetch: async () => new Response(empty) }).streamChat({ prompt: 'hello' })) chunk; }, error => error.code === 'TANGO_AI_RESPONSE_INVALID');
+  await assert.rejects(async () => { for await (const chunk of createAssistant({ config, fetch: async () => new Response(empty) }).streamChat({ prompt: 'hello' })) { void chunk; } }, error => error.code === 'TANGO_AI_RESPONSE_INVALID');
   const app = createAssistant({ config: { provider: 'anthropic', url: config.url, model: 'test-model', key: 'private-key' }, fetch: async () => new Response(JSON.stringify({ content: [{ type: 'text', text: '一条回答' }] })) });
   const out = [];
   for await (const chunk of app.streamChat({ prompt: 'hello' })) out.push(chunk);

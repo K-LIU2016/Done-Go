@@ -244,11 +244,12 @@ test.describe('local speech capture', () => {
   });
 });
 
-test('local speech rejects external origins and malformed audio before recognition', async ({ request }) => {
+test('local speech rejects external origins and malformed audio before recognition', async ({ request, baseURL }) => {
+  const origin = new URL(baseURL!).origin;
   const external = await request.post('/api/speech/transcribe?lang=zh-CN', { headers: { Origin: 'https://example.com', 'Content-Type': 'audio/wav' }, data: Buffer.alloc(44) });
   expect(external.status()).toBe(403);
-  const invalid = await request.post('/api/speech/transcribe?lang=zh-CN', { headers: { Origin: 'http://127.0.0.1:5207', 'Content-Type': 'audio/wav' }, data: Buffer.alloc(44) });
+  const invalid = await request.post('/api/speech/transcribe?lang=zh-CN', { headers: { Origin: origin, 'Content-Type': 'audio/wav' }, data: Buffer.alloc(44) });
   expect(invalid.status()).toBe(400);
-  const tooLarge = await request.post('/api/speech/transcribe?lang=zh-CN', { headers: { Origin: 'http://127.0.0.1:5207', 'Content-Type': 'audio/wav' }, data: Buffer.alloc(1000000) });
+  const tooLarge = await request.post('/api/speech/transcribe?lang=zh-CN', { headers: { Origin: origin, 'Content-Type': 'audio/wav' }, data: Buffer.alloc(1000000) });
   expect(tooLarge.status()).toBe(413);
 });

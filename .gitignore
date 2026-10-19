@@ -20,6 +20,18 @@ test-results/
 # Tango Done&Go local private settings (0700 dir / 0600 file, never committed)
 .tango-donego/
 .env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+
+# Local screenshots, integration evidence and private launch helpers
+artifacts/
+evidence/ai-companion-*/
+evidence/openai-next-*/
+evidence/donego-release-*/
+.tmp-donego-*
+scripts/start-tango-private.mjs
 
 # Editor directories and files
 .vscode/*
