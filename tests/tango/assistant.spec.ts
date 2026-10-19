@@ -46,10 +46,10 @@ test('the configured gateway answers with the selected model even when legacy co
   let requests = 0;
   await page.route('**/api/assistant/chat', async route => {
     requests++;
-    await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify({ reply: '这是受控模型的真实回答。', suggestions: [] }) }] } });
+    await route.fulfill({ headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: 'data: ' + JSON.stringify({ text: '这是受控模型的真实回答。' }) + '\n\ndata: [DONE]\n\n' });
   });
   await page.locator('[data-act="assistant-open"]').first().click();
-  await expect(page.locator('#assistant-model')).toContainText('fixture-model');
+  await expect(page.locator('#assistant-connection')).toContainText('fixture-model');
   await expect(page.locator('#assistant-root')).not.toContainText('本地引导');
   await expect(page.locator('[data-companion-local]')).toHaveCount(0);
   await page.locator('#assistant-message').fill('请根据我的问题直接回答');
@@ -66,10 +66,10 @@ test('chat waits for an in-flight assistant configuration before checking availa
   const configGate = new Promise<void>(resolve => { releaseConfig = resolve; });
   await open(page, true, false, configGate);
   await page.route('**/api/assistant/chat', async route => {
-    await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify({ reply: '配置加载完成后的模型回答。', suggestions: [] }) }] } });
+    await route.fulfill({ headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: 'data: ' + JSON.stringify({ text: '配置加载完成后的模型回答。' }) + '\n\ndata: [DONE]\n\n' });
   });
   await page.locator('[data-act="assistant-open"]').first().click();
-  await expect(page.locator('#assistant-connection')).toContainText('正在连接所选模型');
+  await expect(page.locator('#assistant-connection')).toContainText('正在连接模型');
   await page.locator('#assistant-message').fill('配置尚未返回时也要等待真实模型');
   await page.locator('#assistant-send').click();
   await expect(page.locator('#assistant-send')).toHaveText('等待中…');
@@ -90,7 +90,6 @@ test('configured AI sends directly and a suggestion changes a task only after ad
     await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify({ reply: '根据你共享的目标，可以先处理论文修改。', suggestions: [{ targetId: chosen.targetId, fingerprint: chosen.fingerprint, priority: 1, kind: 'create', reason: '请核对截止日期是否确实临近。' }] }) }] } });
   });
   await page.locator('[data-act="assistant-open"]').first().click();
-  await expect(page.locator('#assistant-model')).toContainText('fixture-model');
   await page.locator('#assistant-mode').selectOption('priorities');
   await page.locator('#assistant-privacy summary').click();
   await page.locator('#assistant-share-tasks').check();

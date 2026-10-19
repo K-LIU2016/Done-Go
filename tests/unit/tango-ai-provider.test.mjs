@@ -145,3 +145,46 @@ test('xhigh has a 120 second default budget, ordinary modes keep 25 seconds, and
   assert.equal(await short, 'TANGO_AI_TIMEOUT');
   assert.deepEqual(aborted, ['ordinary', 'high', 'xhigh', 'short']);
 });
+
+test('mode tiers route models per tier and reasoning effort applies only to heavy', async () => {
+  const payloads = [];
+  const app = createAssistant({ config: { ...config, reasoningEffort: 'xhigh' }, env: { TANGO_AI_MODEL_STANDARD: 'standard-fixture', TANGO_AI_MODEL_LIGHT: 'light-fixture' }, fetch: async (_url, options) => {
+    payloads.push(JSON.parse(options.body));
+    return new Response('{"choices":[{"message":{"content":"ok"}}]}');
+  } });
+  assert.deepEqual(app.configuration().models, { heavy: 'test-model', standard: 'standard-fixture', light: 'light-fixture' });
+  await app.chat({ prompt: 'hello', mode: 'chat' });
+  await app.chat({ prompt: 'hello', mode: 'priorities' });
+  await app.chat({ prompt: 'hello', mode: 'test' });
+  assert.deepEqual(payloads.map(payload => payload.model), ['test-model', 'standard-fixture', 'light-fixture']);
+  assert.deepEqual(payloads.map(payload => payload.reasoning_effort), ['xhigh', undefined, undefined]);
+});
+
+test('configuration omits models until tier overrides exist', () => {
+  assert.equal('models' in createAssistant({ config, env: {} }).configuration(), false);
+  assert.deepEqual(createAssistant({ config: { ...config, models: { heavy: 'a-model', standard: 'b-model', light: 'c-model' } } }).configuration().models, { heavy: 'a-model', standard: 'b-model', light: 'c-model' });
+});
+
+test('streamChat emits redacted SSE deltas and validates streaming input', async () => {
+  let payload;
+  const stream = new ReadableStream({ start(controller) {
+    for (const chunk of ['你', '好用 private-key', '吗']) controller.enqueue(new TextEncoder().encode('data: ' + JSON.stringify({ choices: [{ delta: { content: chunk } }] }) + '\n\n'));
+    controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+    controller.close();
+  } });
+  const app = createAssistant({ config, fetch: async (_url, options) => { payload = JSON.parse(options.body); return new Response(stream); } });
+  const out = [];
+  for await (const chunk of app.streamChat({ prompt: 'hello', mode: 'chat', stream: true })) out.push(chunk);
+  assert.deepEqual(out, ['你', '好用 [redacted]', '吗']);
+  assert.equal(payload.stream, true);
+  for (const input of [{ prompt: '' }, { prompt: 'x', mode: 'nope' }, { prompt: 'x', stream: 'yes' }, { prompt: 'x', extra: 1 }]) await assert.rejects(async () => { for await (const chunk of app.streamChat(input)) chunk; }, error => error.code === 'TANGO_AI_INPUT_INVALID');
+});
+
+test('streamChat rejects empty streams and falls back to one-shot Anthropic responses', async () => {
+  const empty = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); controller.close(); } });
+  await assert.rejects(async () => { for await (const chunk of createAssistant({ config, fetch: async () => new Response(empty) }).streamChat({ prompt: 'hello' })) chunk; }, error => error.code === 'TANGO_AI_RESPONSE_INVALID');
+  const app = createAssistant({ config: { provider: 'anthropic', url: config.url, model: 'test-model', key: 'private-key' }, fetch: async () => new Response(JSON.stringify({ content: [{ type: 'text', text: '一条回答' }] })) });
+  const out = [];
+  for await (const chunk of app.streamChat({ prompt: 'hello' })) out.push(chunk);
+  assert.deepEqual(out, ['一条回答']);
+});

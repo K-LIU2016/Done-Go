@@ -108,6 +108,11 @@ test('prompts specify a reviewable JSON proposal with untrusted data, human choi
   assert.ok(prompt.includes('entry:paper'));
   assert.doesNotMatch(prompt, /private-key/);
   assert.throws(() => call('buildPrompt', { mode: 'unsupported', message: '', context: ctx }));
+  const chatPrompt = call('buildPrompt', { mode: 'chat', message: '先聊聊', context: context({ mode: 'chat', session: session() }) });
+  assert.match(chatPrompt, /不要 JSON、不要 Markdown/);
+  assert.match(chatPrompt, /句长交错/);
+  assert.match(chatPrompt, /坏例：/);
+  assert.doesNotMatch(chatPrompt, /"suggestions":\[/);
 });
 
 test('reply validation allows only current authorized targets, deduplicates and discards all unrelated fields', () => {

@@ -42,8 +42,10 @@ test('release status, all routes and privacy-safe diagnostics are visible', asyn
 
 test('exact AI send preview blocks transmission and cancellation returns to local capture', async ({ page }) => {
   let sent = 0;
-  await open(page, { llm: { mode: 'custom', consent: true, url: 'https://example.test/parse', model: 'fixture' } });
-  await page.route('https://example.test/parse', route => { sent++; return route.fulfill({ json: { content: [{ type: 'text', text: '{"items":[{"title":"开会","kind":"necessary","start":"14:00","end":"15:00"}]}' }] } }); });
+  await page.route('**/api/llm/config', route => route.fulfill({ json: { endpoints: [] } }));
+  await page.route('**/api/assistant/config', route => route.fulfill({ json: { available: true, provider: 'openai', model: 'fixture', destination: 'https://example.test/parse' } }));
+  await page.route('**/api/assistant/chat', route => { sent++; return route.fulfill({ json: { content: [{ type: 'text', text: '{"items":[{"title":"开会","kind":"necessary","start":"14:00","end":"15:00"}]}' }] } }); });
+  await open(page, { llm: { consent: true } });
   await page.locator('#cap-text').fill('下午两点到三点开会');
   await page.locator('#capGo').click();
   await expect(page.locator('.sheet')).toContainText('https://example.test/parse');

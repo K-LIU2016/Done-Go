@@ -17,6 +17,11 @@ function requestContext(route: Route): SharedContext {
   return JSON.parse(prompt.slice(prompt.lastIndexOf(separator) + separator.length));
 }
 async function respond(route: Route, reply: string, suggestions: Record<string, unknown>[] = []) {
+  const body = route.request().postDataJSON() as { stream?: boolean };
+  if (body && body.stream === true) {
+    await route.fulfill({ headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: 'data: ' + JSON.stringify({ text: reply }) + '\n\ndata: [DONE]\n\n' });
+    return;
+  }
   await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify({ reply, suggestions }) }] } });
 }
 async function open(page: Page, options: { configured?: boolean; sessionRaw?: string } = {}) {

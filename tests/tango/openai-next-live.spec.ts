@@ -13,7 +13,7 @@ test('the configured gateway returns a real AI reply on send without changing th
   page.on('request', request => {
     if (new URL(request.url()).pathname === '/api/assistant/chat') {
       sent++;
-      expect(Object.keys(request.postDataJSON())).toEqual(['prompt']);
+      expect(request.postDataJSON()).toEqual({ prompt: expect.any(String), mode: 'chat', stream: true });
       expect(request.headers()).not.toHaveProperty('authorization');
     }
   });
@@ -25,6 +25,7 @@ test('the configured gateway returns a real AI reply on send without changing th
   await expect(page.locator('#send-preview')).toHaveCount(0);
   await expect(page.locator('.companion-message:not(.is-user)')).toHaveCount(1, { timeout: 130000 });
   await expect(page.locator('.companion-message:not(.is-user) .message-author')).toHaveText('探戈 · AI');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tango-donego.assistant.v1')!).messages.at(-1)?.source), { timeout: 130000 }).toBe('model');
   const saved = await page.evaluate(() => ({ ledger: JSON.parse(localStorage.getItem('tango-donego.web.v1')!), conversation: JSON.parse(localStorage.getItem('tango-donego.assistant.v1')!) }));
   expect(saved.ledger).toEqual(state);
   expect(saved.conversation.messages.at(-1).source).toBe('model');

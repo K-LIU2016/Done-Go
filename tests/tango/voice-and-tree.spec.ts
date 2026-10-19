@@ -173,21 +173,23 @@ test.describe('local speech capture', () => {
   });
 
   test('leaving during AI task parsing cancels automatic event creation', async ({ page }) => {
+    await page.route('**/api/llm/config', route => route.fulfill({ json: { endpoints: [] } }));
+    await page.route('**/api/assistant/config', route => route.fulfill({ json: { available: true, provider: 'openai', model: 'fixture', destination: 'https://example.test/voice-gateway' } }));
     await open(page, []);
-    await page.evaluate(() => localStorage.setItem('tango-donego.llm.v1', JSON.stringify({ mode: 'custom', url: 'https://example.test/voice-test-llm', model: 'fixture', consent: true })));
+    await page.evaluate(() => localStorage.setItem('tango-donego.llm.v1', JSON.stringify({ consent: true })));
     await page.reload();
     let release!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; });
-    await page.route('**/voice-test-llm', async route => {
+    await page.route('**/api/assistant/chat', async route => {
       await held;
       await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify({ items: [{ title: '开会', kind: 'necessary', start: '14:00', end: '15:00', prio: 1 }] }) }] } });
     });
-    const parsing = page.waitForRequest('**/voice-test-llm');
+    const parsing = page.waitForRequest('**/api/assistant/chat');
     await say(page, '下午两点到三点开会');
     await page.locator('[data-act="send-confirm"]').click();
     await parsing;
     await page.locator('#tabs a[href="#review"]').click();
-    const parsed = page.waitForResponse('**/voice-test-llm');
+    const parsed = page.waitForResponse('**/api/assistant/chat');
     release();
     await parsed;
     await page.locator('#tabs a[href="#today"]').click();

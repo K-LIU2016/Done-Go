@@ -14,9 +14,9 @@ test('server-configured extra-high reasoning is visible and outlasts the ordinar
   const ready = new Promise<void>(resolve => { started = resolve; });
   await page.route('**/api/assistant/chat', async route => {
     requests++;
-    expect(Object.keys(route.request().postDataJSON())).toEqual(['prompt']);
+    expect(Object.keys(route.request().postDataJSON())).toEqual(['prompt', 'mode', 'stream']);
     started(); await waiting;
-    await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify({ reply: '可以先说说今天最想保留的一段时间。', suggestions: [] }) }] } });
+    await route.fulfill({ headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: 'data: ' + JSON.stringify({ text: '可以先说说今天最想保留的一段时间。' }) + '\n\ndata: [DONE]\n\n' });
   });
   await page.goto('/#assistant');
   await expect(page.locator('#assistant-connection')).toContainText('gpt-6.1-sol');
