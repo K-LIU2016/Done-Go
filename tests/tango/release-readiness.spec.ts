@@ -31,7 +31,7 @@ test('release status, all routes and privacy-safe diagnostics are visible', asyn
     await expect(page.locator('#view')).not.toBeEmpty();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   }
-  await expect(page.locator('#view')).toContainText('donego-web-2026.10.17');
+  await expect(page.locator('#view')).toContainText('donego-web-2026.10.19');
   await expect(page.locator('#service-status')).toContainText('0.1.0-local');
   await page.locator('[data-act="diagnostic-export"]').click();
   const report = JSON.parse(await page.locator('#exp').inputValue());

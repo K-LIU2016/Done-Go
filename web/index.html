@@ -585,6 +585,71 @@ window.TangoTime = (function () {
   return { occupiedMinutes: occupiedMinutes, unplannedMinutes: function (entries, wake) { return Math.max(0, (Number.isFinite(wake) ? wake : 960) - occupiedMinutes(entries)); }, confirmedSavings: confirmedSavings, recordedDurations: recordedDurations, personalUseSummary: personalUseSummary, estimate: estimate, completeTask: completeTask, reviseCompletion: reviseCompletion };
 })();
 </script>
+<script id="tango-method-core">
+window.TangoMethods = (function () {
+  'use strict';
+  // Reusable method recipes (S.methods) and per-task usage records (S.methodUses).
+  // Pure domain helpers only. Keep field rules in sync with web/privacy.js validateState.
+  var CATEGORIES = ['read', 'write', 'code', 'meet', 'mail', 'screen', 'admin', 'grade', 'study', 'food', 'travel', 'exercise', 'connect', 'none', 'other'];
+  var USE_STATUS = ['applied', 'aborted', 'completed', 'dismissed'];
+  var MODEL_IDS = ['claude-sonnet-5.5', 'gpt-5.4', 'gemini-3.1-pro-preview'];
+  function clean(value, max) { return typeof value === 'string' ? value.trim().slice(0, max) : ''; }
+  function nowIso() { return new Date().toISOString(); }
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+
+  // Default template slots never carry the task's private text; the user fills them per task.
+  function buildMethodDraft(input) {
+    input = input || {};
+    return {
+      id: uid(),
+      version: 1,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      name: clean(input.nameHint, 60) || '我的方法',
+      purpose: clean(input.purposeHint, 400),
+      category: CATEGORIES.indexOf(input.category) >= 0 ? input.category : 'other',
+      fit: clean(input.fitHint, 400),
+      unfit: clean(input.unfitHint, 400),
+      inputs: clean(input.inputsHint, 800) || '[可分享或获准使用的资料]、[目标或研究问题]、[期望的输出结构]',
+      steps: clean(input.stepsHint, 1500),
+      verify: clean(input.verifyHint, 800) || '抽查关键结论与出处；找不到依据时标记“无法核实”。',
+      stop: clean(input.stopHint, 400) || '材料不可分享、出处无法核对、关键结论冲突时停止。',
+      modelId: MODEL_IDS.indexOf(input.modelId) >= 0 ? input.modelId : 'unknown',
+      modelReason: clean(input.modelReasonHint, 400) || '未验证 · 尚无个人实测依据',
+      status: 'active',
+      origin: input.taskId ? { taskId: input.taskId, date: typeof input.date === 'string' ? input.date : '', quality: input.quality || null } : null
+    };
+  }
+
+  // Local, explainable matching: same task category, not archived, not already
+  // answered (dismissed/applied/…) for this task. No scores, no invented confidence.
+  function matchMethod(methods, uses, task) {
+    if (!task || !Array.isArray(methods)) return null;
+    var answered = {};
+    (Array.isArray(uses) ? uses : []).forEach(function (use) {
+      if (use && use.taskId === task.id && use.methodId) answered[use.methodId] = true;
+    });
+    var candidates = methods.filter(function (method) {
+      return method && method.status !== 'archived' && method.category === task.category && !answered[method.id];
+    });
+    if (!candidates.length) return null;
+    candidates.sort(function (a, b) { return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); });
+    return candidates[0];
+  }
+
+  // A suggestion only marks the entry it was opened for; changed or finished tasks refuse it.
+  function applyAllowed(entry, expectedTitle) {
+    return !!(entry && !entry.done && entry.kind !== 'stillness' && (expectedTitle == null || entry.title === expectedTitle));
+  }
+
+  function useStats(uses) {
+    var stats = { applied: 0, aborted: 0, completed: 0, dismissed: 0 };
+    (Array.isArray(uses) ? uses : []).forEach(function (use) { if (use && USE_STATUS.indexOf(use.status) >= 0) stats[use.status]++; });
+    return stats;
+  }
+  return { CATEGORIES: CATEGORIES, USE_STATUS: USE_STATUS, MODEL_IDS: MODEL_IDS, buildMethodDraft: buildMethodDraft, matchMethod: matchMethod, applyAllowed: applyAllowed, useStats: useStats };
+})();
+</script>
 <script>
 (function () {
   'use strict';
@@ -601,7 +666,7 @@ window.TangoTime = (function () {
   var QUADS = ['restore', 'create', 'connect', 'explore'];
   var PAGES = [{ id: 'today', label: '今天' }, { id: 'line', label: '时间之树' }, { id: 'review', label: '回顾' }, { id: 'agreements', label: '约定' }];
   var STORE_KEY = 'tango-donego.web.v1';
-  var PRODUCT_VERSION = 'donego-web-2026.10.17';
+  var PRODUCT_VERSION = 'donego-web-2026.10.19';
   var SKILL_LABELS = { decomposition: '任务分解', context: '提供上下文', constraints: '表达约束', verification: '核验结果与来源', privacy: '隐私判断' };
   var RULES = [
     { cat: 'code', re: /代码|编程|程序|开发|debug|bug|coding/i, method: '定位问题、生成修改与测试' },
@@ -621,6 +686,9 @@ window.TangoTime = (function () {
   ];
   var DEFAULT_RULE = { cat: 'other', method: '拆解目标、资料与下一步' };
   var Time = window.TangoTime;
+  var Methods = window.TangoMethods;
+  var METHOD_CAT_LABELS = { read: '读论文与报告', write: '写与改', code: '代码与开发', meet: '会议与纪要', mail: '邮件与回复', screen: '资料筛选', admin: '行政与整理', grade: '批改与出题', study: '学习与复习', food: '吃饭准备', travel: '行程与通勤', exercise: '运动安排', connect: '陪伴与沟通', none: '休息整理', other: '其他' };
+  var METHOD_USE_LABELS = { applied: '已应用 · 待完成', aborted: '应用后中止', completed: '完成并验收', dismissed: '已忽略' };
 
   // keyword → kind, checked in order; the first hit wins
   var KIND_WORDS = [
@@ -674,7 +742,7 @@ window.TangoTime = (function () {
   var BACKUP_KEY = STORE_KEY + '.backup';
   function safeStorageGet(key) { try { return localStorage.getItem(key); } catch (e) { memoryOnly = true; lastErrorCode = 'TANGO_STORAGE_FAILED'; return null; } }
   function showRecoveryNotice() { var notice = document.getElementById('runtime-notice'); if (!notice) return; notice.hidden = !recoveryNotice; notice.innerHTML = esc(recoveryNotice) + (recoveryNotice ? '<div class="btns"><button class="btn sm" data-act="export">导出内存快照</button><a class="btn sm" href="#settings">查看恢复选项</a><button class="btn sm" data-act="reload-local">已导出，刷新检查</button></div>' : ''); }
-  function emptyState() { return { v: 1, pv: 5, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], drafts: [], sortBy: 'prio', fw: {}, pal: 0, uid: '' }; }
+  function emptyState() { return { v: 1, pv: 5, mode: null, name: '', wake: 960, ideal: null, entries: [], trials: [], methods: [], methodUses: [], drafts: [], sortBy: 'prio', fw: {}, pal: 0, uid: '' }; }
   function load() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
@@ -693,6 +761,8 @@ window.TangoTime = (function () {
   }
   var S = load();
   S.trials = Array.isArray(S.trials) ? S.trials : [];
+  S.methods = Array.isArray(S.methods) ? S.methods : [];
+  S.methodUses = Array.isArray(S.methodUses) ? S.methodUses : [];
   function canWriteStorage() {
     if (corruptedMain || storageConflict) return false;
     try { if (localStorage.getItem(STORE_KEY) !== lastStoredRaw) { storageConflict = true; recoveryNotice = '另一个标签页已更改数据，已阻止旧快照覆盖。请先导出内存快照，再刷新检查最新记录。'; showRecoveryNotice(); return false; } return true; }
@@ -1305,7 +1375,7 @@ window.TangoTime = (function () {
     return header + (tasks.length ? tasks.map(function (e) {
       var personal = e.kind === 'stillness', title = personal && e.title === '静驻' ? '自由安排' : e.title;
       return '<article class="task-card' + (priority ? '' : ' timeline-item') + '"><div class="task-head"><div class="task-title"><b>' + esc(title) + '</b><time>' + e.start + '–' + e.end + '</time></div><span class="small muted">' + (e.done ? e.completion && e.completion.quality !== 'accepted' ? '待验收' : '✓ 已完成' : personal ? '自己的时间' : PRIO_NAME[P(e)]) + '</span></div>' +
-        (priority ? '' : '<p class="task-meta">' + (e.completion ? e.completion.actual : dur(e)) + ' min</p>') + assistance(e) +
+        (priority ? '' : '<p class="task-meta">' + (e.completion ? e.completion.actual : dur(e)) + ' min</p>') + assistance(e) + methodAppliedHint(e) + methodHint(e) +
         '<div class="task-actions"><button class="btn sm" data-act="leaf" data-id="' + esc(e.id) + '">详情</button>' + (!personal && (!e.done || e.completion && e.completion.quality !== 'accepted') ? '<button class="btn sm" data-act="task-finish" data-id="' + esc(e.id) + '">' + (e.done ? '验收结果' : '完成') + '</button>' : '') + '</div></article>';
     }).join('') : '<p class="muted">还没有事项</p><button class="btn sm" data-act="capture-example">＋ 试一条</button>') + (priority ? '</div></details>' : '</section>');
   }
@@ -1323,6 +1393,8 @@ window.TangoTime = (function () {
   function finishSheet(e) {
     if (!e || e.kind === 'stillness' || e.done && (!e.completion || e.completion.quality === 'accepted')) return;
     var c = e.completion || {}, costs = c.costs || {}, learning = c.learning || {};
+    var methodDraft = methodFinishDraft(e);
+    var savedMethod = S.methods.filter(function (m) { return m.origin && m.origin.taskId === e.id && m.origin.date === e.date; })[0];
     var learningOptions = function (options, selected) { return options.map(function (option) { return '<option value="' + option[0] + '"' + (selected === option[0] ? ' selected' : '') + '>' + option[1] + '</option>'; }).join(''); };
     var costInput = function (key, label) { return '<div class="field"><label for="finish-' + key + '">' + label + ' · min</label><input id="finish-' + key + '" type="number" inputmode="numeric" min="0" max="1440" step="1" value="' + (costs[key] || 0) + '"></div>'; };
     openSheet('<h2>' + esc(e.title) + (e.done ? ' · 验收结果' : ' · 完成') + '</h2><p class="muted small">计划 ' + (c.before || dur(e)) + ' min · 总用时 = 执行 + 准备 + 核对 + 返工，不要重复填写。补验收时填写累计用时。</p>' +
@@ -1332,6 +1404,15 @@ window.TangoTime = (function () {
       '<div class="field"><label for="finish-recording">本次记录、切换与验收操作开销 · min</label><input id="finish-recording" type="number" min="0" max="1440" step="1" inputmode="numeric" placeholder="未记录；确认没有额外开销时填 0" value="' + (Number.isInteger(c.recording) ? c.recording : '') + '"><span class="small muted">仅填未计入上述任务用时的额外操作开销，净时间再扣除这部分；留空表示未知。</span></div>' +
       '<details><summary>任务模型证据与匿名导出 · 可选</summary><div class="field"><label for="finish-model-id">实际使用的模型</label><select id="finish-model-id"><option value="unknown">未知或未使用</option>' + MODEL_IDS.map(function (id, i) { return '<option value="' + id + '"' + (c.modelId === id ? ' selected' : '') + '>' + MODEL_REFERENCES[i][1] + '</option>'; }).join('') + '</select></div><div class="field"><label for="finish-model-version">实际型号版本或快照日期</label><input id="finish-model-version" maxlength="60" pattern="[A-Za-z0-9._-]{1,60}" placeholder="例如 2026-10-16；仅字母、数字、点、横线" value="' + esc(c.modelVersion || '') + '"></div><div class="field"><label for="finish-input-scale">输入规模</label><select id="finish-input-scale">' + learningOptions([['unknown', '未记录'], ['short', '短：约 2 千字以内'], ['medium', '中：约 2 千–2 万字'], ['long', '长：约 2 万字以上']], c.inputScale) + '</select></div><label class="check"><input id="finish-eval-consent" type="checkbox"' + (c.anonymousEvaluationConsent === true ? ' checked' : '') + '> 同意将这次真实任务的白名单指标纳入本机匿名评测导出</label><p class="small muted">仅导出型号、版本、输入规模、任务类别、验收、分项分钟；不含姓名、正文、任务 ID 或密钥。不会自动上传；示例与未同意记录不纳入。导出后无法撤回已分享的副本。</p></details>' +
       '<details><summary>学习护栏与技能练习 · 可选</summary><p class="small muted">学习事项建议先独立尝试 5 分钟，再只请求提示；核验答案后，关掉 AI 做一次独立复测。这里只记录你的自述，不判定掌握程度。</p><div class="field"><label for="finish-own-attempt">使用 AI 前先自己尝试了吗？</label><select id="finish-own-attempt">' + learningOptions([['unknown', '未记录'], ['yes', '先独立尝试过'], ['no', '没有先尝试']], learning.ownAttempt) + '</select></div><div class="field"><label for="finish-hint-level">本次请求了哪种帮助？</label><select id="finish-hint-level">' + learningOptions([['unknown', '未记录'], ['hints', '只要提示'], ['outline', '提纲或分步引导'], ['answer', '直接答案'], ['none', '未使用 AI 帮助']], learning.hintLevel) + '</select></div><div class="field"><label for="finish-retest">关闭 AI 后独立复测</label><select id="finish-retest">' + learningOptions([['not-tested', '尚未复测'], ['passed', '自述能独立完成'], ['needs-practice', '仍需练习']], learning.independentRetest) + '</select></div><fieldset><legend class="small">这次实际练习的技能</legend>' + Object.keys(SKILL_LABELS).map(function (key) { return '<label class="check"><input type="checkbox" id="finish-skill-' + key + '"' + (Array.isArray(learning.skills) && learning.skills.indexOf(key) >= 0 ? ' checked' : '') + '> ' + SKILL_LABELS[key] + '</label>'; }).join('') + '</fieldset></details>' +
+      '<details><summary>保留这次方法 · 可选</summary><p class="small muted">这套做法，下次还用吗？保存到「我的 AI 工作手册」，之后相似任务会提醒你。模板默认使用变量槽位，不会复制这次任务的正文。' + (savedMethod ? '这个任务已保存过方法 v' + savedMethod.version + '；再勾选保存会更新为新版本。' : '') + '</p>' +
+      '<label class="check"><input id="finish-method-keep" type="checkbox"> 保留这次方法</label>' +
+      '<div class="field"><label for="finish-method-name">方法名称</label><input id="finish-method-name" maxlength="60" value="' + esc(savedMethod ? savedMethod.name : methodDraft.name) + '"></div>' +
+      '<div class="field"><label for="finish-method-purpose">用途 · 给谁、做什么</label><input id="finish-method-purpose" maxlength="400" value="' + esc(savedMethod ? savedMethod.purpose : methodDraft.purpose) + '"></div>' +
+      '<div class="field"><label for="finish-method-inputs">开始材料 · 变量槽位</label><textarea id="finish-method-inputs" maxlength="800">' + esc(savedMethod ? savedMethod.inputs : methodDraft.inputs) + '</textarea></div>' +
+      '<div class="field"><label for="finish-method-verify">核验清单 · 怎样算对</label><textarea id="finish-method-verify" maxlength="800">' + esc(savedMethod ? savedMethod.verify : methodDraft.verify) + '</textarea></div>' +
+      '<div class="field"><label for="finish-method-stop">停止条件 · 什么时候不该用</label><input id="finish-method-stop" maxlength="400" value="' + esc(savedMethod ? savedMethod.stop : methodDraft.stop) + '"></div>' +
+      '<div class="field"><label for="finish-method-model">模型候选理由 · 默认未验证</label><input id="finish-method-model" maxlength="400" value="' + esc(savedMethod ? savedMethod.modelReason : methodDraft.modelReason) + '"></div>' +
+      '<p class="small muted">未验收或失败的做法也可以保存为待改进方法；只有后续任务完成并验收后才算「完成并验收」的使用记录。</p></details>' +
       '<div class="field"><label for="finish-quality">结果验收</label><select id="finish-quality"><option value="pending">待核验 · 暂不计入收益</option><option value="accepted">已核验 · 结果可用</option><option value="rework">需返工 · 暂不计入收益</option></select></div><p class="small muted">确认结果符合原任务要求后，再选择「结果可用」。</p><p class="form-error" id="finish-error" role="alert" hidden></p>' +
       '<button class="btn primary wide" data-act="finish-save" data-id="' + esc(e.id) + '">确认</button><button class="btn wide" data-act="close">取消</button>');
   }
@@ -1347,10 +1428,134 @@ window.TangoTime = (function () {
     var estimate = guidanceEstimate(ruleFor(e.title).cat, result.trial.before);
     result.entry.forecast = e.forecast || { before: result.trial.before, low: estimate.low, high: estimate.high, source: estimate.source };
     if (result.freed) result.entry.freed = Object.assign({ pending: true }, result.freed);
+    var methodNote = saveMethodFromCompletion(result.entry, result.trial);
+    S.methodUses.forEach(function (use) {
+      if (use.taskId !== e.id || use.status !== 'applied') return;
+      if (result.trial.quality === 'accepted') use.status = 'completed';
+      else if (result.trial.quality === 'rework') use.status = 'aborted';
+      use.at = new Date().toISOString();
+    });
     replaceEntry(e, [result.entry]); S.trials = S.trials.filter(function (trial) { return trial.taskId !== e.id || trial.date !== e.date; }); S.trials.push(result.trial); save(); closeSheet(); render();
     if (result.trial.quality === 'accepted') fireworks(innerWidth / 2, Math.min(innerHeight * .35, 300), FW_COL.p3);
     if (result.freed) openSheet('<h2>✓ 已完成</h2>' + timeChoice(result.entry) + '<p class="small muted">按计划与实际用时计算；不代表全部由 AI 带来。</p><button class="btn wide" data-act="close">稍后决定</button>');
-    else toast((result.trial.quality === 'accepted' ? '✓ 已验收' : '已记录 · 待验收') + ' · ' + result.trial.after + ' min');
+    else toast((result.trial.quality === 'accepted' ? '✓ 已验收' : '已记录 · 待验收') + ' · ' + result.trial.after + ' min' + (methodNote ? ' · ' + methodNote : ''));
+  }
+  // ---------- 我的 AI 工作手册：方法保存（D1）与找回复用（D2） ----------
+  function byMethodId(id) { return S.methods.filter(function (m) { return m.id === id; })[0] || null; }
+  function usesFor(methodId) { return S.methodUses.filter(function (u) { return u.methodId === methodId; }); }
+  function useForTask(taskId, methodId) { return S.methodUses.filter(function (u) { return u.taskId === taskId && u.methodId === methodId; }).slice(-1)[0] || null; }
+  function methodStatusLabel(entry) {
+    if (!entry.methodRef) return '';
+    var use = useForTask(entry.id, entry.methodRef.methodId);
+    if (!use) return '';
+    return METHOD_USE_LABELS[use.status] || use.status;
+  }
+  function methodHint(e) {
+    if (!e || e.done || e.kind === 'stillness' || e.methodRef) return '';
+    var method = Methods.matchMethod(S.methods, S.methodUses, { id: e.id, category: ruleFor(e.title).cat });
+    if (!method) return '';
+    return '<div class="ai-inline"><span>✦ 你有一个相关方法 · ' + esc(method.name) + '</span><button class="btn sm" data-act="method-view" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '">使用相关方法</button><button class="btn sm" data-act="method-dismiss" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '">忽略</button></div>';
+  }
+  function methodAppliedHint(e) {
+    if (!e || !e.methodRef || e.done) return '';
+    return '<div class="ai-inline"><span>✦ 使用方法 · ' + esc(e.methodRef.name) + ' · ' + esc(methodStatusLabel(e)) + '</span><button class="btn sm" data-act="method-view" data-id="' + esc(e.id) + '" data-mid="' + esc(e.methodRef.methodId) + '">查看</button></div>';
+  }
+  function methodUseList(methodId) {
+    var rows = usesFor(methodId).slice(-6).reverse();
+    if (!rows.length) return '<p class="small muted">还没有使用记录。在新任务上应用这个方法后，这里显示真实结果。</p>';
+    return rows.map(function (use) {
+      var task = byId(use.taskId), taskLabel = task ? '「' + esc(task.title) + '」' : '（原任务已删除）';
+      return '<p class="small">' + esc(use.date) + ' · ' + taskLabel + ' · ' + METHOD_USE_LABELS[use.status] + ' · 方法 v' + use.methodVersion + '</p>';
+    }).join('');
+  }
+  function methodSheet(e, method, expectedTitle) {
+    if (!method) { toast('这个方法已被删除；事项记录保留'); return; }
+    var mref = e && e.methodRef && e.methodRef.methodId === method.id;
+    var appliedUse = e && useForTask(e.id, method.id);
+    var originTask = method.origin && byId(method.origin.taskId);
+    openSheet('<div class="tools-h"><h2>方法卡 · ' + esc(method.name) + '</h2><button class="x" data-act="close" aria-label="关闭">×</button></div>' +
+      '<p class="muted small">v' + method.version + ' · ' + METHOD_CAT_LABELS[method.category] + ' 类任务 · ' + (method.origin ? (originTask ? '来自任务「' + esc(originTask.title) + '」' : '来源任务已删除') + ' · 保存时' + ({ accepted: '已验收', pending: '待核验', rework: '需返工' }[method.origin.quality] || '未记录验收') : '手动创建') + (method.status === 'archived' ? ' · 已归档，不再推荐' : '') + '</p>' +
+      (e && !mref ? '<p class="status">推荐原因：同样是「' + METHOD_CAT_LABELS[method.category] + '」类任务 · 按任务类别本地匹配，不代表一定适用；条件不同可以不用。</p>' : '') +
+      (method.purpose ? '<p class="small">用途：' + esc(method.purpose) + '</p>' : '') +
+      (method.fit || method.unfit ? '<p class="small">适用：' + esc(method.fit || '未写') + ' · 不适用：' + esc(method.unfit || '未写') + '</p>' : '') +
+      '<h3>开始材料 · 变量槽位</h3><textarea class="prompt" id="method-template" readonly aria-label="方法模板">' + esc(method.inputs) + '</textarea><div class="btns"><button class="btn sm" data-act="method-copy">复制模板</button></div>' +
+      (method.steps ? '<h3>步骤</h3><p class="small">' + esc(method.steps).replace(/\n/g, '<br>') + '</p>' : '') +
+      '<h3>核验清单</h3><p class="small">' + esc(method.verify).replace(/\n/g, '<br>') + '</p>' +
+      '<p class="small">停止条件：' + esc(method.stop) + '</p>' +
+      '<p class="small">模型候选：' + (MODEL_IDS.indexOf(method.modelId) >= 0 ? MODEL_REFERENCES[MODEL_IDS.indexOf(method.modelId)][1] : '未指定') + ' · ' + esc(method.modelReason) + '</p>' +
+      '<details><summary>使用记录 · 真实结果</summary>' + methodUseList(method.id) + '</details>' +
+      (e && !e.done && !mref ?
+        '<p class="small muted">应用会在当前事项上做标记并记录一次使用；不修改时间、标题或其他事项。</p>' +
+        '<button class="btn primary wide" data-act="method-apply" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '" data-t="' + esc(expectedTitle == null ? e.title : expectedTitle) + '">应用到这个事项</button>' +
+        '<button class="btn wide" data-act="method-dismiss" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '">这次不合适（忽略）</button>'
+        : '') +
+      (mref && appliedUse && appliedUse.status === 'applied' ? '<button class="btn wide" data-act="method-abort" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '">这次没继续用（记为中止）</button>' : '') +
+      '<button class="btn wide" data-act="close">关闭</button>');
+  }
+  function methodApply(el) {
+    var e = byId(el.getAttribute('data-id')), method = byMethodId(el.getAttribute('data-mid')), expected = el.getAttribute('data-t');
+    if (!method) { toast('这个方法已被删除；建议未应用'); return; }
+    if (!Methods.applyAllowed(e, expected)) { toast('事项已修改、完成或删除；建议未应用，请重新查看当前事项'); return; }
+    e.methodRef = { methodId: method.id, version: method.version, name: method.name };
+    S.methodUses.push({ id: uid(), methodId: method.id, methodVersion: method.version, methodName: method.name, taskId: e.id, date: todayStr(), status: 'applied', at: new Date().toISOString() });
+    if (!save()) { toast('本地保存失败，应用仅保留在内存；请导出快照'); return; }
+    closeSheet(); render(); toast('已关联「' + method.name + '」· 只作用于这个事项');
+  }
+  function methodDismiss(el) {
+    var e = byId(el.getAttribute('data-id')), method = byMethodId(el.getAttribute('data-mid'));
+    if (!e || !method) return;
+    if (!useForTask(e.id, method.id)) S.methodUses.push({ id: uid(), methodId: method.id, methodVersion: method.version, methodName: method.name, taskId: e.id, date: todayStr(), status: 'dismissed', at: new Date().toISOString() });
+    if (!save()) { toast('本地保存失败，忽略仅保留在内存'); return; }
+    closeSheet(); render(); toast('已忽略 · 这个事项不再提示，其他事项不受影响');
+  }
+  function methodAbort(el) {
+    var e = byId(el.getAttribute('data-id')), method = byMethodId(el.getAttribute('data-mid'));
+    if (!e || !method) return;
+    var use = useForTask(e.id, method.id);
+    if (use && use.status === 'applied') { use.status = 'aborted'; use.at = new Date().toISOString(); }
+    if (!save()) { toast('本地保存失败，中止记录仅保留在内存'); return; }
+    closeSheet(); render(); toast('已记录：这次应用后中止 · 不计成功复用');
+  }
+  function methodEditSheet(method) {
+    openSheet('<h2>修改方法 · ' + esc(method.name) + '</h2><p class="muted small">保存会产生新版本 v' + (method.version + 1) + '；以前的使用记录仍指向当时的版本，结果不改写。</p>' +
+      '<div class="field"><label for="me-name">名称</label><input id="me-name" maxlength="60" value="' + esc(method.name) + '"></div>' +
+      '<div class="field"><label for="me-purpose">用途</label><input id="me-purpose" maxlength="400" value="' + esc(method.purpose) + '"></div>' +
+      '<div class="pair"><div class="field"><label for="me-fit">适用条件</label><input id="me-fit" maxlength="400" value="' + esc(method.fit) + '"></div><div class="field"><label for="me-unfit">不适用条件</label><input id="me-unfit" maxlength="400" value="' + esc(method.unfit) + '"></div></div>' +
+      '<div class="field"><label for="me-inputs">开始材料 · 变量槽位</label><textarea id="me-inputs" maxlength="800">' + esc(method.inputs) + '</textarea></div>' +
+      '<div class="field"><label for="me-steps">步骤 · 每行一步</label><textarea id="me-steps" maxlength="1500">' + esc(method.steps) + '</textarea></div>' +
+      '<div class="field"><label for="me-verify">核验清单</label><textarea id="me-verify" maxlength="800">' + esc(method.verify) + '</textarea></div>' +
+      '<div class="field"><label for="me-stop">停止条件</label><input id="me-stop" maxlength="400" value="' + esc(method.stop) + '"></div>' +
+      '<div class="field"><label for="me-reason">模型候选理由 · 默认未验证</label><input id="me-reason" maxlength="400" value="' + esc(method.modelReason) + '"></div>' +
+      '<p class="form-error" id="me-error" role="alert" hidden></p>' +
+      '<button class="btn primary wide" data-act="method-edit-save" data-mid="' + esc(method.id) + '">保存新版本</button>' +
+      '<button class="btn wide" data-act="method-archive" data-mid="' + esc(method.id) + '">' + (method.status === 'archived' ? '恢复使用（取消归档）' : '归档 · 不再推荐') + '</button>' +
+      '<button class="btn wide" data-act="method-delete" data-mid="' + esc(method.id) + '">删除方法</button>' +
+      '<button class="btn wide" data-act="close">取消</button>');
+  }
+  function saveMethodFromCompletion(entry, trial) {
+    var keep = document.getElementById('finish-method-keep');
+    if (!keep || !keep.checked) return '';
+    var name = (document.getElementById('finish-method-name').value || '').trim().slice(0, 60);
+    if (!name) return '方法名称为空，这次未保存方法';
+    var cat = ruleFor(entry.title).cat, g = GUIDANCE[cat] || GUIDANCE.other;
+    var draft = Methods.buildMethodDraft({
+      nameHint: name, category: cat, stepsHint: (g.steps || []).map(function (step) { return guidanceText(step); }).join('\n'),
+      taskId: entry.id, date: entry.date, quality: trial.quality, modelId: trial.modelId
+    });
+    draft.name = name;
+    draft.purpose = (document.getElementById('finish-method-purpose').value || '').trim().slice(0, 400);
+    draft.inputs = (document.getElementById('finish-method-inputs').value || '').trim().slice(0, 800) || draft.inputs;
+    draft.verify = (document.getElementById('finish-method-verify').value || '').trim().slice(0, 800);
+    draft.stop = (document.getElementById('finish-method-stop').value || '').trim().slice(0, 400);
+    draft.modelReason = (document.getElementById('finish-method-model').value || '').trim().slice(0, 400);
+    var existing = S.methods.filter(function (m) { return m.origin && m.origin.taskId === entry.id && m.origin.date === entry.date; })[0];
+    if (existing) { draft.id = existing.id; draft.version = existing.version + 1; draft.createdAt = existing.createdAt; S.methods = S.methods.filter(function (m) { return m !== existing; }); }
+    S.methods.push(draft);
+    return existing ? '方法已更新为 v' + draft.version : '已保留方法，下次相似任务会提醒你';
+  }
+  function methodFinishDraft(e) {
+    var cat = ruleFor(e.title).cat, g = GUIDANCE[cat] || GUIDANCE.other;
+    return Methods.buildMethodDraft({ nameHint: ruleFor(e.title).method, category: cat, stepsHint: (g.steps || []).map(function (step) { return guidanceText(step); }).join('\n'), modelReasonHint: '未验证 · 尚无个人实测依据' });
   }
   function useTime(e, use) {
     if (!e || !e.freed || !e.freed.pending) return;
@@ -1889,7 +2094,8 @@ window.TangoTime = (function () {
     var personal = e.kind === 'stillness', title = personal && e.title === '静驻' ? '自由安排' : e.title;
     var conf = personal && e.state === 'reserved' && stillnessEnded(e) ? '<div class="btns"><button class="btn primary" data-act="kept" data-id="' + e.id + '">✓ 用到了</button><button class="btn" data-act="taken" data-id="' + e.id + '">被占用</button></div>' : '';
     var planned = treePlannedEntry(e);
-    openSheet('<h2>' + esc(title) + '</h2><p class="muted">' + (e.completion ? '原计划 ' : '') + e.start + '–' + planned.end + ' · ' + (e.completion ? '实际 ' + e.completion.actual : dur(e)) + ' min' + (e.done ? ' · ✓ 已完成' : '') + '</p>' + conf + assistance(e) +
+    var mrefLine = e.methodRef ? '<p class="small">关联方法：' + esc(e.methodRef.name) + ' v' + e.methodRef.version + (methodStatusLabel(e) ? ' · ' + esc(methodStatusLabel(e)) : '') + (byMethodId(e.methodRef.methodId) ? '' : ' · 方法已删除，本条记录保留') + '</p>' : '';
+    openSheet('<h2>' + esc(title) + '</h2><p class="muted">' + (e.completion ? '原计划 ' : '') + e.start + '–' + planned.end + ' · ' + (e.completion ? '实际 ' + e.completion.actual : dur(e)) + ' min' + (e.done ? ' · ✓ 已完成' : '') + '</p>' + conf + assistance(e) + mrefLine +
       (!personal && !e.done ? '<button class="btn primary wide" data-act="task-finish" data-id="' + e.id + '">完成</button><button class="btn wide" data-act="edit">修改</button>' : '') + '<button class="btn wide" data-act="del" data-id="' + e.id + '">删除</button><button class="btn wide" data-act="close">关闭</button>');
   }
 
@@ -1916,6 +2122,32 @@ window.TangoTime = (function () {
     var summary = Time.personalUseSummary(S.entries, from, to);
     return '<details><summary>预留与实际用途 · ' + (S.mode === 'demo' ? '示例' : '真实记录') + '</summary><p class="small" data-metric="review-personal-reserved">预留 ' + summary.reserved + ' min · 事后确认用到 ' + summary.confirmedUsed + ' min · 未确认 ' + summary.unconfirmed + ' 项（含未来预留）</p><p class="small">来自任务关联：预留 ' + summary.taskLinked.reserved + ' / 确认用到 ' + summary.taskLinked.confirmedUsed + ' min</p><p class="small">普通个人预留：预留 ' + summary.ordinary.reserved + ' / 确认用到 ' + summary.ordinary.confirmedUsed + ' min</p><p class="small">已确认用途：' + Object.keys(summary.purposes).filter(function (key) { return summary.purposes[key] > 0; }).map(function (key) { return KINDS[key].label + ' ' + summary.purposes[key] + ' min'; }).join(' · ') + (summary.confirmedUsed ? '' : '暂无事后确认') + '</p><p class="small muted">按当前时间窗内个人预留记录累计，重叠可能重复。任务关联仅表示 from 引用，不等于由 AI 创造；用途是本人事后确认，未确认不视为已使用。</p></details>';
   }
+  function methodUseSummaryLine() {
+    var stats = Methods.useStats(S.methodUses);
+    var parts = [];
+    if (stats.completed) parts.push(stats.completed + ' 次完成并验收');
+    if (stats.applied) parts.push(stats.applied + ' 次应用后待完成');
+    if (stats.aborted) parts.push(stats.aborted + ' 次应用后中止');
+    if (stats.dismissed) parts.push(stats.dismissed + ' 次忽略');
+    return parts.length ? parts.join(' · ') : '还没有在任务上用过';
+  }
+  function pageMethods() {
+    if (!S.methods.length) return '<section class="block"><h2>我的 AI 工作手册</h2><p class="muted small">还没有保留过方法。完成一次任务时，在「保留这次方法」里勾选保存，下次相似任务会提醒你找回。</p></section>';
+    var active = S.methods.filter(function (m) { return m.status !== 'archived'; }), archived = S.methods.filter(function (m) { return m.status === 'archived'; });
+    function methodCard(m) {
+      var stats = Methods.useStats(usesFor(m.id));
+      var used = stats.applied + stats.aborted + stats.completed;
+      var originTask = m.origin && byId(m.origin.taskId);
+      var originText = m.origin ? (originTask ? '来自「' + esc(originTask.title) + '」' : '来源任务已删除') : '手动创建';
+      return '<article class="task-card"><div class="task-head"><div class="task-title"><b>' + esc(m.name) + '</b><time>v' + m.version + ' · ' + METHOD_CAT_LABELS[m.category] + '</time></div><span class="small muted">' + (m.status === 'archived' ? '已归档' : '用过 ' + used + ' 次') + '</span></div>' +
+        '<p class="small muted">' + originText + ' · ' + (stats.completed ? stats.completed + ' 次完成并验收' : '尚无完成验收的使用 · 不算已验证有效') + '</p>' +
+        '<div class="task-actions"><button class="btn sm" data-act="method-edit" data-mid="' + esc(m.id) + '">查看 / 修改</button></div></article>';
+    }
+    return '<section class="block"><h2>我的 AI 工作手册</h2><p class="small muted">' + active.length + ' 个方法 · ' + methodUseSummaryLine() + '。方法来自你自己的任务；按任务类别本地匹配找回，不生成匹配度分数。</p>' +
+      (active.length ? active.map(methodCard).join('') : '<p class="muted small">当前没有在用的方法；已归档方法在下方。</p>') +
+      (archived.length ? '<details><summary>已归档 · ' + archived.length + '</summary>' + archived.map(methodCard).join('') + '</details>' : '') +
+      '<p class="small muted">模型候选理由默认未验证；只有「完成并验收」的使用记录才算复用结果，中止与忽略都如实保留。</p></section>';
+  }
   function pageReview() {
     var end = addDays(todayStr(), -calOff * range), from = addDays(end, -(range - 1));
     var records = S.entries.filter(function (e) { return e.date >= from && e.date <= end; }), x = mix(records), m = x.m;
@@ -1931,6 +2163,7 @@ window.TangoTime = (function () {
     if (pending.length) html += '<section class="block"><h2>待验收事项</h2>' + pending.map(function (e) { return '<button class="ai-row" data-act="task-finish" data-id="' + esc(e.id) + '"><span>' + esc(e.title) + '<br><span class="small muted">' + (e.completion.quality === 'rework' ? '需返工' : '待核验') + ' · 已记录 ' + e.completion.actual + ' min</span></span><span class="small">验收结果 ›</span></button>'; }).join('') + '</section>';
     var learningRecords = records.filter(function (e) { return e.completion && e.completion.learning; });
     html += '<section class="block"><h2>AI 技能练习</h2><p class="small muted">' + learningRecords.length + ' 项自述记录 · 不代表已掌握或能力迁移。可在完成表单补充先独立尝试、提示级别、核验技能与独立复测。</p>' + learningRecords.map(function (e) { var l = e.completion.learning; return '<details><summary>' + esc(e.title) + '</summary><p class="small">先独立尝试：' + (l.ownAttempt === 'yes' ? '是' : l.ownAttempt === 'no' ? '否' : '未记录') + ' · 帮助：' + ({ hints: '提示', outline: '分步引导', answer: '直接答案', none: '未使用 AI' }[l.hintLevel] || '未记录') + ' · 独立复测：' + (l.independentRetest === 'passed' ? '自述能完成' : l.independentRetest === 'needs-practice' ? '仍需练习' : '未复测') + '</p><p class="small">练习：' + Object.keys(SKILL_LABELS).filter(function (key) { return Array.isArray(l.skills) && l.skills.indexOf(key) >= 0; }).map(function (key) { return SKILL_LABELS[key]; }).join('、') + '</p></details>'; }).join('') + '</section>';
+    html += pageMethods();
     var keys = ['create', 'connect', 'explore', 'restore', 'necessary', 'stillness'].filter(function (k) { return m[k] > 0; });
     html += '<section class="block"><h2>时间去向</h2>' + (x.total ? '<div class="stack-bar" role="img" aria-label="时间去向">' + keys.map(function (k) { return '<span style="width:' + (m[k] / x.total * 100).toFixed(2) + '%;background:' + KINDS[k].color + '"></span>'; }).join('') + '</div><div class="legend">' + keys.map(function (k) { return '<span><i style="background:' + KINDS[k].color + '"></i>' + KINDS[k].label + ' <b class="num">' + fmtPlain(m[k]) + '</b></span>'; }).join('') + '</div><p class="scope-note">按事项记录累计；重叠事项可能重复计算。</p>' : '<p class="muted">暂无记录</p>') + '</section></div>';
     var seen = {}, finds = records.filter(function (e) { var r = ruleFor(e.title); if (e.kind === 'stillness' || !r.method || seen[e.title]) return false; seen[e.title] = true; return true; }).slice(0, 4);
@@ -2346,7 +2579,7 @@ window.TangoTime = (function () {
       save(); closeSheet(); render(); toast('留出来了'); return;
     }
     if (act === 'kept' || act === 'taken') { var e1 = byId(el.getAttribute('data-id')); if (e1) { e1.state = act; e1.kept = act === 'kept' ? dur(e1) : 0; save(); closeSheet(); render(); } return; }
-    if (act === 'del') { var did = el.getAttribute('data-id'); S.entries = S.entries.filter(function (e) { return e.id !== did; }); if (bubSel === did) bubSel = null; save(); closeSheet(); render(); toast('已删除'); return; }
+    if (act === 'del') { var did = el.getAttribute('data-id'); S.entries = S.entries.filter(function (e) { return e.id !== did; }); S.methodUses = S.methodUses.filter(function (use) { return use.taskId !== did; }); if (bubSel === did) bubSel = null; save(); closeSheet(); render(); toast('已删除'); return; }
     if (act === 'care') return careSheet(el.getAttribute('data-k'), el.getAttribute('data-h'));
     if (act === 'leaf') { var e4 = byId(el.getAttribute('data-id')); if (e4) leafSheet(e4); return; }
     if (act === 'day') { var n = +el.getAttribute('data-d'); lineDate = addDays(lineDate || todayStr(), n); if (lineDate === todayStr()) lineDate = null; render(); return; }
@@ -2400,6 +2633,56 @@ window.TangoTime = (function () {
     if (act === 'sort') { S.sortBy = el.getAttribute('data-d'); save(); render(); return; }
     if (act === 'task-finish') return finishSheet(byId(el.getAttribute('data-id')));
     if (act === 'finish-save') return saveCompletion(byId(el.getAttribute('data-id')));
+    if (act === 'method-view') { var mvE = byId(el.getAttribute('data-id')), mvM = byMethodId(el.getAttribute('data-mid')); return methodSheet(mvE, mvM, mvE && mvE.title); }
+    if (act === 'method-dismiss') return methodDismiss(el);
+    if (act === 'method-apply') return methodApply(el);
+    if (act === 'method-abort') return methodAbort(el);
+    if (act === 'method-copy') {
+      var methodTpl = document.getElementById('method-template');
+      if (navigator.clipboard) navigator.clipboard.writeText(methodTpl.value).then(function () { toast('已复制模板'); }, function () { methodTpl.select(); toast('已选中'); }); else { methodTpl.select(); toast('已选中'); }
+      return;
+    }
+    if (act === 'method-edit') { var meM = byMethodId(el.getAttribute('data-mid')); if (meM) methodEditSheet(meM); return; }
+    if (act === 'method-edit-save') {
+      var esM = byMethodId(el.getAttribute('data-mid'));
+      if (!esM) return;
+      var esName = (document.getElementById('me-name').value || '').trim().slice(0, 60);
+      if (!esName) { var meError = document.getElementById('me-error'); meError.hidden = false; meError.textContent = '名称不能为空'; return; }
+      esM.name = esName;
+      esM.purpose = (document.getElementById('me-purpose').value || '').trim().slice(0, 400);
+      esM.fit = (document.getElementById('me-fit').value || '').trim().slice(0, 400);
+      esM.unfit = (document.getElementById('me-unfit').value || '').trim().slice(0, 400);
+      esM.inputs = (document.getElementById('me-inputs').value || '').trim().slice(0, 800);
+      esM.steps = (document.getElementById('me-steps').value || '').trim().slice(0, 1500);
+      esM.verify = (document.getElementById('me-verify').value || '').trim().slice(0, 800);
+      esM.stop = (document.getElementById('me-stop').value || '').trim().slice(0, 400);
+      esM.modelReason = (document.getElementById('me-reason').value || '').trim().slice(0, 400);
+      esM.version += 1; esM.updatedAt = new Date().toISOString();
+      if (!save()) { toast('本地保存失败，修改仅保留在内存；请导出快照'); return; }
+      closeSheet(); render(); toast('已保存 v' + esM.version + ' · 旧使用记录仍指向当时的版本');
+      return;
+    }
+    if (act === 'method-archive') {
+      var arM = byMethodId(el.getAttribute('data-mid'));
+      if (!arM) return;
+      arM.status = arM.status === 'archived' ? 'active' : 'archived'; arM.updatedAt = new Date().toISOString();
+      if (!save()) { toast('本地保存失败，归档仅保留在内存'); return; }
+      closeSheet(); render(); toast(arM.status === 'archived' ? '已归档 · 不再推荐，记录保留' : '已恢复使用');
+      return;
+    }
+    if (act === 'method-delete') {
+      var dlM = byMethodId(el.getAttribute('data-mid'));
+      if (!dlM) return;
+      var dlUses = usesFor(dlM.id).length;
+      openSheet('<h2>删除方法？</h2><p class="muted small">「' + esc(dlM.name) + '」将被删除。' + (dlUses ? dlUses + ' 条使用记录会保留并标注「方法已删除」；' : '') + '任务、时间统计与完成记录不受影响。</p><button class="btn primary wide" data-act="method-delete-yes" data-mid="' + esc(dlM.id) + '">删除</button><button class="btn wide" data-act="close">取消</button>');
+      return;
+    }
+    if (act === 'method-delete-yes') {
+      S.methods = S.methods.filter(function (m) { return m.id !== el.getAttribute('data-mid'); });
+      if (!save()) { toast('本地保存失败，删除仅保留在内存'); return; }
+      closeSheet(); render(); toast('方法已删除 · 使用记录与时间统计保留');
+      return;
+    }
     if (act === 'time-use') return useTime(byId(el.getAttribute('data-id')), el.getAttribute('data-v'));
     if (act === 'use-save') {
       var ue = byId(el.getAttribute('data-id')), ud = document.getElementById('use-date').value, us = document.getElementById('use-start').value, um = document.getElementById('use-min').value, ut = document.getElementById('use-title').value.trim();

@@ -6,11 +6,45 @@
   var HM = /^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/;
   var DATE = /^\d{4}-\d{2}-\d{2}$/;
   var MODEL_IDS = ['claude-sonnet-5.5', 'gpt-5.4', 'gemini-3.1-pro-preview'];
+  var METHOD_CATEGORIES = ['read', 'write', 'code', 'meet', 'mail', 'screen', 'admin', 'grade', 'study', 'food', 'travel', 'exercise', 'connect', 'none', 'other'];
+  var METHOD_USE_STATUS = ['applied', 'aborted', 'completed', 'dismissed'];
   function copy(o) { var out = {}; Object.keys(o || {}).forEach(function (k) { out[k] = o[k]; }); return out; }
   function object(o) { return !!o && typeof o === 'object' && !Array.isArray(o); }
   function pick(o, keys) { var out = {}; keys.forEach(function (key) { if (Object.prototype.hasOwnProperty.call(o, key)) out[key] = o[key]; }); return out; }
   function integer(n, low, high) { return Number.isInteger(n) && n >= low && n <= high; }
   function optionalText(o, key, max) { return o[key] == null || typeof o[key] === 'string' && o[key].length <= max; }
+  function requiredText(o, key, max) { return typeof o[key] === 'string' && o[key].length > 0 && o[key].length <= max; }
+  function isoTime(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
+    var date = new Date(value);
+    return Number.isFinite(date.getTime()) && date.toISOString() === value;
+  }
+  function validMethod(method) {
+    if (!object(method) || typeof method.id !== 'string' || !ID.test(method.id) || !integer(method.version, 1, 1000)) return false;
+    if (!requiredText(method, 'name', 60) || !optionalEnum(method, 'category', METHOD_CATEGORIES) || !optionalEnum(method, 'status', ['active', 'archived'])) return false;
+    if (!optionalText(method, 'purpose', 400) || !optionalText(method, 'fit', 400) || !optionalText(method, 'unfit', 400)) return false;
+    if (!optionalText(method, 'inputs', 800) || !optionalText(method, 'steps', 1500) || !optionalText(method, 'verify', 800)) return false;
+    if (!optionalText(method, 'stop', 400) || !optionalText(method, 'modelReason', 400)) return false;
+    if (!optionalEnum(method, 'modelId', MODEL_IDS.concat(['unknown']))) return false;
+    if (!isoTime(method.createdAt) || !isoTime(method.updatedAt)) return false;
+    if (method.origin != null) {
+      var origin = method.origin;
+      if (!object(origin) || typeof origin.taskId !== 'string' || !ID.test(origin.taskId)) return false;
+      if (origin.date != null && origin.date !== '' && !realDate(origin.date)) return false;
+      if (origin.quality != null && ['accepted', 'pending', 'rework'].indexOf(origin.quality) < 0) return false;
+    }
+    return true;
+  }
+  function validMethodUse(use) {
+    if (!object(use) || typeof use.id !== 'string' || !ID.test(use.id) || typeof use.methodId !== 'string' || !ID.test(use.methodId)) return false;
+    if (!integer(use.methodVersion, 1, 1000) || !requiredText(use, 'methodName', 60)) return false;
+    if (typeof use.taskId !== 'string' || !ID.test(use.taskId) || !realDate(use.date)) return false;
+    if (METHOD_USE_STATUS.indexOf(use.status) < 0 || !isoTime(use.at)) return false;
+    return true;
+  }
+  function validMethodRef(value) {
+    return object(value) && typeof value.methodId === 'string' && ID.test(value.methodId) && integer(value.version, 1, 1000) && requiredText(value, 'name', 60);
+  }
   function optionalBoolean(o, key) { return o[key] == null || typeof o[key] === 'boolean'; }
   function optionalEnum(o, key, values) { return o[key] == null || values.indexOf(o[key]) >= 0; }
   function validLearning(value) {
@@ -53,8 +87,15 @@
     } else if (value.learning === null) out.learning = null;
     return out;
   }
+  function cleanMethod(method) {
+    var out = pick(method, ['id', 'version', 'createdAt', 'updatedAt', 'name', 'purpose', 'category', 'fit', 'unfit', 'inputs', 'steps', 'verify', 'stop', 'modelId', 'modelReason', 'status']);
+    if (method.origin != null) out.origin = pick(method.origin, ['taskId', 'date', 'quality']);
+    return out;
+  }
+  function cleanMethodUse(use) { return pick(use, ['id', 'methodId', 'methodVersion', 'methodName', 'taskId', 'date', 'status', 'at']); }
   function cleanEntry(value) {
     var out = pick(value, ['id', 'date', 'title', 'kind', 'start', 'end', 'done', 'prio', 'at', 'state', 'kept', 'use', 'note', 'intent', 'from', 'modelPreference']);
+    if (value.methodRef != null) out.methodRef = pick(value.methodRef, ['methodId', 'version', 'name']);
     if (value.completion != null) {
       out.completion = pick(value.completion, ['actual', 'before', 'plannedEnd']);
       var measurement = cleanMeasurement(value.completion);
@@ -110,6 +151,7 @@
     if (!optionalEnum(e, 'state', ['reserved', 'kept', 'partial', 'taken']) || !optionalEnum(e, 'use', ['necessary', 'restore', 'create', 'connect', 'explore', 'stillness'])) return false;
     if (e.kept != null && !integer(e.kept, 0, 1440) || !optionalText(e, 'note', 2000) || !optionalText(e, 'intent', 2000) || e.from != null && (typeof e.from !== 'string' || !ID.test(e.from))) return false;
     if (e.ai != null && (!object(e.ai) || !optionalBoolean(e.ai, 'used'))) return false;
+    if (e.methodRef != null && !validMethodRef(e.methodRef)) return false;
     if (e.freed != null && (!object(e.freed) || !optionalBoolean(e.freed, 'pending') || !integer(e.freed.minutes, 0, 1440) || !time(e.freed.start, false) || !time(e.freed.end, false) || minutes(e.freed.end) <= minutes(e.freed.start))) return false;
     if (e.forecast != null) {
       var f = e.forecast;
@@ -155,6 +197,12 @@
     var trials = input.trials == null ? [] : input.trials;
     if (!Array.isArray(trials)) return { ok: false, error: 'trials' };
     for (var k = 0; k < trials.length; k++) if (!validTrial(trials[k])) return { ok: false, error: 'trial ' + k };
+    var methods = input.methods == null ? [] : input.methods;
+    if (!Array.isArray(methods)) return { ok: false, error: 'methods' };
+    for (var mi = 0; mi < methods.length; mi++) if (!validMethod(methods[mi])) return { ok: false, error: 'method ' + mi };
+    var methodUses = input.methodUses == null ? [] : input.methodUses;
+    if (!Array.isArray(methodUses)) return { ok: false, error: 'methodUses' };
+    for (var ui = 0; ui < methodUses.length; ui++) if (!validMethodUse(methodUses[ui])) return { ok: false, error: 'methodUse ' + ui };
     var wake = input.wake == null ? 960 : input.wake;
     if (!Number.isInteger(wake) || wake < 480 || wake > 1200) return { ok: false, error: 'wake' };
     if (!optionalText(input, 'name', 200) || !optionalText(input, 'uid', 64) || !optionalText(input, 'sortBy', 32) || !optionalBoolean(input, 'sound') || !optionalEnum(input, 'mode', ['demo', 'real'])) return { ok: false, error: 'settings' };
@@ -165,6 +213,7 @@
     var out = pick(input, ['v', 'pv', 'mode', 'name', 'sound', 'pal', 'uid', 'sortBy']);
     out.entries = entries.map(cleanEntry); out.drafts = drafts.map(cleanEntry);
     out.trials = trials.map(function (t) { var trial = pick(t, ['id', 'taskId', 'date', 'title', 'before', 'after', 'method', 'category', 'confirmed', 'baseline', 'measurement']); var measurement = cleanMeasurement(t); Object.keys(measurement).forEach(function (key) { trial[key] = measurement[key]; }); return trial; });
+    out.methods = methods.map(cleanMethod); out.methodUses = methodUses.map(cleanMethodUse);
     out.wake = wake; out.fw = input.fw == null ? {} : pick(input.fw, Object.keys(input.fw));
     out.ideal = input.ideal == null ? null : pick(input.ideal, ['restore', 'create', 'connect', 'explore']);
     if (input.modelAvailability != null) {
@@ -193,7 +242,7 @@
     var codes = ['TANGO_ORIGIN_REJECTED', 'TANGO_ORIGIN_REQUIRED', 'TANGO_METHOD_REJECTED', 'TANGO_AUDIO_WAV_REQUIRED', 'TANGO_AUDIO_TOO_LARGE', 'TANGO_INVALID_AUDIO', 'TANGO_LANGUAGE_UNAVAILABLE', 'TANGO_SPEECH_BUSY', 'TANGO_RECOGNITION_FAILED', 'TANGO_SERVICE_UNAVAILABLE', 'TANGO_STORAGE_FAILED', 'TANGO_IMPORT_INVALID', 'TANGO_EXPORT_FAILED', 'TANGO_MODEL_FAILED'];
     return {
       schema: 1,
-      counts: { entries: Array.isArray(state.entries) ? state.entries.length : 0, drafts: Array.isArray(state.drafts) ? state.drafts.length : 0, trials: Array.isArray(state.trials) ? state.trials.length : 0 },
+      counts: { entries: Array.isArray(state.entries) ? state.entries.length : 0, drafts: Array.isArray(state.drafts) ? state.drafts.length : 0, trials: Array.isArray(state.trials) ? state.trials.length : 0, methods: Array.isArray(state.methods) ? state.methods.length : 0, methodUses: Array.isArray(state.methodUses) ? state.methodUses.length : 0 },
       privacy: privacyStatus(input),
       service: {
         status: ['ok', 'unavailable', 'checking'].indexOf(service.status) >= 0 ? service.status : 'unknown',

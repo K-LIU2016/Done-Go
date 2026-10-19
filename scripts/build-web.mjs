@@ -16,8 +16,8 @@ export async function buildRelease({ outputParent = join(root, 'dist-web') } = {
   }
   for (const [path, source] of sources.filter(([path]) => path.startsWith('web/') && path.endsWith('.js'))) new vm.Script(source.toString('utf8'), { filename: path });
   await mkdir(outputParent, { recursive: true });
-  const directory = await mkdtemp(join(outputParent, 'donego-2026.10.17-'));
-  const manifest = { schema: 1, product: 'tango-donego', releaseDate: '2026.10.17', releaseId: html.match(/PRODUCT_VERSION\s*=\s*['"]([^'"]+)/)?.[1] || 'donego-web-2026.10.17', createdAt: new Date().toISOString(), scope: 'local-user-test', entry: 'web/index.html', files: {} };
+  const directory = await mkdtemp(join(outputParent, 'donego-2026.10.19-'));
+  const manifest = { schema: 1, product: 'tango-donego', releaseDate: '2026.10.19', releaseId: html.match(/PRODUCT_VERSION\s*=\s*['"]([^'"]+)/)?.[1] || 'donego-web-2026.10.19', createdAt: new Date().toISOString(), scope: 'local-user-test', entry: 'web/index.html', files: {} };
   for (const [path, source] of sources) {
     await mkdir(dirname(join(directory, path)), { recursive: true });
     await writeFile(join(directory, path), source, { flag: 'wx' });

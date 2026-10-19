@@ -19,7 +19,7 @@ test('a Done&Go release contains the actual web app and verifiable files without
   assert.equal(manifest.product, 'tango-donego');
   assert.equal(manifest.entry, 'web/index.html');
   assert.equal(manifest.scope, 'local-user-test');
-  assert.equal(manifest.releaseDate, '2026.10.17');
+  assert.equal(manifest.releaseDate, '2026.10.19');
   const expected = ['web/index.html', 'web/privacy.js', 'web/agreements.js', 'web/speech-capture.js', 'web/assistant-core.js', 'web/assistant-ui.js', 'web/assistant.css', 'scripts/serve-tango.mjs', 'scripts/tango-speech.mjs', 'scripts/tango-speech.ps1', 'scripts/ai-assistant.mjs', 'scripts/ai-discovery.mjs', 'scripts/assistant-config.mjs'];
   assert.deepEqual(Object.keys(manifest.files).sort(), expected.slice().sort());
   for (const path of expected) {
