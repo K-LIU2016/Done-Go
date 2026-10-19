@@ -296,7 +296,7 @@
   text-align: center;
 }
 
-.s02-blank {
+.s02-stillness {
   position: absolute;
   height: var(--protected-height, auto);
   box-sizing: border-box;
@@ -325,7 +325,7 @@
   overflow-wrap: anywhere;
 }
 
-.s02-blank.is-linked,
+.s02-stillness.is-linked,
 .s02-week-day.is-linked {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -336,7 +336,7 @@
   outline-offset: 2px;
 }
 
-.s02-blank-title {
+.s02-stillness-title {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -345,14 +345,14 @@
   color: var(--text);
 }
 
-.s02-blank-time {
+.s02-stillness-time {
   margin: 8px 0 0;
   font-family: var(--font-serif);
   font-size: 30px;
   font-weight: 600;
 }
 
-.s02-blank-note {
+.s02-stillness-note {
   margin: 8px 0 0;
   color: var(--text-2);
   font-size: 13px;
@@ -632,7 +632,7 @@
     gap: 14px;
   }
 
-  .s02-blank {
+  .s02-stillness {
     height: auto;
     position: static;
   }
@@ -690,7 +690,7 @@
   pointer-events: none;
 }
 
-.s02-blank-missing {
+.s02-stillness-missing {
   position: static;
   display: flex;
   flex-direction: column;
@@ -698,7 +698,7 @@
   gap: 10px;
 }
 
-.s02-blank-action {
+.s02-stillness-action {
   display: inline-flex;
   align-items: center;
   gap: 8px;

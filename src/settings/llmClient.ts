@@ -1,8 +1,8 @@
-// Frontend client for the loopback LeuBai settings API. Secrets are only ever
+// Frontend client for the loopback Tango Done&Go settings API. Secrets are only ever
 // sent to the local server, never echoed back and never persisted client-side.
 
-const CLIENT_HEADER = "x-leubai-client";
-const CLIENT_VALUE = "leubai-settings/1";
+const CLIENT_HEADER = "x-tango-client";
+const CLIENT_VALUE = "tango-settings/1";
 
 export type LlmProtocol = "anthropic" | "openai";
 
@@ -164,8 +164,8 @@ const ERROR_TEXT: Record<string, string> = {
   empty_input: "输入为空",
   input_too_long: "输入超过长度限制",
   persist_failed: "保存失败：本地存储目录或文件权限异常，原有数据未改动",
-  settings_corrupt: "本地设置文件损坏，已保留原文件；请手动处理 .leubai-local 后重试",
-  settings_unreadable: "本地设置文件不可读，已保留原文件；请检查 .leubai-local 权限",
+  settings_corrupt: "本地设置文件损坏，已保留原文件；请手动处理 .tango-donego 后重试",
+  settings_unreadable: "本地设置文件不可读，已保留原文件；请检查 .tango-donego 权限",
   body_too_large: "请求体过大",
   invalid_json: "请求格式错误",
   request_failed: "本地服务请求失败",

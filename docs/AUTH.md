@@ -1,4 +1,6 @@
-# LeuBai 多用户身份模块
+# Tango Done&Go 多用户身份模块
+
+> **历史资料边界（2026-10-16）**：本文保留 React/Node 多用户身份模块方案，供追溯与后续研究使用。它不定义当前本地优先网页的产品入口、当前实现或上线标准。当前唯一产品基准是 http://localhost:5207/#today，主架构以 DONEGO-CANONICAL-ARCHITECTURE-2026-10-16.md 为准。
 
 本模块依据 `mail2profile` 的邮箱验证码注册、密码登录、会话恢复、改密找回及管理员用户管理契约，接入现有 Node HTTP 服务。它不依赖 Python 服务，也不更换现有 React 信息架构。
 
@@ -17,7 +19,7 @@
 
 服务返回 `handle(req,res,body)`、`authenticate(req)`、`requireAdmin(req)` 和 `close()`。`handle` 处理 `/api/auth/*`、`/api/admin/*`，返回布尔值表示是否接管。宿主应先完成有界 JSON 解析，再调用它；不要先使用旧的仅允许 loopback 的入口拦截已配置的公网域名。认证失败抛出含 `status/code/message` 的 `AuthError`；路由响应为 `{error,detail:{code,message}}`。
 
-所有 API 客户端需要 `x-leubai-client: leubai-settings/1`。模块自己校验 Host 与 Origin：公网必须为 `LEUBAI_PUBLIC_ORIGIN`，本地开发允许 loopback；公网修改请求不能省略 Origin。设置 LLM 端点、测试端点、撤销设置等管理操作必须调用 `requireAdmin`，用户发起草稿生成调用 `authenticate`。
+所有 API 客户端需要 `x-tango-client: tango-settings/1`。模块自己校验 Host 与 Origin：公网必须为 `TANGO_PUBLIC_ORIGIN`，本地开发允许 loopback；公网修改请求不能省略 Origin。设置 LLM 端点、测试端点、撤销设置等管理操作必须调用 `requireAdmin`，用户发起草稿生成调用 `authenticate`。
 
 资源钩子为 `countUserResources(userId)` 和 `onUserDeleted(userId)`，允许异步。删除钩子失败时保留用户，不回报删除成功。钩子应幂等；若业务资源位于外部存储，钩子和账号数据库之间不是跨库事务。管理页面删除操作应先给用户明确确认。
 
@@ -44,15 +46,15 @@
 
 | 配置 | 说明 |
 |---|---|
-| `LEUBAI_AUTH_SECRET` / `JWT_SECRET` | 至少 32 字节；必需、运行时注入，无开发默认密钥 |
-| `LEUBAI_PUBLIC_ORIGIN` | 例如 `https://leubai.udify.fun`，必须是精确 HTTPS origin |
+| `TANGO_AUTH_SECRET` / `JWT_SECRET` | 至少 32 字节；必需、运行时注入，无开发默认密钥 |
+| `TANGO_PUBLIC_ORIGIN` | 例如 `https://tango-donego.udify.fun`，必须是精确 HTTPS origin |
 | `ADMIN_EMAILS` | 逗号分隔管理员邮箱白名单；只影响注册时授予角色 |
 | `JWT_EXPIRY_HOURS` | 默认 72，允许 1–720 |
 | `EMAIL_TRANSPORT` | `disabled`（默认）、`console`、`resend`、`smtp` |
 | `CODE_TTL_SECONDS` / `CODE_RESEND_SECONDS` | 默认 600 / 60 |
 | `RESEND_API_KEY` + `MAIL_FROM` | Resend 发信密钥与已验证域名发信地址 |
 | `SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS` + `MAIL_FROM` | SMTP 配置；465 使用 TLS，其他端口强制 STARTTLS |
-| `LEUBAI_TRUST_CLOUDFLARE=1` | 仅信任 loopback 连接传来的 CF-Connecting-IP 用于限流；只在受控隧道入口启用 |
+| `TANGO_TRUST_CLOUDFLARE=1` | 仅信任 loopback 连接传来的 CF-Connecting-IP 用于限流；只在受控隧道入口启用 |
 
 `EMAIL_TRANSPORT=console` 只用于独立本地开发，会在本地响应和日志展示验证码。配置公网 origin 或 `ENV/NODE_ENV=production` 时拒绝 console，不能用它给公网账号伪造邮箱验证。邮件未配置时账号状态接口明确 `registrationEnabled:false`；邮件发送失败返回 503、作废该码，不显示已成功发送。
 

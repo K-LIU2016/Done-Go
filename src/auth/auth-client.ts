@@ -37,7 +37,7 @@ export function createAuthClient(fetchImpl: typeof fetch = fetch) {
         method,
         signal: AbortSignal.timeout(15000),
         credentials: "same-origin",
-        headers: { "x-leubai-client": "leubai-settings/1", "Content-Type": "application/json" },
+        headers: { "x-tango-client": "tango-settings/1", "Content-Type": "application/json" },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     } catch {

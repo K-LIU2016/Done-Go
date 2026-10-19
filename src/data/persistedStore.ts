@@ -24,7 +24,7 @@ export interface CreatePersistedDomainStoreOptions {
   dataMode: DataMode;
   owner?: string;
   storage?: StorageLike;
-  locks?: LockManagerLike;
+  locks?: LockManagerLike | null;
   requireCrossTabLock?: boolean;
   now?: () => string;
   uuid?: () => string;
@@ -40,7 +40,7 @@ export async function createPersistedDomainStore(
   if (!storage) {
     return { status: "unavailable", dataMode: options.dataMode, reason: NO_BROWSER_STORAGE, rawPayload: null };
   }
-  const locks = options.locks ?? getBrowserWebLocks();
+  const locks = options.locks === undefined ? getBrowserWebLocks() : options.locks;
   if (!locks && (options.requireCrossTabLock || storageIsImplicit)) {
     return {
       status: "unavailable",

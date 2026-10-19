@@ -1,0 +1,91 @@
+.top-actions { display:flex; align-items:center; gap:12px; }
+.companion-entry { min-height:44px; padding:8px 14px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--text); font:inherit; font-size:13px; cursor:pointer; }
+.companion-entry:hover { border-color:var(--accent); }
+.companion-invite { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:16px 0; border-block:1px solid var(--line); }
+.companion-invite p { margin:3px 0 0; }
+
+#assistant-root { width:min(720px, 100%); margin-inline:auto; padding-inline:2px; }
+.companion-heading { display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:6px; }
+.companion-heading h1 { margin:0; font-size:24px; font-weight:500; line-height:1.3; }
+.companion-connection { margin:2px 0 10px; font-size:12px; color:var(--text-2); }
+
+.companion-toolbar { display:grid; grid-template-columns:minmax(0, .8fr) minmax(0, 1.2fr); gap:12px; margin:0 0 6px; }
+.companion-toolbar label { display:grid; min-width:0; margin:0; gap:2px; font-size:11px; color:var(--text-2); line-height:1.25; }
+.companion-toolbar select { width:100%; min-height:40px; margin-top:0; padding:6px 2px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--text); font:inherit; font-size:13px; cursor:pointer; }
+.companion-toolbar select:focus-visible { outline-offset:1px; }
+
+.companion-chat { display:flex; flex-direction:column; min-height:0; }
+.companion-conversation { display:flex; flex-direction:column; gap:9px; max-height:min(58vh, 580px); min-height:min(42vh, 340px); overflow-y:auto; overscroll-behavior:contain; padding:2px; scrollbar-width:thin; }
+.companion-message { position:relative; max-width:min(88%, 520px); padding:9px 13px; border-radius:18px; border-bottom-left-radius:6px; background:var(--surface); color:var(--text); font-size:15px; line-height:1.6; min-width:0; overflow-wrap:anywhere; }
+.companion-message.is-user { align-self:flex-end; border-radius:18px; border-bottom-right-radius:6px; background:var(--text); color:var(--bg); }
+.companion-message .message-author { position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0; clip:rect(0, 0, 0, 0); clip-path:inset(50%); overflow:hidden; white-space:nowrap; }
+.companion-message p { margin:0; white-space:pre-wrap; }
+.companion-empty { align-self:center; max-width:390px; padding:28px 10px; text-align:center; }
+.companion-empty h2 { margin:6px 0 8px; font-size:21px; font-weight:500; line-height:1.4; }
+.companion-empty p { margin:0; }
+.companion-empty .btn { margin-top:10px; }
+
+.companion-compose { display:flex; align-items:flex-end; gap:8px; margin-top:10px; padding:8px; border:1px solid var(--line); border-radius:20px; background:var(--surface); }
+.companion-compose:focus-within { border-color:var(--accent); }
+.companion-compose textarea { box-sizing:border-box; flex:1; min-width:0; min-height:56px; max-height:160px; padding:8px 6px; border:0; background:transparent; color:var(--text); font:inherit; font-size:15px; line-height:1.5; resize:none; }
+.companion-compose textarea:focus-visible { outline:none; }
+#assistant-send { flex:0 0 auto; min-width:44px; height:44px; padding:0 15px; border-radius:999px; }
+.companion-send-row { display:flex; flex:0 0 auto; align-items:center; gap:8px; font-size:12px; color:var(--text-2); }
+.companion-send-row > span:empty { display:none; }
+.companion-send-row .btn { min-height:44px; }
+
+#assistant-notice { margin:6px 2px 0; font-size:13px; line-height:1.55; overflow-wrap:anywhere; }
+.companion-alert { padding:9px 11px; border-radius:12px; background:var(--surface); font-size:13px; line-height:1.55; overflow-wrap:anywhere; }
+.companion-suggestions { display:grid; gap:8px; margin-top:12px; }
+.companion-suggestions h2 { margin:4px 2px; font-size:16px; font-weight:500; }
+.companion-proposal { padding:11px 12px; border-radius:14px; background:var(--surface); min-width:0; }
+.companion-proposal p { overflow-wrap:anywhere; }
+.companion-proposal .btn { min-height:44px; }
+
+.companion-context { display:grid; gap:2px; margin-top:8px; min-width:0; }
+.companion-disclosure { border-bottom:1px solid var(--line); }
+.companion-disclosure summary { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; padding:8px 13px; border-radius:inherit; color:var(--text); font-size:13px; font-weight:400; cursor:pointer; list-style:none; user-select:none; }
+.companion-disclosure summary::-webkit-details-marker { display:none; }
+.companion-disclosure summary::after { content:"+"; flex:0 0 auto; color:var(--text-2); font-size:17px; line-height:1; }
+.companion-disclosure[open] summary::after { content:"×"; }
+.companion-disclosure-body { display:grid; gap:9px; padding:2px 13px 13px; color:var(--text); font-size:13px; line-height:1.6; }
+.companion-disclosure-body h2 { margin:0; font-size:15px; font-weight:500; }
+.companion-disclosure-body .check { align-items:flex-start; min-height:40px; margin:0; padding:3px 0; }
+.companion-disclosure-body input[type=checkbox] { width:18px; height:18px; margin-top:3px; accent-color:var(--text); flex-shrink:0; }
+.companion-disclosure-body select { width:100%; min-height:44px; max-width:170px; padding:8px 10px; border:0; border-radius:10px; background:var(--bg); color:var(--text); font:inherit; font-size:13px; cursor:pointer; }
+.companion-disclosure-body textarea { box-sizing:border-box; width:100%; min-height:82px; padding:9px; border:0; border-radius:10px; background:var(--bg); color:var(--text); font:inherit; font-size:13px; line-height:1.55; resize:vertical; }
+.companion-task-options { margin:2px 0 6px; padding-left:10px; border-left:1px solid var(--line); max-height:190px; overflow-y:auto; }
+.companion-task-options label { display:flex; align-items:flex-start; gap:8px; padding:6px 0; }
+.companion-facts { margin:4px 0; padding:8px 0; border-top:1px solid var(--line); font-size:12px; line-height:1.65; }
+.companion-facts dl { display:grid; grid-template-columns:1fr auto; gap:3px 10px; margin:0; }
+.companion-facts dd { margin:0; font-variant-numeric:tabular-nums; }
+.companion-footer { margin-top:16px; text-align:center; }
+.companion-support-row { display:flex; justify-content:center; margin-top:0; }
+.btn.companion-support { min-height:44px; padding:8px 12px; border-color:transparent; background:transparent; color:var(--text-2); font-size:12px; }
+.companion-support:hover { text-decoration:underline; text-underline-offset:3px; }
+.companion-support-email { overflow-wrap:anywhere; }
+
+.ai-discovery { border-top:1px solid var(--line); padding-top:24px; margin-top:20px; }
+.discovery-controls { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin:14px 0; }
+.discovery-controls select { min-height:44px; max-width:100%; padding:8px; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:10px; font:inherit; font-size:13px; }
+.discovery-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:16px; }
+.discovery-card { padding:18px; border:1px solid var(--line); border-radius:16px; background:var(--surface); min-width:0; }
+.discovery-card h3 { margin:9px 0; font-size:18px; font-weight:500; line-height:1.5; overflow-wrap:anywhere; }
+.discovery-card p { line-height:1.7; overflow-wrap:anywhere; }
+.discovery-card a { display:inline-flex; min-height:44px; align-items:center; color:var(--text); }
+.discovery-card .btn { min-height:44px; }
+
+@media (max-width:640px) {
+  .top-actions { gap:6px; }
+  .companion-entry { font-size:12px; padding:8px 10px; }
+  #assistant-root { padding-inline:0; }
+  .companion-heading h1 { font-size:21px; }
+  .companion-toolbar { grid-template-columns:minmax(0, .8fr) minmax(0, 1.2fr); gap:10px; }
+  .companion-conversation { max-height:min(52vh, 470px); min-height:min(34vh, 270px); }
+  .companion-message { max-width:92%; padding:8px 12px; font-size:14px; }
+  .companion-compose { padding:6px; }
+  .companion-compose textarea { min-height:52px; font-size:16px; }
+  #assistant-send { min-width:48px; }
+  .discovery-grid { grid-template-columns:minmax(0,1fr); }
+}
+

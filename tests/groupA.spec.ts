@@ -72,7 +72,7 @@ test.describe("[s02] 时间账本 · 责任与边界", () => {
     await expect(root.getByText("30 分钟 · 固定约定")).toBeVisible();
     await expect(root.getByText("预计投入 60 分钟")).toBeVisible();
     await expect(root.getByText("40 分钟 · 暂定计划")).toBeVisible();
-    await expect(root.getByText("受保护的留白")).toBeVisible();
+    await expect(root.getByText("受保护的静驻")).toBeVisible();
     await expect(
       root.getByText("没有用途，也不接受自动填充。"),
     ).toBeVisible();

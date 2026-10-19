@@ -6,7 +6,7 @@ import { createAuthController } from "./auth-controller.ts";
 import { authFlowReducer, initialAuthFlow } from "./auth-flow.ts";
 
 const status: AuthStatus = { enabled: true, emailDelivery: "email", registrationEnabled: true, passwordMinLength: 12 };
-const user: AuthUser = { id: "user-1", email: "person@example.com", displayName: "留白用户", role: "user", createdAt: "2026-09-13", emailVerified: true, isActive: true, settings: {} };
+const user: AuthUser = { id: "user-1", email: "person@example.com", displayName: "Done&Go 用户", role: "user", createdAt: "2026-09-13", emailVerified: true, isActive: true, settings: {} };
 const json = (body: unknown, code = 200) => new Response(JSON.stringify(body), { status: code, headers: { "Content-Type": "application/json" } });
 
 test("session restore treats /me 401 as signed out, without a visible service error", async () => {
@@ -14,7 +14,7 @@ test("session restore treats /me 401 as signed out, without a visible service er
   const controller = createAuthController(createAuthClient(async (input, init) => {
     requests.push(String(input));
     assert.equal(init?.credentials, "same-origin");
-    assert.equal(new Headers(init?.headers).get("x-leubai-client"), "leubai-settings/1");
+    assert.equal(new Headers(init?.headers).get("x-tango-client"), "tango-settings/1");
     return String(input).endsWith("status") ? json(status) : json({ error: "unauthorized", detail: { message: "请先登录。" } }, 401);
   }));
   await controller.refresh();

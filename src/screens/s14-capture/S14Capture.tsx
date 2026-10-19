@@ -100,7 +100,7 @@ function conflictNotes(state: DomainState, conflictIds: EntityId[]): string[] {
         block.range.start.slice(11, 16) +
         "—" +
         block.range.end.slice(11, 16) +
-        "）重叠：这是受保护的留白时段。"
+        "）重叠：这是受保护的静驻时段。"
       );
     }
     return "冲突：记录 " + id + "（共享状态中未找到对应的承诺或受保护时段）。";
@@ -716,7 +716,7 @@ function S14CaptureReady({ runtime }: { runtime: ReadyDomainRuntime }): ReactEle
 
       </div>
       <footer className="s14-page-footer">
-        <p>快速记录 / 自然语言 / 语音 / 分享到留白 · 同一套语义与授权边界</p>
+        <p>快速记录 / 自然语言 / 语音 / 分享到静驻 · 同一套语义与授权边界</p>
         <p>对照与保存都发生在本地共享状态（数据模式：{runtime.dataMode}）中；未检查任何外部日历，也未使用任何 LLM。</p>
       </footer>
     </section>

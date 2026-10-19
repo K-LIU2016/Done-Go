@@ -30,7 +30,7 @@ Running 2 tests using 1 worker
       125 |     await expect(
       126 |       root.getByText("本周回顾 · 9 月 7 日—11 日 · 以下均为合成演示数据。"),
       127 |     ).toBeVisible();
-        at /Users/chillbit/Proj/leubai-v2/tests/groupC.spec.ts:124:7
+        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:124:7
 
     Error Context: test-results/groupC--s12-时间回顾-·-收益不做假账--468be-s-and-no-fabricated-savings-desktop/error-context.md
 
@@ -50,7 +50,7 @@ Running 2 tests using 1 worker
       182 |     await expect(root.getByText("已记录你的感受，谢谢。")).toBeVisible();
       183 |     await expect(
       184 |       root.getByRole("button", { name: "更有掌控" }),
-        at /Users/chillbit/Proj/leubai-v2/tests/groupC.spec.ts:181:54
+        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:181:54
 
     Error Context: test-results/groupC--s12-时间回顾-·-收益不做假账-feedback-answer-is-recorded-once-desktop/error-context.md
 

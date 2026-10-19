@@ -228,7 +228,7 @@ export function SettingsPage({ embedded = false }: { embedded?: boolean }) {
       {embedded ? null : (
         <header className="settings-header">
           <h1 className="settings-title">设置</h1>
-          <span className="settings-brand">留白 LeuBai · 模型连接</span>
+          <span className="settings-brand">探戈 Done&Go · 模型连接</span>
         </header>
       )}
       {metaError ? (

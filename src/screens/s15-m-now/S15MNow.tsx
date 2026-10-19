@@ -90,7 +90,7 @@ function S15Ready({ handle }: { handle: ReadyDomainRuntime }) {
             <div key={block.id} className="s15-saved-protection">
               <p className="s15-note">已保存的保护时间：{block.range.start} — {block.range.end}（{block.range.timezone}）</p>
               <p className="s15-note">{block.purpose || "没有设置用途，也成立。"}</p>
-              <Link className="s15-setup" to={"/m/blank?" + new URLSearchParams({ blockId: block.blockId, returnTo: "/m/now" }).toString()}>进入这段留白<ArrowRight size={16} aria-hidden="true" /></Link>
+              <Link className="s15-setup" to={"/m/stillness?" + new URLSearchParams({ blockId: block.blockId, returnTo: "/m/now" }).toString()}>进入这段静驻<ArrowRight size={16} aria-hidden="true" /></Link>
             </div>
           ))}
           {actions.setupHref && <ProtectedBlockForm store={store} readPersistedState={() => handle.persistence.readFreshState()} intentId={null} initialDate={selectSurfaceDate(state)} />}

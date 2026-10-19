@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-web
 dist-ssr
 *.local
 
@@ -16,8 +17,8 @@ dist-ssr
 .omo/
 test-results/
 
-# LeuBai local private settings (0700 dir / 0600 file, never committed)
-.leubai-local/
+# Tango Done&Go local private settings (0700 dir / 0600 file, never committed)
+.tango-donego/
 
 # Editor directories and files
 .vscode/*

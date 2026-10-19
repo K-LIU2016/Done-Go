@@ -30,7 +30,7 @@ Running 2 tests using 1 worker
       441 |     await expect(root.getByText("方案版本 03 · 尚未执行")).toBeVisible();
       442 |     await expect(root.getByText("允许的范围")).toBeVisible();
       443 |     await expect(
-        at /Users/chillbit/Proj/leubai-v2/tests/groupC.spec.ts:440:7
+        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:440:7
 
     Error Context: test-results/groupC--s17-移动端-·-一次性授权-al-efd5c-ons-stay-on-the-same-screen-desktop/error-context.md
 
@@ -50,7 +50,7 @@ Running 2 tests using 1 worker
       478 |     await expect(
       479 |       root.getByText("本次授权已使用。草稿待检查，不会自动发送。"),
       480 |     ).toBeVisible();
-        at /Users/chillbit/Proj/leubai-v2/tests/groupC.spec.ts:477:19
+        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:477:19
 
     Error Context: test-results/groupC--s17-移动端-·-一次性授权-ap-9d70c-ith-reason-when-scope-empty-desktop/error-context.md
 

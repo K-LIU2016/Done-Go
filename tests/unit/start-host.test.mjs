@@ -19,30 +19,30 @@ function startServer(extraEnv) {
   return { child, output: () => output };
 }
 
-test("start refuses a non-loopback LEUBAI_HOST instead of binding a public interface", async () => {
+test("start refuses a non-loopback TANGO_HOST instead of binding a public interface", async () => {
   for (const host of ["0.0.0.0", "192.168.1.10"]) {
-    const { child, output } = startServer({ LEUBAI_HOST: host, LEUBAI_DEV: "1", LEUBAI_AUTH_DISABLED: "1" });
+    const { child, output } = startServer({ TANGO_HOST: host, TANGO_DEV: "1", TANGO_AUTH_DISABLED: "1" });
     const result = await Promise.race([
       new Promise((r) => child.on("close", (code) => r({ code }))),
       new Promise((r) => setTimeout(() => r({ timeout: true }), 8000)),
     ]);
     if (result.timeout) child.kill("SIGKILL");
-    assert.ok(!result.timeout, "server kept running with LEUBAI_HOST=" + host);
+    assert.ok(!result.timeout, "server kept running with TANGO_HOST=" + host);
     assert.equal(result.code, 1, "output: " + output());
     assert.match(output(), /loopback/i);
     assert.ok(output().includes(host), "rejection message should name " + host + ": " + output());
   }
 });
 
-test("loopback LEUBAI_HOST starts, reports the bound port and exits cleanly on SIGTERM", async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), "leubai-start-"));
+test("loopback TANGO_HOST starts, reports the bound port and exits cleanly on SIGTERM", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "tango-donego-start-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const { child, output } = startServer({
-    LEUBAI_HOST: "127.0.0.1",
-    LEUBAI_PORT: "0",
-    LEUBAI_DEV: "1",
-    LEUBAI_AUTH_DISABLED: "1",
-    LEUBAI_SETTINGS_FILE: join(dir, "settings", "llm.json"),
+    TANGO_HOST: "127.0.0.1",
+    TANGO_PORT: "0",
+    TANGO_DEV: "1",
+    TANGO_AUTH_DISABLED: "1",
+    TANGO_SETTINGS_FILE: join(dir, "settings", "llm.json"),
   });
   const ready = await Promise.race([
     new Promise((r) => {
@@ -68,5 +68,9 @@ test("loopback LEUBAI_HOST starts, reports the bound port and exits cleanly on S
   ]);
   if (result.timeout) child.kill("SIGKILL");
   assert.ok(!result.timeout, "server ignored SIGTERM: " + output());
-  assert.equal(result.code, 0);
+  if (process.platform === "win32") {
+    assert.ok(result.code === 0 || (result.code === null && result.signal === "SIGTERM"));
+  } else {
+    assert.equal(result.code, 0);
+  }
 });

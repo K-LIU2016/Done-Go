@@ -3,13 +3,13 @@ Running 2 tests using 1 worker
 
 (node:22812) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
-  ✘  1 [desktop] › tests/groupC.spec.ts:500:3 › [s18] 移动端 · 留白时刻 › quiet blank time with clear exit and no pressure (5.3s)
+  ✘  1 [desktop] › tests/groupC.spec.ts:500:3 › [s18] 移动端 · 静驻时刻 › quiet blank time with clear exit and no pressure (5.3s)
 (node:22861) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
-  ✘  2 [desktop] › tests/groupC.spec.ts:528:3 › [s18] 移动端 · 留白时刻 › choosing nothing is honored and exit returns to now (15.0s)
+  ✘  2 [desktop] › tests/groupC.spec.ts:528:3 › [s18] 移动端 · 静驻时刻 › choosing nothing is honored and exit returns to now (15.0s)
 
 
-  1) [desktop] › tests/groupC.spec.ts:500:3 › [s18] 移动端 · 留白时刻 › quiet blank time with clear exit and no pressure 
+  1) [desktop] › tests/groupC.spec.ts:500:3 › [s18] 移动端 · 静驻时刻 › quiet blank time with clear exit and no pressure
 
     Error: expect(locator).toBeVisible() failed
 
@@ -27,14 +27,14 @@ Running 2 tests using 1 worker
       504 |     await expect(root).toBeVisible();
     > 505 |     await expect(root.getByText("19:00", { exact: true })).toBeVisible();
           |                                                            ^
-      506 |     await expect(root.getByText("留白", { exact: true })).toBeVisible();
+      506 |     await expect(root.getByText("静驻", { exact: true })).toBeVisible();
       507 |     await expect(
-      508 |       root.getByRole("button", { name: "退出留白时刻" }),
-        at /Users/chillbit/Proj/leubai-v2/tests/groupC.spec.ts:505:60
+      508 |       root.getByRole("button", { name: "退出静驻时刻" }),
+        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:505:60
 
-    Error Context: test-results/groupC--s18-移动端-·-留白时刻-qui-0e1f6--clear-exit-and-no-pressure-desktop/error-context.md
+    Error Context: test-results/groupC--s18-移动端-·-静驻时刻-qui-0e1f6--clear-exit-and-no-pressure-desktop/error-context.md
 
-  2) [desktop] › tests/groupC.spec.ts:528:3 › [s18] 移动端 · 留白时刻 › choosing nothing is honored and exit returns to now 
+  2) [desktop] › tests/groupC.spec.ts:528:3 › [s18] 移动端 · 静驻时刻 › choosing nothing is honored and exit returns to now
 
     Test timeout of 15000ms exceeded.
 
@@ -43,17 +43,17 @@ Running 2 tests using 1 worker
       - waiting for locator('[data-page="s18"]').getByRole('button', { name: '什么也不安排' })
 
 
-      531 |     await page.goto("/m/blank");
+      531 |     await page.goto("/m/stillness");
       532 |     const root = page.locator('[data-page="s18"]');
     > 533 |     await root.getByRole("button", { name: "什么也不安排" }).click();
           |                                                        ^
       534 |     await expect(
       535 |       root.getByText("已保留。不会再提醒你做选择。"),
       536 |     ).toBeVisible();
-        at /Users/chillbit/Proj/leubai-v2/tests/groupC.spec.ts:533:56
+        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:533:56
 
-    Error Context: test-results/groupC--s18-移动端-·-留白时刻-cho-a964c-red-and-exit-returns-to-now-desktop/error-context.md
+    Error Context: test-results/groupC--s18-移动端-·-静驻时刻-cho-a964c-red-and-exit-returns-to-now-desktop/error-context.md
 
   2 failed
-    [desktop] › tests/groupC.spec.ts:500:3 › [s18] 移动端 · 留白时刻 › quiet blank time with clear exit and no pressure 
-    [desktop] › tests/groupC.spec.ts:528:3 › [s18] 移动端 · 留白时刻 › choosing nothing is honored and exit returns to now 
+    [desktop] › tests/groupC.spec.ts:500:3 › [s18] 移动端 · 静驻时刻 › quiet blank time with clear exit and no pressure
+    [desktop] › tests/groupC.spec.ts:528:3 › [s18] 移动端 · 静驻时刻 › choosing nothing is honored and exit returns to now

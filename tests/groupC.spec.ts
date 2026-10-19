@@ -162,7 +162,7 @@ test.describe("[s12] 时间回顾 · 收益不做假账", () => {
     await expect(root.getByText("02 真正的净节省，尚未测量")).toBeVisible();
     await expect(
       root.getByText(
-        "需要比较没有留白时的同类任务，并把监督、纠错与未来负担计入。当前不显示一个看似精确的“省时总数”。",
+        "需要比较没有静驻时的同类任务，并把监督、纠错与未来负担计入。当前不显示一个看似精确的“省时总数”。",
       ),
     ).toBeVisible();
     await expect(
@@ -218,12 +218,12 @@ test.describe("[s13] 同步异常 · 未知与接管", () => {
     ).toBeVisible();
     await expect(
       root.getByText(
-        "留白中的规则仍然保留。但因为个人日历暂时无法更新，不能确认外部预约是否看见这段不可用时间。",
+        "静驻中的规则仍然保留。但因为个人日历暂时无法更新，不能确认外部预约是否看见这段不可用时间。",
       ),
     ).toBeVisible();
     await expect(root.getByText("本地规则仍然有效")).toBeVisible();
     await expect(
-      root.getByText("19:00—20:00 不接受留白内部的自动填充。"),
+      root.getByText("19:00—20:00 不接受静驻内部的自动填充。"),
     ).toBeVisible();
     await expect(root.getByText("外部日历保护待确认")).toBeVisible();
     await expect(
@@ -327,7 +327,7 @@ test.describe("[s14] 快捷输入 · 意图与约束", () => {
     ).toBeVisible();
     await expect(root.getByText("⌘ Enter")).toBeVisible();
     await expect(
-      root.getByText("快速记录 / 自然语言 / 语音 / 分享到留白 · 同一套语义与授权边界"),
+      root.getByText("快速记录 / 自然语言 / 语音 / 分享到静驻 · 同一套语义与授权边界"),
     ).toBeVisible();
     expect(errors).toEqual([]);
   });
@@ -563,16 +563,16 @@ test.describe("[s17] 移动端 · 一次性授权", () => {
   });
 });
 
-test.describe("[s18] 移动端 · 留白时刻", () => {
+test.describe("[s18] 移动端 · 静驻时刻", () => {
   test("quiet blank time with clear exit and no pressure", async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto("/m/blank");
+    await page.goto("/m/stillness");
     const root = page.locator('[data-page="s18"]');
     await expect(root).toBeVisible();
     await expect(root.getByText("19:00", { exact: true })).toBeVisible();
-    await expect(root.getByText("留白", { exact: true })).toBeVisible();
+    await expect(root.getByText("静驻", { exact: true })).toBeVisible();
     await expect(
-      root.getByRole("button", { name: "退出留白时刻" }),
+      root.getByRole("button", { name: "退出静驻时刻" }),
     ).toBeVisible();
     await expect(root.getByText("A SPACE OF YOUR OWN")).toBeVisible();
     await expect(
@@ -595,7 +595,7 @@ test.describe("[s18] 移动端 · 留白时刻", () => {
   test("choosing nothing is honored and exit returns to now", async ({
     page,
   }) => {
-    await page.goto("/m/blank");
+    await page.goto("/m/stillness");
     const root = page.locator('[data-page="s18"]');
     await root.getByRole("button", { name: "什么也不安排" }).click();
     await expect(
@@ -604,7 +604,7 @@ test.describe("[s18] 移动端 · 留白时刻", () => {
     await expect(
       root.getByRole("button", { name: "什么也不安排" }),
     ).toBeDisabled();
-    await root.getByRole("button", { name: "退出留白时刻" }).click();
+    await root.getByRole("button", { name: "退出静驻时刻" }).click();
     await expect(page).toHaveURL(/\/m\/now$/);
   });
 });

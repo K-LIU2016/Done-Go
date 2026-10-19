@@ -57,7 +57,7 @@
 
 - [x] Improve text/surface contrast, metric hierarchy, navigation consistency, and main-container width.
 - [x] Add duration bands to the time tree and a list alternative.
-- [x] Use readable short labels for selecting personal time, and replace product-facing `留白` wording with `自己的时间` or `自由安排`.
+- [x] Use readable short labels for selecting personal time, and replace product-facing `静驻` wording with `自己的时间` or `自由安排`.
 - [x] Keep optional completion fireworks but remove score/streak incentives; show confirmed minutes in the review calendar.
 - [x] Update the current product overview and clarify estimation/measurement boundaries.
 

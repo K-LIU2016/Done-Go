@@ -56,7 +56,7 @@ export function S02Ledger() {
       <header className="s02-head">
         <h1 className="s02-title">时间有去向，也有边界。</h1>
         <p className="s02-sub">
-          固定约定、可变计划与留白分开记录；空白不自动意味着可占用。
+          固定约定、可变计划与静驻分开记录；空白不自动意味着可占用。
         </p>
       </header>
       <S02RuntimeGate
@@ -155,11 +155,11 @@ function S02Ready({ store }: { store: DomainStore }) {
       <article className="s02-board" aria-label={formatIsoDateCn(date) + " 时间安排"}>
         {context.block && context.intent && (
           <section className="s02-focused-context" aria-label="从此刻定位的保护时段" data-ledger-context="matched">
-            <p className="s02-blank-title"><Lock size={14} aria-hidden="true" />已定位：同一段受保护的留白</p>
-            <p className="s02-blank-time">{formatIsoDateCn(date)} · {formatIsoTime(context.block.range.start)}—{formatIsoTime(context.block.range.end)}</p>
-            <p className="s02-blank-note">时区 {context.block.range.timezone} · {context.block.purpose ? "用途：" + context.block.purpose : "没有设置用途，也成立"}</p>
+            <p className="s02-stillness-title"><Lock size={14} aria-hidden="true" />已定位：同一段受保护的静驻</p>
+            <p className="s02-stillness-time">{formatIsoDateCn(date)} · {formatIsoTime(context.block.range.start)}—{formatIsoTime(context.block.range.end)}</p>
+            <p className="s02-stillness-note">时区 {context.block.range.timezone} · {context.block.purpose ? "用途：" + context.block.purpose : "没有设置用途，也成立"}</p>
             <p className="s02-context-intent">关联意图：{context.intent.verbatim || "已保存的结构化意图"}{context.intent.status === "paused" ? "（已暂停使用，既有边界仍保留）" : ""}</p>
-            {!visibleLanes.some(lane => lane.blockId === context.block?.blockId) && <p className="s02-blank-note">此时段在下方默认时间轴范围外；完整记录已在这里定位，不代表时段不存在。</p>}
+            {!visibleLanes.some(lane => lane.blockId === context.block?.blockId) && <p className="s02-stillness-note">此时段在下方默认时间轴范围外；完整记录已在这里定位，不代表时段不存在。</p>}
             <Link className="s02-empty-action" to={"/m/now?intentId=" + encodeURIComponent(context.intent.id)}>返回此刻</Link>
           </section>
         )}
@@ -349,7 +349,7 @@ function S02Ready({ store }: { store: DomainStore }) {
                     {visibleLanes.map((lane) => (
                       <div
                         key={lane.id}
-                        className={"s02-blank" + (lane.blockId === context.block?.blockId ? " is-linked" : "")}
+                        className={"s02-stillness" + (lane.blockId === context.block?.blockId ? " is-linked" : "")}
                         data-protected-block-id={lane.blockId}
                         aria-current={lane.blockId === context.block?.blockId ? "true" : undefined}
                         style={{ top: lane.topPx + "px", "--protected-height": lane.heightPx + "px" } as CSSProperties}
@@ -357,16 +357,16 @@ function S02Ready({ store }: { store: DomainStore }) {
                         role="group"
                         aria-label={"受保护时段 " + formatMinuteOfDay(lane.startMinute) + " 至 " + formatMinuteOfDay(lane.endMinute)}
                       >
-                        <p className="s02-blank-title">
+                        <p className="s02-stillness-title">
                           <Lock size={14} aria-hidden="true" />
-                          {lane.blockId === context.block?.blockId ? "已定位 · 受保护的留白" : "受保护的留白"}
+                          {lane.blockId === context.block?.blockId ? "已定位 · 受保护的静驻" : "受保护的静驻"}
                         </p>
-                        <p className="s02-blank-time">
+                        <p className="s02-stillness-time">
                           {formatMinuteOfDay(lane.startMinute)}
                           {"—"}
                           {formatMinuteOfDay(lane.endMinute)}
                         </p>
-                        <p className="s02-blank-note">
+                        <p className="s02-stillness-note">
                           {lane.purpose
                             ? "用途：" + lane.purpose + "。不接受自动填充。"
                             : "没有设置用途，也不接受自动填充。"}
@@ -374,11 +374,11 @@ function S02Ready({ store }: { store: DomainStore }) {
                       </div>
                     ))}
                     {visibleLanes.length === 0 ? (
-                      <div className="s02-blank s02-blank-missing">
-                        <p className="s02-blank-title">还没有设置保护时段</p>
+                      <div className="s02-stillness s02-stillness-missing">
+                        <p className="s02-stillness-title">还没有设置保护时段</p>
                         <button
                           type="button"
-                          className="s02-blank-action"
+                          className="s02-stillness-action"
                           data-capture-link
                           onClick={() => navigate("/capture")}
                         >
@@ -461,7 +461,7 @@ function S02Ready({ store }: { store: DomainStore }) {
                               " 分钟"
                             : "") +
                         (day.protectedCount > 0
-                          ? " · " + day.protectedCount + " 段留白"
+                          ? " · " + day.protectedCount + " 段静驻"
                           : "") +
                         (day.overlapMinutes > 0
                           ? " · 越界 " + day.overlapMinutes + " 分钟"
@@ -511,7 +511,7 @@ function S02Ready({ store }: { store: DomainStore }) {
                         {day.hasStoredRecords ? (
                           <span className="s02-month-cell-detail">
                             {day.commitmentCount > 0 ? day.commitmentCount + " 项" : ""}
-                            {day.protectedCount > 0 ? (day.commitmentCount > 0 ? " · " : "") + day.protectedCount + " 段留白" : ""}
+                            {day.protectedCount > 0 ? (day.commitmentCount > 0 ? " · " : "") + day.protectedCount + " 段静驻" : ""}
                             {day.overlapMinutes > 0 ? " · 越界 " + day.overlapMinutes + " 分" : ""}
                           </span>
                         ) : (
@@ -579,7 +579,7 @@ function S02Ready({ store }: { store: DomainStore }) {
           {estimateFits && surface.totalOverlapMinutes > 0 ? (
             <p className="s02-mismatch" data-mismatch="true">
               <AlertTriangle size={14} aria-hidden="true" />
-              预计投入虽在容量内，但仍有计划时段与留白重叠{" "}
+              预计投入虽在容量内，但仍有计划时段与静驻重叠{" "}
               {surface.totalOverlapMinutes} 分钟。
             </p>
           ) : null}

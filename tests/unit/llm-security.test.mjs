@@ -9,7 +9,7 @@ import { loadSettings, saveSettings, SettingsStoreError } from "../../server/set
 import { fetchModelList, runLlmInference } from "../../server/upstream.mjs";
 import { createAppServer } from "../../server/app.mjs";
 
-const FAKE_KEY = "sk-leubai-fake-security-key-0001";
+const FAKE_KEY = "sk-tango-donego-fake-security-key-0001";
 
 function listen(server) {
   return new Promise((resolve) => {
@@ -40,7 +40,7 @@ test("url guard canonicalizes ipv4-mapped ipv6 and blocks private ranges", () =>
 });
 
 test("store: missing is empty; corrupt is explicit and raw preserved", async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), "leubai-store-"));
+  const dir = await mkdtemp(join(tmpdir(), "tango-donego-store-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const file = join(dir, "llm.json");
   const empty = await loadSettings(file);
@@ -51,31 +51,35 @@ test("store: missing is empty; corrupt is explicit and raw preserved", async (t)
     () => loadSettings(file),
     (err) => err instanceof SettingsStoreError && err.code === "settings_corrupt",
   );
-  await chmod(dir, 0o500);
-  try {
-    await assert.rejects(
-      () => saveSettings(file, { ...JSON.parse(JSON.stringify({})) }),
-      (err) => err instanceof SettingsStoreError && err.code === "persist_failed",
-    );
-  } finally {
-    await chmod(dir, 0o700);
+  if (process.platform !== "win32") {
+    await chmod(dir, 0o500);
+    try {
+      await assert.rejects(
+        () => saveSettings(file, { ...JSON.parse(JSON.stringify({})) }),
+        (err) => err instanceof SettingsStoreError && err.code === "persist_failed",
+      );
+    } finally {
+      await chmod(dir, 0o700);
+    }
   }
   assert.equal(await readFile(file, "utf8"), corruptText);
 });
 
 test("store: unreadable file is an explicit error, not an empty config", async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), "leubai-store-"));
+  const dir = await mkdtemp(join(tmpdir(), "tango-donego-store-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const file = join(dir, "llm.json");
   await writeFile(file, JSON.stringify({ apiKey: "x" }));
-  await chmod(file, 0o000);
-  try {
-    await assert.rejects(
-      () => loadSettings(file),
-      (err) => err instanceof SettingsStoreError && err.code === "settings_unreadable",
-    );
-  } finally {
-    await chmod(file, 0o600);
+  if (process.platform !== "win32") {
+    await chmod(file, 0o000);
+    try {
+      await assert.rejects(
+        () => loadSettings(file),
+        (err) => err instanceof SettingsStoreError && err.code === "settings_unreadable",
+      );
+    } finally {
+      await chmod(file, 0o600);
+    }
   }
 });
 
@@ -145,7 +149,7 @@ test("upstream: generated text is capped", async (t) => {
 });
 
 test("app: corrupt settings file returns explicit 503 and keeps raw data", async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), "leubai-app-"));
+  const dir = await mkdtemp(join(tmpdir(), "tango-donego-app-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const settingsFile = join(dir, "llm.json");
   const corruptText = "[[[";
@@ -159,7 +163,7 @@ test("app: corrupt settings file returns explicit 503 and keeps raw data", async
   });
   const port = await app.start();
   t.after(() => app.close());
-  const headers = { "content-type": "application/json", "x-leubai-client": "leubai-settings/1" };
+  const headers = { "content-type": "application/json", "x-tango-client": "tango-settings/1" };
   const got = await fetch("http://127.0.0.1:" + port + "/api/settings/llm", { headers });
   assert.equal(got.status, 503);
   assert.equal(JSON.parse(await got.text()).error, "settings_corrupt");

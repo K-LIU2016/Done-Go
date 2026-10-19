@@ -26,7 +26,7 @@ export function AuthBootstrap({ children }: { children: ReactNode }) {
     }
   }
   if (state.loading) return <main className="auth-bootstrap" role="status"><p>正在确认登录状态…</p></main>;
-  if (openedOwner === null && (!state.status || state.error)) return <main className="auth-bootstrap"><h1>暂时无法打开你的留白</h1><p role="alert">{state.error ?? "账号服务尚未返回登录状态。"}</p><button className="auth-secondary" onClick={() => void retry()}>重新连接</button></main>;
+  if (openedOwner === null && (!state.status || state.error)) return <main className="auth-bootstrap"><h1>暂时无法打开你的静驻</h1><p role="alert">{state.error ?? "账号服务尚未返回登录状态。"}</p><button className="auth-secondary" onClick={() => void retry()}>重新连接</button></main>;
   const owner = state.user?.id ?? "guest";
   if (openedOwner === null) return <main className="auth-bootstrap" role="status"><p>正在确认登录状态…</p></main>;
   if (openedOwner !== owner) return <main className="auth-bootstrap" role="status"><p>正在切换账号数据…</p></main>;

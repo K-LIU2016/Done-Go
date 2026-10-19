@@ -2,6 +2,7 @@ import type { ContextReviewAction, ContextReviewState } from "./contextReviewMod
 import type { CheckpointNote } from "./checkpointNoteModel.ts";
 import type { CheckpointRulesSnapshot } from "./checkpointRulesModel.ts";
 import type { SourceRevocationCommand, SourceRevocationData, SourceRevocationReceipt } from "./handlers/sourceRevocation.ts";
+import type { AgreementRequest, AgreementTerms } from "./agreementModel.ts";
 
 export type DataMode = "fixture" | "live";
 export type Actor = "user" | "automation" | "model";
@@ -427,7 +428,7 @@ export interface AttentionBudget extends EntityBase {
   queue: QueueEntry[];
 }
 
-export type QuietDecision = "unchosen" | "keepBlank" | "music" | "explore" | "exit";
+export type QuietDecision = "unchosen" | "keepStill" | "music" | "explore" | "exit";
 
 export interface QuietSession extends EntityBase {
   blockId: string;
@@ -476,6 +477,7 @@ export interface DomainState {
   captureDrafts: Record<EntityId, CaptureDraft>;
   protectedBlocks: Record<EntityId, ProtectedBlock>;
   requests: Record<EntityId, Request>;
+  agreementRequests: Record<EntityId, AgreementRequest>;
   commitments: Record<EntityId, Commitment>;
   plans: Record<EntityId, Plan>;
   changeSets: Record<EntityId, ChangeSet>;
@@ -545,6 +547,35 @@ export interface AcceptRequestCommand extends CommandBase {
 export interface ArchiveRequestCommand extends CommandBase {
   type: "archiveRequest";
   decision: "keepIdea" | "exclude";
+}
+
+export interface CreateAgreementRequestCommand extends CommandBase {
+  type: "createAgreementRequest";
+  requestId: EntityId;
+  proposerId: string;
+  recipientId: string;
+  terms: AgreementTerms;
+  expiresAt: string;
+}
+
+export interface RespondAgreementRequestCommand extends CommandBase {
+  type: "respondAgreementRequest";
+  actorId: string;
+  termsVersion: number;
+  termsHash: string;
+  response: "accepted" | "rejected";
+  reasonCode?: string | null;
+}
+
+export interface CounterProposeAgreementCommand extends CommandBase {
+  type: "counterProposeAgreement";
+  actorId: string;
+  terms: AgreementTerms;
+}
+
+export interface WithdrawAgreementRequestCommand extends CommandBase {
+  type: "withdrawAgreementRequest";
+  actorId: string;
 }
 
 export interface UpdateCommitmentCommand extends CommandBase {
@@ -739,6 +770,10 @@ export type DomainCommand =
   | CheckConflictCommand
   | AcceptRequestCommand
   | ArchiveRequestCommand
+  | CreateAgreementRequestCommand
+  | RespondAgreementRequestCommand
+  | CounterProposeAgreementCommand
+  | WithdrawAgreementRequestCommand
   | UpdateCommitmentCommand
   | SelectPlanCommand
   | GrantApprovalCommand
@@ -823,6 +858,10 @@ export type CommandDataOf<C extends DomainCommand> =
   : C extends CheckConflictCommand ? { outcome: ConflictOutcome }
   : C extends AcceptRequestCommand ? { request: Request; commitment: Commitment; alreadyAccepted: boolean }
   : C extends ArchiveRequestCommand ? { request: Request }
+  : C extends CreateAgreementRequestCommand ? { request: AgreementRequest }
+  : C extends RespondAgreementRequestCommand ? { request: AgreementRequest; agreementFormed: boolean }
+  : C extends CounterProposeAgreementCommand ? { request: AgreementRequest }
+  : C extends WithdrawAgreementRequestCommand ? { request: AgreementRequest }
   : C extends UpdateCommitmentCommand ? { commitment: Commitment }
   : C extends SelectPlanCommand ? { plan: Plan; changeSet: ChangeSet }
   : C extends GrantApprovalCommand

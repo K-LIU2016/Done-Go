@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 test.use({ channel: "chromium" });
 
 const FIXTURE_URL = "/?appearanceFixture=1";
-const THEME_KEY = "leubai.appearance.v1";
+const THEME_KEY = "tango-donego.appearance.v1";
 const EVIDENCE_DIR = ".omo/evidence/appearance";
 
 const ROUTES: Array<[string, string]> = [
@@ -14,7 +14,7 @@ const ROUTES: Array<[string, string]> = [
   ["/preview", "s05"],
   ["/workspace", "s06"],
   ["/session", "s07"],
-  ["/blank", "s08"],
+  ["/stillness", "s08"],
   ["/attention", "s09"],
   ["/boundaries", "s10"],
   ["/context", "s11"],
@@ -24,7 +24,7 @@ const ROUTES: Array<[string, string]> = [
   ["/m/now", "s15"],
   ["/m/plan", "s16"],
   ["/m/auth", "s17"],
-  ["/m/blank", "s18"],
+  ["/m/stillness", "s18"],
 ];
 
 function watchErrors(page: Page): string[] {
@@ -98,7 +98,7 @@ test.describe("appearance control (isolated fixture)", () => {
     await page.addInitScript(() => {
       const original = Storage.prototype.setItem;
       Storage.prototype.setItem = function failForTheme(this: Storage, key: string, value: string) {
-        if (key === "leubai.appearance.v1") {
+        if (key === "tango-donego.appearance.v1") {
           throw new DOMException("simulated quota failure", "QuotaExceededError");
         }
         original.call(this, key, value);
@@ -235,7 +235,7 @@ test.describe("ink visual acceptance", () => {
     }
   });
 
-  test("edge accent exists only on home/blank, zero hitbox, hidden on mobile", async ({ page }, testInfo) => {
+  test("edge accent exists only on home/stillness, zero hitbox, hidden on mobile", async ({ page }, testInfo) => {
     testInfo.skip(testInfo.project.name !== "desktop");
     await storeTheme(page, "ink");
     await page.goto("/");

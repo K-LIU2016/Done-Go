@@ -12,7 +12,7 @@ import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const directory = await mkdtemp(join(tmpdir(), "leubai-auth-smoke-"));
+const directory = await mkdtemp(join(tmpdir(), "tango-donego-auth-smoke-"));
 const origin = "http://127.0.0.1:5231";
 const cookieFile = join(directory, "cookies.txt");
 const upstream = createServer((req, res) => {
@@ -32,7 +32,7 @@ try {
   child = spawn("npm", ["start"], {
     cwd: root,
     detached: true,
-    env: { ...process.env, LEUBAI_DEV: "0", LEUBAI_AUTH_DISABLED: "0", LEUBAI_HOST: "127.0.0.1", LEUBAI_PORT: "5231", LEUBAI_AUTH_SECRET: randomBytes(48).toString("base64url"), LEUBAI_AUTH_DB: join(directory, "auth.sqlite"), LEUBAI_SETTINGS_FILE: join(directory, "settings.json"), LEUBAI_PUBLIC_ORIGIN: "", NODE_ENV: "development", ENV: "development", EMAIL_TRANSPORT: "console", ADMIN_EMAILS: "smoke@example.com" },
+    env: { ...process.env, TANGO_DEV: "0", TANGO_AUTH_DISABLED: "0", TANGO_HOST: "127.0.0.1", TANGO_PORT: "5231", TANGO_AUTH_SECRET: randomBytes(48).toString("base64url"), TANGO_AUTH_DB: join(directory, "auth.sqlite"), TANGO_SETTINGS_FILE: join(directory, "settings.json"), TANGO_PUBLIC_ORIGIN: "", NODE_ENV: "development", ENV: "development", EMAIL_TRANSPORT: "console", ADMIN_EMAILS: "smoke@example.com" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   closed = once(child, "exit");
@@ -47,7 +47,7 @@ try {
     });
   });
   const curl = async (path, { method = "GET", body, expected = 200, cookie = cookieFile } = {}) => {
-    const args = ["--silent", "--show-error", "--max-time", "10", "--write-out", "\n%{http_code}", "--cookie", cookie, "--cookie-jar", cookieFile, "--header", "x-leubai-client: leubai-settings/1", "--header", `Origin: ${origin}`, "--header", "Content-Type: application/json", "--request", method, origin + path];
+    const args = ["--silent", "--show-error", "--max-time", "10", "--write-out", "\n%{http_code}", "--cookie", cookie, "--cookie-jar", cookieFile, "--header", "x-tango-client: tango-settings/1", "--header", `Origin: ${origin}`, "--header", "Content-Type: application/json", "--request", method, origin + path];
     if (body !== undefined) args.push("--data-binary", JSON.stringify(body));
     const result = await exec("curl", args);
     const index = result.stdout.lastIndexOf("\n");
@@ -60,15 +60,15 @@ try {
   const status = await curl("/api/auth/status");
   assert.equal(status.enabled, true);
   await curl("/api/auth/send-code", { method: "POST", body: { email: "smoke@example.com" } });
-  const code = stdout.match(/\[LeuBai local verification\] smoke@example\.com register (\d{6})/)?.[1];
+  const code = stdout.match(/\[Tango Done&Go local verification\] smoke@example\.com register (\d{6})/)?.[1];
   assert.ok(code, "Console email code must be observed in npm start stdout");
   const registration = await curl("/api/auth/register", { method: "POST", body: { email: "smoke@example.com", code, password: "Local smoke password 123456" } });
   assert.equal(registration.user.role, "admin");
   const me = await curl("/api/auth/me");
   assert.equal(me.user.id, registration.user.id);
-  const sessionRow = (await readFile(cookieFile, "utf8")).split("\n").find((line) => line.includes("\tleubai_session\t"));
+  const sessionRow = (await readFile(cookieFile, "utf8")).split("\n").find((line) => line.includes("\ttango_session\t"));
   assert.ok(sessionRow, "The signed session must be present in the curl cookie jar");
-  const sessionCookie = "leubai_session=" + sessionRow.split("\t")[6];
+  const sessionCookie = "tango_session=" + sessionRow.split("\t")[6];
   const baseUrl = `http://127.0.0.1:${upstream.address().port}`;
   const settings = { candidate: { protocol: "openai", baseUrl, modelsUrl: `${baseUrl}/v1/models`, messagesUrl: `${baseUrl}/v1/chat/completions`, model: "smoke-model" }, apiKey: "test-only-smoke-key" };
   const proof = await curl("/api/settings/llm/test", { method: "POST", body: settings });

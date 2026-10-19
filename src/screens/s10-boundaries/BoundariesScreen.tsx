@@ -635,7 +635,7 @@ function BoundariesReady({ handle, tab, onTabChange }: BoundariesReadyProps) {
                   ))
                 )}
               </ul>
-              <p className="s10-tabnote">与留白时刻共用同一边界。</p>
+              <p className="s10-tabnote">与静驻时刻共用同一边界。</p>
               <div className="s10-capacity" data-capacity-state={busyKey === "capacity" ? "saving" : "idle"}>
                 <label className="s10-capacity-field">
                   <span>每日可用时间（分钟）</span>

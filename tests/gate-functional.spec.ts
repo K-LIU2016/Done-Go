@@ -585,7 +585,7 @@ test.describe("[gate][s05][delta] delay detour, malformed state, storage faults"
   }) => {
     const errors = watchErrors(page);
     seedLocalStorage(page, {
-      "leubai.s05.plan.v1": JSON.stringify({ approved: true, draft: {} }),
+      "tango-donego.s05.plan.v1": JSON.stringify({ approved: true, draft: {} }),
     });
     await page.goto("/preview");
     const root = page.locator('[data-page="s05"]');
@@ -607,7 +607,7 @@ test.describe("[gate][s05][delta] delay detour, malformed state, storage faults"
   }) => {
     const errors = watchErrors(page);
     seedLocalStorage(page, {
-      "leubai.s05.plan.v1": JSON.stringify({
+      "tango-donego.s05.plan.v1": JSON.stringify({
         approved: true,
         draft: {
           scope: "本次准备任务",
@@ -635,7 +635,7 @@ test.describe("[gate][s05][delta] delay detour, malformed state, storage faults"
     page,
   }) => {
     const errors = watchErrors(page);
-    breakStorageOn(page, "leubai.s05.plan.v1");
+    breakStorageOn(page, "tango-donego.s05.plan.v1");
     await page.goto("/preview");
     const root = page.locator('[data-page="s05"]');
     await root.getByRole("button", { name: /批准并准备草稿/ }).click();
@@ -657,7 +657,7 @@ test.describe("[gate][s05][delta] delay detour, malformed state, storage faults"
     await expect(draftBox).toHaveValue("失败重试：新内容保留。");
     const stored = (await readJsonStorage(
       page,
-      "leubai.s05.plan.v1",
+      "tango-donego.s05.plan.v1",
     )) as { approved?: boolean; draft?: { content?: string } | null };
     expect(stored?.approved).toBe(true);
     expect(stored?.draft?.content).toBe("失败重试：新内容保留。");
@@ -671,7 +671,7 @@ test.describe("[gate][s05][delta] delay detour, malformed state, storage faults"
   }) => {
     const errors = watchErrors(page);
     seedLocalStorage(page, {
-      "leubai.s05.plan.v1": JSON.stringify({
+      "tango-donego.s05.plan.v1": JSON.stringify({
         approved: true,
         draft: {
           scope: "本次准备任务",
@@ -683,7 +683,7 @@ test.describe("[gate][s05][delta] delay detour, malformed state, storage faults"
         },
       }),
     });
-    breakStorageOn(page, "leubai.s05.plan.v1");
+    breakStorageOn(page, "tango-donego.s05.plan.v1");
     await page.goto("/preview");
     const root = page.locator('[data-page="s05"]');
     const draftBox = root.getByRole("textbox", { name: "草稿正文" });
@@ -772,7 +772,7 @@ test.describe("[gate][s17][delta] reload persistence, malformed state, storage f
   }) => {
     const errors = watchErrors(page);
     seedLocalStorage(page, {
-      "leubai.s17.auth.v1": JSON.stringify({
+      "tango-donego.s17.auth.v1": JSON.stringify({
         used: true,
         grants: "all",
         draft: { content: 42 },
@@ -787,7 +787,7 @@ test.describe("[gate][s17][delta] reload persistence, malformed state, storage f
     await expect(approve).toBeEnabled();
     await expect(root.getByText("本次授权已使用")).toHaveCount(0);
     await page.evaluate(() => {
-      window.localStorage.setItem("leubai.s17.auth.v1", "{oops");
+      window.localStorage.setItem("tango-donego.s17.auth.v1", "{oops");
     });
     await page.reload();
     await expect(
@@ -802,7 +802,7 @@ test.describe("[gate][s17][delta] reload persistence, malformed state, storage f
     page,
   }) => {
     const errors = watchErrors(page);
-    breakStorageOn(page, "leubai.s17.auth.v1");
+    breakStorageOn(page, "tango-donego.s17.auth.v1");
     await page.goto("/m/auth");
     const root = page.locator('[data-page="s17"]');
     await root.getByRole("button", { name: "批准并准备草稿" }).click();
@@ -829,7 +829,7 @@ test.describe("[gate][s17][delta] reload persistence, malformed state, storage f
     await expect(draftBox).toHaveValue("授权写入失败后的句子。");
     const stored = (await readJsonStorage(
       page,
-      "leubai.s17.auth.v1",
+      "tango-donego.s17.auth.v1",
     )) as { used?: boolean; draft?: { content?: string } | null };
     expect(stored?.used).toBe(true);
     expect(stored?.draft?.content).toBe("授权写入失败后的句子。");
@@ -850,7 +850,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
   }) => {
     test.slow();
     const errors = watchErrors(page);
-    breakStorageOn(page, "leubai.s05.plan.v1");
+    breakStorageOn(page, "tango-donego.s05.plan.v1");
     await page.goto("/preview");
     const root = page.locator('[data-page="s05"]');
     await root.getByRole("button", { name: /批准并准备草稿/ }).click();
@@ -864,7 +864,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
     const draftBox = root.getByRole("textbox", { name: "草稿正文" });
     await draftBox.fill("边界验证：待定内容不能冒充已提交。");
     await expect(alert).toHaveAttribute("data-attempt-id", attemptId as string);
-    expect(await readJsonStorage(page, "leubai.s05.plan.v1")).toBeNull();
+    expect(await readJsonStorage(page, "tango-donego.s05.plan.v1")).toBeNull();
 
     await root.getByRole("button", { name: "返回修改方案" }).click();
     await expect(page).toHaveURL(/\/plan$/);
@@ -885,7 +885,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
       "data-attempt-id",
       attemptId as string,
     );
-    expect(await readJsonStorage(page, "leubai.s05.plan.v1")).toBeNull();
+    expect(await readJsonStorage(page, "tango-donego.s05.plan.v1")).toBeNull();
 
     await page.reload();
     const fresh = page.locator('[data-page="s05"]');
@@ -898,7 +898,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
     await expect(
       fresh.getByRole("button", { name: /批准并准备草稿/ }),
     ).toBeVisible();
-    expect(await readJsonStorage(page, "leubai.s05.plan.v1")).toBeNull();
+    expect(await readJsonStorage(page, "tango-donego.s05.plan.v1")).toBeNull();
     await shot(page, "boundary-s05-pending-reentry");
     expect(errors).toEqual([]);
   });
@@ -908,7 +908,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
   }) => {
     test.slow();
     const errors = watchErrors(page);
-    breakStorageOn(page, "leubai.s05.plan.v1");
+    breakStorageOn(page, "tango-donego.s05.plan.v1");
     await page.goto("/preview");
     const root = page.locator('[data-page="s05"]');
     await root.getByRole("button", { name: /批准并准备草稿/ }).click();
@@ -932,7 +932,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
     ).toHaveValue("重试边界：同一尝试编号。");
     const stored = (await readJsonStorage(
       page,
-      "leubai.s05.plan.v1",
+      "tango-donego.s05.plan.v1",
     )) as {
       approved?: boolean;
       attemptId?: string;
@@ -955,7 +955,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
     page,
   }) => {
     const errors = watchErrors(page);
-    breakStorageReadOn(page, "leubai.s05.plan.v1");
+    breakStorageReadOn(page, "tango-donego.s05.plan.v1");
     await page.goto("/preview");
     const root = page.locator('[data-page="s05"]');
     await root.getByRole("button", { name: /批准并准备草稿/ }).click();
@@ -968,7 +968,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
     ).toHaveCount(0);
     const stored = (await readJsonStorageDirect(
       page,
-      "leubai.s05.plan.v1",
+      "tango-donego.s05.plan.v1",
     )) as { approved?: boolean; attemptId?: string } | null;
     expect(stored?.approved).toBe(true);
     const alert = root.locator('[role="alert"]');
@@ -991,7 +991,7 @@ test.describe("[gate][s05][boundary] committed versus pending storage", () => {
   }) => {
     const errors = watchErrors(page);
     seedLocalStorage(page, {
-      "leubai.s05.plan.v1": JSON.stringify({
+      "tango-donego.s05.plan.v1": JSON.stringify({
         approved: true,
         draft: {
           scope: "本次准备任务",
@@ -1024,7 +1024,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
   }) => {
     test.slow();
     const errors = watchErrors(page);
-    breakStorageOn(page, "leubai.s17.auth.v1");
+    breakStorageOn(page, "tango-donego.s17.auth.v1");
     await page.goto("/m/auth");
     const root = page.locator('[data-page="s17"]');
     await root.getByRole("button", { name: "批准并准备草稿" }).click();
@@ -1042,7 +1042,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
       .getByRole("textbox", { name: "草稿正文" })
       .fill("移动端边界：未提交的授权草稿。");
     await expect(alert).toHaveAttribute("data-attempt-id", attemptId as string);
-    expect(await readJsonStorage(page, "leubai.s17.auth.v1")).toBeNull();
+    expect(await readJsonStorage(page, "tango-donego.s17.auth.v1")).toBeNull();
 
     await root.getByRole("link", { name: "返回修改方案" }).click();
     await expect(page).toHaveURL(/\/m\/plan$/);
@@ -1065,7 +1065,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
       "data-attempt-id",
       attemptId as string,
     );
-    expect(await readJsonStorage(page, "leubai.s17.auth.v1")).toBeNull();
+    expect(await readJsonStorage(page, "tango-donego.s17.auth.v1")).toBeNull();
 
     await page.reload();
     const fresh = page.locator('[data-page="s17"]');
@@ -1080,7 +1080,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
     await expect(
       fresh.getByRole("button", { name: "批准并准备草稿" }),
     ).toBeEnabled();
-    expect(await readJsonStorage(page, "leubai.s17.auth.v1")).toBeNull();
+    expect(await readJsonStorage(page, "tango-donego.s17.auth.v1")).toBeNull();
     await shot(page, "boundary-s17-pending-reentry");
     expect(errors).toEqual([]);
   });
@@ -1090,7 +1090,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
   }) => {
     test.slow();
     const errors = watchErrors(page);
-    breakStorageOn(page, "leubai.s17.auth.v1");
+    breakStorageOn(page, "tango-donego.s17.auth.v1");
     await page.goto("/m/auth");
     const root = page.locator('[data-page="s17"]');
     await root.getByRole("button", { name: "批准并准备草稿" }).click();
@@ -1119,7 +1119,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
     ).toHaveValue("移动端重试：同一尝试编号。");
     const stored = (await readJsonStorage(
       page,
-      "leubai.s17.auth.v1",
+      "tango-donego.s17.auth.v1",
     )) as {
       used?: boolean;
       attemptId?: string;
@@ -1144,7 +1144,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
     page,
   }) => {
     const errors = watchErrors(page);
-    breakStorageReadOn(page, "leubai.s17.auth.v1");
+    breakStorageReadOn(page, "tango-donego.s17.auth.v1");
     await page.goto("/m/auth");
     const root = page.locator('[data-page="s17"]');
     await root.getByRole("button", { name: "批准并准备草稿" }).click();
@@ -1157,7 +1157,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
     await expect(root.getByText(/已读取 2 份指定材料/)).toHaveCount(0);
     const stored = (await readJsonStorageDirect(
       page,
-      "leubai.s17.auth.v1",
+      "tango-donego.s17.auth.v1",
     )) as { used?: boolean; attemptId?: string } | null;
     expect(stored?.used).toBe(true);
     const alert = root.locator('[role="alert"]');
@@ -1182,7 +1182,7 @@ test.describe("[gate][s17][boundary] committed versus pending storage", () => {
   }) => {
     const errors = watchErrors(page);
     seedLocalStorage(page, {
-      "leubai.s17.auth.v1": JSON.stringify({
+      "tango-donego.s17.auth.v1": JSON.stringify({
         used: true,
         grants: { read: false, draft: false, estimate: true },
         readDone: false,
@@ -1357,7 +1357,7 @@ test.describe("[runtime-s05] shared runtime authority flow", () => {
       const snap = await approveViaUi(page);
       expect(page.url()).toMatch(/\/preview$/);
       const privateKey = await page.evaluate(() =>
-        window.localStorage.getItem("leubai.s05.plan.v1"),
+        window.localStorage.getItem("tango-donego.s05.plan.v1"),
       );
       expect(privateKey).toBeNull();
       const op = snap.operations.find((o) => o.status === "verified");
@@ -1394,7 +1394,7 @@ test.describe("[runtime-s05] shared runtime authority flow", () => {
         key: string,
         value: string,
       ) {
-        if (marker.__s05FailStorage === true && key.startsWith("leubai-v2:domain:v1:")) {
+        if (marker.__s05FailStorage === true && key.startsWith("tango-donego:domain:v1:")) {
           throw new Error("quota exceeded");
         }
         return originalSetItem.call(this, key, value);

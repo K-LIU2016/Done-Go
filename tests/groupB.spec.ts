@@ -146,7 +146,7 @@ test.describe("s07 session", () => {
 test.describe("s08 blank", () => {
   test("s08 renders protected blank time without pressure", async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto("/blank");
+    await page.goto("/stillness");
     const root = page.locator('[data-page="s08"]');
     await expect(root).toBeVisible();
     const copy = [
@@ -170,7 +170,7 @@ test.describe("s08 blank", () => {
 
   test("s08 choices stay quiet and honest", async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto("/blank");
+    await page.goto("/stillness");
     const root = page.locator('[data-page="s08"]');
     await root.getByRole("button", { name: "什么也不安排" }).click();
     await expect(root.getByText("好的，这段时间由你决定。")).toBeVisible();
@@ -294,7 +294,7 @@ test.describe("s10 boundaries", () => {
     const nav = root.locator("[data-rule-nav]");
     await nav.getByRole("button", { name: "时间边界" }).click();
     await expect(root.getByText("今晚 19:00—20:00 已保护。")).toBeVisible();
-    await expect(root.getByText("与留白时刻共用同一边界。")).toBeVisible();
+    await expect(root.getByText("与静驻时刻共用同一边界。")).toBeVisible();
     await nav.getByRole("button", { name: "打扰规则" }).click();
     await expect(root.getByText("每天最多 2 次非紧急提醒。")).toBeVisible();
     await expect(root.getByText("与注意力队列共用同一份预算。")).toBeVisible();

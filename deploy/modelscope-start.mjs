@@ -5,42 +5,42 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isLoopbackHostname } from "../server/urlguard.mjs";
 
-if (process.env.LEUBAI_AUTH_DISABLED === "1") {
+if (process.env.TANGO_AUTH_DISABLED === "1") {
   throw new Error("Authentication cannot be disabled in the public container.");
 }
-const publicOrigin = process.env.LEUBAI_PUBLIC_ORIGIN || "";
+const publicOrigin = process.env.TANGO_PUBLIC_ORIGIN || "";
 const publicUrl = new URL(publicOrigin);
 if (publicUrl.origin !== publicOrigin || publicUrl.protocol !== "https:" ||
     publicUrl.username || publicUrl.password || isLoopbackHostname(publicUrl.hostname) ||
     !/^[a-z0-9.-]+(?::[0-9]+)?$/i.test(publicUrl.host)) {
-  throw new Error("LEUBAI_PUBLIC_ORIGIN must be an exact public HTTPS origin.");
+  throw new Error("TANGO_PUBLIC_ORIGIN must be an exact public HTTPS origin.");
 }
-const dataDir = process.env.LEUBAI_DATA_DIR || "/app/.leubai-local";
+const dataDir = process.env.TANGO_DATA_DIR || "/app/.tango-donego";
 await mkdir(dataDir, { recursive: true, mode: 0o700 });
 const env = {
   ...process.env,
   NODE_ENV: "production",
-  LEUBAI_HOST: "127.0.0.1",
-  LEUBAI_PORT: "5200",
-  LEUBAI_TRUST_CLOUDFLARE: "0",
-  LEUBAI_AUTH_DB: process.env.LEUBAI_AUTH_DB || join(dataDir, "auth.sqlite"),
-  LEUBAI_SETTINGS_FILE: process.env.LEUBAI_SETTINGS_FILE || join(dataDir, "llm-settings.json"),
+  TANGO_HOST: "127.0.0.1",
+  TANGO_PORT: "5200",
+  TANGO_TRUST_CLOUDFLARE: "0",
+  TANGO_AUTH_DB: process.env.TANGO_AUTH_DB || join(dataDir, "auth.sqlite"),
+  TANGO_SETTINGS_FILE: process.env.TANGO_SETTINGS_FILE || join(dataDir, "llm-settings.json"),
 };
-if (!env.LEUBAI_AUTH_SECRET && !env.JWT_SECRET) {
+if (!env.TANGO_AUTH_SECRET && !env.JWT_SECRET) {
   const secretFile = join(dataDir, "auth-secret");
   try {
     await writeFile(secretFile, randomBytes(48).toString("hex"), { flag: "wx", mode: 0o600 });
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
   }
-  env.LEUBAI_AUTH_SECRET = await readFile(secretFile, "utf8");
+  env.TANGO_AUTH_SECRET = await readFile(secretFile, "utf8");
 }
 // ModelScope's gateway uses an internal Host. This dedicated container routes
 // to one operator-configured authority, never a client-supplied forwarded host.
 // Origin, client identification and session cookies remain untouched.
 const nginxConfig = (await readFile(new URL("./modelscope-nginx.conf", import.meta.url), "utf8"))
-  .replace("__LEUBAI_PUBLIC_HOST__", publicUrl.host);
-const nginxConfigPath = "/tmp/leubai-nginx/runtime.conf";
+  .replace("__TANGO_PUBLIC_HOST__", publicUrl.host);
+const nginxConfigPath = "/tmp/tango-donego-nginx/runtime.conf";
 await writeFile(nginxConfigPath, nginxConfig, { mode: 0o600 });
 const children = [
   spawn(process.execPath, ["server/start.mjs"], { env, stdio: "inherit" }),

@@ -1,16 +1,16 @@
 export function createEmailSender(config, { fetchImpl = fetch, consoleLog = console.log } = {}) {
   return async ({ email, code, purpose }) => {
     const label = purpose === "register" ? "注册账号" : "重置密码";
-    const text = `LeuBai 留白\n\n你正在${label}。验证码：${code}\n${Math.floor(config.codeTtlSeconds / 60)} 分钟内有效。如果不是你本人操作，请忽略此邮件。`;
+    const text = `Tango Done&Go 静驻\n\n你正在${label}。验证码：${code}\n${Math.floor(config.codeTtlSeconds / 60)} 分钟内有效。如果不是你本人操作，请忽略此邮件。`;
     const message = {
       from: config.mailFrom,
       to: [email],
-      subject: `LeuBai ${label}验证码`,
+      subject: `Tango Done&Go ${label}验证码`,
       text,
     };
     if (config.transport === "console") {
       if (config.publicOrigin || config.production) throw new Error("console_prohibited");
-      consoleLog(`[LeuBai local verification] ${email} ${purpose} ${code}`);
+      consoleLog(`[Tango Done&Go local verification] ${email} ${purpose} ${code}`);
       return;
     }
     if (config.transport === "resend") {

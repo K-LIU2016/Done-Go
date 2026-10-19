@@ -74,7 +74,7 @@ function localIntervalMatches(range: TimeRange, target: Commitment, date: string
 
 function localRescheduleFailure(state: DomainState, target: Commitment, date: string): string | null {
   if (Object.values(state.protectedBlocks).some((block) => block.status === "active" && localIntervalMatches(block.range, target, date, "overlaps"))) {
-    return "延期目标与本地保护时段冲突；不能自动占用留白。";
+    return "延期目标与本地保护时段冲突；不能自动占用静驻。";
   }
   const localOnly = state.contextReview.localOnly;
   if (!localOnly?.enabled) return null;

@@ -1,7 +1,7 @@
 .git
 node_modules
 dist
-.leubai-local
+.tango-donego
 .env
 .env.*
 *.local

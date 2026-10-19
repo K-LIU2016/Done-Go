@@ -31,7 +31,7 @@ function ContextContent({ store }: { store: DomainStore }) {
 	);
 	const exportRecords = () => {
 		const records = {
-			format: "LeuBai-context-export",
+			format: "TangoDoneGo-context-export",
 			version: 1,
 			exportedAt: new Date().toISOString(),
 			dataMode: state.dataMode,
@@ -93,7 +93,7 @@ function ContextContent({ store }: { store: DomainStore }) {
 		);
 		const link = document.createElement("a");
 		link.href = url;
-		link.download = "LeuBai-my-records.json";
+		link.download = "TangoDoneGo-my-records.json";
 		link.click();
 		setTimeout(() => URL.revokeObjectURL(url), 1000);
 		setExported(true);

@@ -29,7 +29,7 @@ Running 1 test using 1 worker
       108 |     await expect(root.getByText("竞品分析 · 会议提及")).toBeVisible();
       109 |     await expect(root.getByText("下周碰一次方案")).toBeVisible();
       110 |     await expect(root.getByText("找个晚上练琴")).toBeVisible();
-        at /Users/chillbit/Proj/leubai-v2/tests/groupA.spec.ts:107:7
+        at /Users/chillbit/Proj/tango-donego/tests/groupA.spec.ts:107:7
 
     Error Context: test-results/groupA--s03-收件箱-·-请求不等于承诺--75787-request-until-you-accept-it-desktop/error-context.md
 

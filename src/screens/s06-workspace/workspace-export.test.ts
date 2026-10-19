@@ -25,10 +25,10 @@ test("export serializes only the selected saved draft, preserving versions, sour
   const before = JSON.stringify(state);
   const result = buildWorkspaceExport(state, draft.id, draft.revision, "2026-09-13T13:00:00Z");
   assert.ok(result.ok);
-  assert.match(result.file.filename, /^LeuBai-draft-.+-v\d+\.json$/);
+  assert.match(result.file.filename, /^TangoDoneGo-draft-.+-v\d+\.json$/);
   assert.equal(result.file.mimeType, "application/json;charset=utf-8");
   const exported = JSON.parse(result.file.content);
-  assert.equal(exported.format, "LeuBai-draft-export");
+  assert.equal(exported.format, "TangoDoneGo-draft-export");
   assert.equal(exported.dataMode, "fixture");
   assert.deepEqual(exported.draft, draft);
   assert.equal(exported.summary.sendState, "未发送");

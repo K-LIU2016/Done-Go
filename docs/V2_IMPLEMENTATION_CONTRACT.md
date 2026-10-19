@@ -1,4 +1,6 @@
-# 留白 V2 实施合同
+# 静驻 V2 实施合同
+
+> **历史资料边界（2026-10-16）**：本文保留旧 V2/18 屏实施合同，供追溯与后续研究使用。它不定义当前产品入口、当前实现或上线标准。当前唯一产品基准是 http://localhost:5207/#today，主架构以 DONEGO-CANONICAL-ARCHITECTURE-2026-10-16.md 为准。
 
 - 日期：2026-09-12；状态：执行级规划，未作为产品实现或运行验证证据。
 - 目标：18 屏 1:1 还原、全部功能与交互、用户 C1–C5 上线级本地交付验证。`docs/PRD.md` 第 4 节全部逐屏要求及原验收项保留。外部账户实测与公开发布另需具体授权，单列未验证边界，不无限阻断本地交付。
@@ -20,7 +22,7 @@
 | `src/screens/s06-workspace/WorkspaceScreen.tsx:7–16,117,134` | 材料/确认是局部布尔值，强制补材料才能确认 | §6 分段确认 |
 | `src/screens/s07-session/SessionScreen.tsx:119` | 完整记录链接阻止默认行为 | §6 真实检查点历史 |
 | `src/screens/s13-sync/S13Sync.tsx:25–28,91–94` | 重试固定超时失败，原日历按钮无处理 | §7 来源与接管 |
-| `src/screens/s08-blank/BlankScreen.tsx:29`、`src/screens/s18-m-blank/S18MBlank.tsx:34` | 不安排只改页面布尔值 | §8 持久不安排语义 |
+| `src/screens/s08-stillness/StillnessScreen.tsx:29`、`src/screens/s18-m-stillness/S18MStillness.tsx:34` | 不安排只改页面布尔值 | §8 持久不安排语义 |
 | `src/routes/groupA.tsx:14`、`src/routes/groupC.tsx:37` | 授权页可直接路由访问 | §4 前提校验 |
 
 VERIFIED 仅指上述文件内容；跨屏运行、浏览器视觉、真实账户、构建与发布均需后续实证。以下字段、事件、事务和分组是本轮制定的实施决定，不冒充设计附件已有细节。实现时若证据与此表不同，以最新代码为准并记录变更，不回退其他执行者工作。
@@ -66,7 +68,7 @@ fixture 使用独立命名空间并有明确模式标记；不得覆盖用户 li
 | ConfirmSections | 指定段落与来源版本仍一致 | 仅指定段落确认，草稿派生 partial/confirmed | 版本改变拒绝确认并保留编辑草稿 |
 | SaveCheckpoint / Resume | 实际产物与选择存在 | 保存实际快照；恢复前核对版本 | 无检查点为空态；旧来源需复核 |
 | PauseAutomation | 本人操作 | paused=true、pauseEpoch 增加，阻止下一执行步骤 | 在途动作按 §7 分开处理，不能虚报撤销 |
-| KeepBlank / ExitQuiet | block 存在、来源路由可恢复 | 持久保存 quiet decision，再退出；不新增任务 | 保存失败显示理由并保留安静状态 |
+| KeepStill / ExitQuiet | block 存在、来源路由可恢复 | 持久保存 quiet decision，再退出；不新增任务 | 保存失败显示理由并保留安静状态 |
 
 方案状态为 candidate/selected/pendingApproval/invalid；approval 为 pending/valid/invalid/consumed；operation 为 notStarted/executing/verifying/verified/failed/unknown。草稿状态独立为 generating/pendingReview/partiallyConfirmed/confirmed/sent。保护状态区分 localRuleEffective/externalWriting/pendingVerification/coveredChannels；覆盖列表与 lastVerifiedAt 必须同时存在。禁止把批准、草稿准备、完成交付、外部核验、保住时段、用户受益合并成一个状态。
 
@@ -87,7 +89,7 @@ s14 所有入口（文字、语音、分享、快捷键）最终发出同一 Sav
 
 接受请求时仅确立本人责任，scope 待澄清可保留 pendingDetails；随后明确范围，再询问期限/投入。未知 acceptedBy、deadline、effort 不擅自补值。保存意图不创建承诺；接受不发送回复；保留想法/排除不进入容量。补齐期限/投入后同一 commitment 在 s01/s02/移动页面一致呈现并重新算容量；未知投入要显示容量判断不完整。
 
-容量按指定区间内已知且有效的责任估计计算。初始 fixture 的 30+60+40=130、容量120、缺口10，A 为110，B 为90且未来债40。未知来源不折算空闲；固定约会不能自动移动；实际人工检查超估计发出 RecheckCapacity 并展示新冲突，需要新动作时重走预览批准，不自动侵入留白。
+容量按指定区间内已知且有效的责任估计计算。初始 fixture 的 30+60+40=130、容量120、缺口10，A 为110，B 为90且未来债40。未知来源不折算空闲；固定约会不能自动移动；实际人工检查超估计发出 RecheckCapacity 并展示新冲突，需要新动作时重走预览批准，不自动侵入静驻。
 
 账本类别至少区分 protectedDuration、estimatedHumanReduction、futureDebt、supervisionCost、measuredNetSaving。延期只转移责任日期、债务持续直到实际清偿，不能记省时。保住一小时不等于 AI 省一小时；缺少成本和对照时 measuredNetSaving=null，显示尚未测量。operation receipt 与 ledger entry 唯一关联，重复回读不重复计账；撤回估计或撤销动作建立反向/替代条目，保留历史。
 
@@ -113,7 +115,7 @@ s14 所有入口（文字、语音、分享、快捷键）最终发出同一 Sav
 
 ## 8. 保留空白与移动端
 
-进入 s08/s18 时记录 blockId、合法 originRoute 与进入时覆盖；隐藏常规导航，保留可见退出。`decision` 为 unchosen/keepBlank/music/explore/exit；未选择不是待办，不设置默认倒计时，不因沉默再催促。KeepBlank 原子保存 decision=keepBlank、suppressPrompts=true，再退出到来源屏；来源不可用回对应端首页。退出同样保留选择与时段，不产生遗留任务。
+进入 s08/s18 时记录 blockId、合法 originRoute 与进入时覆盖；隐藏常规导航，保留可见退出。`decision` 为 unchosen/keepStill/music/explore/exit；未选择不是待办，不设置默认倒计时，不因沉默再催促。KeepStill 原子保存 decision=keepStill、suppressPrompts=true，再退出到来源屏；来源不可用回对应端首页。退出同样保留选择与时段，不产生遗留任务。
 
 对同一 block，刷新、重新进入、跨桌面/移动页面与提醒队列均读取 suppressPrompts，不再生成选择催促；自然结束不要求打卡/评价。新建议不得自动填入 protectedBlock；只有本人主动修改该 block 才能调整保护或开启新的选择，必须显示具体变化，不静默清除不安排记录。保护覆盖从核验来源计算，不能因进入安静页便显示所有渠道受保护。
 
@@ -148,7 +150,7 @@ s14 所有入口（文字、语音、分享、快捷键）最终发出同一 Sav
 | G2 Shell与还原基础 | `src/App.tsx`、`src/main.tsx`、`src/routes/**`、`src/shell/**`、`src/styles/**`、`src/screens/mobile/**` | 共享状态接入、路由前提、安静页退出、统一令牌字体与移动外壳；不改各屏文件 | G1接口冻结后可与G3–G5并行；屏组提出样式接口需求 |
 | G3 责任与方案屏 | `src/screens/s01-now/**`至`s05-preview/**` | 捕获后的责任/容量读取、A/B独立变更集、审批完整链；逐屏全部PRD内容 | G1接口冻结后并行 |
 | G4 协同与治理屏 | `src/screens/s06-workspace/**`至`s10-boundaries/**` | 分段草稿、真实检查点、安静界面、预算与暂停；逐屏全部PRD内容 | G1接口冻结后并行；不改Shell |
-| G5 上下文与移动屏 | `src/screens/s11-context/**`至`s18-m-blank/**` | 上下文/回顾/同步/捕获及移动关键流程，所有交互实际落地 | G1接口冻结后并行；复用G2移动外壳 |
+| G5 上下文与移动屏 | `src/screens/s11-context/**`至`s18-m-stillness/**` | 上下文/回顾/同步/捕获及移动关键流程，所有交互实际落地 | G1接口冻结后并行；复用G2移动外壳 |
 | G6 账户适配 | `src/integrations/**`（新）及适配规格 | 指定provider实现、授权/同步/执行/回读；未获具体账户授权时仅做不触达账户的实现 | G1接口冻结后；任何真实账户/外部动作按具体授权 |
 | G7 集成与验证 | `tests/**`、`evidence/**`、`docs/DELIVERY-MATRIX.md`；包配置仅由此组统一维护 | GLM集成复核全部差异并执行用户C1–C5，缺陷回原所有者修复再定向复测 | G2–G6可验收版本后；运行前检查测试脚本与数据目标 |
 

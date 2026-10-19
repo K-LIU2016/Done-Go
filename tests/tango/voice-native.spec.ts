@@ -20,9 +20,9 @@ test('spoken audio passes through browser capture and native recognition into a 
     const page = await context.newPage();
     await page.route('https://**', route => route.abort());
     await page.addInitScript(() => {
-      localStorage.setItem('leubai.web.v1', JSON.stringify({ v: 1, pv: 5, mode: 'real', wake: 960, entries: [], trials: [], drafts: [], fw: {}, sound: false }));
-      localStorage.setItem('leubai.llm.v1', JSON.stringify({ mode: 'off' }));
-      localStorage.setItem('leubai.lang', 'zh');
+      localStorage.setItem('tango-donego.web.v1', JSON.stringify({ v: 1, pv: 5, mode: 'real', wake: 960, entries: [], trials: [], drafts: [], fw: {}, sound: false }));
+      localStorage.setItem('tango-donego.llm.v1', JSON.stringify({ mode: 'off' }));
+      localStorage.setItem('tango-donego.lang', 'zh');
     });
     await page.goto('http://localhost:5207/#today');
     const response = page.waitForResponse(response => response.url().includes('/api/speech/transcribe'), { timeout: 30000 });
@@ -41,7 +41,7 @@ test('spoken audio passes through browser capture and native recognition into a 
     await expect(page.locator('.bubble')).toContainText('开会');
     await expect(page.locator('.draft')).toHaveCount(0);
     await expect(page.locator('#cap-text')).toHaveValue(/开会/);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('leubai.web.v1')!).entries)).toEqual([
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tango-donego.web.v1')!).entries)).toEqual([
       expect.objectContaining({ title: expect.stringContaining('开会'), start: '14:00', end: '15:00', prio: 3 }),
     ]);
     await page.screenshot({ path: info.outputPath('native-voice-result.png'), fullPage: true });

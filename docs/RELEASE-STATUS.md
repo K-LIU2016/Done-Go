@@ -1,4 +1,6 @@
-# LeuBai V2 收尾状态
+# Tango Done&Go 收尾状态
+
+> **历史证据边界（2026-10-16）**：本文保留旧 React/服务端路线的证据快照和待验记录，供追溯使用。它不证明当前产品已按这些路线发布，也不定义当前入口或上线标准。当前唯一产品基准是 http://localhost:5207/#today，主架构以 DONEGO-CANONICAL-ARCHITECTURE-2026-10-16.md 为准。
 
 更新：2026-09-13 收尾复验轮。以本页引用的实际证据为准；这是当前证据快照，不是上线完成声明。
 
@@ -7,16 +9,16 @@
 ### RC12 注册链路实通与月视图补齐
 
 - 注册验证码链路已在 loopback `127.0.0.1:5201` 实测打通：`POST /api/auth/send-code`（console 通道）返回 `devCode`，随即 `POST /api/auth/register` 用该验证码创建用户成功，返回完整用户对象（`emailVerified:true`）。前端错误映射确认：服务器 `EMAIL_UNAVAILABLE` 的友好文案（"邮箱验证服务尚未配置，请联系管理员。"）经 `auth-client.ts` 直接展示，不暴露原始错误码。公网 `:5220`（`EMAIL_TRANSPORT=disabled`）按设计返回 `EMAIL_UNAVAILABLE`；真实邮件收发（Resend/SMTP 凭据）仍未配置，属用户侧待办。
-- 注册公网通道已配置 Resend 并实测进入真实发送：用户提供的发送专用 Resend key 写入 gitignored `.leubai-local/env`（`LEUBAI_SENDER_*` 前缀隔离，`:5201` 保持 console）。`:5220` 以 `EMAIL_TRANSPORT=resend`、`LEUBAI_PUBLIC_ORIGIN`、`LEUBAI_TRUST_CLOUDFLARE=1` 重启（tty 会话常驻）。内置浏览器实测公网注册 UI：退出旧会话 → 打开注册 → 填入 `test-rc12@udify.fun` → 发送验证码 → UI 进入"验证码已发送至 test-rc12@udify.fun"步骤（服务端 Resend 拒绝会报错而非进入该步），公网不再显示 devCode，console 全程零错误。**邮箱实际收件待用户确认**（Resend key 为发送专用，无查询权限）。
+- 注册公网通道已配置 Resend 并实测进入真实发送：用户提供的发送专用 Resend key 写入 gitignored `.tango-donego/env`（`TANGO_SENDER_*` 前缀隔离，`:5201` 保持 console）。`:5220` 以 `EMAIL_TRANSPORT=resend`、`TANGO_PUBLIC_ORIGIN`、`TANGO_TRUST_CLOUDFLARE=1` 重启（tty 会话常驻）。内置浏览器实测公网注册 UI：退出旧会话 → 打开注册 → 填入 `test-rc12@udify.fun` → 发送验证码 → UI 进入"验证码已发送至 test-rc12@udify.fun"步骤（服务端 Resend 拒绝会报错而非进入该步），公网不再显示 devCode，console 全程零错误。**邮箱实际收件待用户确认**（Resend key 为发送专用，无查询权限）。
 - 时间账本月视图已补齐：`timeSurfaces.ts` 新增 `monthGridDates`（周一开头、自动 5/6 行补齐邻月）与 `selectMonthSurface`（复用与周视图相同的逐日聚合）；`S02Ledger.tsx` 增加"本月"分段视图（7 列网格、邻月淡化、无记录日期显式"无记录"未知态、当日/定位日高亮）。`npm run test:unit` 592/592（新增 2 项月视图测试）、lint 退出 0、build 退出 0。
-- 内置浏览器实测（iab，`http://127.0.0.1:5201/ledger`）：点击"本月"后网格渲染 35 格（2026 年 9 月 5 行）、邻月 5 天淡化、9/12 聚合"3 项 · 1 段留白 · 越界 10 分"与 fixture 一致、其余日期显式"无记录"；全程 console 错误为空。截图见 `.omo/evidence/rc12-month-view-20260913.md`。
+- 内置浏览器实测（iab，`http://127.0.0.1:5201/ledger`）：点击"本月"后网格渲染 35 格（2026 年 9 月 5 行）、邻月 5 天淡化、9/12 聚合"3 项 · 1 段静驻 · 越界 10 分"与 fixture 一致、其余日期显式"无记录"；全程 console 错误为空。截图见 `.omo/evidence/rc12-month-view-20260913.md`。
 - 边界：月视图数据源仍为本地 fixture/已保存记录，不含未接入来源；`test-rc12@udify.fun` 的完整注册（输入邮件中的验证码）与真实收件确认待用户侧完成后闭环。服务器常驻方式为前台 tty 会话，launchd 持久化仍未安装。
 
 ### RC11 认证与部署收尾快照（覆盖 RC10 中“S09 正在补齐”与旧测试计数）
 
 - 回归 `npm run test:unit` 590/590 通过、lint 退出 0、build 退出 0。此前 `src/appearance` 未加入测试收集目录（10 项从未执行），已修复并纳入收集；新计数覆盖该目录。
-- 认证模块按 mail2profile 契约上线：loopback 实例 `127.0.0.1:5201`（`EMAIL_TRANSPORT=console`，本机验收），公网实例 `:5220`（`LEUBAI_PUBLIC_ORIGIN=https://leubai.udify.fun`、`LEUBAI_TRUST_CLOUDFLARE=1`、`EMAIL_TRANSPORT=disabled`）。cloudflared connector（隧道 `9a9696a6-d825-4c79-8163-72f5fff4fd66`）已注册 4 条边缘连接，DNS 已解析，公网 root/login 返回 200。`send-code` 返回 `EMAIL_UNAVAILABLE`：公开注册按设计关闭，真实邮件通道未配置、未验证。
-- 本地账号创建于 `.leubai-local/auth.sqlite`（0600，不入库）。管理员白名单收敛为 `ADMIN_EMAILS=admin@udify.fun` 后复验：user 账号访问管理端点返回 403。
+- 认证模块按 mail2profile 契约上线：loopback 实例 `127.0.0.1:5201`（`EMAIL_TRANSPORT=console`，本机验收），公网实例 `:5220`（`TANGO_PUBLIC_ORIGIN=https://tango-donego.udify.fun`、`TANGO_TRUST_CLOUDFLARE=1`、`EMAIL_TRANSPORT=disabled`）。cloudflared connector（隧道 `9a9696a6-d825-4c79-8163-72f5fff4fd66`）已注册 4 条边缘连接，DNS 已解析，公网 root/login 返回 200。`send-code` 返回 `EMAIL_UNAVAILABLE`：公开注册按设计关闭，真实邮件通道未配置、未验证。
+- 本地账号创建于 `.tango-donego/auth.sqlite`（0600，不入库）。管理员白名单收敛为 `ADMIN_EMAILS=admin@udify.fun` 后复验：user 账号访问管理端点返回 403。
 - 外观主题跨账号泄漏已修复并实测闭环：appearance 存储键按所有者隔离（登录用户追加 `:u:<id>` 键，未登录保持历史键），认证恢复后主动刷新。内置浏览器验证：admin 水墨 → 退出 → 未登录瓷白 → 登录 → 水墨恢复，全程 console 错误为空。
 - `AUTH_REQUIRED` 此前显示“发生未知错误”，已改为“请先登录后再管理模型连接”，未登录访问设置页实测生效。
 - 边界：本轮为本地部署验收。隧道可用性依赖本机进程（connector 与应用均为前台会话，launchd 持久化未安装）；真实邮件收发、真实音乐/日历/麦克风 provider 仍单列为未验证项，不并入本轮完成声明。
@@ -36,14 +38,14 @@
 
 - 固定构建 `index-C4UWFni2.js` / `index-D9rPMa1H.css`：build 退出0；明确非浏览器回归集合446/446，LLM安全8/8；lint退出0，保留4项历史证据文件警告及739.04kB主包提示。内置浏览器18路由error/warn为空。详见 `.omo/evidence/rc6-closeout-20260913.md`。
 - S05未知写入后精确重试、S17未知后离开/重进锁定原范围均实际通过：分别只产生1批准、1verified操作、1未发送草稿，完成后刷新保持。S06/S10相应unknown恢复已GREEN；postwrite分歧返回保持不确定，不虚报未写入。
-- S06真实导出已补齐：浏览器下载选中草稿的LeuBai JSON，含正文、来源版本、未决及未发送状态，不包含其他草稿和材料正文。实际文件 `.omo/evidence/LeuBai-draft-export-20260913.json`。
+- S06真实导出已补齐：浏览器下载选中草稿的Tango Done&Go JSON，含正文、来源版本、未决及未发送状态，不包含其他草稿和材料正文。实际文件 `.omo/evidence/TangoDoneGo-draft-export-20260913.json`。
 - 同意图桌面三入口、S03排除不新增责任、S12零与未知/观察更正/三种反馈、S14关闭重开与快捷检查、规则跨页改变后撤下旧批准入口均已有实际证据。7个受影响屏补14张双主题图，无文档横向溢出，独立审阅未见新增操作遮挡；S17已消费状态的摘要文案正在最后修正。
 - 本地候选验证不等于公开上线或全18屏1:1终验。真实麦克风、系统分享、音乐/日历账户和公开部署仍单列边界；最终视觉一致性及矩阵逐项闭合继续，不将旧截图自动算最新版本全部通过。
 
 ### 历史记录：关联意图与未知写入恢复（已由后续快照覆盖）
 
 - `index-DIrNgyCA.js` / `index-BzU3qbLV.css` 已构建成功。S10 写入后读回失败实测修复：显示“结果未确认”，禁用丢弃和其他修改；恢复读取后重试仍只有 1 次实际写入，刷新后容量 120 正确。证据 `.omo/evidence/flow01-and-postwrite-20260913.md`。
-- 新关联 A 链已实际走通录入→预览→批准→同一草稿→单节确认→检查点→重开→移动此刻→保护区→保持留白；intent `bd2adfe0-19f6-4bd0-9645-07fe85b7f8ef`。桌面此刻的显式意图上下文缺口已落代码，等待新构建复验，不提前标记整条 FLOW01 完成。
+- 新关联 A 链已实际走通录入→预览→批准→同一草稿→单节确认→检查点→重开→移动此刻→保护区→保持静驻；intent `bd2adfe0-19f6-4bd0-9645-07fe85b7f8ef`。桌面此刻的显式意图上下文缺口已落代码，等待新构建复验，不提前标记整条 FLOW01 完成。
 - 提醒预算设为 0 后，S09/S10 均显示剩余 0、保留历史已用 1；负数保存被拒绝，测试后恢复预算 2。此证据不涵盖新提醒抑制或在途暂停。见 `.omo/evidence/budget-zero-shared-20260913.md`。
 - 当前阻断候选验收的已复现问题：S06 与 S05 写入后读回失败，原界面重试重新构造命令，分别遇到 REVISION_CONFLICT 和 payload CONFLICT。两者真实写入均为 1 次，故障注入均已清理；正在修复完整命令保留与未确认状态操作锁。S05 截图 `.omo/evidence/s05-unknown-retry-red.png`。不得将已有正常链通过当作异常恢复通过。
 - S01/S15 不同日期意图上下文已有 60/60 聚焦回归；共享方案日期适配仍在修复。以上在制源码尚非新的冻结候选，最终测试计数待统一执行。
@@ -53,16 +55,16 @@
 - 最新收尾候选 `index-DN1SbdFe.js` / `index-BzU3qbLV.css` build退出0。RC5主验证399/399回归、LLM8/8、18路由内置浏览器error/warn空、36张Ego双主题截图。S06窄桌面遮挡已实际鼠标取消通过；正文换行、S11浅色tab、S12约40px输入与S02保护卡19–20对应180px均有后续补图/DOM证据。详见 `.omo/evidence/rc5-20260913/README.md`，不同构建证据严格分开。
 
 - RC4固定构建 `index-UQXpc0eM.js` / `index-CT-Xc8cG.css`：383/383非浏览器测试、8/8 LLM安全测试；内置浏览器全部18路由error/warn为空，Ego保存36张双主题视口图，无横向文档溢出。移动S16/S17滚动补图证明底部动作与回执可达。见 `.omo/evidence/rc4-20260913/README.md`。
-- S01/S15显式保护时间创建已实现并实际验证21:00–22:00、空用途、非法倒置拒绝、稳定blockId跨屏定位及刷新；不再是仅跳转capture。keepBlank跨页更新后关闭不覆盖，新本地方案执行后仍保持。见 `protected-create-cross-tab-20260913.md`、`quiet-cross-device-20260913.md`。
+- S01/S15显式保护时间创建已实现并实际验证21:00–22:00、空用途、非法倒置拒绝、稳定blockId跨屏定位及刷新；不再是仅跳转capture。keepStill跨页更新后关闭不覆盖，新本地方案执行后仍保持。见 `protected-create-cross-tab-20260913.md`、`quiet-cross-device-20260913.md`。
 - 方案B正常链已从独立origin的原始130/120基线批准到90/120；未来债40分钟、生效日期及已消费批准刷新保持，不记净节省。见 `b-original-baseline-20260913.md`。S17八组合预检与read+draft、estimate-only两种实际执行已有证据，不能继续写部分批准完全未验。
 - RC4后S05三列表、S12横向逐日图、S11导出控件、S13状态条、S14图标、S16容量摘要、S02等比例630px时间轴及焦点/标签/主题圆角已合并。中间构建 `index-GuCkZ32c.js` / `index-pTdyEMYh.css` build/lint退出0；主包722.07kB警告及历史证据文件4项lint警告保留，生产src零lint警告。中间构建不是最终全18屏验收。
-- 新构建实际S11选择全空禁用导出、只选意图下载JSON成功，文件为LeuBai品牌。S06默认阅读及输入标签已出现；1097px窄桌面实际发现编辑按钮跨列被遮挡，正在修复并复验，不能将该版本称为无阻断候选。
+- 新构建实际S11选择全空禁用导出、只选意图下载JSON成功，文件为Tango Done&Go品牌。S06默认阅读及输入标签已出现；1097px窄桌面实际发现编辑按钮跨列被遮挡，正在修复并复验，不能将该版本称为无阻断候选。
 - 真正剩余：最终构建冻结与修改页/全屏视觉复核；完整关联A链和高风险异常UI证据；真实麦克风与原生OS分享边界；逐项矩阵校准。公开部署目标、访问模型和真实账号操作范围未确定，本地LLM实际推理不代表远程多用户服务已上线。
 
 ### 历史增量（已由上方当前快照覆盖）
 
 - 新增固定构建 `index-DzbJGvDP.js` / `index-BSZZ4Spu.css` build退出0。Ego实际通过S15时间卡到S02同日期/意图/保护区间定位及非法日期拒绝；S17全部8种许可组合预检按钮与依赖排除正确，执行层另有46条组合回归。见 `mobile-ledger-preflight-20260913.md`。
-- 实测发现并修复关闭留白会覆盖keepBlank的回归；S08选择→S18关闭→重进刷新仍keepBlank且双读回确认，见 `quiet-cross-device-20260913.md`。新方案建议的完整抑制链尚待验。
+- 实测发现并修复关闭静驻会覆盖keepStill的回归；S08选择→S18关闭→重进刷新仍keepStill且双读回确认，见 `quiet-cross-device-20260913.md`。新方案建议的完整抑制链尚待验。
 - S01/S15保护时间空态入口审计发现真正缺少创建命令；当前正补显式领域创建与共享表单，不能以跳转capture宣称完成。上述固定构建不含此在制功能。
 
 - 最新RC2固定构建：`index-Bks84ZLV.js` / `index-rjQ3SKUB.css`，build退出0，348/348非浏览器测试与8/8LLM安全用例通过。18路由内置浏览器遍历error/warn为空；36张瓷白/水墨统一尺寸截图保存于 `.omo/evidence/rc2-20260913/`，无横向溢出。700.09kB主包与7项lint警告保留。
@@ -85,8 +87,8 @@
 - 01:40 收尾复验：根执行 S14 新适配器测试 17/17 通过；字段录入可生成空原文的 manual 意图、同一草稿修订与原子完成已接线，仍待新版浏览器回归。提醒预算/录入契约/时间界面共 37/37 已根执行通过。
 - Ego Lite 新增已验：S03 接受后修改范围、投入与原生日期输入并刷新保持；归档后显示总记录 1 / 待澄清 0。S10 暂停与恢复刷新保持、pauseEpoch 不回退。S15 与桌面账本统一显示 110/120、估计余量 10，另列实际保护区重叠 10 分钟。
 - 根执行一次完整 build 退出 0，QA 5213 已换成该固定构建预览，避免并行源码写入导致页面暂时缺模块；这只是中间快照，不代表随后改动的最终 C4。构建仍有 614.84KB 主包体积警告。
-- 仍未关闭：A/B 全路径先预览后授权与延期回执、S11–S13 共享模型及界面集成、最终全部截图与异常操作。新发现方案选择仍忽略意图日期的适用性问题，正在领域层核验；默认留白页视觉仍未达到附件 1:1。S14 与移动底栏高度修复尚待新版浏览器实测。
-- 当前并行所有权：领域来源/方案适用性与后续共享集成；S04/S05/S15/S16/S17；S09/S10；根监督独立纯语境回顾模型、留白领域校验及最终浏览器验收。以下较早类型错误、运行模式和待验描述仅作历史记录，以本段最新证据为准。
+- 仍未关闭：A/B 全路径先预览后授权与延期回执、S11–S13 共享模型及界面集成、最终全部截图与异常操作。新发现方案选择仍忽略意图日期的适用性问题，正在领域层核验；默认静驻页视觉仍未达到附件 1:1。S14 与移动底栏高度修复尚待新版浏览器实测。
+- 当前并行所有权：领域来源/方案适用性与后续共享集成；S04/S05/S15/S16/S17；S09/S10；根监督独立纯语境回顾模型、静驻领域校验及最终浏览器验收。以下较早类型错误、运行模式和待验描述仅作历史记录，以本段最新证据为准。
 - 已复验：设置保存后不再出现相互矛盾的失效提示，成功后清空密钥输入；账本 1107px 窄列修复已目视；完整撤回保留原文与未决问题，关闭写回入口。
 - 本轮 Ego Lite 实验：S03 保留为想法刷新后保持，三个处置按钮禁用且不成为责任；S07 已撤回旧检查点重新核对后，报告持久显示需要复核，不重新激活草稿。证据分别为 `.omo/evidence/egolite-inbox-keep-idea-green.md` 和 `egolite-checkpoint-withdrawn-recheck-green.md`。
 - 本轮新增 RED：S11 推测拒绝、S12 回顾跳过、S13 本地模式均在刷新后丢失，不能算完整功能。证据为 `egolite-context-rejection-red.md`、`egolite-review-sync-red.md`；共享模型要求保留在 `CONTEXT-REVIEW-SYNC-CONTRACT.md`。
@@ -95,7 +97,7 @@
 
 ## 距离最终目标
 
-目标不变：附件 18 屏默认设计、全部本地功能、完整 PRD/验收映射，另加 LeuBai 品牌、后台 LLM 设置与水墨主题。18 屏路由和组件已经存在；不能把页面数量视作功能完成率。原需求逐项分母保留在 DELIVERY-MATRIX.md，不删除缺口来提高百分比。
+目标不变：附件 18 屏默认设计、全部本地功能、完整 PRD/验收映射，另加 Tango Done&Go 品牌、后台 LLM 设置与水墨主题。18 屏路由和组件已经存在；不能把页面数量视作功能完成率。原需求逐项分母保留在 DELIVERY-MATRIX.md，不删除缺口来提高百分比。
 
 | 工作面 | 已直接观察 | 尚待关闭 |
 |---|---|---|
@@ -105,7 +107,7 @@
 | 后台 LLM 设置 | Hook崩溃已修并实际渲染；Markdown粘贴、两阶段测试、修改失效、保存刷新已实测；真实端点测试/保存200，安全GET不回显密钥，文件0600/目录0700且git忽略 | 成功保存后提示矛盾的修复已落盘，待根浏览器复验；最终安全审查 |
 | 草稿助手 | 实际工作台选中单段→真实glm-5.3-flash推理→预览不改原文→手动应用→刷新保持；其他段未改、sentAt为空 | 过期完成、取消、存储未知的完整浏览器回归 |
 | 水墨主题 | 实际控件点击、键盘、刷新、双页同步、390px移动无横溢出、减少动态效果0s均已观察；圆环和导航色修复已目视 | 默认/水墨全18屏最终截图对照，账本窄列布局缺陷正在修复 |
-| 原其他页面 | 组件和局部交互存在 | s14/s17 共享闭环、检查点、规则/注意力/留白/来源等逐项接线与验收，详见矩阵 |
+| 原其他页面 | 组件和局部交互存在 | s14/s17 共享闭环、检查点、规则/注意力/静驻/来源等逐项接线与验收，详见矩阵 |
 | 发布 | 本地 Vite 可访问；最近 scoped TypeScript 检查曾退出 0 | 集成版本 build/lint、全部浏览器验收、明确部署目标及发布授权 |
 
 ## 当前执行方式

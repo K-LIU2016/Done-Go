@@ -28,7 +28,7 @@ export function restoreAuthSession(): Promise<void> {
   if (!restoring) {
     if (!channel && typeof window !== "undefined" && typeof BroadcastChannel !== "undefined") {
       try {
-        channel = new BroadcastChannel("leubai:auth-session");
+        channel = new BroadcastChannel("tango-donego:auth-session");
         channel.onmessage = (event: MessageEvent<unknown>) => {
           if (event.data === "identity-changed") reloadForIdentityChange(false);
         };

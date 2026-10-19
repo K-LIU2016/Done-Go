@@ -24,7 +24,7 @@ test("shared radius tokens preserve default shapes while ink controls use ten pi
   assert.match(read("./tokens.css"), /--radius-control: 16px;/);
   assert.match(read("./ink.css"), /--radius-pill: 10px;/);
   assert.match(read("./ink.css"), /--radius-control: 10px;/);
-  for (const file of ["s01-now/s01-now.css", "s04-plan/s04-plan.css", "s16-m-plan/s16-m-plan.css", "s17-m-auth/s17-m-auth.css", "s18-m-blank/s18-m-blank.css"]) {
+  for (const file of ["s01-now/s01-now.css", "s04-plan/s04-plan.css", "s16-m-plan/s16-m-plan.css", "s17-m-auth/s17-m-auth.css", "s18-m-stillness/s18-m-stillness.css"]) {
     assert.doesNotMatch(read("../screens/" + file), /border-radius: (?:999|16)px;/, file);
   }
 });

@@ -18,7 +18,7 @@ test("S04 labels a linked protected interval with its own timezone without chang
   assert.ok(created.ok);
   const after = buildPlanSurfaceModel(store.getState(), [intent.id]);
   assert.ok(after.ready);
-  assert.equal(after.chips.find(chip => chip.kind === "protected")?.label, "00:15—01:15 留白 · America/New_York");
+  assert.equal(after.chips.find(chip => chip.kind === "protected")?.label, "00:15—01:15 静驻 · America/New_York");
   assert.equal(after.dateLabel, before.dateLabel);
   assert.match(after.dateLabel, /Asia\/Shanghai/);
   assert.deepEqual(after.capacity, before.capacity);

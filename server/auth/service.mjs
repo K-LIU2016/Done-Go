@@ -7,7 +7,7 @@ import { authRequestAllowed } from "./config.mjs";
 import { createEmailSender } from "./email.mjs";
 
 const derive = promisify(scrypt);
-const COOKIE = "leubai_session";
+const COOKIE = "tango_session";
 const PASSWORD_MIN = 12;
 const SCRYPT = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const JWT_HEADER = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
@@ -116,7 +116,7 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
     const expiresAt = timestamp + config.sessionTtlSeconds;
     db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(timestamp);
     db.prepare("INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES (?,?,?,?)").run(id, user.id, expiresAt, timestamp);
-    const payload = Buffer.from(JSON.stringify({ iss: "leubai", aud: "leubai-web", sub: user.id, jti: id, iat: timestamp, exp: expiresAt })).toString("base64url");
+    const payload = Buffer.from(JSON.stringify({ iss: "tango-donego", aud: "tango-donego-web", sub: user.id, jti: id, iat: timestamp, exp: expiresAt })).toString("base64url");
     const unsigned = `${JWT_HEADER}.${payload}`;
     cookie(res, `${unsigned}.${signature(unsigned)}`);
   }
@@ -133,7 +133,7 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
     let claims;
     try { claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")); } catch { fail(401, "AUTH_INVALID", "登录已失效，请重新登录。"); }
     const timestamp = Math.floor(now() / 1000);
-    if (!claims || typeof claims !== "object" || claims.iss !== "leubai" || claims.aud !== "leubai-web" || typeof claims.sub !== "string" || typeof claims.jti !== "string" || !Number.isInteger(claims.exp) || claims.exp <= timestamp) fail(401, "AUTH_INVALID", "登录已失效，请重新登录。");
+    if (!claims || typeof claims !== "object" || claims.iss !== "tango-donego" || claims.aud !== "tango-donego-web" || typeof claims.sub !== "string" || typeof claims.jti !== "string" || !Number.isInteger(claims.exp) || claims.exp <= timestamp) fail(401, "AUTH_INVALID", "登录已失效，请重新登录。");
     const record = db.prepare("SELECT * FROM sessions WHERE id = ? AND user_id = ? AND expires_at > ?").get(claims.jti, claims.sub, timestamp);
     const user = getUser(claims.sub);
     if (!record || !user) fail(401, "AUTH_INVALID", "登录已失效，请重新登录。");

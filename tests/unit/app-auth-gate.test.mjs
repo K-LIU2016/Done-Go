@@ -12,8 +12,8 @@ import { readAuthConfig } from "../../server/auth/config.mjs";
 import { createAuthService } from "../../server/auth/service.mjs";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
-const CLIENT = { "x-leubai-client": "leubai-settings/1", "content-type": "application/json" };
-const PUBLIC_ORIGIN = "https://leubai.example.test";
+const CLIENT = { "x-tango-client": "tango-settings/1", "content-type": "application/json" };
+const PUBLIC_ORIGIN = "https://tango-donego.example.test";
 const SECRET = "test-only-auth-secret-at-least-32-bytes";
 
 function request(port, path, { method = "GET", body, raw, headers = {}, cookie } = {}) {
@@ -29,11 +29,11 @@ function request(port, path, { method = "GET", body, raw, headers = {}, cookie }
 }
 
 async function fixture(t, { publicOrigin = "", ...options } = {}) {
-  const directory = await mkdtemp(join(tmpdir(), "leubai-app-auth-"));
+  const directory = await mkdtemp(join(tmpdir(), "tango-donego-app-auth-"));
   const sent = [];
   const config = readAuthConfig({
-    LEUBAI_AUTH_SECRET: SECRET,
-    LEUBAI_PUBLIC_ORIGIN: publicOrigin,
+    TANGO_AUTH_SECRET: SECRET,
+    TANGO_PUBLIC_ORIGIN: publicOrigin,
     EMAIL_TRANSPORT: publicOrigin ? "resend" : "console",
     RESEND_API_KEY: "test-only",
     MAIL_FROM: "noreply@example.test",
@@ -94,7 +94,7 @@ test("public Host requires an Origin for writes and matching Origin lets an admi
     assert.equal(denied.status, 403, path);
   }
   assert.equal((await f.api("/api/settings/llm", { cookie, headers: { origin: "https://attacker.example.test" } })).status, 403);
-  assert.equal((await f.api("/api/settings/llm", { cookie, headers: { host: "leubai.example.test:8443" } })).status, 403);
+  assert.equal((await f.api("/api/settings/llm", { cookie, headers: { host: "tango-donego.example.test:8443" } })).status, 403);
   const tested = await f.api("/api/settings/llm/test", { method: "POST", cookie, body: settings });
   assert.equal(tested.status, 200);
   assert.equal(tested.body.ok, true);
@@ -125,15 +125,15 @@ test("auth routes preserve JSON content-type, syntax and body limits", async (t)
 });
 
 test("startup fails closed without an auth secret", () => {
-  const result = spawnSync(process.execPath, ["server/start.mjs"], { cwd: ROOT, env: { ...process.env, LEUBAI_DEV: "1", LEUBAI_HOST: "127.0.0.1", LEUBAI_AUTH_DISABLED: "0", LEUBAI_AUTH_SECRET: "", JWT_SECRET: "" }, encoding: "utf8", timeout: 10000 });
+  const result = spawnSync(process.execPath, ["server/start.mjs"], { cwd: ROOT, env: { ...process.env, TANGO_DEV: "1", TANGO_HOST: "127.0.0.1", TANGO_AUTH_DISABLED: "0", TANGO_AUTH_SECRET: "", JWT_SECRET: "" }, encoding: "utf8", timeout: 10000 });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /LEUBAI_AUTH_SECRET/);
+  assert.match(result.stderr, /TANGO_AUTH_SECRET/);
   assert.doesNotMatch(result.stdout, /API\+dist/);
 });
 
-test("LEUBAI_AUTH_DISABLED=1 preserves loopback settings access and skips sqlite initialization", async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), "leubai-start-disabled-"));
-  const child = spawn(process.execPath, ["server/start.mjs"], { cwd: ROOT, env: { ...process.env, LEUBAI_DEV: "1", LEUBAI_HOST: "127.0.0.1", LEUBAI_PORT: "0", LEUBAI_AUTH_DISABLED: "1", LEUBAI_AUTH_SECRET: "", LEUBAI_SETTINGS_FILE: join(directory, "settings.json"), LEUBAI_AUTH_DB: join(directory, "auth.sqlite") }, stdio: ["ignore", "pipe", "pipe"] });
+test("TANGO_AUTH_DISABLED=1 preserves loopback settings access and skips sqlite initialization", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "tango-donego-start-disabled-"));
+  const child = spawn(process.execPath, ["server/start.mjs"], { cwd: ROOT, env: { ...process.env, TANGO_DEV: "1", TANGO_HOST: "127.0.0.1", TANGO_PORT: "0", TANGO_AUTH_DISABLED: "1", TANGO_AUTH_SECRET: "", TANGO_SETTINGS_FILE: join(directory, "settings.json"), TANGO_AUTH_DB: join(directory, "auth.sqlite") }, stdio: ["ignore", "pipe", "pipe"] });
   const closed = once(child, "exit");
   let stderr = "";
   child.stderr.on("data", (chunk) => { stderr += chunk; });
@@ -153,7 +153,7 @@ test("LEUBAI_AUTH_DISABLED=1 preserves loopback settings access and skips sqlite
   assert.doesNotMatch(stderr, /SQLite/);
   assert.equal((await request(port, "/api/settings/llm")).status, 200);
   assert.equal((await request(port, "/api/settings/llm", { method: "DELETE" })).status, 200);
-  assert.equal((await request(port, "/api/settings/llm", { headers: { host: "leubai.example.test" } })).status, 403);
+  assert.equal((await request(port, "/api/settings/llm", { headers: { host: "tango-donego.example.test" } })).status, 403);
   const status = await request(port, "/api/auth/status");
   assert.equal(status.status, 200);
   assert.deepEqual(status.body, { enabled: false, emailDelivery: "unavailable", registrationEnabled: false, passwordMinLength: 12 });

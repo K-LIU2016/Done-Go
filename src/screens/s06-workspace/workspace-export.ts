@@ -19,7 +19,7 @@ export function buildWorkspaceExport(state: DomainState | null, draftId: string,
   if (draft.revision !== expectedRevision) return { ok: false, reason: "草稿版本已经变化，请刷新读取已保存数据、核对后再导出。" };
   const sourceIds = new Set([...draft.sources, ...draft.sections.flatMap(section => section.sourceRefs)]);
   const records = {
-    format: "LeuBai-draft-export", schemaVersion: 1, exportedAt, dataMode: state.dataMode,
+    format: "TangoDoneGo-draft-export", schemaVersion: 1, exportedAt, dataMode: state.dataMode,
     notice: "仅导出这份已保存的本地草稿；不包含未保存编辑、其他草稿或材料正文。导出不是确认、发送或外部交付。",
     snapshot: { globalRevision: state.globalRevision, draftSavedAt: draft.updatedAt },
     summary: {
@@ -38,7 +38,7 @@ export function buildWorkspaceExport(state: DomainState | null, draftId: string,
     })),
   };
   return { ok: true, file: {
-    filename: "LeuBai-draft-" + draft.id.replace(/[^a-zA-Z0-9_-]/g, "_") + "-v" + draft.version + ".json",
+    filename: "TangoDoneGo-draft-" + draft.id.replace(/[^a-zA-Z0-9_-]/g, "_") + "-v" + draft.version + ".json",
     mimeType: "application/json;charset=utf-8", content: JSON.stringify(records, null, 2) + "\n",
   } };
 }

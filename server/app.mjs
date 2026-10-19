@@ -1,4 +1,4 @@
-// LeuBai API plus static dist serving. Without auth, administration stays
+// Tango Done&Go API plus static dist serving. Without auth, administration stays
 // loopback-only. Authenticated deployments may allow an exact public origin.
 // Bodies and responses are bounded; upstream secrets stay out of logs.
 
@@ -10,8 +10,8 @@ import { isLoopbackHostname, validateCandidate } from "./urlguard.mjs";
 import { loadSettings, saveSettings } from "./settingsStore.mjs";
 import { fetchModelList, runLlmInference } from "./upstream.mjs";
 
-const CLIENT_HEADER = "x-leubai-client";
-const CLIENT_VALUE = "leubai-settings/1";
+const CLIENT_HEADER = "x-tango-client";
+const CLIENT_VALUE = "tango-settings/1";
 const MAX_INPUT_CHARS = 8000;
 const MAX_KEY_CHARS = 512;
 
@@ -29,7 +29,7 @@ const CONNECTIVITY_MAX_TOKENS = 256;
 const PROOF_TTL_MS = 10 * 60 * 1000;
 
 const DRAFT_PROMPT_SYSTEM =
-  "你是留白 LeuBai 的草稿助手。基于用户输入整理出一条更清晰的草稿文本。" +
+  "你是探戈 Done&Go 的草稿助手。基于用户输入整理出一条更清晰的草稿文本。" +
   "不添加虚构内容，不执行任何操作，直接输出草稿正文。";
 
 const MIME = {
@@ -68,29 +68,33 @@ function hostHostname(hostHeader) {
 function readBody(req, maxBytes) {
   return new Promise((resolveBody, rejectBody) => {
     const chunks = [];
-    // After the limit trips, keep consuming and discarding (bounded) so the
-    // peer can finish sending and still read the typed 413 response instead
-    // of a connection reset. The allowance is absolute, not relative to the
-    // body cap, so a modest overshoot always survives the drain.
+    // Delay the typed 413 until a modest oversized upload has drained. An
+    // early response with unread socket bytes can become RST on Windows
+    // before the peer reads the status. The absolute cap bounds the discard.
     const drainLimit = Math.max(maxBytes * 8, 1024 * 1024);
     let total = 0;
     let discarded = 0;
     let settled = false;
+    let oversized = false;
     req.on("data", (chunk) => {
-      if (settled) {
+      if (settled || oversized) {
         discarded += chunk.length;
         if (discarded > drainLimit) req.destroy();
         return;
       }
       total += chunk.length;
       if (total > maxBytes) {
-        settled = true;
-        rejectBody(Object.assign(new Error("too_large"), { code: "too_large" }));
+        oversized = true;
         return;
       }
       chunks.push(chunk);
     });
     req.on("end", () => {
+      if (oversized) {
+        settled = true;
+        rejectBody(Object.assign(new Error("too_large"), { code: "too_large" }));
+        return;
+      }
       if (settled) return;
       settled = true;
       resolveBody(Buffer.concat(chunks).toString("utf8"));
@@ -441,18 +445,11 @@ export function createAppServer({
               "content-length": Buffer.byteLength(payload),
               "connection": "close",
             });
-            res.end(payload, () => {
-              // Tear down only after the request stream has drained (or its
-              // socket closed) so the typed response is delivered first.
-              const teardown = () => {
-                if (!req.destroyed) req.destroy();
-              };
-              if (req.readableEnded || req.destroyed) teardown();
-              else {
-                req.once("end", teardown);
-                req.once("close", teardown);
-              }
-            });
+            // Keep the request in flowing mode while the 413 is flushed. If
+            // the server stops draining an early response, Windows finishes
+            // the half-closed upload with RST before the peer reads it.
+            req.resume();
+            res.end(payload);
             return;
           }
           sendJson(res, 400, { error: "invalid_json" });

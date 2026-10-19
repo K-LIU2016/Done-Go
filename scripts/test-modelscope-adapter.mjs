@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { request } from "node:http";
 
 const port = Number(process.argv[2] || "17861");
-const publicOrigin = "https://leubai-test.example";
-const clientHeader = { "x-leubai-client": "leubai-settings/1" };
+const publicOrigin = "https://tango-donego-test.example";
+const clientHeader = { "x-tango-client": "tango-settings/1" };
 
 function probe(path, headers = clientHeader, method = "GET") {
   return new Promise((resolve, reject) => {
@@ -32,15 +32,15 @@ for (const path of ["/api/auth/me", "/api/admin/users", "/api/settings/llm"]) {
   assert.equal(result.body.error, "AUTH_REQUIRED", path);
 }
 for (const headers of [
-  {}, { "x-leubai-client": "wrong" },
+  {}, { "x-tango-client": "wrong" },
   { ...clientHeader, origin: "https://evil.example" },
   { ...clientHeader, origin: "null" },
   { origin: publicOrigin, "x-forwarded-host": "localhost", "cf-connecting-ip": "127.0.0.1" },
-  { ...clientHeader, origin: "https://evil.example", forwarded: "host=localhost", "x-forwarded-host": "leubai-test.example" },
+  { ...clientHeader, origin: "https://evil.example", forwarded: "host=localhost", "x-forwarded-host": "tango-donego-test.example" },
 ]) {
   assert.equal((await probe("/api/auth/status", headers)).status, 403);
 }
-const forged = await probe("/api/auth/me", { ...clientHeader, origin: publicOrigin, cookie: "leubai_session=forged-test-cookie" });
+const forged = await probe("/api/auth/me", { ...clientHeader, origin: publicOrigin, cookie: "tango_session=forged-test-cookie" });
 assert.equal(forged.status, 401);
 for (const origin of [undefined, "null", "https://evil.example"]) {
   assert.equal((await probe("/api/llm/generate", { ...clientHeader, ...(origin ? { origin } : {}) }, "POST")).status, 403);

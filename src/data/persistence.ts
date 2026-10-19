@@ -7,7 +7,7 @@ import type { DataMode, DomainState } from "../domain/types.ts";
 import type { LockManagerLike } from "./storage.ts";
 import type { StorageLike } from "./storage.ts";
 
-export const STORAGE_KEY_PREFIX = "leubai-v2:domain:v1:";
+export const STORAGE_KEY_PREFIX = "tango-donego:domain:v1:";
 
 export interface DomainEnvelope {
   schemaVersion: number;
@@ -53,6 +53,7 @@ const ENTITY_COLLECTIONS = [
   "captureDrafts",
   "protectedBlocks",
   "requests",
+  "agreementRequests",
   "commitments",
   "plans",
   "changeSets",
@@ -103,6 +104,7 @@ function stateShapeError(state: unknown): string | null {
     if (!result.ok) return "stored state.contextReview: " + result.reason;
   }
   for (const key of ENTITY_COLLECTIONS) {
+    if (key === "agreementRequests" && state[key] === undefined) continue;
     const collection = state[key];
     if (!isRecord(collection)) return "stored state." + key + " is not a record";
     const error = entityCollectionError(collection, "stored state." + key);
@@ -111,6 +113,23 @@ function stateShapeError(state: unknown): string | null {
   const attention = state.attention;
   if (!isRecord(attention) || !isRecord(attention.items)) return "stored state.attention.items is not a record";
   return entityCollectionError(attention.items, "stored state.attention.items");
+}
+
+/** Upgrade the pre-Tango quiet decision name without losing its session. */
+function normalizeLegacyQuietDecisions(state: unknown): unknown {
+  if (!isRecord(state) || !isRecord(state.quietSessions)) return state;
+  return {
+    ...state,
+    quietSessions: Object.fromEntries(
+      Object.entries(state.quietSessions).map(([id, entity]) => [
+        id,
+        // Legacy compatibility: keepBlank migrates to keepStill for old storage only.
+        isRecord(entity) && entity.decision === "keepBlank"
+          ? { ...entity, decision: "keepStill" }
+          : entity,
+      ]),
+    ),
+  };
 }
 
 export function parseEnvelope(raw: string | null, dataMode: DataMode): ParsedEnvelope {
@@ -132,13 +151,14 @@ export function parseEnvelope(raw: string | null, dataMode: DataMode): ParsedEnv
       raw,
     };
   }
-  const shapeError = stateShapeError(env.state);
+  const migratedState = normalizeLegacyQuietDecisions(env.state);
+  const shapeError = stateShapeError(migratedState);
   if (shapeError) return { kind: "corrupt", reason: shapeError, raw };
   if (env.dataMode !== dataMode || env.state.dataMode !== dataMode) {
     return { kind: "namespaceMismatch", reason: "stored payload belongs to another dataMode namespace", raw };
   }
-  const envelope = env as DomainEnvelope;
-  return { kind: "ok", envelope: { ...envelope, state: { ...envelope.state,
+  const envelope = { ...(env as DomainEnvelope), state: migratedState as DomainState };
+  return { kind: "ok", envelope: { ...envelope, state: { ...envelope.state, agreementRequests: envelope.state.agreementRequests ?? {},
     contextReview: envelope.state.contextReview ?? createEmptyContextReviewState(),
   } } };
 }
@@ -185,7 +205,7 @@ export async function openDomainPersistence(
   const seedState = options.createInitial ?? ((dm: DataMode) => createInitialState(dm));
   type WithLock = <R>(cb: () => Promise<R>) => Promise<R>;
   const withLock: WithLock = locks
-    ? (cb) => locks.request("leubai-v2:domain-lock:v1:" + key.slice(STORAGE_KEY_PREFIX.length), cb)
+    ? (cb) => locks.request("tango-donego:domain-lock:v1:" + key.slice(STORAGE_KEY_PREFIX.length), cb)
     : (cb) => cb();
 
   let current: DomainState | null = null;
