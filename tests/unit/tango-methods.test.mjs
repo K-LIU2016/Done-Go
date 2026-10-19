@@ -22,12 +22,12 @@ const recipe = (extra = {}) => ({
   modelId: 'unknown', modelReason: '未验证 · 尚无个人实测依据', status: 'active',
   origin: { taskId: 't1', date: '2026-10-18', quality: 'accepted' }, ...extra
 });
-const use = (extra = {}) => ({
+const methodUse = (extra = {}) => ({
   id: 'u1', methodId: 'm1', methodVersion: 1, methodName: '资料初筛与原文核对',
   taskId: 't2', date: '2026-10-19', status: 'applied', at: iso, ...extra
 });
 const entry = { id: 'paper', date: '2026-10-19', title: '筛选5篇论文', kind: 'necessary', start: '14:00', end: '15:00' };
-const state = extra => ({ v: 1, mode: 'real', entries: [entry], methods: [recipe()], methodUses: [use()], ...extra });
+const state = extra => ({ v: 1, mode: 'real', entries: [entry], methods: [recipe()], methodUses: [methodUse()], ...extra });
 
 test('saved method templates use variable slots and never copy the private task text', () => {
   const draft = methods.buildMethodDraft({ nameHint: '按问题筛选资料，核对出处', category: 'screen', taskId: 't1', date: '2026-10-18', quality: 'accepted', stepsHint: '拆解问题' });
@@ -42,8 +42,8 @@ test('matching is local and explainable: same category suggests, archived or ans
   const task = { id: 't2', category: 'screen' };
   assert.equal(methods.matchMethod([recipe()], [], task).id, 'm1');
   assert.equal(methods.matchMethod([recipe({ status: 'archived' })], [], task), null, 'archived methods are not suggested');
-  assert.equal(methods.matchMethod([recipe()], [use()], task), null, 'already answered for this task is not re-suggested');
-  assert.equal(methods.matchMethod([recipe()], [use({ taskId: 'other' })], task).id, 'm1', 'other tasks do not block this task');
+  assert.equal(methods.matchMethod([recipe()], [methodUse()], task), null, 'already answered for this task is not re-suggested');
+  assert.equal(methods.matchMethod([recipe()], [methodUse({ taskId: 'other' })], task).id, 'm1', 'other tasks do not block this task');
   assert.equal(methods.matchMethod([recipe({ category: 'code' })], [], task), null, 'different category yields no suggestion instead of a weak push');
   assert.equal(methods.matchMethod([], [], task), null, 'no methods means no suggestion');
 });
@@ -57,7 +57,7 @@ test('applying a suggestion refuses stale, changed or finished tasks', () => {
 });
 
 test('use statistics keep aborted and dismissed separate from completed reuse', () => {
-  const stats = methods.useStats([use(), use({ id: 'u2', status: 'aborted' }), use({ id: 'u3', status: 'completed' }), use({ id: 'u4', status: 'dismissed' }), null, { status: 'bogus' }]);
+  const stats = methods.useStats([methodUse(), methodUse({ id: 'u2', status: 'aborted' }), methodUse({ id: 'u3', status: 'completed' }), methodUse({ id: 'u4', status: 'dismissed' }), null, { status: 'bogus' }]);
   assert.equal(stats.applied, 1);
   assert.equal(stats.aborted, 1);
   assert.equal(stats.completed, 1);
@@ -88,12 +88,12 @@ test('invalid methods and use records are rejected or stripped, never silently h
     { ...recipe(), origin: { taskId: 't1', quality: 'accepted-forever' } }
   ]) assert.equal(privacy.validateState({ ...state(), methods: [bad] }).ok, false, JSON.stringify(bad));
   for (const bad of [
-    { ...use(), status: 'opened' },
-    { ...use(), taskId: 'no such task!' },
-    { ...use(), date: '2026-02-31' },
-    { ...use(), at: 'yesterday' }
+    { ...methodUse(), status: 'opened' },
+    { ...methodUse(), taskId: 'no such task!' },
+    { ...methodUse(), date: '2026-02-31' },
+    { ...methodUse(), at: 'yesterday' }
   ]) assert.equal(privacy.validateState({ ...state(), methodUses: [bad] }).ok, false, JSON.stringify(bad));
-  const cleaned = privacy.validateState({ ...state(), methods: [{ ...recipe(), secretField: 'strip-me' }], methodUses: [{ ...use(), extra: 'strip' }] });
+  const cleaned = privacy.validateState({ ...state(), methods: [{ ...recipe(), secretField: 'strip-me' }], methodUses: [{ ...methodUse(), extra: 'strip' }] });
   assert.equal(cleaned.ok, true);
   assert.equal('secretField' in cleaned.state.methods[0], false);
   assert.equal('extra' in cleaned.state.methodUses[0], false);
@@ -109,7 +109,7 @@ test('a task can carry a method reference and cleaning keeps exactly the known f
 
 test('edited methods become a new version while historical use records keep their snapshot', () => {
   const edited = recipe({ version: 2, name: '资料初筛与逐条核对', updatedAt: '2026-10-19T09:00:00.000Z' });
-  const snapshotUse = use({ methodVersion: 1, methodName: '资料初筛与原文核对', status: 'completed' });
+  const snapshotUse = methodUse({ methodVersion: 1, methodName: '资料初筛与原文核对', status: 'completed' });
   const kept = privacy.validateState({ ...state(), methods: [edited], methodUses: [snapshotUse] });
   assert.equal(kept.ok, true);
   assert.equal(kept.state.methods[0].version, 2);
