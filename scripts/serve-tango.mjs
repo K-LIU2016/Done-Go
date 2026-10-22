@@ -11,16 +11,56 @@ import { createCollaborationService } from './collaboration-service.mjs';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
-const AI_ERROR_CODES = ['TANGO_AI_INPUT_INVALID', 'TANGO_AI_NOT_CONFIGURED', 'TANGO_AI_BUSY', 'TANGO_AI_TIMEOUT', 'TANGO_AI_ABORTED', 'TANGO_AI_UPSTREAM_FAILED', 'TANGO_AI_RESPONSE_TOO_LARGE', 'TANGO_AI_RESPONSE_INVALID'];
-const AI_ERROR_STATUS = { TANGO_AI_INPUT_INVALID: 400, TANGO_AI_NOT_CONFIGURED: 503, TANGO_AI_BUSY: 429, TANGO_AI_TIMEOUT: 504, TANGO_AI_ABORTED: 499 };
+const AI_ERROR_CODES = ['TANGO_AI_INPUT_INVALID', 'TANGO_AI_NOT_CONFIGURED', 'TANGO_AI_BUSY', 'TANGO_AI_TIMEOUT', 'TANGO_AI_ABORTED', 'TANGO_AI_UPSTREAM_FAILED', 'TANGO_AI_RESPONSE_TOO_LARGE', 'TANGO_AI_RESPONSE_INVALID', 'TANGO_AI_MODE_DISABLED', 'TANGO_AI_RATE_LIMITED', 'TANGO_AI_DAILY_LIMIT', 'TANGO_AI_INPUT_TOO_LONG'];
+const AI_ERROR_STATUS = { TANGO_AI_INPUT_INVALID: 400, TANGO_AI_NOT_CONFIGURED: 503, TANGO_AI_BUSY: 429, TANGO_AI_TIMEOUT: 504, TANGO_AI_ABORTED: 499, TANGO_AI_MODE_DISABLED: 400, TANGO_AI_RATE_LIMITED: 429, TANGO_AI_DAILY_LIMIT: 429, TANGO_AI_INPUT_TOO_LONG: 413 };
+const AI_ERROR_MESSAGE = { TANGO_AI_MODE_DISABLED: '该 AI 功能未开放', TANGO_AI_RATE_LIMITED: '访问过于频繁，请稍后再试', TANGO_AI_DAILY_LIMIT: '今日体验额度已用完', TANGO_AI_INPUT_TOO_LONG: '输入内容过长，请精简后重试' };
 function aiFailure(error) {
   const code = AI_ERROR_CODES.includes(error?.code) ? error.code : 'TANGO_AI_UPSTREAM_FAILED';
-  return { status: AI_ERROR_STATUS[code] || 502, error: code.slice(6).toLowerCase().replace(/_/g, '-') };
+  const message = AI_ERROR_MESSAGE[code];
+  return { status: AI_ERROR_STATUS[code] || 502, error: code.slice(6).toLowerCase().replace(/_/g, '-'), ...(message ? { message } : {}) };
+}
+export function createAIGuard(options = {}) {
+ const env = options.env || process.env;
+ const flag = value => { const text = typeof value === 'string' ? value.trim().toLowerCase() : ''; return text === '1' || text === 'true'; };
+ const positive = (value, fallback) => { const num = Number(value); return Number.isInteger(num) && num > 0 ? num : fallback; };
+ const features = { parse: flag(env.TANGO_AI_PARSE), prompts: flag(env.TANGO_AI_PROMPTS) };
+ const dailyLimit = positive(env.TANGO_AI_DAILY_LIMIT, 500);
+ const minuteLimit = positive(env.TANGO_AI_RATE_LIMIT, 60);
+ const now = options.now || Date.now;
+ let dayKey = '', dayCount = 0;
+ const windows = new Map();
+ const dayStamp = time => { const date = new Date(time); return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0'); };
+ const visitorKey = req => {
+  const remote = req.socket?.remoteAddress || 'unknown';
+  if (['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote)) {
+   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',').map(part => part.trim()).filter(Boolean).pop();
+   if (forwarded) return forwarded.slice(0, 64);
+  }
+  return remote;
+ };
+ function check(req, actor, mode) {
+  if (mode === 'parse' && !features.parse) throw assistantError('TANGO_AI_MODE_DISABLED', 400);
+  if (mode === 'prompt' && !features.prompts) throw assistantError('TANGO_AI_MODE_DISABLED', 400);
+  const time = now(), day = dayStamp(time);
+  if (day !== dayKey) { dayKey = day; dayCount = 0; }
+  if (dayCount >= dailyLimit) throw assistantError('TANGO_AI_DAILY_LIMIT', 429);
+  const key = (actor?.id ? 'user:' + String(actor.id) : visitorKey(req)).slice(0, 80);
+  const window = Math.floor(time / 60000);
+  const slot = windows.get(key);
+  if (!slot || slot.window !== window) {
+   if (windows.size > 4096) for (const [name, value] of windows) if (value.window !== window) windows.delete(name);
+   windows.set(key, { window, count: 1 });
+  } else if (slot.count >= minuteLimit) throw assistantError('TANGO_AI_RATE_LIMITED', 429);
+  else slot.count++;
+  dayCount++;
+ }
+ return { features: () => ({ ...features }), check };
 }
 export function createTangoServer(options = {}) {
  const getSpeechCapabilities = options.speechCapabilities || speechCapabilities;
  const assistant = options.assistant || createAssistant();
  const discovery = options.discovery || createDiscovery();
+ const aiGuard = options.aiGuard || createAIGuard();
  const server = createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
@@ -77,6 +117,12 @@ export function createTangoServer(options = {}) {
           send(200, assistant.configuration());
           return;
         }
+        if (pathname === '/api/assistant/features') {
+          if (url.search) { send(400, { error: 'ai-input-invalid' }); return; }
+          if (req.method !== 'GET') { send(405, { error: 'method-rejected' }); return; }
+          send(200, aiGuard.features());
+          return;
+        }
         if (pathname === '/api/discovery') {
           if (req.method !== 'GET') { send(405, { error: 'method-rejected' }); return; }
           const keys = [...url.searchParams.keys()], topic = url.searchParams.get('topic') || 'all';
@@ -92,6 +138,7 @@ export function createTangoServer(options = {}) {
         let size = 0; const parts = [];
         for await (const part of req) { size += part.length; if (size > MAX_CHAT_BYTES) { send(413, { error: 'ai-body-too-large' }); req.resume(); return; } parts.push(part); }
         let input; try { input = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { send(400, { error: 'ai-input-invalid' }); return; }
+        try { aiGuard.check(req, actor, typeof input?.mode === 'string' ? input.mode : 'chat'); } catch (error) { const failure = aiFailure(error); send(failure.status, { error: failure.error, ...(failure.message ? { message: failure.message } : {}) }); return; }
         const abort = new AbortController(); res.once('close', () => { if (!res.writableEnded) abort.abort(); });
         if (input && typeof input === 'object' && !Array.isArray(input) && input.stream === true) {
           const iterator = assistant.streamChat(input, abort.signal)[Symbol.asyncIterator]();
@@ -110,12 +157,12 @@ export function createTangoServer(options = {}) {
           } catch (error) {
             const failure = aiFailure(error);
             if (!res.headersSent) send(failure.status, { error: failure.error });
-            else if (!res.destroyed && res.writable) res.write('data: ' + JSON.stringify({ error: failure.error }) + '\n\n');
+            else if (!res.destroyed && res.writable) res.write('data: ' + JSON.stringify({ error: failure.error, ...(failure.message ? { message: failure.message } : {}) }) + '\n\n');
           } finally { clearInterval(keepAlive); if (!res.destroyed) res.end(); }
           return;
         }
         try { send(200, await assistant.chat(input, abort.signal)); }
-        catch (error) { const failure = aiFailure(error); send(failure.status, { error: failure.error }); }
+        catch (error) { const failure = aiFailure(error); send(failure.status, { error: failure.error, ...(failure.message ? { message: failure.message } : {}) }); }
         return;
       }
       if (pathname === '/api/status') {
