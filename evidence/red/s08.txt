@@ -21,7 +21,7 @@
       160 |     }
       161 |     await expect(root.getByText(/倒计时|打卡|连续|完成次数|绩效/)).toHaveCount(0);
       162 |     await expect(root.getByRole("button", { name: "什么也不安排" })).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:159:42
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:159:42
 
     Error Context: test-results/groupB-s08-stillness-s08-rende-7cf13-blank-time-without-pressure-desktop/error-context.md
 
@@ -47,7 +47,7 @@
       172 |     await expect(root.getByText("好的，这段时间由你决定。")).toBeVisible();
       173 |     await expect(root.getByText("不会因为没有选择，而再次提醒你。")).toBeVisible();
       174 |     await root.getByRole("button", { name: "继续上次的音乐" }).click();
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:171:56
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:171:56
 
     Error Context: test-results/groupB-s08-stillness-s08-choices-stay-quiet-and-honest-desktop/error-context.md
 

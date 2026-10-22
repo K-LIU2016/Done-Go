@@ -90,5 +90,5 @@ test('model labels follow purpose, failure keeps the draft, and retry sends once
   expect(sent).toBe(2);
   await page.screenshot({ path: info.outputPath('paper-assistant-conversation.png'), fullPage: true });
   await page.locator('[data-companion-support]').click();
-  await expect(page.locator('.sheet')).toContainText('yajing1906232977@163.com');
+  await expect(page.locator('.sheet')).toContainText('通过小组邀请暗号加入');
 });

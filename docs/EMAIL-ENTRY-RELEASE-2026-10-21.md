@@ -1,6 +1,6 @@
 # 邮箱入口与小组暗号 · 2026-10-21
 
-2026-10-22 本地预览调整：`npm run dev:auth` 默认隐藏注册及登录步骤，自动建立临时访客会话进入首页。体验模式不接收邮箱或密码，真实账号库保留且不被改写，小组数据只保留到服务重启。需要恢复真实账号联调时，在启动进程设置 `TANGO_REQUIRE_ACCOUNT=1`；此开关只适用于本地启动器，正式服务的认证默认值不变。
+2026-10-22 本地预览调整：`npm run dev:auth` 默认隐藏注册及登录步骤，自动建立临时访客会话（`TANGO_DEMO_MODE=1`）进入首页。体验模式不接收邮箱或密码，真实账号库保留且不被改写，小组数据只保留到服务重启。需要恢复真实账号联调时，在启动进程设置 `TANGO_REQUIRE_ACCOUNT=1`；此开关只适用于本地启动器，正式服务的认证默认值不变。
 
 ## 用户链路
 
@@ -32,13 +32,13 @@
 
 生产还需 NODE_ENV=production、TANGO_PUBLIC_ORIGIN（实际 HTTPS 域名）、TANGO_AUTH_SECRET（至少 32 字节、持久保存）、TANGO_COLLAB_DB（持久目录内的数据库路径）。
 
-已确认的管理员白名单为 ADMIN_EMAILS=yajing1906232977@163.com，已写入 .env.example。该邮箱注册时被授予管理员角色，可管理后台用户和全局模型配置。白名单只在注册那一刻生效，不追溯改写既有账号；当前账号库为空，首次用此邮箱完成邮箱验证注册即成为管理员。开放注册前仍需配置真实邮件通道；本机 .env 属于部署环境配置，本次收尾未读取或改写。
+管理员白名单通过环境变量 ADMIN_EMAILS 配置，示例值见 .env.example（admin@example.com）。白名单内的邮箱在首次完成邮箱验证注册时获得管理员角色，可管理后台用户和全局模型配置。白名单只在注册那一刻生效，不追溯改写既有账号。开放注册前仍需配置真实邮件通道；本机 .env 属于部署环境配置，不入库。
 
-本地真实账号联调使用 `node scripts/start-local-auth.mjs`：仅绑定 127.0.0.1，默认 console 验证码、关闭演示模式、管理员白名单默认为上述邮箱（进程环境变量优先），独立测试库默认在 `.tango-donego/local-auth-dev/`，可用绝对路径 `TANGO_COLLAB_DB` 覆盖。它不读取 `.env`，也不创建任何账号。
+本地真实账号联调使用 `node scripts/start-local-auth.mjs` 并设置 `TANGO_REQUIRE_ACCOUNT=1`：仅绑定 127.0.0.1，默认端口 5221，演示模式关闭，验证码通道默认 console（可用 `EMAIL_TRANSPORT` 覆盖），独立测试库默认在 `.tango-donego/local-auth-dev/`，可用绝对路径 `TANGO_COLLAB_DB` 覆盖。管理员白名单没有默认值，需显式设置 `ADMIN_EMAILS`（进程环境变量优先）。启动器只从 `.env` 读取 AI 配置，不读取邮箱或账号设置，也不创建任何账号。
 
 .env.example 仅列占位示例，没有真实凭据。保持现有 AI 配置，邮箱设置不替换模型或 API 密钥。
 
-独立构建目录提供完整认证/协作代码、双主题资源与生产配置检查脚本；SMTP 依赖固定版本 nodemailer。复制到独立主机后先执行 npm install --omit=dev --ignore-scripts，再在同一安全进程环境运行 npm run verify:production 与 npm start。Dockerfile 已补齐模块、依赖与持久目录权限，但本机没有 Docker，尚未实际构建或运行容器。
+独立构建目录提供完整认证/协作代码、外观主题资源（当前为五种外观）与生产配置检查脚本；SMTP 依赖固定版本 nodemailer。复制到独立主机后先执行 npm install --omit=dev --ignore-scripts，再在同一安全进程环境运行 npm run verify:production 与 npm start。Dockerfile 已补齐模块、依赖与持久目录权限，但本机没有 Docker，尚未实际构建或运行容器。
 
 ## 验证与运行边界
 
@@ -46,7 +46,7 @@
 
 已有功能回归的历史测试数据通过测试专用存储适配器写入合成账号命名空间；新邮箱入口的账号隔离测试不使用此适配器，直接验证原记录未被认领及切换账号后记录不可见。
 
-已执行：邮箱注册、错误验证码、显式登录、退出、密码恢复、多名独立账号共用暗号、旧暗号撤销、跨账号隔离、双主题六语言；今天、聊天、时间之树和回顾相关回归；公网 HTTPS Cookie 与 Host/Origin 拒绝；旧邀请迁移兼容；生产配置检测；构建及定向 lint。实际计数以本次最终交付消息及 artifacts/email-unit.log 为准。
+已执行：邮箱注册、错误验证码、显式登录、退出、密码恢复、多名独立账号共用暗号、旧暗号撤销、跨账号隔离、双主题六语言（执行时外观为两种；当前产品提供五种外观）；今天、聊天、时间之树和回顾相关回归；公网 HTTPS Cookie 与 Host/Origin 拒绝；旧邀请迁移兼容；生产配置检测；构建及定向 lint。实际计数以本次最终交付消息及 artifacts/email-unit.log 为准。
 
 ## 当前尚不满足的上线前提
 

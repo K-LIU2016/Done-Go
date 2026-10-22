@@ -1,84 +1,87 @@
-# Tango Done&Go 本地部署与 Cloudflare Tunnel
+# Tango Done&Go 部署指南
 
-> 2026-10-21：当前邮箱注册、全站登录门禁和小组暗号实现及部署前提以 [邮箱入口交付记录](EMAIL-ENTRY-RELEASE-2026-10-21.md) 为准。下列历史运行、免登录描述和旧域名状态不能作为本次上线证明。
+> 本文描述当前 Done&Go 产品的运行与部署：静态网页模块 + Node 服务 `scripts/serve-tango.mjs`。2026-09 的 Mac + Cloudflare Tunnel 公网部署资料统一保留在文末「历史部署资料」，仅作追溯，不构成当前上线或验证依据。
 
 ## 当前产品入口
 
-探戈 Done&Go 当前唯一产品入口是本地优先网页：
+当前唯一产品入口是本地优先网页，必须经服务访问；双击文件打开无法使用登录、AI 与协作：
 
     http://localhost:5207/#today
 
-在仓库目录运行 `npm start` 或 `npm run start:web` 即可启动 `scripts/serve-tango.mjs`。它服务 `web/index.html`、五个 hash 路由和可选语音接口。React/Vite 与 `:5220` 的认证部署资料保留为历史实验/后续研究路径，不是当前 Done&Go 的默认入口、架构基线或上线判断。
+页面提供 7 个 hash 路由：`#today`、`#line`、`#review`、`#agreements`、`#settings`、`#assistant`、`#users`。
 
-`npm run build` 生成独立 `dist-web/donego-*` 目录及 SHA-256 manifest。每次构建保留旧目录；可在交付目录用 Node 22+ 直接执行 `npm start`。公开发布、远程账户、同步与真实服务政策需另行验收，首轮本机用户实测见 `USER-TEST-STARTER-2026-10-16.md`。
+## 运行要求
 
-默认 `Dockerfile` 只包含当前网页与服务，无模型凭据和浏览器数据。可选本机容器命令为 `docker build -t tango-donego-local .` 与 `docker run --rm -p 127.0.0.1:5207:5207 tango-donego-local`；端口映射仅绑定本机。未实际构建/运行前，容器验证状态为 UNKNOWN。旧 Docker 路线保留于 `Dockerfile.react-history`。
+- Node.js >= 22.22（交付镜像基于 `node:22.22`）。
+- 登录认证、AI 对话与小组协作依赖服务端；`scripts/serve-tango.mjs` 是当前唯一服务入口。
+- 仓库中的 React/Vite、`src/` 与 `server/start.mjs` 路线是历史实验，不属于当前部署对象。
 
-当前本地入口的验证重点是：输入事项、整理时间、完成并记录实际用时、确认时间收益、选择个人时间、回顾、导入/导出和语音失败降级。真人理解度、真实模型账户、跨设备恢复与公开生产仍按 `docs/HUMAN-EVIDENCE-BACKLOG.md` 累计。
+## 本地运行
 
-部署地址为 `https://tango-donego.udify.fun`，应用仍运行在这台 Mac 的 loopback 地址。公网 DNS 只指向专用 Cloudflare Tunnel，不公开本机端口。认证、登录会话和按用户隔离的业务数据必须先完成验收，再启动公网 connector。
+```sh
+npm start        # 等价 npm run start:web，默认 http://localhost:5207，端口由 TANGO_PORT 调整
+npm run dev:auth # 本地预览启动器，默认 http://127.0.0.1:5221
+```
 
-## 已建立的资源
+`npm start` 默认启用真实账号门禁：未登录只能看到注册/登录入口，业务 API、AI 与协作接口同样要求会话。真实注册需要邮件通道（Resend 或 SMTP），配置见 [邮箱入口交付记录](EMAIL-ENTRY-RELEASE-2026-10-21.md)。
 
-> **历史部署资料边界**：以下 Cloudflare Tunnel、5220、认证、launchd 与公网域名内容均为仓库保留的历史部署资料或待复核运行记录。它们不覆盖上面的 5207 本地产品入口，也不构成当前探戈 Done&Go 的上线证明；当前产品验证以 5207 页面和 `docs/HUMAN-EVIDENCE-BACKLOG.md` 为准。
+`npm run dev:auth` 是体验优先的本地启动器：默认隐藏注册/登录并自动建立临时访客会话（等效 `TANGO_DEMO_MODE=1`），协作数据保存在内存数据库，服务重启即清空；验证码通道默认 console。需要真实账号联调时设置 `TANGO_REQUIRE_ACCOUNT=1`。该开关只影响本地启动器；`npm start` 与容器以 `TANGO_DEMO_MODE` 为准。
 
-| 项目 | 值 |
+## 环境变量
+
+| 变量 | 作用 |
+| --- | --- |
+| `TANGO_DEMO_MODE` | `1`：演示/访客模式，自动访客会话、注册隐藏、协作库使用内存数据库（重启清空）。未设置或 `0`：真实账号门禁。`npm start` 默认未设置，即真实账号门禁。 |
+| `TANGO_REQUIRE_ACCOUNT` | 仅 `npm run dev:auth` 启动器读取。`1`：关闭访客演示，恢复真实账号注册/登录；默认建立临时访客会话。 |
+| `TANGO_AUTH_SECRET` | 会话签名密钥，至少 32 字节并持久保存；生产就绪检查要求显式提供。 |
+| `TANGO_COLLAB_DB` | 账号/协作 SQLite 数据库路径。`npm start` 默认 `<项目>/.tango-donego/collaboration.sqlite`；`npm run dev:auth` 默认 `<项目>/.tango-donego/local-auth-dev/collaboration.sqlite`，接受绝对路径或 `:memory:`。生产必须指向持久目录。 |
+| `ADMIN_EMAILS` | 管理员白名单（逗号分隔），示例 `ADMIN_EMAILS=admin@example.com`。匹配邮箱在注册完成那一刻获得管理员角色，可访问 `#users` 用户管理控制台与全局模型配置；白名单不追溯既有账号。 |
+
+生产就绪检查 `npm run verify:production` 逐项要求：`TANGO_DEMO_MODE` 非 `1`、有效的邮箱与会话配置、`TANGO_PUBLIC_ORIGIN`（实际 HTTPS 域名）、`NODE_ENV=production`、`TANGO_AUTH_SECRET`（至少 32 字节）、真实邮件通道（`EMAIL_TRANSPORT=resend` 或 `smtp`）、`TANGO_COLLAB_DB` 持久路径（非 `:memory:`）以及安全会话 Cookie。任何一项缺失即 `configurationReady=false`。
+
+## Docker 示例
+
+默认 `Dockerfile` 只包含当前网页与服务：`node:22.22` 基础镜像，镜像内固定 `TANGO_DEMO_MODE=0`（真实账号门禁），数据卷 `/app/.tango-donego`。
+
+```sh
+docker build -t tango-donego-local .
+docker run --rm -p 127.0.0.1:5207:5207 tango-donego-local
+```
+
+注意：该示例没有配置邮件通道，而 `TANGO_DEMO_MODE=0` 启用真实账号门禁，因此容器处于登录锁定状态——页面可以打开，注册/登录必须另行提供真实邮件配置和持久化数据库（将 `TANGO_COLLAB_DB` 指向挂载卷）。容器构建与运行在当前环境未实测，验证状态为 UNKNOWN。
+
+## 通用生产部署要点
+
+- 目标主机安装 Node >= 22.22；`npm ci --omit=dev --ignore-scripts` 后先运行 `npm run verify:production`，通过后再 `npm start`。
+- 生产模式需显式提供 `NODE_ENV=production`、`TANGO_PUBLIC_ORIGIN`、`TANGO_AUTH_SECRET`、`TANGO_COLLAB_DB` 与真实邮件通道；密钥只保存在部署环境，不写入仓库、前端构建或日志。
+- 公网发布所需的反向代理、TLS、进程守护、持久存储、备份恢复与压力测试需在目标环境另行验收。
+
+## 历史部署资料（2026-09，Mac + Cloudflare Tunnel，仅供追溯）
+
+> 以下内容为 2026-09 的历史部署记录，不代表当前可用性，也不是当前 Done&Go 的上线证明。隧道 ID、凭据路径等敏感信息已用占位符替代。
+
+当时的公网形态：应用运行在一台 Mac 的 loopback `:5220`（`TANGO_PUBLIC_ORIGIN=https://tango-donego.udify.fun`、`TANGO_TRUST_CLOUDFLARE=1`、`EMAIL_TRANSPORT=resend`，密钥经 `.tango-donego/env` 的 `TANGO_SENDER_*` 变量映射）；公网 DNS 指向专用 Cloudflare Tunnel，不公开本机端口。本地另有 `:5201` console 发信的验收实例。
+
+| 项目 | 历史值 |
 | --- | --- |
 | Tunnel 名称 | `tango-donego` |
-| Tunnel UUID | `9a9696a6-d825-4c79-8163-72f5fff4fd66` |
+| Tunnel UUID | `<tunnel-uuid>`（占位） |
 | 公网域名 | `tango-donego.udify.fun` |
 | Origin | `http://127.0.0.1:5220` |
 | 配置 | `deploy/cloudflared.yml` |
-| 凭据 | `/Users/chillbit/.cloudflared/9a9696a6-d825-4c79-8163-72f5fff4fd66.json`，不在仓库内 |
+| 凭据 | `<用户主目录>/.cloudflared/<tunnel-uuid>.json`，不在仓库内 |
 | Metrics | `http://127.0.0.1:20246/metrics` |
 
-当前机器还有承载其他项目的共享隧道。此部署使用独立 UUID、配置、端口和进程；不修改或重启 `/Users/chillbit/.cloudflared/config.yml` 对应的共享服务。
-
-## 启动流程
-
-在 `/Users/chillbit/Proj/tango-donego` 中构建，并按认证模块的部署配置启动正式入口于 5220。当前默认入口命令为：
+当时的启动与校验命令（5220 为该部署专用端口，与当前 5207 入口无关）：
 
 ```sh
 npm run build
 TANGO_PORT=5220 npm start
-```
-
-启动公网 connector 前，确认新认证模块已生效，未登录请求不能读取个人业务数据或操作 LLM 管理设置。仅有页面 HTTP 200 不构成此项验收。`5220` 为新部署专用端口，不能直接将已有本地管理服务 `5200` 暴露到公网。
-
-配置校验和路由匹配均为只读：
-
-```sh
 cloudflared tunnel --config deploy/cloudflared.yml ingress validate
 cloudflared tunnel --config deploy/cloudflared.yml ingress rule https://tango-donego.udify.fun/
-```
-
-自 2026-09-13 起应用与 connector 均由 launchd 专用服务托管（`com.udify.tango-donego-app`、`com.udify.tango-donego-connector`，plist 位于 `~/Library/LaunchAgents/`，KeepAlive + RunAtLoad）。日常启停入口为桌面 `静驻启动.command`（自动 bootstrap/kickstart、dist 新鲜度检查、公网探测失败时自动重启 connector 最多 3 轮）。调试时可手动前台运行：
-
-```sh
 cloudflared tunnel --config deploy/cloudflared.yml --no-autoupdate run
 ```
 
-手动前台运行前先 `launchctl bootout gui/$(id -u)/com.udify.tango-donego-connector`，避免两个 connector 同时争用 metrics 端口 20246。按 `Ctrl-C` 只停止此前台实例；launchd 服务可独立 `kickstart`。不要使用无专用配置的 `cloudflared service install`，以免接管其他项目的共享服务。
+应用与 connector 曾由 launchd 专用服务托管（`com.udify.tango-donego-app`、`com.udify.tango-donego-connector`，KeepAlive + RunAtLoad），日常启停依赖桌面 `静驻启动.command`。同机还有承载其他项目的共享隧道；该部署使用独立 UUID、配置、端口和进程，不触碰共享 cloudflared 配置，也不使用无专用配置的 `cloudflared service install`。手动前台调试前先 `launchctl bootout` 停用 connector 服务，避免争用 metrics 端口 20246。
 
-## 验收与运维
-
-```sh
-curl --fail --silent --show-error http://127.0.0.1:5220/ -o /dev/null
-cloudflared tunnel info 9a9696a6-d825-4c79-8163-72f5fff4fd66
-curl --fail --silent --show-error https://tango-donego.udify.fun/ -o /dev/null
-```
-
-浏览器验证仅使用 Codex 内置浏览器或 Ego Lite，覆盖：未登录入口、登录/退出、两位用户数据隔离、非法会话、跨站写请求、管理员设置、深链接刷新和实际应用操作。公网域名是新的 browser origin，旧 `127.0.0.1` 本地记录不会自动出现在此域名下，不能在未确认归属时自动导入到任意新账户。
-
-本机睡眠、应用退出、断网或 connector 停止都会影响公网可用性。LLM 私密设置与用户数据目录按认证模块最终存储契约备份；隧道凭据及邮箱服务密钥不得写入前端构建、仓库、截图或运行日志。使用 info 日志；不要为常规部署打开会记录请求头的 debug 日志。
-
-需要撤回公网访问时，停止专用 connector 即可；保留 DNS 与凭据便于恢复，不删除任何用户数据。重新开始服务前先校验本地应用和会话安全。
-
-配置与命令依据 [Cloudflare 本地管理隧道文档](https://developers.cloudflare.com/tunnel/advanced/local-management/create-local-tunnel/) 与 [Ingress 配置文档](https://developers.cloudflare.com/tunnel/features/locally-managed-tunnels/configuration-file/)。
-
-## 当前部署状态（2026-09-13）
-
-- 公网应用已上线：应用实例 `:5220`（`TANGO_PUBLIC_ORIGIN=https://tango-donego.udify.fun`、`TANGO_TRUST_CLOUDFLARE=1`、`EMAIL_TRANSPORT=resend`，密钥从 `.tango-donego/env` 的 `TANGO_SENDER_*` 前缀变量在服务启动时映射），cloudflared connector 使用隧道 `9a9696a6-d825-4c79-8163-72f5fff4fd66`，DNS 已解析，公网 root/login 实测 200。验收环境变量位于 `.tango-donego/env`（不入库）。
-- 本机验收另有 loopback 实例 `:5201`（`EMAIL_TRANSPORT=console`），仅用于本地开发验证码流程。
-- 公开注册按 `EMAIL_TRANSPORT=resend` 真实发信（发送专用 Resend key，`TANGO_SENDER_*` 前缀隔离）。实际收件仍以用户确认邮箱为准。
-- 应用与 connector 已由 launchd 持久化托管（`com.udify.tango-donego-app`、`com.udify.tango-donego-connector`，KeepAlive + RunAtLoad，随登录自启），进程崩溃自动拉起；桌面 `静驻启动.command` 负责开机后一键拉起与验证。本机睡眠或断网仍会中断公网可用性。撤回公网访问：`launchctl bootout gui/$(id -u)/com.udify.tango-donego-connector`。
+当时的运维结论：撤回公网访问即停止专用 connector，保留 DNS 与凭据便于恢复，不删除用户数据；隧道凭据与邮件密钥不写入前端构建、仓库、截图或运行日志；使用 info 日志，不开记录请求头的 debug 日志。配置与命令依据 Cloudflare 本地管理隧道文档与 Ingress 配置文档。

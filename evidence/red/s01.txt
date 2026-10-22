@@ -29,7 +29,7 @@ Running 1 test using 1 worker
       23 |     await expect(root.getByText("19:00 — 20:00")).toBeVisible();
       24 |     await expect(
       25 |       root.getByText("不自动填入工作。暂时没有用途，也成立。"),
-        at /Users/chillbit/Proj/tango-donego/tests/groupA.spec.ts:22:7
+        at <archived-local-host>/Proj/tango-donego/tests/groupA.spec.ts:22:7
 
     Error Context: test-results/groupA--s01-此刻-·-时间主权-show-a09c2-y-gap-and-navigates-to-plan-desktop/error-context.md
 

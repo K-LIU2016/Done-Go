@@ -14,7 +14,7 @@
       248 |     const root = page.locator('[data-page="s10"]');
       249 |     await expect(root).toBeVisible();
       250 |     const copy = [
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:247:16
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:247:16
 
     Error Context: test-results/groupB-s10-boundaries-s10-renders-permission-boundary-copy-desktop/error-context.md
 
@@ -38,7 +38,7 @@
       289 |     const root = page.locator('[data-page="s10"]');
       290 |     const nav = root.locator("[data-rule-nav]");
       291 |     await nav.getByRole("button", { name: "时间边界" }).click();
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:288:16
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:288:16
 
     Error Context: test-results/groupB-s10-boundaries-s10--7df9b-panels-and-pause-state-work-desktop/error-context.md
 

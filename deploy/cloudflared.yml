@@ -1,10 +1,11 @@
-tunnel: 9a9696a6-d825-4c79-8163-72f5fff4fd66
-credentials-file: /Users/chillbit/.cloudflared/9a9696a6-d825-4c79-8163-72f5fff4fd66.json
+# Historical Cloudflare Tunnel example. Replace all placeholders before use.
+tunnel: <your-cloudflare-tunnel-id>
+credentials-file: <absolute-path-to-tunnel-credentials-json>
 protocol: http2
 edge-ip-version: "4"
 metrics: 127.0.0.1:20246
 
 ingress:
-  - hostname: tango-donego.udify.fun
-    service: http://127.0.0.1:5220
+  - hostname: donego.example.com
+    service: http://127.0.0.1:5207
   - service: http_status:404

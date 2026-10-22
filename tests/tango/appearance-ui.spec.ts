@@ -204,7 +204,7 @@ for (const theme of ['standard', 'swiss', 'archive', 'designer', 'workbench']) {
     await expect(page.locator('.companion-message.is-user')).toHaveCount(2);
     expect(calls).toBe(3);
     await page.locator('[data-companion-support]').click();
-    await expect(page.locator('.sheet')).toContainText('yajing1906232977@163.com');
+    await expect(page.locator('.sheet')).toContainText('通过小组邀请暗号加入');
     await page.keyboard.press('Escape');
     await expect(page.locator('.sheet')).toHaveCount(0);
   });

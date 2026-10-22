@@ -345,12 +345,12 @@
 
 - 场景 `E-S05-I01-BASELINE` / `FLOW-01`：首页“看看可行的做法” → `/plan` 选择 A → `/preview` 点击“批准并准备草稿”。实际仍停在 `/preview`，仅显示“已批准·本次准备任务 尚未执行”，未得到可观察本地产物。C2：FAIL。
 - 场景 `E-S05-S03-RELOAD-BASELINE`：上述批准后 reload，回到待批准且批准按钮重新出现，审批/产物没有恢复。C5：FAIL；不能用重新显示按钮证明幂等执行。
-- 同次 walkthrough 的 console error/warn 为空，仅支持该操作路径的控制台观察，不关闭产品 C4 或抵消功能失败。主监督已归档[人工 CUA 操作日志](/Users/chillbit/Proj/AIGC/research/output/argus-omo-control-plane/TANGO-V2-BROWSER-BASELINE-20260912.md)，本任务已全文读取；它不是自动 trace，未保存观察时源码 hash。截图仅在监督任务中 inline 显示，没有 PNG 文件，不能虚构截图路径或计为逐屏视觉通过。
+- 同次 walkthrough 的 console error/warn 为空，仅支持该操作路径的控制台观察，不关闭产品 C4 或抵消功能失败。主监督已归档[人工 CUA 操作日志](<archived-local-host>/Proj/AIGC/research/output/argus-omo-control-plane/TANGO-V2-BROWSER-BASELINE-20260912.md)，本任务已全文读取；它不是自动 trace，未保存观察时源码 hash。截图仅在监督任务中 inline 显示，没有 PNG 文件，不能虚构截图路径或计为逐屏视觉通过。
 - 修复后的同案例必须证明：有效批准 → 真实本地产物及回读 → 刷新恢复同一操作/产物 → 重复请求不重复生成；保存对应该运行版本的浏览器操作、截图及持久结果，再关闭上述失败。
 
 ### 主监督 09:23 UTC 局部复测与跨屏失败
 
-同一[CUA 日志](/Users/chillbit/Proj/AIGC/research/output/argus-omo-control-plane/TANGO-V2-BROWSER-BASELINE-20260912.md)新增实测：`/preview` 批准后出现可编辑草稿，修改为指定验收文本后 reload 及新 tab 均恢复相同正文和已批准状态。原 `E-S05-I01-BASELINE` 的“无草稿”症状和 `E-S05-S03-RELOAD-BASELINE` 的“刷新丢状态”症状，在该快照的正常存储场景关闭；这不等于整个 S05-I01、C2/C5 或幂等/存储故障通过。
+同一[CUA 日志](<archived-local-host>/Proj/AIGC/research/output/argus-omo-control-plane/TANGO-V2-BROWSER-BASELINE-20260912.md)新增实测：`/preview` 批准后出现可编辑草稿，修改为指定验收文本后 reload 及新 tab 均恢复相同正文和已批准状态。原 `E-S05-I01-BASELINE` 的“无草稿”症状和 `E-S05-S03-RELOAD-BASELINE` 的“刷新丢状态”症状，在该快照的正常存储场景关闭；这不等于整个 S05-I01、C2/C5 或幂等/存储故障通过。
 
 新 tab 的 warning/error 为空；旧 tab 的 HMR 错误保留在日志中，未作为干净会话。点击“协同”进入 `/workspace` 后仍显示另一份固定示例正文与17:21保存时间，没有延续刚修改的产物：`FLOW-01` 共享草稿连续性仍为 FAIL。未执行存储故障注入或并发批准；截图未导出PNG。该日志保留09:23:34 UTC的 S05Preview/localDraft/WorkspaceScreen 三个源码 SHA256，后续变更需复核，不能沿用局部通过证明新版本。
 

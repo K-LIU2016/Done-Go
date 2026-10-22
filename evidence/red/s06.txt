@@ -21,7 +21,7 @@
       46 |     }
       47 |     await expect(root.getByRole("button", { name: "同意这个取舍" })).toBeVisible();
       48 |     await expect(root.getByRole("button", { name: "我有不同判断" })).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:45:42
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:45:42
 
     Error Context: test-results/groupB-s06-workspace-s06-renders-draft-workspace-copy-desktop/error-context.md
 
@@ -52,7 +52,7 @@
       60 |     await expect(confirm).toBeDisabled();
       61 |     await expect(root.getByText("先完成切入点判断，才能确认已检查的内容。")).toBeVisible();
       62 |     await root.getByRole("button", { name: "同意这个取舍" }).click();
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:59:26
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:59:26
 
     Error Context: test-results/groupB-s06-workspace-s06-c-a591f-espects-draft-state-machine-desktop/error-context.md
 
@@ -78,7 +78,7 @@
       80 |     await expect(root.locator("[data-draft-status]")).toContainText("部分确认");
       81 |     await expect(root.getByText("已记录：你对切入点有不同判断。")).toBeVisible();
       82 |     expect(errors).toEqual([]);
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:79:56
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:79:56
 
     Error Context: test-results/groupB-s06-workspace-s06-d-c662c-nlocks-partial-confirmation-desktop/error-context.md
 

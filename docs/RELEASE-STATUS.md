@@ -17,7 +17,7 @@
 ### RC11 认证与部署收尾快照（覆盖 RC10 中“S09 正在补齐”与旧测试计数）
 
 - 回归 `npm run test:unit` 590/590 通过、lint 退出 0、build 退出 0。此前 `src/appearance` 未加入测试收集目录（10 项从未执行），已修复并纳入收集；新计数覆盖该目录。
-- 认证模块按 mail2profile 契约上线：loopback 实例 `127.0.0.1:5201`（`EMAIL_TRANSPORT=console`，本机验收），公网实例 `:5220`（`TANGO_PUBLIC_ORIGIN=https://tango-donego.udify.fun`、`TANGO_TRUST_CLOUDFLARE=1`、`EMAIL_TRANSPORT=disabled`）。cloudflared connector（隧道 `9a9696a6-d825-4c79-8163-72f5fff4fd66`）已注册 4 条边缘连接，DNS 已解析，公网 root/login 返回 200。`send-code` 返回 `EMAIL_UNAVAILABLE`：公开注册按设计关闭，真实邮件通道未配置、未验证。
+- 认证模块按 mail2profile 契约上线：loopback 实例 `127.0.0.1:5201`（`EMAIL_TRANSPORT=console`，本机验收），公网实例 `:5220`（`TANGO_PUBLIC_ORIGIN=https://tango-donego.udify.fun`、`TANGO_TRUST_CLOUDFLARE=1`、`EMAIL_TRANSPORT=disabled`）。cloudflared connector（隧道 `<removed-historical-tunnel-id>`）已注册 4 条边缘连接，DNS 已解析，公网 root/login 返回 200。`send-code` 返回 `EMAIL_UNAVAILABLE`：公开注册按设计关闭，真实邮件通道未配置、未验证。
 - 本地账号创建于 `.tango-donego/auth.sqlite`（0600，不入库）。管理员白名单收敛为 `ADMIN_EMAILS=admin@udify.fun` 后复验：user 账号访问管理端点返回 403。
 - 外观主题跨账号泄漏已修复并实测闭环：appearance 存储键按所有者隔离（登录用户追加 `:u:<id>` 键，未登录保持历史键），认证恢复后主动刷新。内置浏览器验证：admin 水墨 → 退出 → 未登录瓷白 → 登录 → 水墨恢复，全程 console 错误为空。
 - `AUTH_REQUIRED` 此前显示“发生未知错误”，已改为“请先登录后再管理模型连接”，未登录访问设置页实测生效。

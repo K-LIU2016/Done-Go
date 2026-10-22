@@ -30,7 +30,7 @@ Running 2 tests using 1 worker
       200 |     await expect(
       201 |       root.getByText("数据未同步不等于没有安排。外部保护未核验，就保持待确认。"),
       202 |     ).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:199:7
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:199:7
 
     Error Context: test-results/groupC--s13-同步异常-·-未知与接管-k-c16bd-of-claiming-full-protection-desktop/error-context.md
 
@@ -50,7 +50,7 @@ Running 2 tests using 1 worker
       257 |     await expect(
       258 |       root.getByText("正在重新同步个人日历并核对冲突。"),
       259 |     ).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:256:57
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:256:57
 
     Error Context: test-results/groupC--s13-同步异常-·-未知与接管-r-81407-onest-result-takeover-works-desktop/error-context.md
 

@@ -27,7 +27,7 @@ Running 1 test using 1 worker
       345 |     await expect(root.getByText("17:00")).toBeVisible();
       346 |     await expect(root.getByText("9 月 12 日 · 星期六")).toBeVisible();
       347 |     await expect(
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:344:24
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:344:24
 
     Error Context: test-results/groupC--s15-移动端-·-此刻-shows-4174c-ected-hour-and-one-decision-desktop/error-context.md
 

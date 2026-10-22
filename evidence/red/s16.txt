@@ -27,7 +27,7 @@ Running 1 test using 1 worker
       393 |     await expect(
       394 |       root.getByRole("heading", { name: "不挤掉自己，换一种做法。" }),
       395 |     ).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:392:24
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:392:24
 
     Error Context: test-results/groupC--s16-移动端-·-自适应方案-pl-23c07-n-B-never-counts-as-savings-desktop/error-context.md
 

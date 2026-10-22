@@ -11,15 +11,15 @@ const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 const aiEnv = { ...process.env };
 try { await applyDotEnv({ projectRoot, env: aiEnv }); }
 catch { process.stderr.write('TANGO_DOTENV_INVALID: AI settings unavailable; preview remains available.\n'); }
-// Designated owner admin for this launcher only; production entries stay env-driven with no default email.
-const designatedAdminEmail = 'yajing1906232977@163.com';
+// Set ADMIN_EMAILS explicitly to designate a local admin; this launcher has no default personal email.
+const designatedAdminEmail = process.env.ADMIN_EMAILS || '';
 const requestedDatabase = process.env.AUTH_DATABASE_PATH || process.env.TANGO_AUTH_DB || process.env.TANGO_COLLAB_DB || join(projectRoot, '.tango-donego', 'local-auth-dev', 'collaboration.sqlite');
 if (requestedDatabase !== ':memory:' && !isAbsolute(requestedDatabase)) {
  process.stderr.write('TANGO_COLLAB_DB must be an absolute path (or :memory:).\n');
  process.exit(2);
 }
 // Shell-provided ADMIN_EMAILS and EMAIL_TRANSPORT win; everything else is pinned to this loopback launcher.
-process.env.ADMIN_EMAILS = process.env.ADMIN_EMAILS || designatedAdminEmail;
+if (designatedAdminEmail) process.env.ADMIN_EMAILS = designatedAdminEmail;
 process.env.EMAIL_TRANSPORT = process.env.EMAIL_TRANSPORT || 'console';
 const demoMode = process.env.TANGO_REQUIRE_ACCOUNT !== '1';
 process.env.TANGO_DEMO_MODE = demoMode ? '1' : '0';

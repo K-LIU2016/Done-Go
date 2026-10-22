@@ -21,7 +21,7 @@
       115 |     }
       116 |     await expect(root.getByText("已确认", { exact: true })).toBeVisible();
       117 |     await expect(root.getByRole("button", { name: "查看规则差异" })).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:114:42
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:114:42
 
     Error Context: test-results/groupB-s07-session-s07-renders-checkpoint-restore-copy-desktop/error-context.md
 
@@ -47,7 +47,7 @@
       127 |     await expect(root.getByText("现在：每次准备前都需要你确认。")).toBeVisible();
       128 |     await expect(root.getByText("候选：只在已选来源内自动准备，随时可撤回。")).toBeVisible();
       129 |     await expect(root.getByText("边界不变：仍不允许对外发送。")).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupB.spec.ts:126:56
+        at <archived-local-host>/Proj/tango-donego/tests/groupB.spec.ts:126:56
 
     Error Context: test-results/groupB-s07-session-s07-diff-dictation-and-defer-paths-work-desktop/error-context.md
 

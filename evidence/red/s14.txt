@@ -30,7 +30,7 @@ Running 2 tests using 1 worker
       281 |     await expect(
       282 |       root.getByText("轻量输入不意味着草率执行。先理解，再检查可行性。"),
       283 |     ).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:280:7
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:280:7
 
     Error Context: test-results/groupC--s14-快捷输入-·-意图与约束-p-49a18-constraint-no-hidden-grants-desktop/error-context.md
 
@@ -50,7 +50,7 @@ Running 2 tests using 1 worker
       325 |     await expect(
       326 |       root.getByText("已保存为意图。尚未创建日历事件，也不会通知任何人。"),
       327 |     ).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:324:56
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:324:56
 
     Error Context: test-results/groupC--s14-快捷输入-·-意图与约束-s-28d86-ful-and-escape-closes-entry-desktop/error-context.md
 

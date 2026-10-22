@@ -30,7 +30,7 @@ Running 2 tests using 1 worker
       506 |     await expect(root.getByText("静驻", { exact: true })).toBeVisible();
       507 |     await expect(
       508 |       root.getByRole("button", { name: "退出静驻时刻" }),
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:505:60
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:505:60
 
     Error Context: test-results/groupC--s18-移动端-·-静驻时刻-qui-0e1f6--clear-exit-and-no-pressure-desktop/error-context.md
 
@@ -50,7 +50,7 @@ Running 2 tests using 1 worker
       534 |     await expect(
       535 |       root.getByText("已保留。不会再提醒你做选择。"),
       536 |     ).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:533:56
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:533:56
 
     Error Context: test-results/groupC--s18-移动端-·-静驻时刻-cho-a964c-red-and-exit-returns-to-now-desktop/error-context.md
 

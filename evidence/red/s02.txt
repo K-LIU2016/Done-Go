@@ -32,7 +32,7 @@ Running 2 tests using 1 worker
       64 |     await expect(root.getByText("19:00 前可用")).toBeVisible();
       65 |     await expect(root.getByText("120 分钟").first()).toBeVisible();
       66 |     await expect(root.getByText("当前预计投入").first()).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupA.spec.ts:63:7
+        at <archived-local-host>/Proj/tango-donego/tests/groupA.spec.ts:63:7
 
     Error Context: test-results/groupA--s02-时间账本-·-责任与边界-l-99b52-ent-and-protects-blank-time-desktop/error-context.md
 
@@ -52,7 +52,7 @@ Running 2 tests using 1 worker
       93 |     await expect(root.getByText("本周还没有可核验的汇总。")).toBeVisible();
       94 |     await expect(root.getByText("数据来源：工作日历、任务清单。")).toBeVisible();
       95 |     expect(errors).toEqual([]);
-        at /Users/chillbit/Proj/tango-donego/tests/groupA.spec.ts:92:52
+        at <archived-local-host>/Proj/tango-donego/tests/groupA.spec.ts:92:52
 
     Error Context: test-results/groupA--s02-时间账本-·-责任与边界-w-ad2d7-st-empty-state-with-sources-desktop/error-context.md
 

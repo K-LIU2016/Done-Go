@@ -32,7 +32,7 @@ Running 2 tests using 1 worker
       23 |     await expect(
       24 |       root.getByText("事实、意图与系统推测分开保存。你可以修正，也可以带走。"),
       25 |     ).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:22:7
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:22:7
 
     Error Context: test-results/groupC--s11-私人上下文-·-来源与推测--3e7f1-rces-with-honest-boundaries-desktop/error-context.md
 
@@ -52,7 +52,7 @@ Running 2 tests using 1 worker
       100 |     await expect(root.getByText("已接入的来源与范围")).toBeVisible();
       101 |     await root.getByRole("tab", { name: "系统推测" }).click();
       102 |     await expect(root.getByText("你可能更愿意从修改草稿开始。")).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupC.spec.ts:99:52
+        at <archived-local-host>/Proj/tango-donego/tests/groupC.spec.ts:99:52
 
     Error Context: test-results/groupC--s11-私人上下文-·-来源与推测--8e7ab-ejected-inference-is-marked-desktop/error-context.md
 

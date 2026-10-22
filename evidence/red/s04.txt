@@ -32,7 +32,7 @@ Running 2 tests using 1 worker
       145 |     await expect(
       146 |       root.getByText("19:00 前可用 120 分钟；当前预计投入 130 分钟。"),
       147 |     ).toBeVisible();
-        at /Users/chillbit/Proj/tango-donego/tests/groupA.spec.ts:144:7
+        at <archived-local-host>/Proj/tango-donego/tests/groupA.spec.ts:144:7
 
     Error Context: test-results/groupA--s04-自适应方案-·-改变方法与分-df646-ection-navigates-to-preview-desktop/error-context.md
 
@@ -57,7 +57,7 @@ Running 2 tests using 1 worker
       175 |     await root.getByRole("button", { name: /预览延期的影响/ }).click();
       176 |     await expect(page).toHaveURL(/\/preview$/);
       177 |     const preview = page.locator('[data-page="s05"]');
-        at /Users/chillbit/Proj/tango-donego/tests/groupA.spec.ts:174:46
+        at <archived-local-host>/Proj/tango-donego/tests/groupA.spec.ts:174:46
 
     Error Context: test-results/groupA--s04-自适应方案-·-改变方法与分-c8889-view-does-not-claim-savings-desktop/error-context.md
 
