@@ -14,6 +14,21 @@ const STREAM_TOTAL_MAX_MS = 600000;
 // seconds-scale p95 envelope, so its default upstream budget is 6s; TANGO_AI_TIMEOUT_MS
 // or an explicit timeoutMs still overrides it.
 const PARSE_BUDGET_MS = 6000;
+// Reasoning-tier models can stream hundreds of KB of reasoning_content deltas
+// and per-chunk metadata while the visible content stays short, so the raw SSE
+// byte guard is a lenient bounded fallback (default 4 MiB, TANGO_AI_STREAM_MAX_BYTES
+// or options.streamBytes override it); the emitted content itself stays capped
+// by the 24000-character limit.
+const STREAM_RAW_DEFAULT_BYTES = 4 * 1024 * 1024;
+const STREAM_RAW_MAX_BYTES = 64 * 1024 * 1024;
+
+function streamRawBytes(options, env) {
+  const fromOptions = Number(options.streamBytes);
+  if (Number.isInteger(fromOptions) && fromOptions >= 1024 && fromOptions <= STREAM_RAW_MAX_BYTES) return fromOptions;
+  const fromEnv = Number(env.TANGO_AI_STREAM_MAX_BYTES);
+  if (Number.isInteger(fromEnv) && fromEnv >= 1024 && fromEnv <= STREAM_RAW_MAX_BYTES) return fromEnv;
+  return STREAM_RAW_DEFAULT_BYTES;
+}
 
 function budgetMs(options, config, tier, env, mode) {
   const explicit = Number(options.timeoutMs);
@@ -148,6 +163,7 @@ export function createAssistant(options = {}) {
       signal?.addEventListener('abort', onAbort, { once: true });
       if (signal?.aborted) abort.abort();
       const idleMs = budgetMs(options, config, tier, env, mode);
+      const rawBytes = streamRawBytes(options, env);
       const deadline = Date.now() + Math.min(Math.max(idleMs, STREAM_TOTAL_MS), STREAM_TOTAL_MAX_MS);
       let timer; let stopReader = () => {};
       const rearm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; abort.abort(); }, idleMs); };
@@ -164,7 +180,7 @@ export function createAssistant(options = {}) {
         if (pastDeadline()) throw assistantError('TANGO_AI_TIMEOUT', 504);
         rearm();
         if (anthropic || !response.body) {
-          let value; try { value = JSON.parse(await readLimited(response, options.responseBytes || 192 * 1024, abort.signal)); } catch (error) { if (error.code?.startsWith('TANGO_AI_')) throw error; throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
+          let value; try { value = JSON.parse(await readLimited(response, rawBytes, abort.signal)); } catch (error) { if (error.code?.startsWith('TANGO_AI_')) throw error; throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
           const text = contentText(anthropic, value);
           if (typeof text !== 'string' || !text.trim() || text.length > 24000) throw assistantError('TANGO_AI_RESPONSE_INVALID');
           yield text.split(config.key).join('[redacted]');
@@ -191,7 +207,7 @@ export function createAssistant(options = {}) {
             if (pastDeadline()) throw assistantError('TANGO_AI_TIMEOUT', 504);
             rearm();
             bytes += value.byteLength;
-            if (bytes > (options.responseBytes || 192 * 1024)) throw assistantError('TANGO_AI_RESPONSE_TOO_LARGE');
+            if (bytes > rawBytes) throw assistantError('TANGO_AI_RESPONSE_TOO_LARGE');
             buffer += decoder.decode(value, { stream: true });
             let index;
             while ((index = buffer.indexOf('\n')) >= 0) {
