@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// Explicit engineering fixtures. Ordinary user UI is covered by completion-user.spec.ts.
+test.beforeEach(async ({ page }) => { await page.addInitScript(() => { Object.defineProperty(window, '__TANGO_DEVELOPER_UI__', { value: true }); }); });
+
 const paper = { id: 'paper', date: '2026-10-14', title: '读论文', kind: 'explore', start: '09:00', end: '10:00', prio: 1 };
 const base = { v: 1, pv: 5, mode: 'real', name: 'KKK', wake: 960, entries: [paper], trials: [], drafts: [], fw: {}, pal: 0, sound: false };
 async function open(page: Page, patch: Record<string, unknown> = {}, llm: Record<string, unknown> = { mode: 'off' }) {
@@ -16,12 +19,11 @@ async function open(page: Page, patch: Record<string, unknown> = {}, llm: Record
   await page.goto('/');
 }
 async function state(page: Page) { return page.evaluate(() => JSON.parse(localStorage.getItem('tango-donego.web.v1')!)); }
-async function expandTasks(page: Page) {
-  const panel = page.locator('#task-advice');
-  if (await panel.getAttribute('open') === null) await panel.locator('summary').click();
+async function openModelSheet(page: Page, title: string) {
+  await page.locator('.paper-route .paper-event', { hasText: title }).click();
+  await page.locator('.sheet [data-act="event-ai"]').click();
 }
 async function finish(page: Page, minutes: string, quality = 'accepted') {
-  await expandTasks(page);
   await page.locator('[data-act="task-finish"][data-id="paper"]').first().click();
   await page.locator('#finish-min').fill(minutes);
   await page.locator('#finish-ai').check();
@@ -37,10 +39,10 @@ test('the daily budget counts overlapping reservations once', async ({ page }) =
   const input = await page.locator('#cap-text').boundingBox();
   expect(input!.y + input!.height).toBeLessThan(test.info().project.use.viewport!.height);
   const hello = await page.locator('.hello').boundingBox();
-  const overview = await page.locator('.time-overview').boundingBox();
+  const route = await page.locator('.paper-route').boundingBox();
   expect(hello).not.toBeNull();
-  expect(overview).not.toBeNull();
-  expect(overview!.y).toBeGreaterThanOrEqual(hello!.y + hello!.height);
+  expect(route).not.toBeNull();
+  expect(route!.y).toBeGreaterThanOrEqual(input!.y + input!.height);
   await expect(page.locator('[data-act="budget-edit"]')).toContainText('今日预算');
   await expect(page.locator('[data-act="budget-edit"]')).toBeVisible();
   await expect(page.locator('.budget-row span.budget-chip').filter({ hasText: '今日已预留' })).toBeVisible();
@@ -68,9 +70,8 @@ test('today budget edit can be canceled with Escape', async ({ page }) => {
 });
 test('model guidance has named companies and models without changing the plan', async ({ page }) => {
   await open(page);
-  await expandTasks(page);
   const before = await state(page);
-  await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
+  await openModelSheet(page, '读论文');
   await expect(page.locator('.sheet')).toContainText('Anthropic');
   await expect(page.locator('.sheet')).toContainText('Claude Sonnet');
   await expect(page.locator('.sheet')).toContainText('时间收益待实测 · 样本不足');
@@ -81,9 +82,12 @@ test('model guidance has named companies and models without changing the plan', 
 });
 test('generic work and meals receive scoped guidance without counting estimates as savings', async ({ page }) => {
   await open(page, { entries: [{ ...paper, id: 'work', title: '工作', kind: 'necessary' }, { ...paper, id: 'food', title: '吃饭', kind: 'connect', start: '12:00', end: '13:00' }] });
-  await expandTasks(page);
-  await expect(page.locator('.task-list [data-act="ai-tools"]')).toHaveCount(2);
-  await page.locator('[data-act="ai-tools"][data-id="food"]').click();
+  for (const title of ['工作', '吃饭']) {
+    await page.locator('.paper-route .paper-event', { hasText: title }).click();
+    await expect(page.locator('.sheet [data-act="event-ai"]')).toBeVisible();
+    await page.locator('[data-act="close"]').first().click();
+  }
+  await openModelSheet(page, '吃饭');
   await expect(page.locator('.sheet')).toContainText('准备环节');
   await expect(page.locator('.sheet')).toContainText('吃饭时长不压缩');
   await page.locator('[data-act="close"]').first().click();
@@ -96,21 +100,20 @@ test('generic work and meals receive scoped guidance without counting estimates 
 
 test('task-specific guidance prioritizes different models and includes executable prompts', async ({ page }, info) => {
   await open(page, { entries: [paper, { ...paper, id: 'code', title: '修复登录代码', kind: 'create' }, { ...paper, id: 'meeting', title: '世界旅游大会', kind: 'necessary' }] });
-  await expandTasks(page);
   const before = await state(page);
   const cases = [
-    { id: 'paper', model: 'Claude', prompt: /页码/ },
-    { id: 'code', model: 'GPT', prompt: /复现|测试/ },
-    { id: 'meeting', model: 'Gemini', prompt: /纪要|待办/ },
+    { title: '读论文', model: 'Claude', prompt: /页码/ },
+    { title: '修复登录代码', model: 'GPT', prompt: /复现|测试/ },
+    { title: '世界旅游大会', model: 'Gemini', prompt: /纪要|待办/ },
   ];
   for (const item of cases) {
-    await page.locator('.task-list [data-act="ai-tools"][data-id="' + item.id + '"]').click();
+    await openModelSheet(page, item.title);
     await expect(page.locator('.tool').first()).toContainText(item.model);
     await expect(page.locator('.tool').first().locator('.model-reason')).not.toBeEmpty();
     await expect(page.locator('.guidance-steps li')).toHaveCount(3);
     await expect(page.locator('#model-prompt')).toHaveValue(item.prompt);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-    if (item.id === 'paper') await page.screenshot({ path: info.outputPath('task-guidance.png') });
+    if (item.title === '读论文') await page.screenshot({ path: info.outputPath('task-guidance.png') });
     await page.locator('[data-act="close"]').first().click();
   }
   expect(await state(page)).toEqual(before);
@@ -118,9 +121,9 @@ test('task-specific guidance prioritizes different models and includes executabl
 
 test('short tasks cannot claim more saved minutes than their duration', async ({ page }) => {
   await open(page, { entries: [{ ...paper, end: '09:01' }] });
-  await expandTasks(page);
-  const text = await page.locator('.task-list .ai-inline').innerText();
-  expect(text).toContain('待实测');
+  await openModelSheet(page, '读论文');
+  await expect(page.locator('.sheet .ai-tip')).toContainText('待实测');
+  await page.locator('[data-act="close"]').first().click();
 });
 test('confirmed completion creates a choice, not an automatic reservation, and survives reload', async ({ page }) => {
   await open(page);
@@ -172,7 +175,6 @@ test('a walk is reserved only after the user chooses it', async ({ page }) => {
 });
 test('completion rejects blank and negative actual durations', async ({ page }) => {
   await open(page);
-  await expandTasks(page);
   await page.locator('[data-act="task-finish"][data-id="paper"]').first().click();
   await page.locator('[data-act="finish-save"]').click();
   await expect(page.locator('#finish-error')).toBeVisible();
@@ -221,26 +223,83 @@ test('time tree alone preserves task times and opens task details from leaves', 
   await expect(page.locator('.tree .leaf')).toHaveCount(1);
   await page.screenshot({ path: test.info().outputPath('time-tree.png'), fullPage: true });
 });
-test('typing a task still creates an editable draft and preserves priority', async ({ page }) => {
+test('typing a task keeps a brand-colored save button beside its draft in both themes', async ({ page }, info) => {
   await open(page, { entries: [] });
   await page.screenshot({ path: test.info().outputPath('empty-today.png'), fullPage: true });
-  await page.locator('#cap-text').fill('下午两点到三点开会，最重要');
+  await page.locator('#cap-text').fill('下午两点到三点在市中心开一个关于脑机接口的会，最重要');
   await page.locator('#capGo').click();
   await expect(page.locator('.draft')).toHaveCount(1);
+  for (const theme of ['standard', 'designer']) {
+    await page.locator('#appearance-select').selectOption(theme);
+    for (const width of info.project.name === 'mobile' ? [390, 360] : [1440, 768]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const draft = await page.locator('.draft').boundingBox();
+      const save = page.locator('[data-act="draft-commit"]');
+      const button = await save.boundingBox();
+      expect(button!.x).toBeGreaterThanOrEqual(draft!.x + draft!.width);
+      expect(button!.y).toBeGreaterThanOrEqual(draft!.y);
+      expect(button!.y + button!.height).toBeLessThanOrEqual(draft!.y + draft!.height);
+      await expect(save).toHaveCSS('background-color', 'rgb(233, 84, 50)');
+      expect(await save.evaluate(element => { const range = document.createRange(); range.selectNodeContents(element); return range.getClientRects().length; })).toBe(1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      await page.screenshot({ path: info.outputPath('draft-save-' + theme + '-' + width + '.png'), fullPage: true });
+    }
+  }
   await page.locator('[data-act="draft-commit"]').click();
   const saved = await state(page);
   expect(saved.entries[0]).toMatchObject({ start: '14:00', end: '15:00', prio: 1 });
 });
 test('personal estimates remain separate from confirmed gains', async ({ page }) => {
   await open(page, { trials: [
-    { taskId: 'p1', date: '2026-10-12', before: 60, after: 40, usedAI: true, category: 'read', confirmed: true, quality: 'accepted' },
-    { taskId: 'p2', date: '2026-10-13', before: 60, after: 30, usedAI: true, category: 'read', confirmed: true, quality: 'accepted' },
+    { taskId: 'p1', date: '2026-10-12', before: 60, after: 40, usedAI: true, category: 'read', confirmed: true, quality: 'accepted', dataMode: 'real' },
+    { taskId: 'p2', date: '2026-10-13', before: 60, after: 30, usedAI: true, category: 'read', confirmed: true, quality: 'accepted', dataMode: 'real' },
   ] });
-  await expandTasks(page);
-  await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
+  await openModelSheet(page, '读论文');
   await expect(page.locator('.sheet')).toContainText('20–30 min');
-  await expect(page.locator('.estimate-help summary')).toContainText('个人历史 · 2 次');
+  await expect(page.locator('.estimate-help summary')).toContainText('个人历史差值参考 · 2');
   await expect(page.locator('[data-metric="saved"]')).toHaveCount(0);
+});
+
+test('review forecast keeps completion-time snapshots and never rewrites them from later history', async ({ page }) => {
+  const completed = (id: string, date: string, title: string, forecast?: Record<string, unknown>) => ({
+    id, date, title, kind: 'explore', start: '09:00', end: '10:00', prio: 2, done: true,
+    completion: { before: 60, actual: 40, usedAI: true, quality: 'accepted' },
+    ...(forecast ? { forecast } : {}),
+  });
+  const readTrial = (taskId: string, date: string, after: number) => ({ taskId, date, before: 60, after, usedAI: true, category: 'read', confirmed: true, quality: 'accepted', dataMode: 'real' });
+  await open(page, {
+    entries: [
+      completed('snap-a', '2026-10-14', '读论文一', { before: 60, low: 10, high: 20, source: 'history' }),
+      completed('snap-b', '2026-10-13', '读论文二', { before: 60, low: 10, high: 20, source: 'history' }),
+      completed('missing', '2026-10-12', '读论文三'),
+      completed('mismatch', '2026-10-11', '读论文四', { before: 90, low: 10, high: 20, source: 'history' }),
+    ],
+    trials: [readTrial('later-1', '2026-10-10', 5), readTrial('later-2', '2026-10-09', 10)],
+  });
+  await page.goto('/#review');
+  const estimated = page.locator('[data-metric="review-estimated"]');
+  await expect(estimated).toContainText('20–40 min');
+  await expect(page.locator('.estimated-tile')).toContainText('2 项有参考');
+  await expect(page.locator('.estimated-tile')).toContainText('2 项样本不足');
+  await expect(estimated).not.toContainText('50–55 min');
+  await expect(estimated).not.toContainText('70–95 min');
+});
+
+test('completion snapshots the current forecast and excludes the same task attempt', async ({ page }) => {
+  await open(page, { trials: [
+    { taskId: 'paper', date: '2026-10-14', before: 60, after: 5, usedAI: true, category: 'read', confirmed: true, quality: 'accepted', dataMode: 'real' },
+    { taskId: 'other-1', date: '2026-10-13', before: 60, after: 40, usedAI: true, category: 'read', confirmed: true, quality: 'accepted', dataMode: 'real' },
+    { taskId: 'other-2', date: '2026-10-12', before: 60, after: 30, usedAI: true, category: 'read', confirmed: true, quality: 'accepted', dataMode: 'real' },
+  ] });
+  await page.locator('[data-act="task-finish"][data-id="paper"]').first().click();
+  await page.locator('#finish-min').fill('40');
+  await page.locator('#finish-ai').check();
+  await page.locator('#finish-quality').selectOption('accepted');
+  await page.locator('[data-act="finish-save"]').click();
+  await expect(page.locator('.sheet')).toContainText('已完成');
+  const saved = await state(page);
+  expect(saved.trials.filter((trial: { taskId: string }) => trial.taskId === 'paper')).toHaveLength(1);
+  expect(saved.entries.find((entry: { id: string }) => entry.id === 'paper').forecast).toEqual({ before: 60, low: 20, high: 30, source: 'history', dataMode: 'real' });
 });
 
 test('a canceled booking conflict preserves the task and pending choice', async ({ page }) => {
@@ -345,9 +404,9 @@ test('invalid import is rejected and valid import can be rolled back from backup
 
 test('model dialog traps keyboard focus and restores the opener', async ({ page }) => {
   await open(page);
-  await expandTasks(page);
-  const opener = page.locator('[data-act="ai-tools"][data-id="paper"]').first();
+  const opener = page.locator('.paper-route .paper-event').first();
   await opener.click();
+  await page.locator('.sheet [data-act="event-ai"]').click();
   const last = page.locator('.sheet [data-act="close"]').last();
   await last.focus();
   await page.keyboard.press('Tab');
@@ -383,52 +442,53 @@ test('screens and dialogs fit the viewport in both themes and English', async ({
   await page.locator('#lang').selectOption('en');
   await expect(page.getByText('Unscheduled today', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  await expandTasks(page);
-  await page.locator('[data-act="ai-tools"][data-id="paper"]').first().click();
+  await openModelSheet(page, '读论文');
   const box = await page.locator('.sheet').boundingBox();
   expect(box!.width).toBeLessThanOrEqual(info.project.use.viewport!.width);
   await page.screenshot({ path: info.outputPath('model-sheet.png') });
   await page.locator('[data-act="close"]').first().click();
   await page.goto('/#review');
-  await expect(page.locator('.estimated-tile')).toContainText('Personal history reference');
+  await expect(page.locator('.estimated-tile')).toContainText('Your past records');
   await expect(page.locator('.estimated-tile')).toContainText('Not measured');
-  await expect(page.locator('.actual-tile')).toContainText('Accepted time difference');
+  await expect(page.locator('.actual-tile')).toContainText('Difference after review');
   await expect(page.locator('.estimated-tile')).not.toContainText('Without AI');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: info.outputPath('english-review.png'), fullPage: true });
 });
 
-test('task advice starts collapsed and keyboard expansion preserves tasks and the open state', async ({ page }, info) => {
+test('today keeps one event list below bubbles and preserves it across language switches', async ({ page }, info) => {
   await open(page);
   const before = await state(page);
-  const panel = page.locator('#task-advice');
-  const summary = panel.locator('summary');
-  await expect(summary).toContainText('事项 · AI 建议');
-  await expect(panel.locator('.task-count')).toHaveText('1');
-  await expect(panel.locator('.task-card')).toBeHidden();
+  await expect(page.locator('.paper-route .paper-stop')).toHaveCount(1);
+  await expect(page.locator('.paper-stop', { hasText: '读论文' })).toContainText('09:00');
+  await expect(page.locator('.paper-stop', { hasText: '读论文' }).locator('[data-act="task-finish"]')).toBeVisible();
   await expect(page.locator('.bubble').filter({ hasText: '读论文' })).toBeVisible();
-  await page.screenshot({ path: info.outputPath('task-advice-collapsed.png') });
-  await summary.focus();
-  await page.keyboard.press('Enter');
-  await expect(panel.locator('.task-card')).toBeVisible();
-  await expect(panel).toContainText('待实测');
+  await expect(page.locator('#task-advice')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('today-single-list.png') });
   await page.locator('#lang').selectOption('en');
-  await expect(panel.locator('summary')).toContainText('Tasks · AI tips');
-  await expect(panel.locator('.task-card')).toBeVisible();
+  await expect(page.locator('.paper-stop', { hasText: '读论文' })).toBeVisible();
   await page.locator('#lang').selectOption('zh');
-  await page.screenshot({ path: info.outputPath('task-advice-expanded.png') });
-  await summary.click();
-  await expect(panel.locator('.task-card')).toBeHidden();
   expect(await state(page)).toEqual(before);
   await page.reload();
-  await expect(panel.locator('.task-card')).toBeHidden();
+  await expect(page.locator('.paper-route .paper-stop')).toHaveCount(1);
 });
 
-test('empty task advice shows zero and its example is reachable after expansion', async ({ page }) => {
+test('empty today omits the redundant panel in both themes and capture restores the event list', async ({ page }, info) => {
   await open(page, { entries: [] });
-  await expect(page.locator('#task-advice .task-count')).toHaveText('0');
-  await expandTasks(page);
-  await expect(page.locator('#task-advice')).toContainText('还没有事项');
-  await page.locator('#task-advice [data-act="capture-example"]').click();
-  await expect(page.locator('#cap-text')).toHaveValue('上午九点到十点读论文');
+  for (const theme of ['standard', 'designer']) {
+    await page.locator('#appearance-select').selectOption(theme);
+    await expect(page.locator('.paper-route')).toHaveCount(0);
+    await expect(page.locator('.paper-robot')).toHaveCount(0);
+    await expect(page.locator('[data-act="paper-capture"]')).toHaveCount(0);
+    await expect(page.locator('#cap-text')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: info.outputPath('empty-today-' + theme + '.png'), fullPage: true });
+    await page.locator('#cap-text').fill('14:00–15:00 开会');
+    await page.locator('#capGo').click();
+    await page.locator('[data-act="draft-commit"]').click();
+    await expect(page.locator('.paper-route .paper-stop')).toHaveCount(1);
+    await page.locator('.paper-route .paper-event').click();
+    await page.locator('.sheet [data-act="del"]').click();
+    await expect(page.locator('.paper-route')).toHaveCount(0);
+  }
 });

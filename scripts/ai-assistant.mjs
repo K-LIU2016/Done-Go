@@ -4,6 +4,16 @@ export const ASSISTANT_SYSTEM = '你是 Done&Go（探戈）的建议助手，帮
 const MODES = ['chat', 'priorities', 'models', 'reflection', 'test'];
 const MODE_TIERS = { chat: 'heavy', priorities: 'standard', models: 'standard', reflection: 'standard', test: 'light' };
 const TIER_ENV = { heavy: 'TANGO_AI_MODEL_HEAVY', standard: 'TANGO_AI_MODEL_STANDARD', light: 'TANGO_AI_MODEL_LIGHT' };
+const STREAM_TOTAL_MS = 300000;
+const STREAM_TOTAL_MAX_MS = 600000;
+
+function budgetMs(options, config, tier, env) {
+  const explicit = Number(options.timeoutMs);
+  if (Number.isInteger(explicit) && explicit > 0 && explicit <= STREAM_TOTAL_MAX_MS) return explicit;
+  const fromEnv = Number(env.TANGO_AI_TIMEOUT_MS);
+  if (Number.isInteger(fromEnv) && fromEnv >= 1000 && fromEnv <= STREAM_TOTAL_MAX_MS) return fromEnv;
+  return config.reasoningEffort === 'xhigh' && tier === 'heavy' ? 120000 : 25000;
+}
 
 export function assistantError(code, status = 502) { return Object.assign(new Error(code), { code, status }); }
 
@@ -104,7 +114,7 @@ export function createAssistant(options = {}) {
           const text = contentText(anthropic, value);
           if (typeof text !== 'string' || !text.trim() || text.length > 24000) throw assistantError('TANGO_AI_RESPONSE_INVALID');
           return { content: [{ type: 'text', text: text.split(config.key).join('[redacted]') }] };
-        }, options.timeoutMs || (config.reasoningEffort === 'xhigh' && tier === 'heavy' ? 120000 : 25000), signal);
+        }, budgetMs(options, config, tier, env), signal);
       } catch (error) { if (error.code?.startsWith('TANGO_AI_')) throw error; throw assistantError('TANGO_AI_UPSTREAM_FAILED'); }
       finally { active--; }
     },
@@ -118,7 +128,12 @@ export function createAssistant(options = {}) {
       const onAbort = () => abort.abort();
       signal?.addEventListener('abort', onAbort, { once: true });
       if (signal?.aborted) abort.abort();
-      const timer = setTimeout(() => { timedOut = true; abort.abort(); }, options.timeoutMs || (config.reasoningEffort === 'xhigh' && tier === 'heavy' ? 120000 : 25000));
+      const idleMs = budgetMs(options, config, tier, env);
+      const deadline = Date.now() + Math.min(Math.max(idleMs, STREAM_TOTAL_MS), STREAM_TOTAL_MAX_MS);
+      let timer;
+      const rearm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; abort.abort(); }, idleMs); };
+      const pastDeadline = () => { if (Date.now() < deadline) return false; timedOut = true; abort.abort(); return true; };
+      rearm();
       try {
         const anthropic = config.provider === 'anthropic';
         const headers = anthropic ? { 'x-api-key': config.key, 'anthropic-version': '2023-06-01' } : { Authorization: 'Bearer ' + config.key };
@@ -127,6 +142,8 @@ export function createAssistant(options = {}) {
         if (!anthropic && config.reasoningEffort !== undefined && tier === 'heavy') payload.reasoning_effort = config.reasoningEffort;
         const response = await send(config.url, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), redirect: 'error', signal: abort.signal });
         if (!response.ok) { await response.body?.cancel().catch(() => {}); throw assistantError('TANGO_AI_UPSTREAM_FAILED'); }
+        if (pastDeadline()) throw assistantError('TANGO_AI_TIMEOUT', 504);
+        rearm();
         if (anthropic || !response.body) {
           let value; try { value = JSON.parse(await readLimited(response, options.responseBytes || 192 * 1024, abort.signal)); } catch (error) { if (error.code?.startsWith('TANGO_AI_')) throw error; throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
           const text = contentText(anthropic, value);
@@ -150,6 +167,8 @@ export function createAssistant(options = {}) {
           for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
+            if (pastDeadline()) throw assistantError('TANGO_AI_TIMEOUT', 504);
+            rearm();
             bytes += value.byteLength;
             if (bytes > (options.responseBytes || 192 * 1024)) throw assistantError('TANGO_AI_RESPONSE_TOO_LARGE');
             buffer += decoder.decode(value, { stream: true });
@@ -168,8 +187,8 @@ export function createAssistant(options = {}) {
           if (!sawDone || !total.trim()) throw assistantError('TANGO_AI_RESPONSE_INVALID');
         } finally { await reader.cancel().catch(() => {}); }
       } catch (error) {
-        if (error.code?.startsWith('TANGO_AI_')) throw error;
         if (timedOut) throw assistantError('TANGO_AI_TIMEOUT', 504);
+        if (error.code?.startsWith('TANGO_AI_')) throw error;
         if (signal?.aborted || abort.signal.aborted) throw assistantError('TANGO_AI_ABORTED', 499);
         throw assistantError('TANGO_AI_UPSTREAM_FAILED');
       } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); active--; }

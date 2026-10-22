@@ -188,3 +188,59 @@ test('streamChat rejects empty streams and falls back to one-shot Anthropic resp
   for await (const chunk of app.streamChat({ prompt: 'hello' })) out.push(chunk);
   assert.deepEqual(out, ['一条回答']);
 });
+
+test('streamChat keeps a slow steady stream alive past the one-shot budget and aborts only when data stops', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const frame = text => new TextEncoder().encode('data: ' + JSON.stringify({ choices: [{ delta: { content: text } }] }) + '\n\n');
+  let push, close;
+  const body = new ReadableStream({ start(controller) { push = controller.enqueue.bind(controller); close = controller.close.bind(controller); } });
+  const app = createAssistant({ config, fetch: async () => new Response(body) });
+  push(frame('一'));
+  const iterator = app.streamChat({ prompt: 'hello', mode: 'chat', stream: true })[Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).value, '一');
+  push(frame('二'));
+  assert.equal((await iterator.next()).value, '二');
+  t.mock.timers.tick(24000);
+  push(frame('三'));
+  assert.equal((await iterator.next()).value, '三');
+  t.mock.timers.tick(24000);
+  push(new TextEncoder().encode('data: [DONE]\n\n'));
+  close();
+  assert.equal((await iterator.next()).done, true);
+});
+
+test('streamChat reports a timeout when the upstream stalls instead of aborting a healthy stream', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let push;
+  const body = new ReadableStream({ start(controller) { push = controller.enqueue.bind(controller); } });
+  const app = createAssistant({ config, fetch: async (_url, { signal }) => {
+    signal.addEventListener('abort', () => body.cancel().catch(() => {}), { once: true });
+    return new Response(body);
+  } });
+  push(new TextEncoder().encode('data: ' + JSON.stringify({ choices: [{ delta: { content: '一' } }] }) + '\n\n'));
+  const iterator = app.streamChat({ prompt: 'hello', mode: 'chat', stream: true })[Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).value, '一');
+  const stalled = iterator.next().catch(error => error.code);
+  t.mock.timers.tick(25000);
+  assert.equal(await stalled, 'TANGO_AI_TIMEOUT');
+});
+
+test('TANGO_AI_TIMEOUT_MS raises the upstream budget and invalid values keep the default', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pendingFetch = async (_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+  });
+  let raisedCode, fallbackCode, optionCode;
+  const raised = createAssistant({ config, env: { TANGO_AI_TIMEOUT_MS: '40000' }, fetch: pendingFetch }).chat({ prompt: 'hello' }).catch(error => { raisedCode = error.code; return error.code; });
+  const fallback = createAssistant({ config, env: { TANGO_AI_TIMEOUT_MS: 'soon' }, fetch: pendingFetch }).chat({ prompt: 'hello' }).catch(error => { fallbackCode = error.code; return error.code; });
+  const invalidOption = createAssistant({ config, timeoutMs: 0, env: {}, fetch: pendingFetch }).chat({ prompt: 'hello' }).catch(error => { optionCode = error.code; return error.code; });
+  t.mock.timers.tick(25000);
+  await Promise.resolve();
+  assert.equal(raisedCode, undefined);
+  assert.equal(fallbackCode, 'TANGO_AI_TIMEOUT');
+  assert.equal(optionCode, 'TANGO_AI_TIMEOUT');
+  t.mock.timers.tick(15000);
+  await Promise.resolve();
+  assert.equal(raisedCode, 'TANGO_AI_TIMEOUT');
+  await Promise.all([raised, fallback, invalidOption]);
+});

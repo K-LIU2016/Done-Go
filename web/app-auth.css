@@ -1,0 +1,11 @@
+.auth-locked #view,.auth-locked .tabs,.auth-locked .foot,.auth-locked .companion-entry,.auth-locked #app-auth-logout,.auth-locked #app-users-link,.auth-locked .overlay { display:none!important; }
+#app-auth { padding-block:32px; }
+#app-auth:empty { display:none; }
+#app-auth-logout[hidden] { display:none!important; }
+.auth-frame { width:min(100%,440px); margin-inline:auto; display:grid; gap:20px; }
+.auth-frame h1 { font-size:clamp(24px,4vw,32px); }
+.auth-frame form { display:grid; gap:16px; }
+.auth-frame .field { margin:0; }
+.auth-frame input { width:100%; min-height:44px; }
+.auth-switch { display:flex; gap:12px; flex-wrap:wrap; }
+.auth-notice { color:var(--warm); overflow-wrap:anywhere; }

@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// Explicit engineering fixtures. Ordinary user UI is covered by completion-user.spec.ts.
+test.beforeEach(async ({ page }) => { await page.addInitScript(() => { Object.defineProperty(window, '__TANGO_DEVELOPER_UI__', { value: true }); }); });
+
 const task = { id: 'paper', date: '2026-10-17', title: '论文修改', start: '09:00', end: '10:00', kind: 'create', prio: 3 };
 const state = { v: 1, pv: 5, mode: 'real', name: 'private-owner', wake: 960, entries: [task], trials: [], drafts: [], fw: {}, pal: 0, sound: false };
 async function open(page: Page, configured = false, consent = configured, configGate?: Promise<void>) {
@@ -49,7 +52,9 @@ test('the configured gateway answers with the selected model even when legacy co
     await route.fulfill({ headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: 'data: ' + JSON.stringify({ text: '这是受控模型的真实回答。' }) + '\n\ndata: [DONE]\n\n' });
   });
   await page.locator('[data-act="assistant-open"]').first().click();
-  await expect(page.locator('#assistant-connection')).toContainText('fixture-model');
+  await expect(page.locator('#assistant-connection')).toBeHidden();
+  await expect(page.locator('#assistant-connection')).toBeEmpty();
+  await expect(page.locator('#assistant-root')).not.toContainText('fixture-model');
   await expect(page.locator('#assistant-root')).not.toContainText('本地引导');
   await expect(page.locator('[data-companion-local]')).toHaveCount(0);
   await page.locator('#assistant-message').fill('请根据我的问题直接回答');
@@ -120,15 +125,38 @@ test('chat is excluded from task suggestions until the user enables shared conve
   await expect(page.locator('#assistant-use-chat')).toBeChecked();
 });
 
-test('review opens a reflective conversation while time facts retain their source and causal limits', async ({ page }) => {
-  await open(page);
+test('review opens reflection without sharing facts until the user opts in', async ({ page }) => {
+  await open(page, true);
+  const contexts: any[] = [];
+  await page.route('**/api/assistant/chat', async route => {
+    const prompt = route.request().postDataJSON().prompt;
+    contexts.push(JSON.parse(prompt.split('\nCONTEXT_JSON\n')[1]));
+    await route.fulfill({ json: { content: [{ type: 'text', text: JSON.stringify({ reply: '受控回顾模型回答。', suggestions: [] }) }] } });
+  });
   await page.goto('/#review');
   await page.locator('[data-act="assistant-reflect"]').click();
   await expect(page.locator('#assistant-mode')).toHaveValue('reflection');
-  await expect(page.locator('#assistant-root')).toContainText('差值不等于 AI 的贡献');
+  await expect(page.locator('#assistant-root')).not.toContainText('差值不等于 AI 的贡献');
+  await page.locator('#assistant-privacy summary').click();
+  await expect(page.locator('#assistant-share-metrics')).not.toBeChecked();
+  expect(await page.locator('.companion-facts').count()).toBe(0);
   await page.locator('#assistant-message').fill('帮我回顾今天对时间的安排');
   await page.locator('#assistant-send').click();
-  await expect(page.locator('.companion-message').last()).not.toBeEmpty();
+  await expect(page.locator('#assistant-send')).toBeEnabled();
+  await expect(page.locator('.companion-message').last()).toContainText('受控回顾模型回答。');
+  expect(contexts).toHaveLength(1);
+  expect(contexts[0]).toMatchObject({ tasks: [], metrics: {}, modelEvidence: [] });
+  await page.locator('#assistant-share-metrics').check();
+  await expect(page.locator('.companion-facts')).toContainText('共享时段 2026-10-11 → 2026-10-17');
+  await expect(page.locator('.companion-facts')).toContainText('差值不等于 AI 的贡献');
+  await page.locator('#assistant-message').fill('请根据我主动分享的时间汇总回顾');
+  await page.locator('#assistant-send').click();
+  await expect(page.locator('#assistant-send')).toBeEnabled();
+  await expect(page.locator('.companion-message').last()).toContainText('受控回顾模型回答。');
+  expect(contexts).toHaveLength(2);
+  expect(contexts[1].metrics.period).toEqual({ from: '2026-10-11', to: '2026-10-17' });
+  expect(contexts[1].tasks).toEqual([]);
+  expect(contexts[1].modelEvidence).toEqual([]);
   expect((await page.evaluate(() => JSON.parse(localStorage.getItem('tango-donego.web.v1')!))).trials).toEqual([]);
 });
 

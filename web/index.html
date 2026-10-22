@@ -1,10 +1,19 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="auth-locked">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="/appearance.js"></script>
+<script src="/locale-copy.js"></script>
+<script src="/collaboration-copy.js"></script>
+<link rel="stylesheet" href="/app-auth.css">
+<script src="/app-auth.js"></script>
+<link rel="stylesheet" href="/users-admin.css">
+<script src="/users-admin.js"></script>
+<link rel="stylesheet" href="/collaboration.css">
 <!-- TANGO:BODY-START -->
 <title>探戈 Done&amp;Go</title>
+<link rel="icon" type="image/png" href="/brand/robot-logo.png">
 <link rel="stylesheet" href="/assistant.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -212,16 +221,7 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .bubble.boom { pointer-events: none; animation: boom .38s cubic-bezier(.3,1.6,.5,1) forwards; }
 @keyframes boom { 0% { scale: 1; opacity: 1; } 40% { scale: 1.28; opacity: 1; } 100% { scale: 0; opacity: 0; } }
 .fw-cv { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 40; }
-.fw-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
-.fw-bar svg { flex: none; width: 30px; height: 30px; color: var(--deep); }
-.fw-bar .fw-t { display: grid; gap: 1px; line-height: 1.3; }
-.fw-bar .fw-n { font-size: 15px; }
-.fw-bar .fw-n b { font-family: var(--font-serif); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; margin: 0 2px; }
-.fw-bar .fw-c { font-size: 12.5px; color: var(--text-2); }
-.fw-bar .fw-t { flex: 1; }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
-.fw-bar.bump svg { animation: fwspin .9s ease-out; }
-.fw-bar.bump .fw-n b { display: inline-block; animation: pop .6s ease-out; }
 @keyframes fwspin { 0% { rotate: 0deg; scale: .6; } 60% { scale: 1.25; } 100% { rotate: 180deg; scale: 1; } }
 .toast button { margin-left: 12px; border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
 .cal-head { display: flex; align-items: center; gap: 8px; }
@@ -333,6 +333,18 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .field input, .field textarea, .field select { min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); width: 100%; }
 .field textarea { min-height: 100px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.paper-line-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px; }
+.paper-line-side { min-width: 0; }
+.leaf-related { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.leaf-related h3 { font-size: 14px; margin: 6px 0; }
+.leaf-related-item { margin: 8px 0; display: grid; gap: 4px; }
+.discovery-related { margin-top: 8px; }
+.discovery-related summary { cursor: pointer; font-size: 13px; color: var(--text-2); }
+.discovery-related .reuse-task { width: 100%; }
+@media (min-width: 1100px) {
+  .paper-line-cols { grid-template-columns: minmax(0, 1fr) 350px; align-items: start; }
+  .paper-line-side { position: sticky; top: 12px; }
+}
 .overlay { position: fixed; inset: 0; background: rgba(10, 14, 17, .45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
 .sheet { width: min(560px, 100%); max-height: 88dvh; overflow-y: auto; background: var(--surface); border-radius: 24px 24px 0 0; padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 16px; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -430,15 +442,14 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .timeline-item { display: grid; gap: 8px; padding-block: 14px; border-bottom: 1px solid var(--line); }
 .timeline-item button { min-height: 44px; padding: 0; border: 0; background: none; text-align: start; color: var(--text); cursor: pointer; }
 .timeline-item .duration { color: var(--text-2); font-size: 13px; }
-.tree-hint { text-align: center; }
 .daynav .nb { display: none; }
-.tile-av .slot-label { font-size: 12px; }
-.fw-bar { background: none; border: 0; padding: 0; }
 button:active, .btn:active { transform: scale(.98); }
 @media (min-width: 1100px) { .daynav .nb { display: inline; } }
 @media (max-width: 420px) { .app { padding-inline: 16px; } .draft { grid-template-columns: minmax(0, 1fr) auto; } .draft .pdot { grid-column: 1; justify-self: start; } .draft .kind { grid-column: 2; grid-row: 1; } .draft .x { grid-column: 2; grid-row: 2; } .draft .times { flex-wrap: wrap; } .metric-row .big small { font-size: 13px; } .metric-row .saved-value { font-size: 28px; } }
 @media (prefers-reduced-motion: reduce) { .mic.on::after { animation: none; } }
 </style>
+<link rel="stylesheet" href="/paper.css">
+<link rel="stylesheet" href="/appearance.css">
 
 <div class="forest" aria-hidden="true">
   <svg class="tree-bg" viewBox="0 0 300 420"><g class="sway">
@@ -455,9 +466,11 @@ button:active, .btn:active { transform: scale(.98); }
   <span class="leaf-f" style="left:33%;animation-duration:27s;animation-delay:-21s"></span>
 </div>
 <div class="app">
-  <header class="top"><div class="brand"><a class="logo" href="#today">探戈<span class="logo-en">Done&amp;Go</span></a><span class="slogan">事情搞定，时间归你。</span></div><div class="top-actions"><button class="companion-entry" data-act="assistant-open">和探戈聊聊</button><label class="lang"><span class="sr">语言</span><select id="lang" aria-label="语言"><option value="zh">中文</option><option value="en">English</option><option value="ru">Русский</option><option value="th">ไทย</option><option value="ar">العربية</option><option value="ko">한국어</option></select></label></div></header>
+  <a class="skip-link" href="#view" data-act="skip-content">跳到内容</a>
+<header class="top"><div class="brand"><a class="logo" href="#today"><img class="brand-logo" src="/brand/robot-logo.png" width="42" height="38" alt="">探戈<span class="logo-en">Done&amp;Go</span></a><span class="slogan">从一件件的小事里拥抱我们的大时代</span></div><div class="top-actions"><button class="companion-entry" data-act="assistant-open">和探戈聊聊</button><label class="lang"><span class="sr">语言</span><select id="lang" aria-label="语言"><option value="zh">中文</option><option value="en">English</option><option value="ru">Русский</option><option value="th">ไทย</option><option value="ar">العربية</option><option value="ko">한국어</option></select></label><label id="appearance-control" class="appearance-control"><span id="appearance-label" class="appearance-caption" aria-hidden="true">外观</span><select id="appearance-select" class="appearance-select" aria-label="外观"><option value="standard">标准主题</option><option value="swiss">瑞士研究桌面</option><option value="archive">个人时间档案</option><option value="designer">夜间观测花园</option><option value="workbench">知识工作台</option></select></label></div></header>
   <aside id="runtime-notice" class="small status warn" role="status" hidden></aside>
-  <main id="view"></main>
+  <div id="app-auth" aria-live="polite"></div>
+  <main id="view" tabindex="-1"></main>
   <footer class="foot"><a id="footSet" href="#settings">设置</a></footer>
 </div>
 <nav class="tabs" id="tabs" aria-label="主导航"></nav>
@@ -469,6 +482,8 @@ button:active, .btn:active { transform: scale(.98); }
 <script src="/agreements.js"></script>
 <script src="/assistant-core.js"></script>
 <script src="/assistant-ui.js"></script>
+<script src="/collaboration-ui.js"></script>
+<script src="/collaboration-personal.js"></script>
 <script id="tango-time-core">
 window.TangoTime = (function () {
   'use strict';
@@ -515,11 +530,11 @@ window.TangoTime = (function () {
     totals.netDifference = totals.samples && !totals.unknownRecording ? totals.difference - totals.recording : null;
     return totals;
   }
-  function estimate(trials, category, minutes) {
-    if (!category || category === 'other' || category === 'none' || !Number.isFinite(minutes) || minutes <= 0) return null;
+  function estimate(trials, category, minutes, dataMode) {
+    if (['real', 'demo'].indexOf(dataMode) < 0 || !category || category === 'other' || category === 'none' || !Number.isFinite(minutes) || minutes <= 0) return null;
     var seen = {};
     var records = trials.filter(function (trial) {
-      if (!accepted(trial) || trial.usedAI !== true || trial.category !== category || !trial.taskId) return false;
+      if (!accepted(trial) || trial.dataMode !== dataMode || trial.usedAI !== true || trial.category !== category || !trial.taskId) return false;
       var key = trial.taskId + ':' + trial.date;
       if (seen[key]) return false; seen[key] = true; return true;
     });
@@ -562,6 +577,8 @@ window.TangoTime = (function () {
     var modelId = modelIds.indexOf(options.modelId) >= 0 ? options.modelId : 'unknown';
     var modelVersion = typeof options.modelVersion === 'string' && /^[a-z0-9._-]{1,60}$/i.test(options.modelVersion) ? options.modelVersion : '';
     var inputScale = ['short', 'medium', 'long'].indexOf(options.inputScale) >= 0 ? options.inputScale : 'unknown';
+    // Self-reported helpfulness is separate from the result acceptance record; it never affects quality or savings.
+    var helpful = usedAI && ['helpful', 'not-helpful', 'unclear'].indexOf(options.helpful) >= 0 ? options.helpful : null;
     var learning = null, inputLearning = options.learning;
     if (inputLearning && typeof inputLearning === 'object') {
       var ownAttempt = ['yes', 'no'].indexOf(inputLearning.ownAttempt) >= 0 ? inputLearning.ownAttempt : 'unknown';
@@ -570,19 +587,48 @@ window.TangoTime = (function () {
       var skills = ['decomposition', 'context', 'constraints', 'verification', 'privacy'].filter(function (key) { return Array.isArray(inputLearning.skills) && inputLearning.skills.indexOf(key) >= 0; });
       if (ownAttempt !== 'unknown' || hintLevel !== 'unknown' || independentRetest !== 'not-tested' || skills.length) learning = { ownAttempt: ownAttempt, hintLevel: hintLevel, independentRetest: independentRetest, skills: skills, measurement: 'self-report' };
     }
-    var before = end - start, newEnd = Math.min(1440, start + actual), updated = Object.assign({}, entry, { done: true, end: clock(newEnd), completion: { before: before, actual: actual, usedAI: !!usedAI, quality: quality, costs: costs, plannedEnd: entry.end } });
+    var before = end - start, newEnd = Math.min(1440, start + actual), updated = Object.assign({}, entry, { done: true, end: clock(newEnd), completion: { before: before, actual: actual, usedAI: !!usedAI, quality: quality, costs: costs, plannedEnd: entry.end, helpful: helpful } });
     updated.completion.learning = learning;
     updated.completion.recording = recording; updated.completion.modelId = modelId; updated.completion.modelVersion = modelVersion; updated.completion.inputScale = inputScale; updated.completion.anonymousEvaluationConsent = options.anonymousEvaluationConsent === true;
     updated.ai = usedAI ? { used: true } : null;
     var freed = quality === 'accepted' && actual < before ? { minutes: before - actual, start: clock(start + actual), end: entry.end } : null;
-    return { entry: updated, trial: { taskId: entry.id, date: entry.date, title: entry.title, before: before, after: actual, usedAI: !!usedAI, category: category, quality: quality, costs: costs, learning: learning, recording: recording, modelId: modelId, modelVersion: modelVersion, inputScale: inputScale, anonymousEvaluationConsent: options.anonymousEvaluationConsent === true, dataMode: options.dataMode === 'real' ? 'real' : options.dataMode === 'demo' ? 'demo' : 'unknown', confirmed: true, baseline: 'plan', measurement: 'self-report' }, freed: freed };
+    return { entry: updated, trial: { taskId: entry.id, date: entry.date, title: entry.title, before: before, after: actual, usedAI: !!usedAI, category: category, quality: quality, costs: costs, learning: learning, recording: recording, modelId: modelId, modelVersion: modelVersion, inputScale: inputScale, helpful: helpful, anonymousEvaluationConsent: options.anonymousEvaluationConsent === true, dataMode: options.dataMode === 'real' ? 'real' : options.dataMode === 'demo' ? 'demo' : 'unknown', confirmed: true, baseline: 'plan', measurement: 'self-report' }, freed: freed };
   }
   function reviseCompletion(entry, input, usedAI, category, options) {
     if (!entry.completion || entry.completion.quality === 'accepted') return null;
     var original = Object.assign({}, entry, { done: false, end: entry.completion.plannedEnd });
     return completeTask(original, input, usedAI, category, options);
   }
-  return { occupiedMinutes: occupiedMinutes, unplannedMinutes: function (entries, wake) { return Math.max(0, (Number.isFinite(wake) ? wake : 960) - occupiedMinutes(entries)); }, confirmedSavings: confirmedSavings, recordedDurations: recordedDurations, personalUseSummary: personalUseSummary, estimate: estimate, completeTask: completeTask, reviseCompletion: reviseCompletion };
+  function recordCompletion(entry, input, usedAI, modelName) {
+    if (!entry || entry.kind === 'stillness') return null;
+    var raw = String(input == null ? '' : input).trim(), actual = raw === '' ? null : Number(raw);
+    if (raw !== '' && (!/^\d+$/.test(raw) || !Number.isInteger(actual) || actual < 0 || actual > 1440)) return null;
+    var old = entry.completion || {}, plannedEnd = old.plannedEnd || entry.end;
+    var before = Number.isInteger(old.before) ? old.before : minute(plannedEnd) - minute(entry.start);
+    if (!Number.isFinite(before) || before < 0 || before > 1440) return null;
+    var name = usedAI && typeof modelName === 'string' ? modelName.trim().slice(0, 80) : '';
+    var known = ['claude-sonnet-5.5', 'gpt-5.4', 'gemini-3.1-pro-preview'];
+    var completion = Object.assign({}, old, { actual: actual, timeRecorded: actual !== null, before: before, plannedEnd: plannedEnd, usedAI: !!usedAI, modelName: name, modelId: known.indexOf(name) >= 0 ? name : 'unknown', quality: 'pending' });
+    if (actual !== old.actual) delete completion.costs;
+    var updated = Object.assign({}, entry, { done: true, completion: completion, ai: usedAI ? { used: true } : null });
+    if (entry.start === entry.end && actual !== 0) updated.end = plannedEnd;
+    if (actual !== old.actual && updated.freed && updated.freed.pending) delete updated.freed;
+    // Completing a task is not an effectiveness judgement or a new time reservation.
+    var trial = actual === null || before <= 0 ? null : { taskId: entry.id, date: entry.date, title: entry.title, before: before, after: actual, usedAI: !!usedAI, modelId: completion.modelId, modelName: name, quality: 'pending', confirmed: true, baseline: 'plan', measurement: 'self-report', anonymousEvaluationConsent: false };
+    return { entry: updated, trial: trial };
+  }
+  function completionSummary(entries) {
+    var result = { completed: 0, recorded: 0, unrecorded: 0, minutes: 0, usedAI: 0 };
+    (entries || []).forEach(function (entry) {
+      if (!entry || !entry.completion || entry.kind === 'stillness') return;
+      result.completed++;
+      if (entry.completion.usedAI === true) result.usedAI++;
+      if (Number.isInteger(entry.completion.actual) && entry.completion.actual >= 0) { result.recorded++; result.minutes += entry.completion.actual; }
+      else result.unrecorded++;
+    });
+    return result;
+  }
+  return { occupiedMinutes: occupiedMinutes, unplannedMinutes: function (entries, wake) { return Math.max(0, (Number.isFinite(wake) ? wake : 960) - occupiedMinutes(entries)); }, confirmedSavings: confirmedSavings, recordedDurations: recordedDurations, personalUseSummary: personalUseSummary, estimate: estimate, completeTask: completeTask, reviseCompletion: reviseCompletion, recordCompletion: recordCompletion, completionSummary: completionSummary };
 })();
 </script>
 <script id="tango-method-core">
@@ -647,12 +693,34 @@ window.TangoMethods = (function () {
     (Array.isArray(uses) ? uses : []).forEach(function (use) { if (use && USE_STATUS.indexOf(use.status) >= 0) stats[use.status]++; });
     return stats;
   }
-  return { CATEGORIES: CATEGORIES, USE_STATUS: USE_STATUS, MODEL_IDS: MODEL_IDS, buildMethodDraft: buildMethodDraft, matchMethod: matchMethod, applyAllowed: applyAllowed, useStats: useStats };
+
+  // Local, explainable matching between a task title and external content.
+  // Shared CJK bigrams or Latin words become the stated reason; no scores, no network.
+  var TOKEN_STOP = { '我们': 1, '自己': 1, '时间': 1, '记录': 1, '使用': 1, '可以': 1, '一个': 1, '什么': 1, '怎么': 1, '以及': 1, '还是': 1, '然后': 1, '因为': 1, '但是': 1, '如果': 1, '这个': 1, '没有': 1, '就是': 1, '一些': 1, '一下': 1, '一起': 1, 'and': 1, 'the': 1, 'for': 1, 'with': 1, 'how': 1, 'why': 1, 'what': 1, 'new': 1, 'ai': 1 };
+  function grams(text) {
+    var out = {}, words = String(text || '').toLowerCase().match(/[一-鿿]{2,}|[a-z][a-z0-9-]{2,}/g) || [];
+    words.forEach(function (word) {
+      if (/^[a-z]/.test(word)) { if (!TOKEN_STOP[word]) out[word] = 1; return; }
+      for (var i = 0; i + 2 <= word.length; i++) { var gram = word.slice(i, i + 2); if (!TOKEN_STOP[gram]) out[gram] = 1; }
+    });
+    return out;
+  }
+  function sharedTokens(a, b, limit) {
+    var first = grams(a), second = grams(b), shared = [];
+    Object.keys(first).forEach(function (token) { if (second[token]) shared.push(token); });
+    shared.sort(function (x, y) { return y.length - x.length || (x < y ? -1 : 1); });
+    return shared.slice(0, limit || 3);
+  }
+  return { CATEGORIES: CATEGORIES, USE_STATUS: USE_STATUS, MODEL_IDS: MODEL_IDS, buildMethodDraft: buildMethodDraft, matchMethod: matchMethod, applyAllowed: applyAllowed, useStats: useStats, sharedTokens: sharedTokens };
 })();
 </script>
 <script>
-(function () {
+window.TangoAppAuth.start(function (authUser) {
   'use strict';
+  // Deliberate developer-harness opt-in only. No public setting, URL or storage toggle.
+  var localStorage = window.TangoAccountStorage;
+  var usersAdmin = window.TangoUsersAdmin.create({user:authUser,route:route,refresh:render});
+  var developerUI = window.__TANGO_DEVELOPER_UI__ === true;
 
   var KINDS = {
     necessary: { label: '必要', color: 'var(--k-nec)' },
@@ -689,6 +757,7 @@ window.TangoMethods = (function () {
   var Methods = window.TangoMethods;
   var METHOD_CAT_LABELS = { read: '读论文与报告', write: '写与改', code: '代码与开发', meet: '会议与纪要', mail: '邮件与回复', screen: '资料筛选', admin: '行政与整理', grade: '批改与出题', study: '学习与复习', food: '吃饭准备', travel: '行程与通勤', exercise: '运动安排', connect: '陪伴与沟通', none: '休息整理', other: '其他' };
   var METHOD_USE_LABELS = { applied: '已应用 · 待完成', aborted: '应用后中止', completed: '完成并验收', dismissed: '已忽略' };
+  var HELPFUL_LABELS = { helpful: '有帮助', 'not-helpful': '没帮助', unclear: '不确定' };
 
   // keyword → kind, checked in order; the first hit wins
   var KIND_WORDS = [
@@ -760,6 +829,8 @@ window.TangoMethods = (function () {
     return emptyState();
   }
   var S = load();
+  if (!S.mode) S.mode = authUser.demo ? 'demo' : 'real';
+  var collaboration = null, collaborationPersonal = null;
   S.trials = Array.isArray(S.trials) ? S.trials : [];
   S.methods = Array.isArray(S.methods) ? S.methods : [];
   S.methodUses = Array.isArray(S.methodUses) ? S.methodUses : [];
@@ -768,7 +839,8 @@ window.TangoMethods = (function () {
     try { if (localStorage.getItem(STORE_KEY) !== lastStoredRaw) { storageConflict = true; recoveryNotice = '另一个标签页已更改数据，已阻止旧快照覆盖。请先导出内存快照，再刷新检查最新记录。'; showRecoveryNotice(); return false; } return true; }
     catch (e) { memoryOnly = true; lastErrorCode = 'TANGO_STORAGE_FAILED'; return false; }
   }
-  function save() { if (!canWriteStorage()) return false; try { var nextRaw = JSON.stringify(S); localStorage.setItem(STORE_KEY, nextRaw); lastStoredRaw = nextRaw; return true; } catch (e) { memoryOnly = true; lastErrorCode = 'TANGO_STORAGE_FAILED'; recoveryNotice = '保存失败，当前更改仅在内存；请导出内存快照。'; showRecoveryNotice(); return false; } }
+  function saveBaseState(state) { if (!canWriteStorage()) return false; try { var nextRaw = JSON.stringify(state); localStorage.setItem(STORE_KEY, nextRaw); lastStoredRaw = nextRaw; return true; } catch (e) { memoryOnly = true; lastErrorCode = 'TANGO_STORAGE_FAILED'; recoveryNotice = '保存失败，当前更改仅在内存；请导出内存快照。'; showRecoveryNotice(); return false; } }
+  function save() { return collaborationPersonal ? collaborationPersonal.save() : saveBaseState(S); }
   function replaceWithSnapshot(next) {
     if (!canWriteStorage()) { toast('保存受保护或存在标签页冲突，请先导出快照并检查'); return false; }
     try { var nextRaw = JSON.stringify(next); localStorage.setItem(BACKUP_KEY, JSON.stringify(S)); localStorage.setItem(STORE_KEY, nextRaw); lastStoredRaw = nextRaw; S = next; return true; }
@@ -859,7 +931,7 @@ window.TangoMethods = (function () {
     return Object.keys(map).map(function (k) {
       var f = map[k], r = ruleFor(k);
       f.perDay = Math.round(f.minutes / f.count); f.method = r.method;
-      f.estimate = Time.estimate(S.trials || [], r.cat, f.perDay);
+      f.estimate = Time.estimate(S.trials || [], r.cat, f.perDay, S.mode);
       return f;
     }).sort(function (a, b) { return b.minutes - a.minutes; });
   }
@@ -981,7 +1053,7 @@ window.TangoMethods = (function () {
   }
   var serverCfg = null, assistantCfg = null, assistantConfigState = /^https?:$/.test(location.protocol) ? 'loading' : 'unavailable';
   var serviceStatus = { status: 'checking', version: null, runtime: 'unknown' };
-  function serviceSummary() { return '服务状态：' + ({ checking: '检查中', ok: '本地服务可用', unavailable: '不可用', unknown: '未知' }[serviceStatus.status] || '未知') + ' · 服务版本 ' + (serviceStatus.version || '未知') + ' · ' + serviceStatus.runtime; }
+  function serviceSummary() { return localizedParts(['服务状态：', ({ checking: '检查中', ok: '本地服务可用', unavailable: '不可用', unknown: '未知' }[serviceStatus.status] || '未知'), ' · ', '服务版本', ' ', serviceStatus.version ? [serviceStatus.version] : '未知', ' · ', serviceStatus.runtime === 'unknown' ? '未知' : [serviceStatus.runtime]]); }
   if (/^https?:$/.test(location.protocol)) fetch('/api/status', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('unavailable'); return r.json(); }).then(function (status) {
     serviceStatus = window.TangoPrivacy.diagnosticExport({ service: status }).service;
     var label = document.getElementById('service-status'); if (label) label.textContent = serviceSummary();
@@ -992,15 +1064,16 @@ window.TangoMethods = (function () {
   function adoptAssistantConfig(c) {
     assistantCfg = c && c.available === true && (c.provider === 'openai' || c.provider === 'anthropic') && typeof c.model === 'string' && typeof c.destination === 'string' && window.TangoPrivacy.safeEndpoint(c.destination) ? { provider: c.provider, model: c.model, destination: c.destination } : null;
     if (assistantCfg && ['low', 'medium', 'high', 'xhigh'].indexOf(c.reasoningEffort) >= 0) assistantCfg.reasoningEffort = c.reasoningEffort;
-    if (assistantCfg && c.models && typeof c.models === 'object') assistantCfg.models = { standard: typeof c.models.standard === 'string' ? c.models.standard : '', light: typeof c.models.light === 'string' ? c.models.light : '' };
+    if (assistantCfg && c.models && typeof c.models === 'object') assistantCfg.models = { heavy: typeof c.models.heavy === 'string' ? c.models.heavy : '', standard: typeof c.models.standard === 'string' ? c.models.standard : '', light: typeof c.models.light === 'string' ? c.models.light : '' };
     assistantConfigState = assistantCfg ? 'ready' : 'unavailable';
     if (companion) companion.connectionChanged();
     return assistantCfg;
   }
   var assistantP = (/^https?:$/.test(location.protocol) ? fetch('/api/assistant/config', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }) : Promise.resolve(null))
     .then(adoptAssistantConfig, function () { return adoptAssistantConfig(null); });
-  function serverTarget() {
-    if (assistantCfg) return { url: '/api/assistant/chat', protocol: 'donego', model: assistantCfg.model, destination: assistantCfg.destination, reasoningEffort: assistantCfg.reasoningEffort };
+  function serverTarget(mode) {
+    var tier = mode === 'test' ? 'light' : ['priorities', 'models', 'reflection'].indexOf(mode) >= 0 ? 'standard' : 'heavy';
+    if (assistantCfg) return { url: '/api/assistant/chat', protocol: 'donego', model: assistantCfg.models && assistantCfg.models[tier] || assistantCfg.model, destination: assistantCfg.destination, reasoningEffort: tier === 'heavy' ? assistantCfg.reasoningEffort : undefined };
     if (!serverCfg) return null;
     var ep = serverCfg.endpoints[0];
     return { url: '/api/llm' + ep.path, key: '', model: ep.model };
@@ -1039,7 +1112,7 @@ window.TangoMethods = (function () {
       }, function (e) { clearTimeout(timer); lastErrorCode = 'TANGO_MODEL_FAILED'; throw e; });
     });
   }
-  function readSSE(response, onChunk) {
+  function readSSE(response, onChunk, onActivity) {
     var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = '', full = '', failure = null;
     function handle(frame) {
       if (!frame) return;
@@ -1049,6 +1122,7 @@ window.TangoMethods = (function () {
     function pump() {
       return reader.read().then(function (chunk) {
         if (chunk.done) return;
+        if (onActivity) onActivity();
         buffer += decoder.decode(chunk.value, { stream: true });
         var parts = buffer.split('\n\n');
         buffer = parts.pop();
@@ -1073,10 +1147,12 @@ window.TangoMethods = (function () {
     return Promise.resolve(true).then(function (approved) {
       if (!approved) throw new Error('cancelled');
       var ac = window.AbortController ? new AbortController() : null;
-      var timer = setTimeout(function () { if (ac) ac.abort(); }, ms || (tg.reasoningEffort === 'xhigh' ? 130000 : 45000));
+      var timer, timeoutMs = ms || 130000;
+      function armTimeout() { clearTimeout(timer); timer = setTimeout(function () { if (ac) ac.abort(); }, timeoutMs); }
+      armTimeout();
       var body = { prompt: prompt, mode: mode, stream: true };
       return fetch(tg.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, redirect: 'error', signal: ac ? ac.signal : undefined, body: JSON.stringify(body) })
-        .then(function (r) { if (!r.ok || !r.body) throw new Error('HTTP ' + r.status); return readSSE(r, onChunk); })
+        .then(function (r) { if (!r.ok || !r.body) throw new Error('HTTP ' + r.status); return readSSE(r, onChunk, armTimeout); })
         .then(function (full) { clearTimeout(timer); return full; }, function (e) { clearTimeout(timer); lastErrorCode = 'TANGO_MODEL_FAILED'; throw e; });
     });
   }
@@ -1253,9 +1329,12 @@ window.TangoMethods = (function () {
     }, []);
   }
   function companionMetrics(period) {
-    var to = todayStr(), from = period === 'week' ? addDays(to, -6) : to;
+    var to = todayStr(), from;
+    // A review passes its exact window; the chat select keeps today / last-7-days.
+    if (period && typeof period === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(period.from || '') && /^\d{4}-\d{2}-\d{2}$/.test(period.to || '') && period.from <= period.to) { from = period.from; to = period.to; }
+    else from = period === 'week' ? addDays(to, -6) : to;
     var records = S.entries.filter(function (e) { return e.date >= from && e.date <= to; }), personal = Time.personalUseSummary(records, from, to);
-    return Object.assign({}, Time.recordedDurations(S.trials || [], from, to), { period: { from: from, to: to }, dataMode: S.mode === 'demo' ? 'demo' : 'real', timeUse: mix(records).m, personalTime: { reserved: personal.reserved, confirmedUsed: personal.confirmedUsed, unconfirmed: personal.unconfirmed, taskLinkedUsed: personal.taskLinked.confirmedUsed } });
+    return Object.assign({}, Time.recordedDurations(S.trials || [], from, to), { period: { from: from, to: to }, dataMode: S.mode === 'demo' ? 'demo' : 'real', recordedTime: Time.completionSummary(records), timeUse: mix(records).m, personalTime: { reserved: personal.reserved, confirmedUsed: personal.confirmedUsed, unconfirmed: personal.unconfirmed, taskLinkedUsed: personal.taskLinked.confirmedUsed } });
   }
   function companionModelEvidence() {
     return MODEL_IDS.map(function (modelId, index) {
@@ -1267,12 +1346,12 @@ window.TangoMethods = (function () {
       return { modelId: modelId, availability: modelAccount(index).state, measurement: 'self-report', dataMode: 'real', statistics: { samples: rows.length, accepted: totals.samples, rework: rows.filter(function (t) { return t.quality === 'rework'; }).length, before: totals.before, after: totals.after, netDifference: totals.netDifference } };
     });
   }
-  function companionTarget() {
-    return serverTarget();
+  function companionTarget(mode) {
+    return serverTarget(mode);
   }
-  function companionConnection() {
-    var target = companionTarget();
-    return target ? { available: true, loading: false, model: target.model, label: target.model + (target.reasoningEffort ? ' · ' + target.reasoningEffort : '') + ' · 服务端网关' } : assistantConfigState === 'loading' ? { available: false, loading: true, label: '正在连接模型…' } : { available: false, loading: false, label: 'AI 暂不可用，请在设置中保存服务端端点' };
+  function companionConnection(mode) {
+    var target = companionTarget(mode);
+    return target ? { available: true, loading: false, model: target.model, label: target.model + (target.reasoningEffort ? ' · ' + target.reasoningEffort : '') } : assistantConfigState === 'loading' ? { available: false, loading: true, label: '正在连接模型…' } : { available: false, loading: false, label: 'AI 暂不可用，请在设置中保存服务端端点' };
   }
   function applyCompanionSuggestion(proposal) {
     if (!canWriteStorage()) throw new Error('protected storage');
@@ -1291,11 +1370,11 @@ window.TangoMethods = (function () {
     if (!save()) { list[index] = task; throw new Error('save failed'); }
   }
   var companion = window.TangoAssistantUI.create({
-    active: function () { return route() === 'assistant'; }, route: route, refresh: function () { render(); },
-    navigate: function () { closeSheet(); if (route() === 'assistant') render(); else location.hash = 'assistant'; },
+    developerUI: developerUI, active: function () { return route() === 'assistant'; }, route: route, refresh: function () { render(); },
+    navigate: function () { if (collaboration) collaboration.closeChat(); closeSheet(); if (route() === 'assistant') render(); else location.hash = 'assistant'; },
     tasks: companionTasks, metrics: companionMetrics, modelEvidence: companionModelEvidence, connection: companionConnection,
-    request: function (prompt, mode) { return Promise.all([assistantP, serverP]).then(function () { var target = companionTarget(); if (!target) throw new Error('not configured'); return llmJSON(target, prompt, undefined, mode, false); }); },
-    requestText: function (prompt, onChunk, mode) { return Promise.all([assistantP, serverP]).then(function () { var target = companionTarget(); if (!target) throw new Error('not configured'); return llmText(target, prompt, onChunk, mode); }); },
+    request: function (prompt, mode) { return Promise.all([assistantP, serverP]).then(function () { var target = companionTarget(mode); if (!target) throw new Error('not configured'); return llmJSON(target, prompt, undefined, mode, false); }); },
+    requestText: function (prompt, onChunk, mode) { return Promise.all([assistantP, serverP]).then(function () { var target = companionTarget(mode); if (!target) throw new Error('not configured'); return llmText(target, prompt, onChunk, mode); }); },
     apply: applyCompanionSuggestion,
     modelLabel: function (modelId) { var index = MODEL_IDS.indexOf(modelId); return index >= 0 ? MODEL_REFERENCES[index][1] : modelId; },
     support: function () {
@@ -1329,7 +1408,7 @@ window.TangoMethods = (function () {
         (d.kind === 'stillness' ? '' : '<button class="pdot p' + P(d) + '" data-act="draft-prio" aria-label="优先级：' + PRIO_NAME[P(d)] + '，点按切换">' + PRIO_NAME[P(d)] + '</button>') +
         kindBtn(d.kind, 'draft-kind') + '<button class="x" data-act="draft-del" aria-label="删掉">×</button></div>';
     }).join('') + '</div>';
-    return html + '<button class="btn primary wide" data-act="draft-commit">记下</button>';
+    return '<div class="draft-review">' + html + '<button type="button" class="btn primary draft-commit" data-act="draft-commit">记下</button></div>';
   }
 
   function timeOverview(list) {
@@ -1337,8 +1416,7 @@ window.TangoMethods = (function () {
     return '<section class="time-overview" aria-label="今日时间"><div class="label">全天未排</div><div class="big" data-metric="unplanned">' + fmt(Time.unplannedMinutes(list, S.wake)) + '</div>' +
       '<div class="budget-row"><button type="button" class="budget-chip budget-edit" data-act="budget-edit" aria-label="修改今日预算" title="点击修改">今日预算 <b>' + fmtPlain(S.wake) + '</b><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3 3 3M3 13l3-.6 7-7a2.1 2.1 0 0 0-3-3l-7 7L3 13Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
       '<form id="budgetForm" class="budget-chip budget-editor" hidden><label for="today-budget">今日预算</label><input id="today-budget" type="number" inputmode="decimal" min="8" max="20" step="0.5" required value="' + (S.wake / 60) + '" aria-label="今日预算（h）"><span>h</span><button type="submit" aria-label="保存今日预算">✓</button><button type="button" data-act="budget-cancel" aria-label="取消修改预算">×</button></form>' +
-      '<span class="budget-chip">已排 <b>' + fmtPlain(occupied) + '</b></span><span class="budget-chip">今日已预留 <b>' + fmtPlain(reserved) + '</b></span></div>' +
-      '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>全天未排 = 清醒预算 − 已安排。重叠时段只计一次，预留已包含在已排中；不代表睡前剩余时间。</p></details></section>';
+      '<span class="budget-chip">已排 <b>' + fmtPlain(occupied) + '</b></span><span class="budget-chip">今日已预留 <b>' + fmtPlain(reserved) + '</b></span></div></section>';
   }
   function closeBudgetEditor() {
     var form = document.getElementById('budgetForm'), button = document.querySelector('[data-act="budget-edit"]');
@@ -1354,30 +1432,36 @@ window.TangoMethods = (function () {
     document.querySelector('.time-overview').outerHTML = timeOverview(entriesOn(todayStr()));
     document.querySelector('[data-act="budget-edit"]').focus();
   }
+  function originalText(value) { return '<span translate="no" data-user-content>' + esc(value) + '</span>'; }
+  // Strings are system copy; one-item arrays hold original user text.
+  function localizedParts(parts) { return parts.map(function (part) { return Array.isArray(part) ? part[0] : tr(part); }).join(''); }
+  function localizedLabel(parts) { return ' aria-label="' + esc(localizedParts(parts)) + '" data-local-label="' + esc(JSON.stringify(parts)) + '"'; }
+  function localizedText(parts) { return '<span data-local-text="' + esc(JSON.stringify(parts)) + '">' + esc(localizedParts(parts)) + '</span>'; }
+  function messageParts(message, values) { return tr(message).replace(/\{([a-z]+)\}/g, function (token, key) { var value = values[key]; return value == null ? token : Array.isArray(value) ? value[0] : tr(String(value)); }); }
+  function localizedMessage(message, values) { return '<span data-local-message="' + esc(message) + '" data-local-values="' + esc(JSON.stringify(values)) + '">' + esc(messageParts(message, values)) + '</span>'; }
+  function collaborationSource(entry) { return collaboration ? collaboration.sourceHTML(entry) : ''; }
   function pageToday() {
     var t = todayStr(), h = new Date().getHours(), list = entriesOn(t);
     var greet = h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
-    var html = '<div class="col"><p class="hello">' + greet + (S.name ? '，' + esc(S.name) : '') + '</p>' + timeOverview(list) +
+    var html = '<header class="paper-date"><span class="paper-day">' + t.slice(8) + '</span><div><time class="label" data-local-date="' + t + '" data-date-full datetime="' + t + '">' + esc(fmtDate(t, true)) + '</time><p class="hello">' + greet + (S.name ? ' <span translate="no" data-user-content>' + esc(S.name) + '</span>' : '') + '</p></div></header>' +
       '<section class="voice" aria-label="记录"><button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" value="' + esc(capState.text) + '" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section>' +
-      '<section class="companion-invite"><div><b>想一起理清今天？</b><p class="small muted">聊安排、选模型，也给生活留一点空间。</p></div><button class="btn sm" data-act="assistant-open">和探戈聊聊</button></section>' + pendingChoices() + taskList(list, true) + '</div><div class="col">' + bubbleField() + picker() + '</div>';
+      '<div class="today-workspace"><div class="today-bubble-panel">' + bubbleField() + '</div><aside class="col paper-tools">' + timeOverview(list) + picker() + '</aside></div>' +
+      '<section class="companion-invite"><div><b>想一起理清今天？</b></div><div class="btns"><button class="btn sm primary" data-act="priorities-today">帮我排优先级</button><button class="btn sm" data-act="assistant-open">和探戈聊聊</button></div></section>' + pendingChoices() + todayRoute(list);
     return html;
   }
-  function assistance(e) {
-    var a = aiPlan(e); if (!a) return '';
-    return '<div class="ai-inline"><span>✦ AI 辅助 · ' + (a.estimate.source === 'history' ? '个人差值 ' + rangeText(a.estimate.low, a.estimate.high) + ' min' : '待实测') + '</span><button class="btn sm" data-act="ai-tools" data-id="' + esc(e.id) + '">查看模型能力</button><button class="btn sm" data-act="assistant-priorities" data-target="entry:' + esc(e.id) + '">聊聊优先级</button></div>';
-  }
-  var taskAdviceOpen = false;
-  function taskList(list, priority) {
-    var tasks = list.slice().sort(function (a, b) { return priority ? P(a) - P(b) || toMin(a.start) - toMin(b.start) : toMin(a.start) - toMin(b.start); });
-    var header = priority ? '<details class="task-list task-advice" id="task-advice"' + (taskAdviceOpen ? ' open' : '') + '><summary><h2>事项 · AI 建议</h2><span class="task-count">' + tasks.length + '</span><svg class="task-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="task-list-body">' : '<section class="task-list timeline-list" aria-label="事项列表">';
-    return header + (tasks.length ? tasks.map(function (e) {
-      var personal = e.kind === 'stillness', title = personal && e.title === '静驻' ? '自由安排' : e.title;
-      return '<article class="task-card' + (priority ? '' : ' timeline-item') + '"><div class="task-head"><div class="task-title"><b>' + esc(title) + '</b><time>' + e.start + '–' + e.end + '</time></div><span class="small muted">' + (e.done ? e.completion && e.completion.quality !== 'accepted' ? '待验收' : '✓ 已完成' : personal ? '自己的时间' : PRIO_NAME[P(e)]) + '</span></div>' +
-        (priority ? '' : '<p class="task-meta">' + (e.completion ? e.completion.actual : dur(e)) + ' min</p>') + assistance(e) + methodAppliedHint(e) + methodHint(e) +
-        '<div class="task-actions"><button class="btn sm" data-act="leaf" data-id="' + esc(e.id) + '">详情</button>' + (!personal && (!e.done || e.completion && e.completion.quality !== 'accepted') ? '<button class="btn sm" data-act="task-finish" data-id="' + esc(e.id) + '">' + (e.done ? '验收结果' : '完成') + '</button>' : '') + '</div></article>';
-    }).join('') : '<p class="muted">还没有事项</p><button class="btn sm" data-act="capture-example">＋ 试一条</button>') + (priority ? '</div></details>' : '</section>');
+  function todayRoute(list) {
+    if (!list.length) return '';
+    var rows = list.slice().sort(function (a, b) { return toMin(a.start) - toMin(b.start); });
+    var current = rows.filter(function (e) { return !e.done && toMin(e.start) <= nowMin() && toMin(e.end) > nowMin(); });
+    var next = rows.filter(function (e) { return !e.done && toMin(e.start) > nowMin(); })[0];
+    var orient = current.length ? '<span>此刻计划：</span>' + current.map(function (e) { return originalText(e.title); }).join(' · ') : next ? '<span>下一站：</span> ' + originalText(next.title) : rows.length ? '这段时间，由你安排。' : '先记下一件今天想做的事。';
+    return '<section class="paper-route" aria-label="今日时间路线"><div class="plan-head"><h2>今天，一站一站来</h2><span class="small muted">按开始时间排列 · 非时长比例</span></div><p class="paper-orient">' + orient + '</p>' + (rows.length ? '<ol>' + rows.map(function (e) {
+      var isCurrent = current.indexOf(e) >= 0;
+      var finishBtn = developerUI ? (e.kind !== 'stillness' && (!e.done || e.completion && e.completion.quality !== 'accepted') ? '<div class="btns"><button class="btn sm" data-act="task-finish" data-id="' + esc(e.id) + '">' + (e.done ? '验收结果' : '完成 · 记录用时') + '</button></div>' : '') : eventModelLine(e);
+      return '<li class="paper-stop' + (isCurrent ? ' is-current' : '') + (e.done ? ' is-done' : '') + '"><time>' + esc(e.start) + '</time><div><button class="paper-event" data-act="leaf" data-id="' + esc(e.id) + '">' + originalText(e.title) + '</button><p class="small muted">' + localizedText(['计划', ' ', [e.start + '–' + treePlannedEntry(e).end], ' · '].concat(e.completion ? Number.isInteger(e.completion.actual) ? ['实际', ' ', [e.completion.actual], ' min'] : ['未记录用时'] : ['尚无实际用时'])) + '</p>' + finishBtn + collaborationSource(e) + methodAppliedHint(e) + methodHint(e) + (e.methodRef ? '<p class="small paper-method-ref">方法：' + originalText(e.methodRef.name) + '</p>' : '') + '</div><span class="paper-stop-state">' + (e.done ? developerUI && e.completion && e.completion.quality !== 'accepted' ? '待验收' : '✓ 完成' : isCurrent ? '此刻计划' : toMin(e.end) <= nowMin() ? '待确认' : '待开始') + '</span></li>';
+    }).join('') + '</ol>' : '') + '</section>';
   }
   function canUseTime(e) { return e.freed && (e.date > todayStr() || e.date === todayStr() && toMin(e.freed.start) >= nowMin()); }
   function timeChoice(e) {
@@ -1390,17 +1474,46 @@ window.TangoMethods = (function () {
       '<button class="btn sm" data-act="time-use" data-v="custom" data-id="' + esc(e.id) + '">另选</button></div></div>';
   }
   function pendingChoices() { return S.entries.filter(function (e) { return e.freed && e.freed.pending; }).map(timeChoice).join(''); }
+  function completionModelName(completion) {
+    if (completion.modelName) return completion.modelName;
+    var index = MODEL_IDS.indexOf(completion.modelId);
+    return index >= 0 ? MODEL_REFERENCES[index][1] : '';
+  }
+  function completionTimeLabel(completion) { return Number.isInteger(completion.actual) ? tr('实际') + ' ' + completion.actual + ' min' : tr('未记录用时'); }
+  function userFinishSheet(e) {
+    if (!e || e.kind === 'stillness') return;
+    var c = e.completion || {}, names = MODEL_IDS.slice();
+    if (assistantCfg) { names.push(assistantCfg.model); Object.keys(assistantCfg.models || {}).forEach(function (key) { names.push(assistantCfg.models[key]); }); }
+    names = names.filter(function (name, index) { return name && names.indexOf(name) === index; });
+    openSheet('<div class="user-completion"><h2>' + originalText(e.title) + '</h2><div class="field"><label for="finish-min">实际用时（分钟，可选）</label><input id="finish-min" type="number" inputmode="numeric" min="0" max="1440" step="1" placeholder="留空也可以完成" value="' + (Number.isInteger(c.actual) ? c.actual : '') + '"></div><label class="check"><input id="finish-ai" type="checkbox"' + (c.usedAI ? ' checked' : '') + '> 使用了 AI</label><div class="field" id="finish-model-wrap"' + (c.usedAI ? '' : ' hidden') + '><label for="finish-model-name">使用的模型（可选）</label><input id="finish-model-name" list="finish-model-options" maxlength="80" autocomplete="off" placeholder="选择或输入模型名称" value="' + esc(completionModelName(c)) + '"><datalist id="finish-model-options">' + names.map(function (name) { return '<option value="' + esc(name) + '"></option>'; }).join('') + '</datalist></div><p class="form-error" id="finish-error" role="alert" hidden></p><div class="btns"><button class="btn primary" data-act="finish-save" data-id="' + esc(e.id) + '">保存</button><button class="btn" data-act="close">取消</button></div></div>');
+  }
+  function saveUserCompletion(e) {
+    if (!e || !canWriteStorage()) { toast('未保存'); return; }
+    var rawMinutes = document.getElementById('finish-min').value.trim(), selectedAI = document.getElementById('finish-ai').checked, selectedModel = document.getElementById('finish-model-name').value.trim();
+    if (e.completion && (rawMinutes === '' ? null : Number(rawMinutes)) === e.completion.actual && selectedAI === !!e.completion.usedAI && (!selectedAI || selectedModel === completionModelName(e.completion))) { closeSheet(); toast('已保存'); return; }
+    var result = Time.recordCompletion(e, document.getElementById('finish-min').value, document.getElementById('finish-ai').checked, document.getElementById('finish-model-name').value);
+    if (!result) { var error = document.getElementById('finish-error'); error.hidden = false; error.textContent = tr('请输入 0–1440 的整数分钟，或留空'); return; }
+    result.entry.forecast = forecastSnapshot(e, ruleFor(e.title).cat, result.entry.completion.before, e.forecast);
+    var previousEntries = S.entries, previousTrials = S.trials;
+    replaceEntry(e, [result.entry]);
+    S.trials = S.trials.filter(function (trial) { return trial.taskId !== e.id || trial.date !== e.date; });
+    if (result.trial) { result.trial.category = ruleFor(e.title).cat; result.trial.dataMode = S.mode; S.trials.push(result.trial); }
+    if (!save()) { S.entries = previousEntries; S.trials = previousTrials; toast('未保存'); return; }
+    closeSheet(); render(); toast('已保存');
+  }
   function finishSheet(e) {
+    if (!developerUI) return userFinishSheet(e);
     if (!e || e.kind === 'stillness' || e.done && (!e.completion || e.completion.quality === 'accepted')) return;
     var c = e.completion || {}, costs = c.costs || {}, learning = c.learning || {};
     var methodDraft = methodFinishDraft(e);
     var savedMethod = S.methods.filter(function (m) { return m.origin && m.origin.taskId === e.id && m.origin.date === e.date; })[0];
     var learningOptions = function (options, selected) { return options.map(function (option) { return '<option value="' + option[0] + '"' + (selected === option[0] ? ' selected' : '') + '>' + option[1] + '</option>'; }).join(''); };
     var costInput = function (key, label) { return '<div class="field"><label for="finish-' + key + '">' + label + ' · min</label><input id="finish-' + key + '" type="number" inputmode="numeric" min="0" max="1440" step="1" value="' + (costs[key] || 0) + '"></div>'; };
-    openSheet('<h2>' + esc(e.title) + (e.done ? ' · 验收结果' : ' · 完成') + '</h2><p class="muted small">计划 ' + (c.before || dur(e)) + ' min · 总用时 = 执行 + 准备 + 核对 + 返工，不要重复填写。补验收时填写累计用时。</p>' +
+    openSheet('<h2>' + originalText(e.title) + (e.done ? ' · 验收结果' : ' · 完成') + '</h2><p class="muted small">计划 ' + (c.before || dur(e)) + ' min · 总用时 = 执行 + 准备 + 核对 + 返工，不要重复填写。补验收时填写累计用时。</p>' +
       '<div class="field"><label for="finish-min">执行用时 · min</label><input id="finish-min" type="number" inputmode="numeric" min="0" max="1440" step="1" placeholder="例如 40" value="' + (e.done ? costs.execution == null ? c.actual : costs.execution : '') + '"></div>' +
       '<details><summary>准备、核对与返工成本</summary><div class="pair">' + costInput('preparation', '准备') + costInput('checking', '核对') + '</div>' + costInput('rework', '返工') + '</details>' +
       '<label class="check"><input id="finish-ai" type="checkbox"' + (c.usedAI ? ' checked' : '') + '> 使用了 AI</label>' +
+      '<div class="field" id="finish-helpful-wrap"' + (c.usedAI ? '' : ' hidden') + '><label for="finish-helpful">AI 帮助怎么样 · 自述，可选</label><select id="finish-helpful">' + learningOptions([['none', '未记录'], ['helpful', '有帮助'], ['not-helpful', '没帮助'], ['unclear', '不确定']], c.usedAI && c.helpful ? c.helpful : 'none') + '</select><span class="small muted">只记录你的感受：不影响结果验收，不算时间收益，也不代表模型优劣。</span></div>' +
       '<div class="field"><label for="finish-recording">本次记录、切换与验收操作开销 · min</label><input id="finish-recording" type="number" min="0" max="1440" step="1" inputmode="numeric" placeholder="未记录；确认没有额外开销时填 0" value="' + (Number.isInteger(c.recording) ? c.recording : '') + '"><span class="small muted">仅填未计入上述任务用时的额外操作开销，净时间再扣除这部分；留空表示未知。</span></div>' +
       '<details><summary>任务模型证据与匿名导出 · 可选</summary><div class="field"><label for="finish-model-id">实际使用的模型</label><select id="finish-model-id"><option value="unknown">未知或未使用</option>' + MODEL_IDS.map(function (id, i) { return '<option value="' + id + '"' + (c.modelId === id ? ' selected' : '') + '>' + MODEL_REFERENCES[i][1] + '</option>'; }).join('') + '</select></div><div class="field"><label for="finish-model-version">实际型号版本或快照日期</label><input id="finish-model-version" maxlength="60" pattern="[A-Za-z0-9._-]{1,60}" placeholder="例如 2026-10-16；仅字母、数字、点、横线" value="' + esc(c.modelVersion || '') + '"></div><div class="field"><label for="finish-input-scale">输入规模</label><select id="finish-input-scale">' + learningOptions([['unknown', '未记录'], ['short', '短：约 2 千字以内'], ['medium', '中：约 2 千–2 万字'], ['long', '长：约 2 万字以上']], c.inputScale) + '</select></div><label class="check"><input id="finish-eval-consent" type="checkbox"' + (c.anonymousEvaluationConsent === true ? ' checked' : '') + '> 同意将这次真实任务的白名单指标纳入本机匿名评测导出</label><p class="small muted">仅导出型号、版本、输入规模、任务类别、验收、分项分钟；不含姓名、正文、任务 ID 或密钥。不会自动上传；示例与未同意记录不纳入。导出后无法撤回已分享的副本。</p></details>' +
       '<details><summary>学习护栏与技能练习 · 可选</summary><p class="small muted">学习事项建议先独立尝试 5 分钟，再只请求提示；核验答案后，关掉 AI 做一次独立复测。这里只记录你的自述，不判定掌握程度。</p><div class="field"><label for="finish-own-attempt">使用 AI 前先自己尝试了吗？</label><select id="finish-own-attempt">' + learningOptions([['unknown', '未记录'], ['yes', '先独立尝试过'], ['no', '没有先尝试']], learning.ownAttempt) + '</select></div><div class="field"><label for="finish-hint-level">本次请求了哪种帮助？</label><select id="finish-hint-level">' + learningOptions([['unknown', '未记录'], ['hints', '只要提示'], ['outline', '提纲或分步引导'], ['answer', '直接答案'], ['none', '未使用 AI 帮助']], learning.hintLevel) + '</select></div><div class="field"><label for="finish-retest">关闭 AI 后独立复测</label><select id="finish-retest">' + learningOptions([['not-tested', '尚未复测'], ['passed', '自述能独立完成'], ['needs-practice', '仍需练习']], learning.independentRetest) + '</select></div><fieldset><legend class="small">这次实际练习的技能</legend>' + Object.keys(SKILL_LABELS).map(function (key) { return '<label class="check"><input type="checkbox" id="finish-skill-' + key + '"' + (Array.isArray(learning.skills) && learning.skills.indexOf(key) >= 0 ? ' checked' : '') + '> ' + SKILL_LABELS[key] + '</label>'; }).join('') + '</fieldset></details>' +
@@ -1417,16 +1530,17 @@ window.TangoMethods = (function () {
       '<button class="btn primary wide" data-act="finish-save" data-id="' + esc(e.id) + '">确认</button><button class="btn wide" data-act="close">取消</button>');
   }
   function saveCompletion(e) {
+    if (!developerUI) return saveUserCompletion(e);
     var options = { quality: document.getElementById('finish-quality').value };
     options.recording = document.getElementById('finish-recording').value;
     options.modelId = document.getElementById('finish-model-id').value; options.modelVersion = document.getElementById('finish-model-version').value.trim(); options.inputScale = document.getElementById('finish-input-scale').value; options.anonymousEvaluationConsent = document.getElementById('finish-eval-consent').checked; options.dataMode = S.mode;
     if (options.modelVersion && !/^[a-z0-9._-]{1,60}$/i.test(options.modelVersion)) { var modelError = document.getElementById('finish-error'); modelError.hidden = false; modelError.textContent = '型号版本仅支持 1–60 位字母、数字、点、下划线和横线'; return; }
     options.learning = { ownAttempt: document.getElementById('finish-own-attempt').value, hintLevel: document.getElementById('finish-hint-level').value, independentRetest: document.getElementById('finish-retest').value, skills: Object.keys(SKILL_LABELS).filter(function (key) { return document.getElementById('finish-skill-' + key).checked; }) };
+    options.helpful = document.getElementById('finish-ai').checked && document.getElementById('finish-helpful') ? document.getElementById('finish-helpful').value : null;
     ['preparation', 'checking', 'rework'].forEach(function (key) { options[key] = document.getElementById('finish-' + key).value; });
     var result = e && (e.done ? Time.reviseCompletion : Time.completeTask)(e, document.getElementById('finish-min').value, document.getElementById('finish-ai').checked, ruleFor(e.title).cat, options);
     if (!result) { var error = document.getElementById('finish-error'); error.hidden = false; error.textContent = '请输入 0–1440 的整数分钟，总用时不能超过 1440'; return; }
-    var estimate = guidanceEstimate(ruleFor(e.title).cat, result.trial.before);
-    result.entry.forecast = e.forecast || { before: result.trial.before, low: estimate.low, high: estimate.high, source: estimate.source };
+    result.entry.forecast = forecastSnapshot(e, ruleFor(e.title).cat, result.trial.before, e.forecast);
     if (result.freed) result.entry.freed = Object.assign({ pending: true }, result.freed);
     var methodNote = saveMethodFromCompletion(result.entry, result.trial);
     S.methodUses.forEach(function (use) {
@@ -1441,11 +1555,22 @@ window.TangoMethods = (function () {
     else toast((result.trial.quality === 'accepted' ? '✓ 已验收' : '已记录 · 待验收') + ' · ' + result.trial.after + ' min' + (methodNote ? ' · ' + methodNote : ''));
   }
   // ---------- 我的 AI 工作手册：方法保存（D1）与找回复用（D2） ----------
+  var HINTS_KEY = 'tango-donego.hints.v1';
+  function loadHints() { try { var raw = JSON.parse(localStorage.getItem(HINTS_KEY) || 'null'); if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.muted && typeof raw.muted === 'object' && !Array.isArray(raw.muted)) return raw.muted; } catch (e) { } return {}; }
+  var hintMuted = loadHints();
+  function saveHints() { try { localStorage.setItem(HINTS_KEY, JSON.stringify({ muted: hintMuted })); return true; } catch (e) { return false; } }
+  // Muting only hides proactive suggestions; opening model help stays available.
+  // Rest and personal-stillness events keep their value without an AI question attached.
+  function aiEntry(e) {
+    if (!e || e.done || e.kind === 'stillness' || e.kind === 'restore') return '';
+    return '<button class="btn wide" data-act="event-ai" data-id="' + esc(e.id) + '">这件事用哪个 AI？</button>';
+  }
   function byMethodId(id) { return S.methods.filter(function (m) { return m.id === id; })[0] || null; }
   function usesFor(methodId) { return S.methodUses.filter(function (u) { return u.methodId === methodId; }); }
   function useForTask(taskId, methodId) { return S.methodUses.filter(function (u) { return u.taskId === taskId && u.methodId === methodId; }).slice(-1)[0] || null; }
   function methodStatusLabel(entry) {
     if (!entry.methodRef) return '';
+    if (!developerUI && entry.done) return '已完成';
     var use = useForTask(entry.id, entry.methodRef.methodId);
     if (!use) return '';
     return METHOD_USE_LABELS[use.status] || use.status;
@@ -1454,18 +1579,18 @@ window.TangoMethods = (function () {
     if (!e || e.done || e.kind === 'stillness' || e.methodRef) return '';
     var method = Methods.matchMethod(S.methods, S.methodUses, { id: e.id, category: ruleFor(e.title).cat });
     if (!method) return '';
-    return '<div class="ai-inline"><span>✦ 你有一个相关方法 · ' + esc(method.name) + '</span><button class="btn sm" data-act="method-view" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '">使用相关方法</button><button class="btn sm" data-act="method-dismiss" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '">忽略</button></div>';
+    return '<div class="ai-inline"><span>✦ 你有一个相关方法 · ' + originalText(method.name) + '</span><button class="btn sm" data-act="method-view" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '">使用相关方法</button><button class="btn sm" data-act="method-dismiss" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '">忽略</button></div>';
   }
   function methodAppliedHint(e) {
     if (!e || !e.methodRef || e.done) return '';
-    return '<div class="ai-inline"><span>✦ 使用方法 · ' + esc(e.methodRef.name) + ' · ' + esc(methodStatusLabel(e)) + '</span><button class="btn sm" data-act="method-view" data-id="' + esc(e.id) + '" data-mid="' + esc(e.methodRef.methodId) + '">查看</button></div>';
+    return '<div class="ai-inline">' + localizedText(['✦ 使用方法 · ', [e.methodRef.name], ' · ', methodStatusLabel(e)]) + '<button class="btn sm" data-act="method-view" data-id="' + esc(e.id) + '" data-mid="' + esc(e.methodRef.methodId) + '">查看</button></div>';
   }
   function methodUseList(methodId) {
     var rows = usesFor(methodId).slice(-6).reverse();
     if (!rows.length) return '<p class="small muted">还没有使用记录。在新任务上应用这个方法后，这里显示真实结果。</p>';
     return rows.map(function (use) {
-      var task = byId(use.taskId), taskLabel = task ? '「' + esc(task.title) + '」' : '（原任务已删除）';
-      return '<p class="small">' + esc(use.date) + ' · ' + taskLabel + ' · ' + METHOD_USE_LABELS[use.status] + ' · 方法 v' + use.methodVersion + '</p>';
+      var task = byId(use.taskId);
+      return '<p class="small">' + esc(use.date) + ' · ' + (task ? localizedText(['「', [task.title], '」', ' · ', METHOD_USE_LABELS[use.status], ' · 方法 ', 'v' + use.methodVersion]) : localizedText(['（原任务已删除）', ' · ', METHOD_USE_LABELS[use.status], ' · 方法 ', 'v' + use.methodVersion])) + '</p>';
     }).join('');
   }
   function methodSheet(e, method, expectedTitle) {
@@ -1473,16 +1598,16 @@ window.TangoMethods = (function () {
     var mref = e && e.methodRef && e.methodRef.methodId === method.id;
     var appliedUse = e && useForTask(e.id, method.id);
     var originTask = method.origin && byId(method.origin.taskId);
-    openSheet('<div class="tools-h"><h2>方法卡 · ' + esc(method.name) + '</h2><button class="x" data-act="close" aria-label="关闭">×</button></div>' +
-      '<p class="muted small">v' + method.version + ' · ' + METHOD_CAT_LABELS[method.category] + ' 类任务 · ' + (method.origin ? (originTask ? '来自任务「' + esc(originTask.title) + '」' : '来源任务已删除') + ' · 保存时' + ({ accepted: '已验收', pending: '待核验', rework: '需返工' }[method.origin.quality] || '未记录验收') : '手动创建') + (method.status === 'archived' ? ' · 已归档，不再推荐' : '') + '</p>' +
-      (e && !mref ? '<p class="status">推荐原因：同样是「' + METHOD_CAT_LABELS[method.category] + '」类任务 · 按任务类别本地匹配，不代表一定适用；条件不同可以不用。</p>' : '') +
-      (method.purpose ? '<p class="small">用途：' + esc(method.purpose) + '</p>' : '') +
-      (method.fit || method.unfit ? '<p class="small">适用：' + esc(method.fit || '未写') + ' · 不适用：' + esc(method.unfit || '未写') + '</p>' : '') +
+    openSheet('<div class="tools-h"><h2>方法卡 · ' + originalText(method.name) + '</h2><button class="x" data-act="close" aria-label="关闭">×</button></div>' +
+      '<p class="muted small">' + localizedText([['v' + method.version], ' · ', METHOD_CAT_LABELS[method.category], ' ', '类任务', ' · '].concat(method.origin ? (originTask ? ['来自任务「', [originTask.title], '」'] : ['来源任务已删除']).concat([' · ', '保存时', ' ', { accepted: '已验收', pending: '待核验', rework: '需返工' }[method.origin.quality] || '未记录验收']) : ['手动创建'], method.status === 'archived' ? [' · ', '已归档，不再推荐'] : [])) + '</p>' +
+      (e && !mref ? '<p class="status">' + (ruleFor(e.title).cat === method.category ? localizedText(['推荐原因：同样是「', METHOD_CAT_LABELS[method.category], '」类任务 · 按任务类别本地匹配，不代表一定适用；条件不同可以不用。']) : localizedText(['不同任务类别，请先核对条件'])) + '</p>' : '') +
+      (method.purpose ? '<p class="small">' + localizedText(['用途：', [method.purpose]]) + '</p>' : '') +
+      (method.fit || method.unfit ? '<p class="small">' + localizedText(['适用：', method.fit ? [method.fit] : '未写', ' · ', '不适用：', method.unfit ? [method.unfit] : '未写']) + '</p>' : '') +
       '<h3>开始材料 · 变量槽位</h3><textarea class="prompt" id="method-template" readonly aria-label="方法模板">' + esc(method.inputs) + '</textarea><div class="btns"><button class="btn sm" data-act="method-copy">复制模板</button></div>' +
-      (method.steps ? '<h3>步骤</h3><p class="small">' + esc(method.steps).replace(/\n/g, '<br>') + '</p>' : '') +
-      '<h3>核验清单</h3><p class="small">' + esc(method.verify).replace(/\n/g, '<br>') + '</p>' +
-      '<p class="small">停止条件：' + esc(method.stop) + '</p>' +
-      '<p class="small">模型候选：' + (MODEL_IDS.indexOf(method.modelId) >= 0 ? MODEL_REFERENCES[MODEL_IDS.indexOf(method.modelId)][1] : '未指定') + ' · ' + esc(method.modelReason) + '</p>' +
+      (method.steps ? '<h3>步骤</h3><p class="small">' + String(method.steps).split(/\r?\n/).map(function (line) { return originalText(line); }).join('<br>') + '</p>' : '') +
+      '<h3>核验清单</h3><p class="small">' + String(method.verify).split(/\r?\n/).map(function (line) { return originalText(line); }).join('<br>') + '</p>' +
+      '<p class="small">' + localizedText(['停止条件：', [method.stop]]) + '</p>' +
+      '<p class="small">' + localizedText(['模型候选：', MODEL_IDS.indexOf(method.modelId) >= 0 ? MODEL_REFERENCES[MODEL_IDS.indexOf(method.modelId)][1] : '未指定', ' · ', [method.modelReason]]) + '</p>' +
       '<details><summary>使用记录 · 真实结果</summary>' + methodUseList(method.id) + '</details>' +
       (e && !e.done && !mref ?
         '<p class="small muted">应用会在当前事项上做标记并记录一次使用；不修改时间、标题或其他事项。</p>' +
@@ -1501,6 +1626,11 @@ window.TangoMethods = (function () {
     if (!save()) { toast('本地保存失败，应用仅保留在内存；请导出快照'); return; }
     closeSheet(); render(); toast('已关联「' + method.name + '」· 只作用于这个事项');
   }
+  function methodReuseSheet(method) {
+    if (!method || method.status === 'archived') return;
+    var tasks = S.entries.filter(function (e) { return !e.done && e.kind !== 'stillness'; }).slice().sort(function (a, b) { return Number(ruleFor(b.title).cat === method.category) - Number(ruleFor(a.title).cat === method.category) || a.date.localeCompare(b.date); });
+    openSheet('<div class="tools-h"><h2>这次用在哪件事？</h2><button class="x" data-act="close" aria-label="关闭">×</button></div><p>' + originalText(method.name) + ' · v' + method.version + '</p><p class="small muted">先看看条件是否合适。你可以调整原方法，再选择这次的事项。</p><button class="btn" data-act="method-edit" data-mid="' + esc(method.id) + '">先调整方法</button>' + (tasks.length ? tasks.map(function (e) { return '<button class="reuse-task" data-act="method-view" data-id="' + esc(e.id) + '" data-mid="' + esc(method.id) + '"><span>' + originalText(e.title) + '<small>' + esc(e.date) + ' · ' + localizedText([ruleFor(e.title).cat === method.category ? '相同任务类别，仍需确认适用' : '不同任务类别，请先核对条件']) + '</small></span><span aria-hidden="true">›</span></button>'; }).join('') : '<p>还没有待办事项。先记下新任务，再来用这个方法。</p><a class="btn" href="#today" data-act="close">去记录一件事</a>') + '<button class="btn" data-act="close">这次先不用</button>');
+  }
   function methodDismiss(el) {
     var e = byId(el.getAttribute('data-id')), method = byMethodId(el.getAttribute('data-mid'));
     if (!e || !method) return;
@@ -1517,7 +1647,7 @@ window.TangoMethods = (function () {
     closeSheet(); render(); toast('已记录：这次应用后中止 · 不计成功复用');
   }
   function methodEditSheet(method) {
-    openSheet('<h2>修改方法 · ' + esc(method.name) + '</h2><p class="muted small">保存会产生新版本 v' + (method.version + 1) + '；以前的使用记录仍指向当时的版本，结果不改写。</p>' +
+    openSheet('<h2>修改方法 · ' + originalText(method.name) + '</h2><p class="muted small">保存会产生新版本 v' + (method.version + 1) + '；以前的使用记录仍指向当时的版本，结果不改写。</p>' +
       '<div class="field"><label for="me-name">名称</label><input id="me-name" maxlength="60" value="' + esc(method.name) + '"></div>' +
       '<div class="field"><label for="me-purpose">用途</label><input id="me-purpose" maxlength="400" value="' + esc(method.purpose) + '"></div>' +
       '<div class="pair"><div class="field"><label for="me-fit">适用条件</label><input id="me-fit" maxlength="400" value="' + esc(method.fit) + '"></div><div class="field"><label for="me-unfit">不适用条件</label><input id="me-unfit" maxlength="400" value="' + esc(method.unfit) + '"></div></div>' +
@@ -1539,7 +1669,7 @@ window.TangoMethods = (function () {
     if (!name) return '方法名称为空，这次未保存方法';
     var cat = ruleFor(entry.title).cat, g = GUIDANCE[cat] || GUIDANCE.other;
     var draft = Methods.buildMethodDraft({
-      nameHint: name, category: cat, stepsHint: (g.steps || []).map(function (step) { return guidanceText(step); }).join('\n'),
+      nameHint: name, category: cat, stepsHint: (g.steps || []).map(function (step) { return tr(guidanceText(step)); }).join('\n'),
       taskId: entry.id, date: entry.date, quality: trial.quality, modelId: trial.modelId
     });
     draft.name = name;
@@ -1555,7 +1685,7 @@ window.TangoMethods = (function () {
   }
   function methodFinishDraft(e) {
     var cat = ruleFor(e.title).cat, g = GUIDANCE[cat] || GUIDANCE.other;
-    return Methods.buildMethodDraft({ nameHint: ruleFor(e.title).method, category: cat, stepsHint: (g.steps || []).map(function (step) { return guidanceText(step); }).join('\n'), modelReasonHint: '未验证 · 尚无个人实测依据' });
+    return Methods.buildMethodDraft({ nameHint: ruleFor(e.title).method, category: cat, stepsHint: (g.steps || []).map(function (step) { return tr(guidanceText(step)); }).join('\n'), modelReasonHint: '未验证 · 尚无个人实测依据' });
   }
   function useTime(e, use) {
     if (!e || !e.freed || !e.freed.pending) return;
@@ -1650,13 +1780,13 @@ window.TangoMethods = (function () {
     for (var m = from; m <= 1410; m += 30) {
       var st = slotState(m), on = !!pick[m], sl = SLOTS[m];
       tiles += '<button class="tile-av ' + st + (on ? ' on' : '') + '" style="border-radius:' + BLOBS[(m / 30) % BLOBS.length] + '" data-act="pick" data-m="' + m + '"' + (st === 'kept' ? ' disabled' : '') +
-        ' title="' + toHM(m) + '" aria-pressed="' + on + '" aria-label="' + toHM(m) + ' ' + sl[1] + (st === 'busy' ? '，有安排' : st === 'kept' ? '，已预留' : '') + '"><span class="av">' + ink(m) + '</span><span class="tm">' + toHM(m) + '</span><span class="slot-label">' + sl[1] + '</span></button>';
+        ' title="' + toHM(m) + '" aria-pressed="' + on + '"' + localizedLabel([toHM(m), ' ', sl[1]].concat(st === 'busy' ? ['，有安排'] : st === 'kept' ? [' · ', '预留中'] : [])) + '><span class="av">' + ink(m) + '</span><span class="tm">' + toHM(m) + '</span></button>';
     }
     if (!tiles) return '';
     var n = Object.keys(pick).length;
     var ms = Object.keys(pick).map(Number).sort(function (a, b) { return a - b; });
     var span = n && ms[n - 1] - ms[0] === (n - 1) * 30 ? ' · ' + toHM(ms[0]) + '–' + toHM(ms[n - 1] + 30) : '';
-    return '<div><p class="pick-tip">留给自己 · 每格 30 min</p><section class="block picker" aria-label="留一段给自己"><div class="avs">' + tiles + '</div>' +
+    return '<div><p class="pick-tip">留给自己 · 每格 30 min</p><section class="block picker" aria-label="留一段给自己"><div class="avs" tabindex="0" role="region"' + localizedLabel(['选择时段']) + '>' + tiles + '</div>' +
       '<button class="btn primary wide" data-act="pick-save"' + (n ? '' : ' disabled') + '>' + (n ? '预留 ' + fmtPlain(n * 30) + span : '选择时段') + '</button></section></div>';
   }
   var PRIO = ['necessary', 'create', 'connect', 'explore', 'restore'];
@@ -1667,13 +1797,14 @@ window.TangoMethods = (function () {
   var PRIO_NAME = { 1: '最优先', 2: '优先', 3: '一般', 4: '稍缓', 5: '不急' };
   function P(e) { return e.prio || 3; }
   var bub = {}, bubRaf = 0, bubDrag = null, bubSel = null;
+  var bubSizeObserver = null, bubObservedBox = null;
   function selBar() {
     var e = bubSel && byId(bubSel);
     if (!e) return '<p class="small muted bub-hint">点泡泡选中，可以升降、修改或删除</p>';
     var p = P(e);
     if (e.kind === 'stillness') return '<div class="selbar" role="toolbar" aria-label="自己的时间"><span class="sel-name">自由安排 ' + e.start + '–' + e.end + '</span>' +
       '<div class="sel-btns"><button class="btn sm" data-act="edit">修改</button><button class="btn sm" data-act="del" data-id="' + e.id + '">删除</button><button class="btn sm" data-act="unsel">取消</button></div></div>';
-    return '<div class="selbar" role="toolbar" aria-label="' + esc(e.title) + '"><span class="sel-name"><i class="pdot p' + p + '">' + PRIO_NAME[p] + '</i> ' + esc(e.title) + '</span>' +
+    return '<div class="selbar" role="toolbar"' + localizedLabel([[e.title]]) + '><span class="sel-name"><i class="pdot p' + p + '">' + PRIO_NAME[p] + '</i> ' + originalText(e.title) + '</span>' +
       '<div class="sel-btns"><button class="btn sm" data-act="prio-up"' + (p === 1 ? ' disabled' : '') + ' aria-label="升一级">↑ 升</button><button class="btn sm" data-act="prio-down"' + (p === 5 ? ' disabled' : '') + ' aria-label="降一级">↓ 降</button>' +
       '<button class="btn sm" data-act="edit">修改</button><button class="btn sm" data-act="del" data-id="' + e.id + '">删除</button><button class="btn sm" data-act="unsel">取消</button></div></div>';
   }
@@ -1682,16 +1813,23 @@ window.TangoMethods = (function () {
     return '<section class="block"><div class="plan-head"><h2>今天</h2></div>' +
       '<div class="bubbles' + (list.length ? '' : ' is-empty') + '" id="bubbles"><svg class="axes" aria-hidden="true"></svg>' + (list.length ? '' : '<div class="bub-empty"><p>说一句，开始今天</p><button class="btn sm" data-act="capture-example">＋ 试一条</button></div>') + list.map(function (e) {
         var bl = e.kind === 'stillness', p = P(e), over = toMin(e.end) <= now, a = !over && !bl && aiPlan(e);
-        if (bl) return '<button class="bubble pb' + (over ? ' over' : '') + (bubSel === e.id ? ' sel' : '') + '" data-id="' + e.id + '" data-act="bubble" aria-label="自己的时间，' + e.start + '–' + e.end + '">' +
-          '<span class="bt">' + esc(e.title === '静驻' ? '自由安排' : e.title) + '</span><span class="bs">' + e.start + '</span></button>';
+        if (bl) return '<button class="bubble pb' + (over ? ' over' : '') + (bubSel === e.id ? ' sel' : '') + '" data-id="' + e.id + '" data-act="bubble"' + localizedLabel(['自己的时间', ' · ', e.start + '–' + e.end]) + '>' +
+          '<span class="bt">' + (e.title === '静驻' ? '自由安排' : originalText(e.title)) + '</span><span class="bs">' + e.start + '</span></button>';
         var t = e.title.length > 6 ? e.title.slice(0, 5) + '…' : e.title;
-        return '<button class="bubble p' + p + (over ? ' over' : '') + (bubSel === e.id ? ' sel' : '') + '" data-id="' + e.id + '" data-act="bubble" aria-label="' + esc(e.title) + '，' + PRIO_NAME[p] + '，' + e.start + '–' + e.end + '">' +
-          '<span class="bt">' + esc(t) + '</span><span class="bs">' + e.start + (a ? ' ✦' : e.ai ? ' ✓' : '') + '</span></button>';
-      }).join('') + '</div>' + (list.length ? '<p class="small muted bub-hint">单击修改 · 双击完成</p>' : '') + fwBar() + '</section>';
+        return '<button class="bubble p' + p + (over ? ' over' : '') + (bubSel === e.id ? ' sel' : '') + '" data-id="' + e.id + '" data-act="bubble"' + localizedLabel([[e.title], ' · ', PRIO_NAME[p], ' · ', e.start + '–' + e.end]) + '>' +
+          '<span class="bt">' + originalText(t) + '</span><span class="bs">' + e.start + (a ? ' ✦' : e.ai ? ' ✓' : '') + '</span></button>';
+      }).join('') + '</div>' + (list.length ? '<p class="small muted bub-hint">单击修改 · 双击完成</p>' : '') + '</section>';
   }
   function bubSetup() {
     var box = document.getElementById('bubbles');
-    if (!box) { cancelAnimationFrame(bubRaf); bubRaf = 0; return; }
+    if (!box) { cancelAnimationFrame(bubRaf); bubRaf = 0; if (bubSizeObserver) bubSizeObserver.disconnect(); bubObservedBox = null; return; }
+    if (window.ResizeObserver && box !== bubObservedBox) {
+      if (!bubSizeObserver) bubSizeObserver = new ResizeObserver(function () {
+        var current = document.getElementById('bubbles');
+        if (current && (current.clientWidth !== current._W || current.clientHeight !== current._H)) bubSetup();
+      });
+      bubSizeObserver.disconnect(); bubObservedBox = box; bubSizeObserver.observe(box);
+    }
     var W = box.clientWidth, H = box.clientHeight, now = nowMin(), els = box.querySelectorAll('.bubble'), items = [];
     var area = 0;
     els.forEach(function (el) { var e = byId(el.getAttribute('data-id')); el._e = e; el._r = 30 + Math.sqrt(Math.min(dur(e), 240) / 240) * 30; area += Math.PI * el._r * el._r; });
@@ -1863,37 +2001,64 @@ window.TangoMethods = (function () {
       prompt: ['先问清这项任务的交付物和约束，再拆成准备、执行、核对 3 步。只建议可辅助的部分，不假设已经完成。', 'Clarify the deliverable and constraints, then split preparation, execution and checking. Suggest only assistable steps; do not assume completion.'],
       device: ['手机 · 拆解；电脑 · 资料处理', 'Phone · planning; computer · working with materials'] }
   };
-  function guidanceText(pair) { return pair[LANG === 'zh' ? 0 : 1]; }
+  function guidanceText(pair) { return pair[0]; }
   function guidanceEstimate(category, minutes) {
     var p = GUIDANCE[category] || GUIDANCE.other;
     minutes = Number.isFinite(minutes) ? Math.max(0, Math.min(1440, minutes)) : 0;
-    var history = !p.prep && Time.estimate(S.trials || [], category, minutes);
-    if (history) return { low: history.low, high: history.high, samples: history.samples, source: 'history' };
-    return { low: null, high: null, samples: 0, source: 'insufficient' };
+    var history = !p.prep && Time.estimate(S.trials || [], category, minutes, S.mode);
+    if (history) return { low: history.low, high: history.high, samples: history.samples, source: 'history', dataMode: S.mode };
+    return { low: null, high: null, samples: 0, source: 'insufficient', dataMode: S.mode };
+  }
+  function forecastSnapshot(entry, category, before, existing) {
+    var currentMode = S.mode === 'demo' ? 'demo' : 'real';
+    if (existing && existing.before === before && ['history', 'insufficient'].indexOf(existing.source) >= 0 && existing.dataMode === currentMode && (existing.source !== 'history' || (Number.isInteger(existing.low) && Number.isInteger(existing.high)))) return existing;
+    var prior = (S.trials || []).filter(function (trial) { return trial.taskId !== entry.id || trial.date !== entry.date; });
+    var p = GUIDANCE[category] || GUIDANCE.other, estimate = p.prep ? null : Time.estimate(prior, category, before, currentMode);
+    return { before: before, low: estimate ? estimate.low : null, high: estimate ? estimate.high : null, source: estimate ? 'history' : 'insufficient', dataMode: currentMode };
   }
   var activeModelGuidance = null;
-  function aiTools(title, minutes, targetId) {
-    activeModelGuidance = { title: title, minutes: minutes, targetId: targetId };
-    var r = ruleFor(title), p = GUIDANCE[r.cat] || GUIDANCE.other, estimate = guidanceEstimate(r.cat, minutes);
-    var target = targetId && targetId.indexOf('draft:') === 0 ? S.drafts.filter(function (e) { return 'draft:' + e.id === targetId; })[0] : targetId ? byId(targetId.replace(/^entry:/, '')) : null;
-    var preferred = target && MODEL_IDS.indexOf(target.modelPreference);
+  function modelGuidanceFor(title, target) {
+    var r = ruleFor(title), p = GUIDANCE[r.cat] || GUIDANCE.other;
+    var preferred = target ? MODEL_IDS.indexOf(target.modelPreference) : -1;
     var order = p.order.slice().sort(function (a, b) { var priority = { available: 0, unknown: 1, unavailable: 2 }; return priority[modelAccount(a).state] - priority[modelAccount(b).state] || (b === preferred ? 1 : 0) - (a === preferred ? 1 : 0); });
-    var allUnavailable = order.every(function (index) { return modelAccount(index).state === 'unavailable'; });
-    var prompt = (LANG === 'zh' ? '事项：「' + title + '」。' : 'Task: ' + title + '. ') + guidanceText(p.prompt);
+    return { rule: r, profile: p, preferred: preferred, order: order, unavailable: order.every(function (index) { return modelAccount(index).state === 'unavailable'; }) };
+  }
+  function eventModelLine(e) {
+    if (!e || e.done || e.kind === 'stillness') return '';
+    var advice = modelGuidanceFor(e.title, e), r = advice.rule, p = advice.profile;
+    if (hintMuted[r.cat]) return '';
+    var manual = e.kind === 'restore' || r.cat === 'none' || /拿快递|取快递|取件|取包裹|领取包裹|parcel.*pick|pick.*parcel|collect.*parcel/i.test(e.title);
+    var unknown = !manual && r.cat === 'other', estimated = guidanceEstimate(r.cat, dur(e));
+    var low = estimated.low, high = estimated.high, source = estimated.source;
+    var model = manual ? localizedText(['无需 AI']) : unknown ? localizedText(['待了解事件']) : advice.unavailable ? localizedText(['暂无可用模型']) : originalText(MODEL_REFERENCES[advice.order[0]][1]);
+    var amount = manual ? localizedText(['不适用']) : unknown || advice.unavailable || !Number.isFinite(low) || !Number.isFinite(high) ? localizedText(['待估算']) : rangeText(low, high) + ' min';
+    var evidence = source === 'history' && !manual && !advice.unavailable ? ' · ' + localizedText([estimated.dataMode === 'demo' ? '示例历史差值参考' : '个人历史差值参考']) + (estimated.dataMode === 'demo' ? localizedText(['（示例记录，非本人实测）']) : '') : '';
+    var body = localizedText(['AI 模型推荐：']) + model + localizedText([' · 预计可节约时间：']) + amount + (manual || source !== 'history' ? '' : localizedText(['（估算，待验证）'])) + evidence + (!manual && !unknown && p.prep ? ' · ' + localizedText(['仅准备环节']) : '');
+    var attrs = ' class="event-model-line" data-id="' + esc(e.id) + '" data-estimate-source="' + (manual ? 'none' : source) + '"';
+    return manual ? '<p' + attrs + '>' + body + '</p>' : '<button type="button"' + attrs + ' data-act="event-ai">' + body + '</button>';
+  }
+  function aiTools(title, minutes, targetId, sourceRef) {
+    activeModelGuidance = { title: title, minutes: minutes, targetId: targetId, sourceRef: sourceRef || null };
+    var target = targetId && targetId.indexOf('draft:') === 0 ? S.drafts.filter(function (e) { return 'draft:' + e.id === targetId; })[0] : targetId ? byId(targetId.replace(/^entry:/, '')) : null;
+    var advice = modelGuidanceFor(title, target), r = advice.rule, p = advice.profile, preferred = advice.preferred, order = advice.order, allUnavailable = advice.unavailable;
+    var estimate = guidanceEstimate(r.cat, minutes);
+    var prompt = tr('事情') + ': ' + title + '\n' + tr(guidanceText(p.prompt));
     function modelCard(index, rank) {
       var m = MODEL_REFERENCES[index], account = modelAccount(index);
-      return '<li class="tool' + (rank === 0 && !allUnavailable ? ' is-recommended' : '') + '"><div class="tool-h"><b>' + m[1] + '</b><span class="small muted">' + m[0] + '</span></div><p class="model-rank">' + (account.state === 'unavailable' ? '账户不可用 · 等待重新核验' : rank === 0 ? '建议先试' : '备选') + ' · 任务级效果未实测</p><p class="small muted">账户可用性：' + ({ available: '本人记录可用', unavailable: '本人记录不可用', unknown: '未知' }[account.state]) + ' · ' + ACCOUNT_FAILURES[account.reason] + ' · 核验日期：' + (account.checkedAt ? esc(account.checkedAt.slice(0, 10)) : '未核验') + '</p><details><summary>记录我的账户检查</summary><p class="small muted">请在应用中亲自检查地区、套餐、额度和文件限制。保存的是你的自述，不执行登录或自动测试。</p><div class="field"><label for="account-state-' + index + '">可用状态</label><select id="account-state-' + index + '">' + [['unknown', '未知'], ['available', '可用'], ['unavailable', '不可用']].map(function (pair) { return '<option value="' + pair[0] + '"' + (pair[0] === account.state ? ' selected' : '') + '>' + pair[1] + '</option>'; }).join('') + '</select></div><div class="field"><label for="account-reason-' + index + '">限制或失败原因</label><select id="account-reason-' + index + '">' + Object.keys(ACCOUNT_FAILURES).map(function (key) { return '<option value="' + key + '"' + (key === account.reason ? ' selected' : '') + '>' + ACCOUNT_FAILURES[key] + '</option>'; }).join('') + '</select></div><button class="btn sm" data-act="account-check-save" data-model="' + index + '">保存本次核验日期与状态</button></details><p class="small model-reason">' + esc(rank === 0 ? guidanceText(p.reason) : tr(m[2])) + '</p><div class="tool-links"><a href="' + m[3] + '" target="_blank" rel="noopener noreferrer">打开应用 ↗</a><a href="' + m[4] + '" target="_blank" rel="noopener noreferrer">官方能力说明 ↗</a></div></li>';
+      var availability = localizedMessage('账户可用性：{status} · {reason} · 核验日期：{date}', { status: { available: '本人记录可用', unavailable: '本人记录不可用', unknown: '未知' }[account.state], reason: ACCOUNT_FAILURES[account.reason], date: account.checkedAt ? [account.checkedAt.slice(0, 10)] : '未核验' });
+      return '<li class="tool' + (rank === 0 && !allUnavailable ? ' is-recommended' : '') + '"><div class="tool-h"><b>' + originalText(m[1]) + '</b><span class="small muted">' + originalText(m[0]) + '</span></div><p class="model-rank">' + (account.state === 'unavailable' ? '账户不可用 · 等待重新核验' : rank === 0 ? '建议先试' : '备选') + ' · 任务级效果未实测</p><p class="small model-access">外部工具入口 · 在对应应用中使用</p><p class="small muted">' + availability + '</p><details><summary>记录我的账户检查</summary><p class="small muted">请在应用中亲自检查地区、套餐、额度和文件限制。保存的是你的自述，不执行登录或自动测试。</p><div class="field"><label for="account-state-' + index + '">可用状态</label><select id="account-state-' + index + '">' + [['unknown', '未知'], ['available', '可用'], ['unavailable', '不可用']].map(function (pair) { return '<option value="' + pair[0] + '"' + (pair[0] === account.state ? ' selected' : '') + '>' + pair[1] + '</option>'; }).join('') + '</select></div><div class="field"><label for="account-reason-' + index + '">限制或失败原因</label><select id="account-reason-' + index + '">' + Object.keys(ACCOUNT_FAILURES).map(function (key) { return '<option value="' + key + '"' + (key === account.reason ? ' selected' : '') + '>' + ACCOUNT_FAILURES[key] + '</option>'; }).join('') + '</select></div><button class="btn sm" data-act="account-check-save" data-model="' + index + '">保存本次核验日期与状态</button></details><p class="small model-reason">' + esc(rank === 0 ? guidanceText(p.reason) : m[2]) + '</p><div class="tool-links"><a href="' + m[3] + '" target="_blank" rel="noopener noreferrer">打开应用 ↗</a><a href="' + m[4] + '" target="_blank" rel="noopener noreferrer">官方能力说明 ↗</a></div></li>';
     }
-    openSheet('<div class="tools-h"><h2>查看模型能力</h2><button class="x" data-act="close" aria-label="关闭">×</button></div><p class="muted small">' + esc(title) + ' · 计划 ' + minutes + ' min</p>' +
+    openSheet('<div class="tools-h"><h2>查看模型能力</h2><button class="x" data-act="close" aria-label="关闭">×</button></div><p class="muted small">' + originalText(title) + ' · 计划 ' + minutes + ' min</p>' +
+      (sourceRef ? '<p class="small">' + localizedText(['本次参考：', [sourceRef.title]]) + '</p><button class="btn primary" data-act="source-try-start">开始尝试 · 记录来源</button><p class="small muted">只在开始尝试后保存来源；结果与用时仍需你记录。</p>' : '') +
       (targetId ? '<button class="btn sm" data-act="assistant-models" data-target="' + esc(targetId.indexOf(':') >= 0 ? targetId : 'entry:' + targetId) + '">结合上下文选模型</button>' : '') +
       (target && target.modelPreference ? '<p class="small">本人采纳的候选：' + esc(MODEL_REFERENCES[preferred][1]) + '。排序仍考虑账户可用状态；这不代表效果排名。</p>' : '') +
       (allUnavailable ? '<p class="status warn">当前候选账户均不可用，请使用本地流程，等待重新核验。</p>' : '') +
-      '<p class="ai-tip">' + (estimate.source === 'history' ? '个人差值参考 ' + rangeText(estimate.low, estimate.high) + ' min' : '时间收益待实测 · 样本不足') + (p.prep ? ' · 准备环节' : '') + '</p>' +
-      '<details class="estimate-help"><summary>' + (estimate.source === 'history' ? '个人历史 · ' + estimate.samples + ' 次' : '待实测 · 不承诺节省时间') + ' ⓘ</summary><p>' + (estimate.source === 'history' ? '同类任务的个人计划与实际差值；任务难度可能不同，差值不等于 AI 的贡献。负值表示多花费。至少两条已验收记录才展示范围，这不是统计置信区间，也不是模型之间的对照实验。' : '还没有足够的同类已验收 AI 记录。先完成一次尝试，记录准备、执行、核对和返工时间，再验收结果。') + '</p></details>' +
-      '<ul class="tools">' + modelCard(order[0], 0) + '</ul><h3>怎么用</h3><ol class="guidance-steps">' + p.steps.map(function (step) { return '<li>' + esc(guidanceText(step)) + '</li>'; }).join('') + '</ol>' +
-      '<p class="small muted">' + esc(guidanceText(p.device)) + '</p><details><summary>可复制的提示词</summary><textarea class="prompt" id="model-prompt" readonly aria-label="可复制的提示词">' + esc(prompt) + '</textarea><button class="btn sm" data-act="copy-prompt">复制提问</button></details>' +
+      '<p class="ai-tip">' + (estimate.source === 'history' ? localizedText([estimate.dataMode === 'demo' ? '示例历史差值参考' : '个人历史差值参考']) + ' ' + rangeText(estimate.low, estimate.high) + ' min' + (estimate.dataMode === 'demo' ? localizedText(['（示例记录，非本人实测）']) : '') : '时间收益待实测 · 样本不足') + (p.prep ? ' · 准备环节' : '') + '</p>' +
+      '<details class="estimate-help"><summary>' + (estimate.source === 'history' ? localizedText([estimate.dataMode === 'demo' ? '示例历史差值参考' : '个人历史差值参考']) + ' · ' + estimate.samples : '待实测 · 不承诺节省时间') + ' ⓘ</summary><p>' + (estimate.source === 'history' ? '同类任务的个人计划与实际差值；任务难度可能不同，差值不等于 AI 的贡献。负值表示多花费。至少两条已验收记录才展示范围，这不是统计置信区间，也不是模型之间的对照实验。' : '还没有足够的同类已验收 AI 记录。先完成一次尝试，记录准备、执行、核对和返工时间，再验收结果。') + '</p></details>' +
+      '<p class="model-access small">' + (assistantCfg ? localizedMessage('探戈聊天已配置：{model}。以下是外部工具参考，选择不会切换聊天模型。', { model: [serverTarget('models').model] }) : '探戈聊天尚未连接；以下工具可在对应应用中了解。') + '</p><p class="small paper-tool-label">' + localizedMessage('适用任务：{task} · 本地工作流规则候选', { task: r.method }) + '</p><p class="small muted">使用前：确认账户可用与材料可分享。输出后：对照原始材料和任务要求逐项核验。</p><ul class="tools">' + modelCard(order[0], 0) + '</ul><h3>怎么用</h3><ol class="guidance-steps">' + p.steps.map(function (step) { return '<li>' + esc(guidanceText(step)) + '</li>'; }).join('') + '</ol>' +
+      '<p class="small muted">' + esc(guidanceText(p.device)) + '</p><details><summary>可修改、复制的提示词</summary><textarea class="prompt" id="model-prompt" maxlength="4000" aria-label="可复制的提示词">' + esc(prompt) + '</textarea><button class="btn sm" data-act="copy-prompt">复制提问</button></details>' +
       '<details><summary>备选模型 · 2</summary><ul class="tools">' + order.slice(1).map(function (index) { return modelCard(index, 1); }).join('') + '</ul></details>' +
-      '<p class="small muted">能力来源：官方文档 · 资料核验日期 2026-10-14。候选顺序按任务工作流选择，尚未证明哪个模型更好；你的地区、账户、预算与可用性尚未核验。型号、价格与额度以官方为准。</p><p class="small muted">失败时换备选，或回到人工与规则流程。上传前移除身份信息、密钥和未授权的研究或公司资料。</p><div class="btns"><button class="btn sm" data-act="model-evaluation-export">模型评测导出</button><button class="btn sm" data-act="close">返回本地流程</button></div>');
+      '<p class="small muted">' + localizedMessage('能力来源：官方文档 · 资料核验日期 {date}。候选顺序按任务工作流选择，尚未证明哪个模型更好；你的地区、账户、预算与可用性尚未核验。型号、价格与额度以官方为准。', { date: ['2026-10-14'] }) + '</p><p class="small muted">失败时换备选，或回到人工与规则流程。上传前移除身份信息、密钥和未授权的研究或公司资料。</p>' + (hintMuted[r.cat] ? '<p class="small muted">这类机会的主动推荐已关闭；这里是你主动打开的，不受影响。</p>' : '') + '<div class="btns"><button class="btn sm" data-act="model-evaluation-export">模型评测导出</button>' + (hintMuted[r.cat] ? '' : '<button class="btn sm" data-act="hints-mute" data-cat="' + r.cat + '">不再推荐这类机会</button>') + '<button class="btn sm" data-act="close">暂时不用 AI</button></div>');
   }
   var editPrio = 3;
   function editSheet() {
@@ -1903,7 +2068,7 @@ window.TangoMethods = (function () {
       '<div class="field"><label for="ed-title">事情</label><input id="ed-title" maxlength="30" value="' + esc(e.title) + '"></div>' +
       '<div class="pair"><div class="field"><label for="ed-start">开始</label><input id="ed-start" inputmode="text" maxlength="8" value="' + e.start + '"></div><div class="field"><label for="ed-end">结束</label><input id="ed-end" inputmode="text" maxlength="8" value="' + e.end + '"></div></div>' +
       (bl ? '' : '<div class="chips" role="group" aria-label="优先级">' + [1, 2, 3, 4, 5].map(function (n) { return '<button class="pchip p' + n + '" data-act="ed-prio" data-v="' + n + '" aria-pressed="' + (editPrio === n) + '">' + PRIO_NAME[n] + '</button>'; }).join('') + '</div>') +
-      assistance(e) + (!bl && !e.done ? '<button class="btn wide" data-act="task-finish" data-id="' + e.id + '">完成 · 记录用时</button>' : '') +
+      aiEntry(e) + (!bl && !e.done ? '<button class="btn wide" data-act="task-finish" data-id="' + e.id + '">完成 · 记录用时</button>' : '') +
       '<button class="btn primary wide" data-act="ed-save">保存</button><div class="clash-btns"><button class="btn" data-act="del" data-id="' + e.id + '">删除</button><button class="btn" data-act="close">取消</button></div>');
   }
   function hm(v) {
@@ -1917,7 +2082,7 @@ window.TangoMethods = (function () {
 
   function stillnessCard() {
     var pend = pendingStillness()[0];
-    if (pend) return '<div class="stillness-card ask"><div><div class="label">' + esc(dateLabel(pend.date)) + ' · ' + esc(pend.title === '静驻' ? '自由安排' : pend.title) + '</div><div class="when">用到了吗？</div></div>' +
+    if (pend) return '<div class="stillness-card ask"><div><div class="label">' + esc(dateLabel(pend.date)) + ' · ' + (pend.title === '静驻' ? '自由安排' : originalText(pend.title)) + '</div><div class="when">用到了吗？</div></div>' +
       '<div class="btns"><button class="btn sm primary" data-act="kept" data-id="' + pend.id + '">✓ 用到了</button><button class="btn sm" data-act="taken" data-id="' + pend.id + '">被占用</button></div></div>';
     return '';
   }
@@ -1943,7 +2108,7 @@ window.TangoMethods = (function () {
   function flower(fill, dashed) {
     var p = '';
     for (var i = 0; i < 5; i++) p += '<ellipse cx="0" cy="-7" rx="4.2" ry="7" transform="rotate(' + (i * 72) + ')" fill="' + fill + '" fill-opacity="' + (dashed ? 0 : .85) + '" stroke="' + fill + '" stroke-width="1.4"' + (dashed ? ' stroke-dasharray="2.5 2"' : '') + '/>';
-    return p + '<circle r="3" fill="var(--warm)"/>';
+    return p + '<circle r="3" fill="var(--tree-center)"/>';
   }
   function treePlannedEntry(entry) {
     var end = entry.completion && entry.completion.plannedEnd;
@@ -1958,51 +2123,42 @@ window.TangoMethods = (function () {
     return date < todayStr() || date === todayStr() && toMin(entry.start) - now <= 60 ? 'flower' : 'bud';
   }
   function treeMarker(stage, color) {
+    var petals = flower('var(--tree-flower)', stage === 'bud');
+    var natural = '<g class="designer-marker">' + petals + (stage === 'fruit' ? '<path d="M-4,0l3,3 6-7" fill="none" stroke="var(--primary-ink)" stroke-width="1.5"/>' : '') + '</g>';
+    return natural + '<g class="standard-marker">' + treeStandardMarker(stage, color) + '</g>';
+  }
+  function treeStandardMarker(stage, color) {
     if (stage === 'fruit') return '<path d="M0,-8q-1-5 3-7" fill="none" stroke="var(--text-2)" stroke-width="1.8"/><path d="M2,-12q5-5 9-1-5 4-9 1" fill="var(--k-restore)"/><path d="M0,-7c-12-5-16 11-7 18q7 5 14 0C16,4 12,-12 0,-7" fill="var(--warm)"/><path d="M-7,-3q-4 4-1 8" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.8" stroke-linecap="round"/>';
     if (stage === 'flower') return flower(color, false);
     return '<path d="M0,10V-4" stroke="' + color + '" stroke-width="1.8" stroke-linecap="round"/><path d="M0,0Q-13,0-9,-9Q0,-9 0,0M0,3Q13,3 9,-6Q0,-6 0,3" fill="' + color + '"/>';
-  }
-  // sunrise / sunset for a date, estimated from the browser's time zone (no location prompt)
-  var TZ_LL = { 'Asia/Shanghai': [31.23, 121.47], 'Asia/Chongqing': [29.56, 106.55], 'Asia/Urumqi': [43.83, 87.62], 'Asia/Hong_Kong': [22.32, 114.17], 'Asia/Macau': [22.2, 113.55],
-    'Asia/Taipei': [25.03, 121.57], 'Asia/Seoul': [37.57, 126.98], 'Asia/Tokyo': [35.68, 139.69], 'Asia/Bangkok': [13.75, 100.5], 'Asia/Singapore': [1.35, 103.82],
-    'Europe/Moscow': [55.75, 37.62], 'Asia/Riyadh': [24.71, 46.68], 'Asia/Dubai': [25.2, 55.27], 'Africa/Cairo': [30.04, 31.24], 'Europe/London': [51.51, -0.13],
-    'Europe/Paris': [48.86, 2.35], 'Europe/Berlin': [52.52, 13.4], 'America/New_York': [40.71, -74.01], 'America/Chicago': [41.88, -87.63], 'America/Denver': [39.74, -104.99],
-    'America/Los_Angeles': [34.05, -118.24], 'Australia/Sydney': [-33.87, 151.21] };
-  function sunTimes(date) {
-    var p = date.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2], 12), off = d.getTimezoneOffset(), ll = null;
-    try { ll = TZ_LL[Intl.DateTimeFormat().resolvedOptions().timeZone]; } catch (e) { }
-    var lat = ll ? ll[0] : 35, lon = ll ? ll[1] : -off / 4, rad = Math.PI / 180;
-    var n = Math.round((d - new Date(d.getFullYear(), 0, 1, 12)) / 864e5) + 1, g = 2 * Math.PI / 365 * (n - 1);
-    var eq = 229.18 * (.000075 + .001868 * Math.cos(g) - .032077 * Math.sin(g) - .014615 * Math.cos(2 * g) - .040849 * Math.sin(2 * g));
-    var de = .006918 - .399912 * Math.cos(g) + .070257 * Math.sin(g) - .006758 * Math.cos(2 * g) + .000907 * Math.sin(2 * g) - .002697 * Math.cos(3 * g) + .00148 * Math.sin(3 * g);
-    var c = Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(de)) - Math.tan(lat * rad) * Math.tan(de);
-    if (c < -1 || c > 1) return null;
-    var ha = Math.acos(c) / rad;
-    return { rise: Math.round(720 - 4 * (lon + ha) - eq - off), set: Math.round(720 - 4 * (lon - ha) - eq - off) };
   }
   var DATE_LOC = { zh: 'zh-CN', en: 'en-US', ru: 'ru-RU', th: 'th-TH-u-ca-gregory', ar: 'ar-u-nu-latn', ko: 'ko-KR' };
   function fmtDate(s, full) {
     var p = s.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
     var o = full ? { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' } : { month: 'short', day: 'numeric' };
-    try { return new Intl.DateTimeFormat(DATE_LOC[LANG] || 'zh-CN', o).format(d); } catch (e) { return full ? +p[0] + '年' + (+p[1]) + '月' + (+p[2]) + '日 星期' + weekday(s) : (+p[1]) + '月' + (+p[2]) + '日'; }
+    try { return new Intl.DateTimeFormat(DATE_LOC[LANG] || 'zh-CN', o).format(d); } catch (e) { return LANG !== 'zh' ? s : full ? +p[0] + '年' + (+p[1]) + '月' + (+p[2]) + '日 星期' + weekday(s) : (+p[1]) + '月' + (+p[2]) + '日'; }
   }
-  var SUN_ICON = '<path d="M-5,2 a5,5 0 0 1 10,0" fill="#F3C969" stroke="#D9A441" stroke-width="1.2"/><path d="M-8,2.5h16" stroke="#D9A441" stroke-width="1.2" stroke-linecap="round"/><path d="M0,-6v-2.5M-5,-4l-1.6,-1.6M5,-4l1.6,-1.6" stroke="#D9A441" stroke-width="1.2" stroke-linecap="round"/>';
   function treeSvg(date, list) {
-    list = list.map(treePlannedEntry);
-    var W = 404, X0 = 52, cx = 228, K = 0.95, isToday = date === todayStr(), now = nowMin();
+    list = list.map(treePlannedEntry).sort(function (a, b) { return toMin(a.start) - toMin(b.start); });
+    var W = 404, X0 = 52, cx = 174, K = 0.60, isToday = date === todayStr(), now = nowMin();
     var first = list.length ? Math.min.apply(null, list.map(function (e) { return toMin(e.start); })) : 420;
     var last = list.length ? Math.max.apply(null, list.map(function (e) { return toMin(e.end); })) : 1380;
-    var sun = sunTimes(date);
-    var top = Math.min(420, Math.floor(first / 60) * 60, sun ? Math.floor(sun.rise / 60) * 60 : 420), bot = Math.max(1380, Math.ceil(last / 60) * 60);
+    // Show a current-time marker only for today, and keep it within the visible time scale.
+    var top = Math.min(420, Math.floor(first / 60) * 60, isToday ? Math.floor(now / 60) * 60 : 420);
+    var bot = Math.max(1380, Math.ceil(last / 60) * 60, isToday ? Math.ceil(now / 60) * 60 : 1380);
     var pt = 36, y = function (m) { return pt + (m - top) * K; }, H = y(bot) + 36;
+    var labelBottom = -99;
+    list.forEach(function (entry) { labelBottom = Math.max(y(toMin(entry.start)) - 6, labelBottom + 50); });
+    H = Math.max(H, labelBottom + 40);
     var tx0 = function (m) { return cx + 7 * Math.sin(m / 150); };
     var trunk = function (a, b) { var d = 'M' + tx0(a).toFixed(1) + ',' + y(a).toFixed(1); for (var m = a + 10; m <= b; m += 10) d += ' L' + tx0(Math.min(m, b)).toFixed(1) + ',' + y(Math.min(m, b)).toFixed(1); return d; };
     var cut = isToday ? Math.max(top, Math.min(bot, now)) : date < todayStr() ? bot : top;
-    var s = '<svg class="tree" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="时间之树">' +
+    var s = '<svg class="tree" viewBox="0 0 ' + W + ' ' + H + '" role="group" aria-label="时间之树，事件可打开查看">' +
       '<defs><linearGradient id="skyBg" gradientUnits="userSpaceOnUse" x1="0" y1="' + y(top) + '" x2="0" y2="' + y(bot) + '">' + skyStops(top, bot, .22) + '</linearGradient>' +
       '<linearGradient id="skyTr" gradientUnits="userSpaceOnUse" x1="0" y1="' + y(top) + '" x2="0" y2="' + y(bot) + '">' + skyStops(top, bot) + '</linearGradient>' +
       '<filter id="glow" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="4"/></filter></defs>' +
-      '<rect x="' + X0 + '" y="0" width="' + (W - X0) + '" height="' + H + '" rx="28" fill="url(#skyBg)" pointer-events="none"/>';
+      '<rect x="' + X0 + '" y="0" width="' + (W - X0) + '" height="' + H + '" rx="28" fill="url(#skyBg)" pointer-events="none"/>' +
+      '<g class="tree-silhouette" transform="translate(70,70)"><path d="M54,470Q83,280 95,130L106,130Q92,290 78,470ZM88,260Q35,206 2,200L8,188Q62,200 93,235ZM99,205Q146,162 199,162L198,178Q148,176 97,228Z"/><ellipse cx="100" cy="96" rx="92" ry="86"/><ellipse cx="30" cy="173" rx="50" ry="48"/><ellipse cx="171" cy="150" rx="60" ry="55"/></g>';
     // hour marks
     var hours = [];
     for (var h = top; h <= bot; h += 60) {
@@ -2011,92 +2167,84 @@ window.TangoMethods = (function () {
       hours.push('<path d="M' + (X0 - 5) + ',' + yy + 'h5" stroke="var(--text-2)" stroke-opacity=".5"/><text x="' + (X0 - 8) + '" y="' + (yy + 3.5) + '" text-anchor="end" class="hr' + (hh % 3 ? ' minor' : '') + '">' + pad(hh % 24) + ':00</text>');
     }
     // trunk: lived part solid, the rest faint
-    s += '<path d="' + trunk(top, bot) + '" fill="none" stroke="url(#skyTr)" stroke-width="5" stroke-linecap="round" opacity=".28"/>';
-    if (cut > top) s += '<path d="' + trunk(top, cut) + '" fill="none" stroke="url(#skyTr)" stroke-width="7" stroke-linecap="round"/>';
-    // sunrise and sunset ride along the trunk
-    if (sun) [['rise', '日出'], ['set', '日落']].forEach(function (k) {
-      var m = sun[k[0]]; if (m < top || m > bot) return;
-      var sy = y(m), sx = tx0(m);
-      s += '<g class="sun-mark"><path d="M' + (X0 + 10) + ',' + sy + 'H' + (W - 10) + '" stroke="#D9A441" stroke-opacity=".45" stroke-dasharray="2 4"/>' +
-        '<g transform="translate(' + sx.toFixed(1) + ',' + (sy - 3) + ')">' + SUN_ICON + '</g>' +
-        '<text x="' + (W - 12) + '" y="' + (sy - 5) + '" text-anchor="end" class="sun-t">' + k[1] + ' ' + pad(Math.floor(m / 60)) + ':' + pad(m % 60) + '</text></g>';
-    });
-    // branches: events and their times on the right, care reminders on the left
-    var lastY = { l: -99, r: -99 };
+    s += '<path class="tree-trunk" d="' + trunk(top, bot) + '" fill="none" stroke="var(--text)" stroke-width="1.5" stroke-linecap="round" opacity=".28"/>';
+    if (cut > top) s += '<path class="tree-trunk is-lived" d="' + trunk(top, cut) + '" fill="none" stroke="var(--text)" stroke-width="2.5" stroke-linecap="round"/>';
+    // Event branches and labels are staggered to keep dense schedules readable.
+    var lastY = { r: -99 };
     list.forEach(function (e) {
       var side = 1, key = 'r';
-      var y0 = y(toMin(e.start)), d = dur(e), ly = Math.max(y0 - 6, lastY[key] + 40); lastY[key] = ly;
+      var y0 = y(toMin(e.start)), d = dur(e), ly = Math.max(y0 - 6, lastY[key] + 50); lastY[key] = ly;
       var bx = 34, sx = tx0(toMin(e.start));
-      var tipX = cx + side * (bx + 28), sky = skyAt(toMin(e.start)), past = isToday ? toMin(e.end) <= now : date < todayStr();
-      var col = e.kind === 'stillness' ? sky : KINDS[e.kind].color, stage = treeStage(e, date, now);
-      var stageName = { bud: '嫩芽', flower: '花朵', fruit: '果子' }[stage];
-      s += '<g class="leaf ' + stage + '" data-stage="' + stage + '" data-act="leaf" data-id="' + e.id + '" tabindex="0" role="button" aria-label="' + esc(e.title) + ' ' + e.start + '–' + e.end + ' · ' + stageName + '">';
-      s += '<path d="M' + sx.toFixed(1) + ',' + y0 + ' C' + (cx + side * 16) + ',' + y0 + ' ' + (cx + side * 14) + ',' + ly + ' ' + (cx + side * bx) + ',' + ly + '" fill="none" stroke="' + sky + '" stroke-width="2" stroke-linecap="round"/>';
+      var tipX = cx + side * (bx + 28);
+      var col = e.kind === 'stillness' ? 'var(--tree-flower)' : KINDS[e.kind].color, stage = treeStage(e, date, now);
+      var stageName = { bud: '嫩芽', flower: '花朵', fruit: '果子' }[stage], kindLabel = KINDS[e.kind] ? KINDS[e.kind].label : '其他';
+      var titleParts = [[e.title], ' · ', e.start + '–' + e.end, ' · ', kindLabel];
+      s += '<g class="leaf ' + stage + '" data-stage="' + stage + '" data-act="leaf" data-id="' + e.id + '" tabindex="0" role="button"' + localizedLabel(titleParts.concat([' · ', stageName], e.done ? [' · ', '已完成'] : [])) + '><title data-local-text="' + esc(JSON.stringify(titleParts)) + '">' + esc(localizedParts(titleParts)) + '</title>';
+      s += '<path class="tree-event-duration" d="M' + (sx - 8) + ',' + y0 + 'v' + (d * K) + '"/>';
+      s += '<path d="M' + sx.toFixed(1) + ',' + y0 + ' C' + (cx + side * 16) + ',' + y0 + ' ' + (cx + side * 14) + ',' + ly + ' ' + (cx + side * bx) + ',' + ly + '" fill="none" stroke="var(--text)" stroke-width="1.2" stroke-linecap="round"/>';
       s += '<g class="event-marker" transform="translate(' + (cx + side * (bx + 12)) + ',' + ly + ')">' + treeMarker(stage, col) + '</g>';
       if (e.ai) s += '<text x="' + (tipX + side * 2) + '" y="' + (ly - 10) + '" class="spark" text-anchor="middle">✦</text>';
       var name = e.kind === 'stillness' && e.title === '静驻' ? '自由安排' : e.title;
-      var tx = tipX + side * 8, anchor = side < 0 ? 'end' : 'start', cap = side < 0 ? 6 : 5, title = name.length > cap ? name.slice(0, cap - 1) + '…' : name;
+      var tx = tipX + side * 8, anchor = side < 0 ? 'end' : 'start', cap = 9, title = name.length > cap ? name.slice(0, cap - 1) + '…' : name;
       var hx = side < 0 ? Math.max(X0, tx - 112) : cx + 6, hw = side < 0 ? cx - 6 - hx : Math.min(W, tx + 112) - hx;
-      s += '<rect x="' + hx + '" y="' + (ly - 18) + '" width="' + hw + '" height="38" fill="transparent"/>';
-      s += '<text x="' + tx + '" y="' + (ly - 1) + '" text-anchor="' + anchor + '" class="lt">' + esc(title) + '</text>' +
-        '<text x="' + tx + '" y="' + (ly + 14) + '" text-anchor="' + anchor + '" class="ls">' + e.start + '–' + e.end + '</text></g>';
-      // every two hours on one thing grows a small care branch: eyes, back, water
-      if (CARE_KINDS.indexOf(e.kind) < 0) return;
-      side = -1; key = 'l'; anchor = 'end';
-      var order = SCREEN_RE.test(e.title) ? ['eye', 'back', 'water'] : ['back', 'water', 'eye'];
-      for (var k = 1; k <= 3 && k * 120 <= d; k++) {
-        var cm = toMin(e.start) + k * 120, cy0 = y(cm), cly = Math.max(cy0, lastY[key] + 34), ck = order[k - 1], bx2 = cx + side * 30, ctx = bx2 + side * 21;
-        lastY[key] = cly;
-        s += '<g class="care' + (past && (!isToday || cm <= now) ? '' : ' future') + '" data-act="care" data-k="' + ck + '" data-h="' + (k * 2) + '" tabindex="0" role="button" aria-label="' + esc(CARE[ck][0].replace('{h}', k * 2) + '，' + CARE[ck][1]) + '">' +
-          '<path d="M' + tx0(cm).toFixed(1) + ',' + cy0 + ' C' + (cx + side * 12) + ',' + cy0 + ' ' + (cx + side * 12) + ',' + cly + ' ' + bx2 + ',' + cly + '" fill="none" stroke="var(--warm)" stroke-width="1.4" stroke-dasharray="3 3"/>' +
-          '<circle cx="' + (bx2 + side * 7) + '" cy="' + cly + '" r="9" fill="var(--surface)" stroke="var(--warm)" stroke-width="1.4"/>' +
-          '<g transform="translate(' + (bx2 + side * 7 - 6) + ',' + (cly - 6) + ')" fill="none" stroke="var(--warm)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">' + CARE_ICON[ck] + '</g>' +
-          '<rect x="' + (side < 0 ? Math.max(X0, ctx - 120) : bx2) + '" y="' + (cly - 13) + '" width="120" height="30" fill="transparent"/>' +
-          '<text x="' + ctx + '" y="' + (cly - 1) + '" text-anchor="' + anchor + '" class="cl">' + CARE[ck][0].replace('{h}', k * 2) + '</text>' +
-          '<text x="' + ctx + '" y="' + (cly + 12) + '" text-anchor="' + anchor + '" class="cs">' + CARE[ck][1] + '</text></g>';
-      }
+      s += '<rect x="' + hx + '" y="' + (ly - 22) + '" width="' + hw + '" height="44" fill="transparent"/>';
+      s += '<text x="' + tx + '" y="' + (ly - 1) + '" text-anchor="' + anchor + '" class="lt"' + (e.kind === 'stillness' && e.title === '静驻' ? '' : ' translate="no" data-user-content') + '>' + esc(title) + '</text>' +
+      '<text x="' + tx + '" y="' + (ly + 14) + '" text-anchor="' + anchor + '" class="ls" data-local-text="' + esc(JSON.stringify([kindLabel, ' · ', e.start + '–' + e.end].concat(e.done ? [' ✓ ', '已完成'] : []))) + '">' + kindLabel + ' · ' + e.start + '–' + e.end + (e.done ? ' ✓ 已完成' : '') + '</text></g>';
     });
     s += hours.join('');
-    // now: a sun by day, a moon at night
+    // Current time is a neutral marker; no solar or day/night assumptions are made.
     if (isToday && now >= top && now <= bot) {
-      var ny = y(now), nx = +tx0(now).toFixed(1), day = sun ? now >= sun.rise && now < sun.set : now >= 360 && now < 1110, c = skyAt(now);
-      s += '<circle cx="' + nx + '" cy="' + ny + '" r="13" fill="' + c + '" opacity=".6" filter="url(#glow)"/>' +
-        (day ? '<circle cx="' + nx + '" cy="' + ny + '" r="7.5" fill="#FFD166" stroke="#fff" stroke-width="2"/>'
-             : '<circle cx="' + nx + '" cy="' + ny + '" r="7.5" fill="#F4F1DE"/><circle cx="' + (nx + 3.5) + '" cy="' + (ny - 2.5) + '" r="6.5" fill="' + c + '"/>');
+      var ny = y(now), nx = +tx0(now).toFixed(1);
+      s += '<g class="tree-now"><circle class="now-halo" cx="' + nx + '" cy="' + ny + '" r="13" fill="var(--warm)" opacity=".6" filter="url(#glow)"/>' +
+        '<circle cx="' + nx + '" cy="' + ny + '" r="7.5" fill="var(--tree-center)" stroke="var(--surface)" stroke-width="2"/><text x="' + (nx - 20) + '" y="' + (ny + 4) + '" text-anchor="end">' + toHM(now) + '</text></g>';
     }
     return s + '</svg>';
   }
-  var CARE_KINDS = ['necessary', 'create', 'explore'];
-  var SCREEN_RE = /读|写|论文|文献|代码|编程|邮件|报告|设计|审稿|批改|材料|表格|看|改|画/;
-  var CARE = { eye: ['盯了 {h} 小时', '远眺 20 秒，眨眨眼'], back: ['坐了 {h} 小时', '起来走走，护腰护颈'], water: ['忙了 {h} 小时', '喝口水，伸个懒腰'] };
-  var CARE_MORE = {
-    eye: ['每 20 分钟，看 6 米外的东西 20 秒', '有意识地多眨几次眼', '屏幕放在视线稍下方，别离太近'],
-    back: ['站起来走 3–5 分钟', '收下巴、慢慢转转脖子，耸耸肩再放下', '坐回去时让椅背托住腰'],
-    water: ['喝一杯水', '站起来伸个懒腰，舒展肩背', '顺便看看窗外']
-  };
-  var CARE_ICON = {
-    eye: '<path d="M1 6q5-5 10 0-5 5-10 0z"/><circle cx="6" cy="6" r="1.6"/>',
-    back: '<path d="M6 1v10M4 3.5h4M4 6h4M4 8.5h4"/>',
-    water: '<path d="M3 2h6l-1 9h-4z"/><path d="M3.4 5h5.2"/>'
-  };
-  function careSheet(k, h) {
-    openSheet('<h2 style="font-size:22px">' + CARE[k][0].replace('{h}', h) + '了</h2><p class="muted">' + CARE[k][1] + '</p><ul class="care-list">' + CARE_MORE[k].map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul><button class="btn primary wide" data-act="close">好</button>');
+  // Local, explainable event ↔ external-content matching. No scores, no external requests.
+  function relatedEventsFor(item) {
+    var matches = S.entries.filter(function (e) { return !e.done && e.kind !== 'stillness'; }).map(function (e) {
+      var tokens = Methods.sharedTokens(e.title, item.title + ' ' + item.excerpt, 2);
+      return tokens.length ? { entry: e, tokens: tokens } : null;
+    }).filter(Boolean).slice(0, 3);
+    if (!matches.length) return '';
+    return '<details class="discovery-related"><summary>相关事件 · 本地匹配</summary>' + matches.map(function (match) {
+      return '<button class="reuse-task" data-act="leaf" data-id="' + esc(match.entry.id) + '"><span>' + originalText(match.entry.title) + '<small>' + esc(match.entry.date) + ' · ' + localizedText(['都提到「', [match.tokens.join('」「')], '」']) + '</small></span><span aria-hidden="true">›</span></button>';
+    }).join('') + '</details>';
+  }
+  function relatedContentFor(e) {
+    if (route() !== 'line' || !e || e.kind === 'stillness') return '';
+    var items = companion.discoveryItems ? companion.discoveryItems() : [];
+    if (!items.length) return '';
+    var matches = items.map(function (item) {
+      var tokens = Methods.sharedTokens(e.title, item.title + ' ' + item.excerpt, 2);
+      return tokens.length ? { item: item, tokens: tokens } : null;
+    }).filter(Boolean).slice(0, 2);
+    if (!matches.length) return '<div class="leaf-related"><p class="small muted">树外的 AI 世界里，暂时没有和这件事明显相关的内容；不做牵强关联。</p></div>';
+      return '<div class="leaf-related"><h3>相关外部内容 · 本地匹配</h3>' + matches.map(function (match) {
+      return '<div class="leaf-related-item"><a href="' + esc(match.item.url) + '" target="_blank" rel="noopener noreferrer">' + originalText(match.item.title) + ' ↗</a><p class="small muted">' + localizedText(['匹配理由：都提到「', [match.tokens.join('」「')], '」 · 发布 ', [String(match.item.publishedAt).slice(0, 10)]]) + (match.item.retrievedAt ? localizedText([' · 获取 ', [String(match.item.retrievedAt).slice(0, 10)]]) : '') + '</p><button class="btn sm" data-act="content-try" data-id="' + esc(e.id) + '" data-url="' + esc(match.item.url) + '">在这件事上试试 · 记录来源</button></div>';
+    }).join('') + '</div>';
   }
   function pageLine() {
     var date = lineDate || todayStr(), list = entriesOn(date);
     lineDate = date;
-    return '<div class="daynav full"><button data-act="day" data-d="-1" aria-label="前一天"><span class="arr">‹</span><span class="nb">' + esc(fmtDate(addDays(date, -1))) + '</span></button>' +
-      '<div class="dn-mid"><span class="dn-full">' + esc(fmtDate(date, true)) + '</span></div><button data-act="day" data-d="1" aria-label="后一天"><span class="nb">' + esc(fmtDate(addDays(date, 1))) + '</span><span class="arr">›</span></button></div>' +
-      '<section class="full" aria-label="时间之树"><div class="tree-wrap">' + treeSvg(date, list) + '</div><p class="scope-note tree-hint">临近 1 h 开花 · 完成结果 · 记录保留</p></section>' + companion.discoveryHTML();
+    return '<div class="daynav full"><button data-act="day" data-d="-1" aria-label="前一天"><span class="arr">‹</span><span class="nb" data-local-date="' + addDays(date, -1) + '">' + esc(fmtDate(addDays(date, -1))) + '</span></button>' +
+      '<div class="dn-mid"><span class="dn-full" data-local-date="' + date + '" data-date-full>' + esc(fmtDate(date, true)) + '</span></div><button data-act="day" data-d="1" aria-label="后一天"><span class="nb" data-local-date="' + addDays(date, 1) + '">' + esc(fmtDate(addDays(date, 1))) + '</span><span class="arr">›</span></button></div>' +
+      '<header class="paper-page-title full"><h1>时间之树</h1></header>' +
+      '<div class="full paper-line-cols"><div class="paper-line-main">' +
+      '<section class="paper-tree" aria-label="时间之树"><div class="tree-wrap">' + treeSvg(date, list) + '</div></section>' +
+      '</div><aside class="paper-line-side">' + companion.discoveryHTML(relatedEventsFor) + '</aside></div>';
   }
   function leafSheet(e) {
     bubSel = e.id;
     var personal = e.kind === 'stillness', title = personal && e.title === '静驻' ? '自由安排' : e.title;
     var conf = personal && e.state === 'reserved' && stillnessEnded(e) ? '<div class="btns"><button class="btn primary" data-act="kept" data-id="' + e.id + '">✓ 用到了</button><button class="btn" data-act="taken" data-id="' + e.id + '">被占用</button></div>' : '';
     var planned = treePlannedEntry(e);
-    var mrefLine = e.methodRef ? '<p class="small">关联方法：' + esc(e.methodRef.name) + ' v' + e.methodRef.version + (methodStatusLabel(e) ? ' · ' + esc(methodStatusLabel(e)) : '') + (byMethodId(e.methodRef.methodId) ? '' : ' · 方法已删除，本条记录保留') + '</p>' : '';
-    openSheet('<h2>' + esc(title) + '</h2><p class="muted">' + (e.completion ? '原计划 ' : '') + e.start + '–' + planned.end + ' · ' + (e.completion ? '实际 ' + e.completion.actual : dur(e)) + ' min' + (e.done ? ' · ✓ 已完成' : '') + '</p>' + conf + assistance(e) + mrefLine +
-      (!personal && !e.done ? '<button class="btn primary wide" data-act="task-finish" data-id="' + e.id + '">完成</button><button class="btn wide" data-act="edit">修改</button>' : '') + '<button class="btn wide" data-act="del" data-id="' + e.id + '">删除</button><button class="btn wide" data-act="close">关闭</button>');
+    var userCompletion = !developerUI && e.completion ? '<p class="small">' + localizedText([e.completion.usedAI ? '使用了 AI' : '未使用 AI']) + (e.completion.usedAI && completionModelName(e.completion) ? ' · ' + originalText(completionModelName(e.completion)) : '') + '</p>' : '';
+    var completionAction = !developerUI && !personal && e.done ? '<button class="btn" data-act="task-finish" data-id="' + esc(e.id) + '">记录用时</button>' : '';
+    var mrefLine = e.methodRef ? '<p class="small">关联方法：' + originalText(e.methodRef.name) + ' v' + e.methodRef.version + (methodStatusLabel(e) ? ' · ' + esc(methodStatusLabel(e)) : '') + (byMethodId(e.methodRef.methodId) ? '' : ' · 方法已删除，本条记录保留') + '</p>' : '';
+    var srcLine = e.sourceRef ? '<p class="small">' + localizedText(['来源关联：', [e.sourceRef.title], ' · 树外内容']) + '</p>' : '';
+    openSheet('<h2>' + (personal && e.title === '静驻' ? '自由安排' : originalText(title)) + '</h2><p class="muted">' + (e.completion ? '原计划 ' : '') + e.start + '–' + planned.end + ' · ' + (e.completion ? completionTimeLabel(e.completion) : dur(e) + ' min') + (e.done ? ' · ✓ 已完成' : '') + '</p>' + conf + userCompletion + collaborationSource(e) + aiEntry(e) + mrefLine + srcLine + relatedContentFor(e) +
+      (!personal && !e.done ? '<button class="btn primary wide" data-act="task-finish" data-id="' + e.id + '">完成</button><button class="btn wide" data-act="edit">修改</button>' : '') + completionAction + '<button class="btn wide" data-act="del" data-id="' + e.id + '">删除</button><button class="btn wide" data-act="close">关闭</button>');
   }
 
   var range = 7;
@@ -2109,8 +2257,7 @@ window.TangoMethods = (function () {
       var before = e.completion && Number.isInteger(e.completion.before) ? e.completion.before : dur(e);
       if (!Number.isFinite(before) || before <= 0 || before > 1440) return;
       var f = e.forecast;
-      if (!f || f.before !== before) f = guidanceEstimate(ruleFor(e.title).cat, before);
-      if (f.source !== 'history' || !Number.isInteger(f.low) || !Number.isInteger(f.high) || f.high < f.low || f.high > before) { totals.unknown++; return; }
+      if (!f || f.before !== before || f.dataMode !== (S.mode === 'demo' ? 'demo' : 'real') || f.source !== 'history' || !Number.isInteger(f.low) || !Number.isInteger(f.high) || f.high < f.low || f.high > before) { totals.unknown++; return; }
       totals.before += before; totals.low += f.low; totals.high += f.high; totals.samples++;
     });
     totals.afterLow = totals.before - totals.high; totals.afterHigh = totals.before - totals.low;
@@ -2122,52 +2269,76 @@ window.TangoMethods = (function () {
     var summary = Time.personalUseSummary(S.entries, from, to);
     return '<details><summary>预留与实际用途 · ' + (S.mode === 'demo' ? '示例' : '真实记录') + '</summary><p class="small" data-metric="review-personal-reserved">预留 ' + summary.reserved + ' min · 事后确认用到 ' + summary.confirmedUsed + ' min · 未确认 ' + summary.unconfirmed + ' 项（含未来预留）</p><p class="small">来自任务关联：预留 ' + summary.taskLinked.reserved + ' / 确认用到 ' + summary.taskLinked.confirmedUsed + ' min</p><p class="small">普通个人预留：预留 ' + summary.ordinary.reserved + ' / 确认用到 ' + summary.ordinary.confirmedUsed + ' min</p><p class="small">已确认用途：' + Object.keys(summary.purposes).filter(function (key) { return summary.purposes[key] > 0; }).map(function (key) { return KINDS[key].label + ' ' + summary.purposes[key] + ' min'; }).join(' · ') + (summary.confirmedUsed ? '' : '暂无事后确认') + '</p><p class="small muted">按当前时间窗内个人预留记录累计，重叠可能重复。任务关联仅表示 from 引用，不等于由 AI 创造；用途是本人事后确认，未确认不视为已使用。</p></details>';
   }
-  function methodUseSummaryLine() {
-    var stats = Methods.useStats(S.methodUses);
+  function methodUseSummaryLine(uses) {
+    var stats = Methods.useStats(uses || S.methodUses);
     var parts = [];
     if (stats.completed) parts.push(stats.completed + ' 次完成并验收');
     if (stats.applied) parts.push(stats.applied + ' 次应用后待完成');
     if (stats.aborted) parts.push(stats.aborted + ' 次应用后中止');
     if (stats.dismissed) parts.push(stats.dismissed + ' 次忽略');
-    return parts.length ? parts.join(' · ') : '还没有在任务上用过';
+    return parts.length ? parts.map(function (part) { return localizedText([part]); }).join(' · ') : localizedText(['还没有在任务上用过']);
   }
   function pageMethods() {
+    if (!developerUI && !S.methods.length) return '<section class="block"><h2>我的 AI 工作手册</h2><p class="muted small">暂无记录</p></section>';
+    if (!developerUI && S.methods.length) return '<section class="block"><h2>我的 AI 工作手册</h2>' + S.methods.map(function (method) { return '<article class="task-card"><h3>' + originalText(method.name) + '</h3>' + (method.purpose ? '<p class="small">' + originalText(method.purpose) + '</p>' : '') + '<div class="btns">' + (method.status !== 'archived' ? '<button class="btn sm" data-act="method-reuse" data-mid="' + esc(method.id) + '">再用一次</button>' : '') + '<button class="btn sm" data-act="method-edit" data-mid="' + esc(method.id) + '">查看 / 修改</button></div></article>'; }).join('') + '</section>';
     if (!S.methods.length) return '<section class="block"><h2>我的 AI 工作手册</h2><p class="muted small">还没有保留过方法。完成一次任务时，在「保留这次方法」里勾选保存，下次相似任务会提醒你找回。</p></section>';
     var active = S.methods.filter(function (m) { return m.status !== 'archived'; }), archived = S.methods.filter(function (m) { return m.status === 'archived'; });
     function methodCard(m) {
       var stats = Methods.useStats(usesFor(m.id));
       var used = stats.applied + stats.aborted + stats.completed;
       var originTask = m.origin && byId(m.origin.taskId);
-      var originText = m.origin ? (originTask ? '来自「' + esc(originTask.title) + '」' : '来源任务已删除') : '手动创建';
-      return '<article class="task-card"><div class="task-head"><div class="task-title"><b>' + esc(m.name) + '</b><time>v' + m.version + ' · ' + METHOD_CAT_LABELS[m.category] + '</time></div><span class="small muted">' + (m.status === 'archived' ? '已归档' : '用过 ' + used + ' 次') + '</span></div>' +
-        '<p class="small muted">' + originText + ' · ' + (stats.completed ? stats.completed + ' 次完成并验收' : '尚无完成验收的使用 · 不算已验证有效') + '</p>' +
-        '<div class="task-actions"><button class="btn sm" data-act="method-edit" data-mid="' + esc(m.id) + '">查看 / 修改</button></div></article>';
+      var originText = m.origin ? (originTask ? localizedText(['来自「', [originTask.title], '」']) : '来源任务已删除') : '手动创建';
+      return '<article class="task-card"><div class="task-head"><div class="task-title"><b>' + originalText(m.name) + '</b><time>' + localizedText([['v' + m.version], ' · ', METHOD_CAT_LABELS[m.category]]) + '</time></div><span class="small muted">' + (m.status === 'archived' ? '已归档' : '用过 ' + used + ' 次') + '</span></div>' +
+        '<p class="small muted">' + originText + ' · ' + localizedText([stats.completed ? stats.completed + ' 次完成并验收' : '尚无完成验收的使用 · 不算已验证有效']) + '</p>' +
+        '<div class="task-actions">' + (m.status !== 'archived' ? '<button class="btn sm" data-act="method-reuse" data-mid="' + esc(m.id) + '">再用一次</button>' : '') + '<button class="btn sm" data-act="method-edit" data-mid="' + esc(m.id) + '">查看 / 修改</button></div></article>';
     }
-    return '<section class="block"><h2>我的 AI 工作手册</h2><p class="small muted">' + active.length + ' 个方法 · ' + methodUseSummaryLine() + '。方法来自你自己的任务；按任务类别本地匹配找回，不生成匹配度分数。</p>' +
+    return '<section class="block"><h2>我的 AI 工作手册</h2><p class="small muted">' + localizedText([active.length + ' 个方法', ' · ']) + methodUseSummaryLine() + localizedText(['。方法来自你自己的任务；按任务类别本地匹配找回，不生成匹配度分数。']) + '</p>' +
       (active.length ? active.map(methodCard).join('') : '<p class="muted small">当前没有在用的方法；已归档方法在下方。</p>') +
       (archived.length ? '<details><summary>已归档 · ' + archived.length + '</summary>' + archived.map(methodCard).join('') + '</details>' : '') +
       '<p class="small muted">模型候选理由默认未验证；只有「完成并验收」的使用记录才算复用结果，中止与忽略都如实保留。</p></section>';
   }
+  function methodLibraryButton() {
+    return S.methods.length ? '<button class="btn sm" data-act="method-library">我的 AI 工作手册</button>' : '';
+  }
+  function userReview() {
+    var to = addDays(todayStr(), -calOff * range), from = addDays(to, -(range - 1));
+    var records = S.entries.filter(function (entry) { return entry.date >= from && entry.date <= to; });
+    var summary = Time.completionSummary(records), completed = records.filter(function (entry) { return entry.completion && entry.kind !== 'stillness'; });
+    return '<h1 class="sr full">回顾</h1><div class="seg full" role="group" aria-label="范围"><button data-act="range" data-d="7" aria-pressed="' + (range === 7) + '">7 天</button><button data-act="range" data-d="30" aria-pressed="' + (range === 30) + '">30 天</button></div><p class="scope-note full">' + esc(from) + ' → ' + esc(to) + '</p>' + fwCalendar(true) + '<section class="review-metrics full user-review-summary"><div class="tile"><span class="label">已完成</span><b class="v">' + summary.completed + '</b></div><div class="tile"><span class="label">已记录用时</span><b class="v" data-metric="recorded-minutes">' + summary.minutes + ' <small>min</small></b></div><div class="tile"><span class="label">使用了 AI</span><b class="v">' + summary.usedAI + '</b></div></section><section class="block full paper-review-entry user-review-records"><h2>完成记录</h2>' + (completed.length ? completed.slice().sort(function (a, b) { return b.date.localeCompare(a.date); }).map(function (entry) {
+      var c = entry.completion, name = completionModelName(c);
+      return '<article><h3>' + originalText(entry.title) + '</h3><p class="small">' + esc(fmtDate(entry.date, true)) + ' · ' + (Number.isInteger(c.actual) ? c.actual + ' min' : localizedText(['未记录用时'])) + ' · ' + localizedText([c.usedAI ? '使用了 AI' : '未使用 AI']) + (c.usedAI ? ' · ' + (name ? originalText(name) : localizedText(['模型未记录'])) : '') + '</p>' + collaborationSource(entry) + '<button class="btn sm" data-act="task-finish" data-id="' + esc(entry.id) + '">记录用时</button></article>';
+    }).join('') : '<p class="muted">暂无记录</p>') + '</section><section class="block full companion-invite">' + methodLibraryButton() + '<button class="btn sm" data-act="assistant-reflect">一起回顾与反思</button></section>';
+  }
   function pageReview() {
+    if (!developerUI) return userReview();
     var end = addDays(todayStr(), -calOff * range), from = addDays(end, -(range - 1));
     var records = S.entries.filter(function (e) { return e.date >= from && e.date <= end; }), x = mix(records), m = x.m;
     var forecast = reviewForecast(records), actual = Time.recordedDurations(S.trials, from, end);
     var netText = actual.netDifference === null ? '待实测 · ' + actual.unknownRecording + ' 项记录开销未知' : signedMinutes(actual.netDifference) + ' min';
-    var html = '<div class="seg full" role="group" aria-label="范围"><button data-act="range" data-d="7" aria-pressed="' + (range === 7) + '">7 天</button><button data-act="range" data-d="30" aria-pressed="' + (range === 30) + '">30 天</button></div>' +
+    var html = '<h1 class="sr full">回顾</h1><div class="seg full" role="group" aria-label="范围"><button data-act="range" data-d="7" aria-pressed="' + (range === 7) + '">7 天</button><button data-act="range" data-d="30" aria-pressed="' + (range === 30) + '">30 天</button></div>' +
       '<div class="col"><section class="review-metrics" aria-label="时间差值"><div class="tile estimated-tile"><span class="label">个人历史参考</span><span class="v" data-metric="review-estimated">' + (forecast.samples ? rangeText(forecast.low, forecast.high) + ' <small>min</small>' : '待实测') + '</span>' +
       (forecast.samples ? '<div class="metric-calculation"><span>计划基线 <b data-metric="review-estimated-before">' + forecast.before + '</b> min</span><span>−</span><span>参考用时 <b data-metric="review-estimated-after">' + rangeText(forecast.afterLow, forecast.afterHigh) + '</b> min</span></div>' : '') + '<p class="small muted">' + forecast.samples + ' 项有参考 · ' + forecast.unknown + ' 项样本不足</p></div>' +
       '<div class="tile actual-tile"><span class="label">已验收差值</span><span class="v" data-metric="review-actual">' + signedMinutes(actual.difference) + ' <small>min</small></span>' +
       '<div class="metric-calculation"><span>原计划 <b>' + actual.before + '</b> min</span><span>−</span><span>实际 <b>' + actual.after + '</b> min</span></div><p class="small muted" data-metric="review-quality">' + actual.samples + ' 项已验收 · ' + actual.pending + ' 项待验收</p><p class="small" data-metric="review-costs">已分项：准备 ' + actual.preparation + ' · 执行 ' + actual.execution + ' · 核对 ' + actual.checking + ' · 返工 ' + actual.rework + ' min</p>' + (actual.unknownCosts ? '<p class="small muted">' + actual.unknownCosts + ' 项未记录分项成本；总用时仍计入。</p>' : '') + '<p class="small">额外记录开销：已记录 ' + actual.recording + ' min' + (actual.unknownRecording ? ' · ' + actual.unknownRecording + ' 项未知' : '') + '</p><p class="small" data-metric="review-net">净时间差值 ' + netText + ' · 计划 − 实际总用时 − 额外记录开销；不能归因于 AI</p>' + (actual.difference < 0 ? '<p class="small">多花费 ' + Math.abs(actual.difference) + ' min</p>' : '') + '</div></section>' +
       '<details class="metric-help"><summary aria-label="查看计算口径">ⓘ 口径</summary><p>参考：至少两条同类、使用 AI、已验收的个人记录。无合格样本不报节省数字；范围不是置信区间，任务难度未控制。</p><p>差值：已验收任务的原计划 − 实际总用时（准备 + 执行 + 核对 + 返工）。超时显示负值。计划不是不用 AI 的对照，差值不等于 AI 的贡献；旧记录未验收时不计入。</p></details><p class="scope-note">' + from + ' → ' + end + '</p>' + stillnessCard() + fwCalendar();
+    var completedNotes = records.filter(function (e) { return e.completion; }).slice().sort(function (a, b) { return b.date.localeCompare(a.date); });
+    var notesHtml = '<section class="block paper-review-entry"><h2>尝试与结果</h2>' + (completedNotes.length ? completedNotes.map(function (e) { return '<details><summary>' + originalText(e.title) + ' · ' + localizedText([e.completion.usedAI ? '使用了 AI' : '未记录使用 AI']) + '</summary><p class="small"><time data-local-date="' + esc(e.date) + '" data-date-full datetime="' + esc(e.date) + '">' + esc(fmtDate(e.date, true)) + '</time> · ' + localizedText(['实际', ' ', [e.completion.actual], ' min · ', e.completion.quality === 'accepted' ? '本人已验收' : '等待核验或返工'].concat(e.completion.helpful ? [' · 自述：', HELPFUL_LABELS[e.completion.helpful]] : [])) + '</p><p class="small">' + (e.methodRef ? '沿用方法：' + originalText(e.methodRef.name) : '下次遇到类似事情，你会沿用哪个做法？') + (e.sourceRef ? '</p><p class="small">' + localizedText(['来自树外内容：', [e.sourceRef.title]]) : '') + '</p><button class="btn sm" data-act="leaf" data-id="' + esc(e.id) + '">查看事件记录</button></details>'; }).join('') : '<p class="muted">还没有完成记录。完成一次真实尝试后，在这里回看时间与结果。</p><a class="btn" href="#today">回到今天</a>') + '</section>';
+    html = html.replace('<div class="col">', '<div class="col">' + notesHtml);
     var pending = records.filter(function (e) { return e.completion && e.completion.quality !== 'accepted'; });
-    if (pending.length) html += '<section class="block"><h2>待验收事项</h2>' + pending.map(function (e) { return '<button class="ai-row" data-act="task-finish" data-id="' + esc(e.id) + '"><span>' + esc(e.title) + '<br><span class="small muted">' + (e.completion.quality === 'rework' ? '需返工' : '待核验') + ' · 已记录 ' + e.completion.actual + ' min</span></span><span class="small">验收结果 ›</span></button>'; }).join('') + '</section>';
+    if (pending.length) html += '<section class="block"><h2>待验收事项</h2>' + pending.map(function (e) { return '<button class="ai-row" data-act="task-finish" data-id="' + esc(e.id) + '"><span>' + originalText(e.title) + '<br><span class="small muted">' + localizedText([e.completion.quality === 'rework' ? '需返工' : '待核验', ' · ', '已记录 ' + e.completion.actual + ' min']) + '</span></span><span class="small">验收结果 ›</span></button>'; }).join('') + '</section>';
     var learningRecords = records.filter(function (e) { return e.completion && e.completion.learning; });
-    html += '<section class="block"><h2>AI 技能练习</h2><p class="small muted">' + learningRecords.length + ' 项自述记录 · 不代表已掌握或能力迁移。可在完成表单补充先独立尝试、提示级别、核验技能与独立复测。</p>' + learningRecords.map(function (e) { var l = e.completion.learning; return '<details><summary>' + esc(e.title) + '</summary><p class="small">先独立尝试：' + (l.ownAttempt === 'yes' ? '是' : l.ownAttempt === 'no' ? '否' : '未记录') + ' · 帮助：' + ({ hints: '提示', outline: '分步引导', answer: '直接答案', none: '未使用 AI' }[l.hintLevel] || '未记录') + ' · 独立复测：' + (l.independentRetest === 'passed' ? '自述能完成' : l.independentRetest === 'needs-practice' ? '仍需练习' : '未复测') + '</p><p class="small">练习：' + Object.keys(SKILL_LABELS).filter(function (key) { return Array.isArray(l.skills) && l.skills.indexOf(key) >= 0; }).map(function (key) { return SKILL_LABELS[key]; }).join('、') + '</p></details>'; }).join('') + '</section>';
-    html += pageMethods();
+    html += '<section class="block"><h2>AI 技能练习</h2><p class="small muted">' + learningRecords.length + ' 项自述记录 · 不代表已掌握或能力迁移。可在完成表单补充先独立尝试、提示级别、核验技能与独立复测。</p>' + learningRecords.map(function (e) { var l = e.completion.learning; var skills = Object.keys(SKILL_LABELS).filter(function (key) { return Array.isArray(l.skills) && l.skills.indexOf(key) >= 0; }); return '<details><summary>' + originalText(e.title) + '</summary><p class="small">' + localizedText(['先独立尝试：', l.ownAttempt === 'yes' ? '是' : l.ownAttempt === 'no' ? '否' : '未记录', ' · ', '帮助：', { hints: '提示', outline: '分步引导', answer: '直接答案', none: '未使用 AI' }[l.hintLevel] || '未记录', ' · ', '独立复测：', l.independentRetest === 'passed' ? '自述能完成' : l.independentRetest === 'needs-practice' ? '仍需练习' : '未复测']) + '</p><p class="small">' + localizedText(['练习：']) + skills.map(function (key) { return localizedText([SKILL_LABELS[key]]); }).join(' · ') + '</p></details>'; }).join('') + '</section>';
+    var reviewUses = S.methodUses.filter(function (use) { return use.date >= from && use.date <= end; });
+    html += '<section class="block review-method-results"><h2>使用记录 · 真实结果</h2><p class="small muted">' + esc(from) + ' → ' + esc(end) + '</p><p class="small">' + methodUseSummaryLine(reviewUses) + '</p>' + reviewUses.slice().sort(function (a, b) { return b.date.localeCompare(a.date); }).slice(0, 6).map(function (use) {
+      var task = byId(use.taskId);
+      return '<p class="small">' + esc(use.date) + ' · ' + originalText(use.methodName) + ' v' + use.methodVersion + ' · ' + localizedText([METHOD_USE_LABELS[use.status]]) + (task ? ' · <button class="btn sm" data-act="leaf" data-id="' + esc(task.id) + '">' + originalText(task.title) + '</button>' : ' · ' + localizedText(['（原任务已删除）'])) + '</p>';
+    }).join('') + methodLibraryButton() + '</section>';
     var keys = ['create', 'connect', 'explore', 'restore', 'necessary', 'stillness'].filter(function (k) { return m[k] > 0; });
     html += '<section class="block"><h2>时间去向</h2>' + (x.total ? '<div class="stack-bar" role="img" aria-label="时间去向">' + keys.map(function (k) { return '<span style="width:' + (m[k] / x.total * 100).toFixed(2) + '%;background:' + KINDS[k].color + '"></span>'; }).join('') + '</div><div class="legend">' + keys.map(function (k) { return '<span><i style="background:' + KINDS[k].color + '"></i>' + KINDS[k].label + ' <b class="num">' + fmtPlain(m[k]) + '</b></span>'; }).join('') + '</div><p class="scope-note">按事项记录累计；重叠事项可能重复计算。</p>' : '<p class="muted">暂无记录</p>') + '</section></div>';
-    var seen = {}, finds = records.filter(function (e) { var r = ruleFor(e.title); if (e.kind === 'stillness' || !r.method || seen[e.title]) return false; seen[e.title] = true; return true; }).slice(0, 4);
-    html += '<div class="col"><section class="block"><h2>AI 辅助机会</h2>' + (finds.length ? finds.map(function (e) { return '<button class="ai-row" data-act="ai-tools" data-t="' + esc(e.title) + '" data-m="' + (e.completion ? e.completion.before : dur(e)) + '"><span>' + esc(e.title) + '<br><span class="small muted">' + esc(ruleFor(e.title).method) + '</span></span><span class="small">查看能力 ›</span></button>'; }).join('') : '<p class="muted">记录具体事项后，显示适合的辅助方式。</p>') + '</section><section class="block"><h2>时间归你</h2><p class="muted small">散步、陪伴、探索，或自由安排。预留后确认是否用到了，让回顾反映真实收益。</p>' + personalUseDetails(from, end) + '</section><section class="block"><h2>证据导出</h2><p class="small muted">当前 ' + range + ' 天 · 本浏览器自报汇总。没有跨用户 cohort、留存或模型对照证据；示例与真实数据分别标识。</p><div class="btns"><button class="btn sm" data-act="cohort-export">cohort 汇总导出</button><button class="btn sm" data-act="model-evaluation-export">模型评测导出</button></div></section></div>';
+    var seen = {}, findsAll = records.filter(function (e) { var r = ruleFor(e.title); if (e.kind === 'stillness' || !r.method || seen[e.title]) return false; seen[e.title] = true; return true; });
+    var mutedFinds = findsAll.filter(function (e) { return hintMuted[ruleFor(e.title).cat] === true; }).length;
+    var finds = findsAll.filter(function (e) { return hintMuted[ruleFor(e.title).cat] !== true; }).slice(0, 4);
+    html += '<div class="col"><section class="block"><h2>AI 辅助机会</h2>' + (finds.length ? finds.map(function (e) { return '<button class="ai-row" data-act="ai-tools" data-t="' + esc(e.title) + '" data-m="' + (e.completion ? e.completion.before : dur(e)) + '"><span>' + originalText(e.title) + '<br><span class="small muted">' + esc(ruleFor(e.title).method) + '</span></span><span class="small">查看能力 ›</span></button>'; }).join('') : '<p class="muted">记录具体事项后，显示适合的辅助方式。</p>') + (mutedFinds ? '<p class="small muted">' + mutedFinds + ' 条机会因你关闭该类推荐而隐藏 · 可在设置中恢复</p>' : '') + '</section><section class="block"><h2>时间归你</h2><p class="muted small">散步、陪伴、探索，或自由安排。预留后确认是否用到了，让回顾反映真实收益。</p>' + personalUseDetails(from, end) + '</section><section class="block"><h2>证据导出</h2><p class="small muted">当前 ' + range + ' 天 · 本浏览器自报汇总。没有跨用户 cohort、留存或模型对照证据；示例与真实数据分别标识。</p><div class="btns"><button class="btn sm" data-act="cohort-export">cohort 汇总导出</button><button class="btn sm" data-act="model-evaluation-export">模型评测导出</button></div></section></div>';
     return html + '<section class="block full companion-invite"><div><h2>和探戈回望今天</h2><p class="small muted">从已验收的时间事实出发，聊聊 AI 的帮助、额外成本，以及留给生活的时间。</p></div><button class="btn sm" data-act="assistant-reflect">一起回顾与反思</button></section>';
   }
   function fmtShort(m) { return fmt(m); }
@@ -2201,9 +2372,14 @@ window.TangoMethods = (function () {
     var content = JSON.stringify(report, null, 2), filename = 'donego-' + kind + '-v1.json';
     openSheet('<h2>' + (kind === 'cohort' ? 'cohort 汇总导出' : kind === 'diagnostic' ? '诊断导出' : '模型评测导出') + '</h2><p class="small muted">' + from + ' → ' + end + ' · ' + (report.dataMode === 'demo' ? '示例数据' : '真实记录') + ' · 仅在本机生成。未包含姓名、事项正文、个人或任务标识符、密钥；汇总值仍可能透露个人活动，请自行决定是否分享。</p><p class="small muted">' + (kind === 'cohort' ? '仅单浏览器汇总；D7/D30 留存、跨用户 cohort 与因果效果未知。' : kind === 'diagnostic' ? '仅含记录条数、隐私状态与服务版本；无用户正文或凭据。' : '仅纳入明确同意的真实任务自述指标；' + report.modelResults.length + ' 条。无样本时留空，不构成模型对照或能力排名。') + '</p><div class="field"><label for="exp">导出预览 · JSON</label><textarea id="exp" readonly>' + esc(content) + '</textarea></div><div class="btns"><button class="btn sm" data-act="copy">复制</button><a class="btn sm" download="' + filename + '" href="data:application/json;charset=utf-8,' + encodeURIComponent(content) + '">下载 JSON</a><button class="btn sm" data-act="close">关闭</button></div>');
   }
+  function userSettings() {
+    return '<h1 class="full">设置</h1><div class="col full"><form id="setForm" class="col"><div class="field"><label for="s-name">称呼</label><input id="s-name" maxlength="20" value="' + esc(S.name) + '"></div><div class="field"><label for="s-wake">每天清醒几小时</label><input id="s-wake" type="number" min="8" max="20" step="0.5" value="' + S.wake / 60 + '"></div><label class="check"><input id="s-sound" type="checkbox"' + (S.sound === false ? '' : ' checked') + '> 提示音</label><label class="check"><input id="s-ai-consent" type="checkbox"' + (L.consent ? ' checked' : '') + '> 允许 AI 整理事项</label><button class="btn primary" type="submit">保存</button></form><section class="block"><h2>AI 机会提示</h2>' + (Object.keys(hintMuted).length ? Object.keys(hintMuted).map(function (cat) { return '<p class="small">' + localizedText([METHOD_CAT_LABELS[cat] || cat]) + ' <button class="btn sm" data-act="hints-restore" data-cat="' + esc(cat) + '">恢复推荐</button></p>'; }).join('') : '<p class="small">当前没有关闭任何类型的机会推荐。</p>') + '</section><div class="btns"><button class="btn sm" data-act="export">导出</button><button class="btn sm" data-act="import-open">导入</button><button class="btn sm" data-act="wipe">清空</button>' + (safeStorageGet(BACKUP_KEY) ? '<button class="btn sm" data-act="restore-backup">恢复备份</button>' : '') + (corruptRaw ? '<button class="btn sm" data-act="corrupt-export">导出受保护原始数据</button>' : '') + '</div>' + (recoveryNotice ? '<p class="small status warn">' + esc(recoveryNotice) + '</p>' : '') + (memoryOnly ? '<p class="small muted">此浏览器无法保存</p>' : '<p class="small muted">数据只存在这个浏览器</p>') + '<div id="dataBox"></div></div>';
+  }
   function pageSettings() {
+    if (!developerUI) return userSettings();
     return '<h1 class="full" style="font-size:26px">设置</h1><div class="col full">' +
       '<section class="block"><h2>版本与数据模式</h2><p class="small">当前版本 <code>' + PRODUCT_VERSION + '</code></p><p class="small" id="service-status" role="status">' + esc(serviceSummary()) + '</p><p class="small">数据模式：' + (S.mode === 'demo' ? '示例数据' : '真实记录') + ' · ' + (memoryOnly || corruptedMain ? '仅内存，刷新可能丢失' : '本地浏览器存储') + ' · 跨设备同步未启用</p><p class="small">账户可用性：在模型卡中记录本人核验 · 当前产品无需登录；接口连通不代表第三方应用账户、套餐与额度可用。</p><p class="small muted">最近备份：' + (safeStorageGet(BACKUP_KEY) ? '有可恢复快照，时间未记录' : '尚无可读取的本地备份') + '</p><button class="btn sm" data-act="diagnostic-export">诊断导出</button></section>' +
+      '<section class="block"><h2>AI 机会提示</h2><p class="small muted">关闭后不再主动推荐该类机会；不影响你主动打开模型帮助，也不影响其他类型建议。</p>' + (Object.keys(hintMuted).length ? Object.keys(hintMuted).map(function (cat) { return '<p class="small">已关闭：' + (METHOD_CAT_LABELS[cat] || cat) + ' <button class="btn sm" data-act="hints-restore" data-cat="' + cat + '">恢复推荐</button></p>'; }).join('') : '<p class="small">当前没有关闭任何类型的机会推荐。</p>') + '</section>' +
       '<p class="small">最近错误编号：<code id="last-error-code">' + esc(lastErrorCode || '本次会话未记录') + '</code></p><form id="setForm" class="col" style="gap:14px"><div class="field"><label for="s-name">称呼</label><input id="s-name" maxlength="20" value="' + esc(S.name) + '"></div>' +
       '<div class="field"><label for="s-wake">每天清醒几小时</label><input id="s-wake" type="number" inputmode="decimal" min="8" max="20" step="0.5" value="' + (S.wake / 60) + '"></div>' +
       '<label class="check"><input type="checkbox" id="s-sound"' + (S.sound === false ? '' : ' checked') + '> 提示音</label>' +
@@ -2252,15 +2428,16 @@ window.TangoMethods = (function () {
     return '<tr><td>' + v.version + '</td><td><code>' + esc(v.termsHash) + '</code></td><td>' + esc(v.createdBy) + '</td><td>' + fmtWhen(v.createdAt) + '</td><td>' + (v.version === (agreementState && agreementState.currentVersion) ? '当前' : '已失效，需重新确认') + '</td></tr>';
   }
   function pageAgreements() {
+    if (!developerUI && collaboration) return collaboration.render();
     loadAgreements();
-    if (agreementStorageCorrupt) return '<h1 class="full">约定</h1><section class="block full"><h2>本地约定无法读取</h2><p class="small muted">数据或当事人不符合当前本地演示格式。已保留原始存储，未创建新请求或覆盖原数据；请检查备份。</p></section>';
+    if (agreementStorageCorrupt) return '<h1 class="sr full">约定</h1><section class="block full"><h2>本地约定无法读取</h2><p class="small muted">数据或当事人不符合当前本地演示格式。已保留原始存储，未创建新请求或覆盖原数据；请检查备份。</p></section>';
     var req = agreementState, current = req && req.versions.filter(function (v) { return v.version === req.currentVersion; })[0];
     var terms = current && current.terms;
     var mine = req && req.responses[agreementActor];
     var theirs = req && req.responses[agreementActor === 'alice' ? 'bob' : 'alice'];
     var status = !req ? '还没有请求' : req.status === 'received' ? (mine.status === 'accepted' ? '等待对方回应' : '等待双方确认') :
       { sent: '等待双方确认', withdrawn: '已撤回', expired: '已过期', rejected: '已拒绝', agreed: '已形成约定' }[req.status] || req.status;
-    var html = '<h1 class="full" style="font-size:26px">约定</h1><p class="small muted full">请求不等于承诺；反提案会让旧接受失效；约定不会自动授权你的日历。</p><div class="col full">';
+    var html = '<h1 class="sr full">约定</h1><div class="col full">';
     if (!req) {
       html += '<section class="block"><h2>发起示例请求</h2><p class="muted small">这是本地演示，双方身份保存在这个浏览器。真实双账号、服务端身份绑定和跨设备恢复仍在证据台账。</p><button class="btn primary" data-act="agreement-create">创建条款 v1</button></section>';
     } else {
@@ -2307,6 +2484,13 @@ window.TangoMethods = (function () {
   // ---------- sheets ----------
   var sheetOpener = null;
   function openSheet(html) {
+    if (!developerUI) {
+      var template = document.createElement('template'); template.innerHTML = html;
+      template.content.querySelectorAll('.ai-tip,.estimate-help,.paper-tool-label,[data-developer-only],[data-act="model-evaluation-export"],[data-act="cohort-export"],[data-act="diagnostic-export"]').forEach(function (node) { node.remove(); });
+      template.content.querySelectorAll('.model-rank').forEach(function (node) { node.textContent = node.textContent.replace(' · 任务级效果未实测', ''); });
+      if (template.content.querySelector('#method-template')) { template.content.querySelectorAll('details,.tools-h + p.muted.small').forEach(function (node) { node.remove(); }); }
+      html = template.innerHTML;
+    }
     if (!document.querySelector('.overlay')) sheetOpener = document.activeElement;
     var tt = document.querySelector('.toast'); if (tt) tt.hidden = true;
     document.getElementById('layer').innerHTML = '<div class="overlay" data-act="layer-bg"><div class="sheet" role="dialog" aria-modal="true" tabindex="-1">' + html + '</div></div>';
@@ -2423,9 +2607,6 @@ window.TangoMethods = (function () {
   var FW_ICON = '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M16 3v6M16 23v6M3 16h6M23 16h6M6.8 6.8l4.2 4.2M21 21l4.2 4.2M25.2 6.8L21 11M11 21l-4.2 4.2"/><circle cx="16" cy="16" r="2.2"/></svg>';
   function fwCount(d) { return (S.fw && S.fw[d]) || 0; }
   function fwStreak() { var n = 0, d = todayStr(); if (!fwCount(d)) d = addDays(d, -1); while (fwCount(d)) { n++; d = addDays(d, -1); } return n; }
-  function fwBar() {
-    return '<p class="fw-bar small muted">完成后确认用时，再决定时间的去向。</p>';
-  }
   var FW_COL = { p1: ['#F59A8E', '#D9483E'], p2: ['#F6A585', '#E5714A'], p3: ['#F9CFA3', '#EFA05E'], p4: ['#E9D9B6', '#C9B07E'], p5: ['#D5DCE0', '#9FAAB1'], pb: ['#D3DDE6', '#8C9FB1'] };
   var FW_MIX = ['#E8C872', '#F2A7A0', '#A9C8C4', '#C3B6CC', '#F3DFA2', '#9DB8A0'];
   function finishBubble(id) {
@@ -2515,43 +2696,100 @@ window.TangoMethods = (function () {
   // the calendar follows the 7 天 / 30 天 switch; ‹ › step back a whole window
   var calOff = 0;
   function doneOn(ds) { return S.entries.filter(function (e) { return e.date === ds && (e.done || (e.kind === 'stillness' && (e.state === 'kept' || e.state === 'partial'))); }).length; }
-  function fwCalendar() {
+  function fwCalendar(recorded) {
     var t = todayStr(), end = addDays(t, -calOff * range), from = addDays(end, -(range - 1)), col = (PALS[S.pal] || PALS[0])[1][2], g = '';
     var lead = (function () { var p = from.split('-'); return (new Date(+p[0], +p[1] - 1, +p[2]).getDay() + 6) % 7; })();
     g = [1, 2, 3, 4, 5, 6, 0].map(function (d) { return '<span class="cal-w">' + wk(d) + '</span>'; }).join('');
     for (var i = 0; i < lead; i++) g += '<span class="cal-d pad"></span>';
-    for (var k = 0; k < range; k++) { var ds = addDays(from, k), n = trialsSaved(ds), p = ds.split('-');
+    for (var k = 0; k < range; k++) { var ds = addDays(from, k), n = recorded ? Time.completionSummary(entriesOn(ds)).minutes : trialsSaved(ds), p = ds.split('-');
       g += '<div class="cal-d' + (ds === t ? ' today' : '') + '" style="background:' + col + '" aria-label="' + ds + ' · ' + n + ' min"><span>' + (+p[2] === 1 || k === 0 ? (+p[1]) + '/' : '') + (+p[2]) + '</span><span class="f">' + (n ? n + '<small> min</small>' : '—') + '</span></div>';
     }
     var sw = PALS.map(function (p, k) { return '<button data-act="cal-pal" data-v="' + k + '" aria-pressed="' + ((S.pal || 0) === k) + '" title="' + p[0] + '" aria-label="颜色：' + p[0] + '" style="background:' + p[1][2] + '"></button>'; }).join('');
-    return '<section class="block cal r' + range + '"><div class="cal-head"><h2>腾出时间记录</h2><button data-act="cal-mon" data-d="1" aria-label="往前">‹</button><button data-act="cal-mon" data-d="-1" aria-label="往后"' + (calOff ? '' : ' disabled') + '>›</button></div><div class="cal-grid">' + g + '</div><div class="cal-foot"><span class="small muted">已确认 · min</span><div class="cal-pal" role="group" aria-label="日历颜色">' + sw + '</div></div></section>';
+    return '<section class="block cal' + (recorded ? ' full' : '') + ' r' + range + '"><div class="cal-head"><h2>' + (recorded ? '已记录用时' : '腾出时间记录') + '</h2><button data-act="cal-mon" data-d="1" aria-label="往前">‹</button><button data-act="cal-mon" data-d="-1" aria-label="往后"' + (calOff ? '' : ' disabled') + '>›</button></div><div class="cal-grid">' + g + '</div><div class="cal-foot"><span class="small muted">' + (recorded ? '<span>已记录用时</span> · min' : '已确认 · min') + '</span><div class="cal-pal" role="group" aria-label="日历颜色">' + sw + '</div></div></section>';
   }
 
   // ---------- router ----------
-  function route() { var h = (location.hash || '').replace('#', ''); return ['today', 'line', 'review', 'agreements', 'settings', 'assistant'].indexOf(h) >= 0 ? h : 'today'; }
+  function route() { var h = (location.hash || '').replace('#', '').split('?')[0]; return ['today', 'line', 'review', 'agreements', 'settings', 'assistant', 'users'].indexOf(h) >= 0 ? h : 'today'; }
   function render() {
     showRecoveryNotice();
+    var slots = document.querySelector('.picker .avs'), slotScroll = slots ? slots.scrollTop : 0;
+    var focusedSlot = document.activeElement && document.activeElement.matches('.tile-av') ? document.activeElement.getAttribute('data-m') : null;
     var advice = document.getElementById('task-advice'); if (advice) taskAdviceOpen = advice.open;
     var r = route();
+    document.getElementById('view').className = 'page-' + r;
     document.getElementById('tabs').innerHTML = PAGES.map(function (p) { return '<a href="#' + p.id + '"' + (p.id === r ? ' aria-current="page"' : '') + '>' + p.label + '</a>'; }).join('');
     var fs = document.getElementById('footSet'); if (r === 'settings') fs.setAttribute('aria-current', 'page'); else fs.removeAttribute('aria-current');
-    var fn = { today: pageToday, line: pageLine, review: pageReview, agreements: pageAgreements, settings: pageSettings, assistant: companion.render }[r];
-    document.getElementById('view').innerHTML = '<div class="page' + (r === 'today' || r === 'review' ? ' split' : '') + '">' + fn() + '</div>';
+    var fn = { today: pageToday, line: pageLine, review: pageReview, agreements: pageAgreements, users: function () { return usersAdmin.render(); }, settings: pageSettings, assistant: function () { return collaboration && collaboration.chatActive() ? collaboration.chatHTML() : companion.render(); } }[r];
+    document.getElementById('view').innerHTML = '<div class="page' + (r === 'today' || r === 'review' ? ' split' : '') + '">' + (S.mode === 'demo' ? '<p class="demo-notice full" role="status">示例模式 · 以下为演示记录</p>' : '') + fn() + '</div>';
     bubSetup();
+    var nextSlots = document.querySelector('.picker .avs');
+    if (nextSlots) {
+      nextSlots.scrollTop = slotScroll;
+      var nextFocus = focusedSlot && nextSlots.querySelector('[data-m="' + focusedSlot + '"]');
+      if (nextFocus) nextFocus.focus({ preventScroll: true });
+    }
   }
 
   // ---------- actions ----------
   function draftById(el) { var box = el.closest('.draft'); var id = box && box.getAttribute('data-id'); return S.drafts.filter(function (d) { return d.id === id; })[0]; }
   function byId(id) { return S.entries.filter(function (e) { return e.id === id; })[0]; }
+  document.addEventListener('change', function (ev) {
+    if (ev.target.id === 'finish-ai') { var wrap = document.getElementById('finish-helpful-wrap'), modelWrap = document.getElementById('finish-model-wrap'); if (wrap) wrap.hidden = !ev.target.checked; if (modelWrap) modelWrap.hidden = !ev.target.checked; }
+  });
   document.addEventListener('click', function (ev) {
     var el = ev.target.closest('[data-act]'); if (!el) return;
     var act = el.getAttribute('data-act');
+    if (!developerUI && ['cohort-export', 'model-evaluation-export', 'diagnostic-export', 'ai-test', 'ai-save-endpoint'].indexOf(act) >= 0) return;
+    if (act === 'method-library') { openSheet(pageMethods() + '<button class="btn wide" data-act="close">关闭</button>'); return; }
+    if (act === 'skip-content') { ev.preventDefault(); document.getElementById('view').focus(); return; }
+    if (act === 'content-try') {
+      var tryEntry = byId(el.getAttribute('data-id')), tryItems = companion.discoveryItems ? companion.discoveryItems() : [], tryUrl = el.getAttribute('data-url');
+      var tryItem = tryItems.filter(function (item) { return item.url === tryUrl; })[0];
+      if (!tryEntry || !tryItem || tryEntry.done) { toast('事项或内容已变化，未记录来源'); return; }
+      return aiTools(tryEntry.title, dur(tryEntry), tryEntry.id, { kind: 'discovery', title: tryItem.title, source: tryItem.source, url: tryItem.url, publishedAt: tryItem.publishedAt, retrievedAt: tryItem.retrievedAt || null });
+    }
+    if (act === 'source-try-start') {
+      var pendingSource = activeModelGuidance, sourceEntry = pendingSource && byId(pendingSource.targetId);
+      if (!sourceEntry || sourceEntry.done || !pendingSource.sourceRef) { toast('事项或内容已变化，未记录来源'); return; }
+      var previousSource = sourceEntry.sourceRef;
+      sourceEntry.sourceRef = Object.assign({}, pendingSource.sourceRef);
+      if (!save()) {
+        if (previousSource) sourceEntry.sourceRef = previousSource; else delete sourceEntry.sourceRef;
+        toast('来源尚未保存，请先检查本机存储'); return;
+      }
+      aiTools(sourceEntry.title, dur(sourceEntry), sourceEntry.id);
+      toast('已记录尝试来源；结果与用时待记录'); return;
+    }
+    if (act === 'event-ai') { var opportunityTask = byId(el.getAttribute('data-id')); if (opportunityTask) return aiTools(opportunityTask.title, dur(opportunityTask), opportunityTask.id); return; }
+    if (act === 'method-reuse') return methodReuseSheet(byMethodId(el.getAttribute('data-mid')));
     if (act === 'budget-edit') { el.hidden = true; document.getElementById('budgetForm').hidden = false; var budgetInput = document.getElementById('today-budget'); budgetInput.focus(); budgetInput.select(); return; }
     if (act === 'budget-cancel') return closeBudgetEditor();
     if (act === 'assistant-open') return companion.open('chat');
+    if (act === 'priorities-today') {
+      var todayIds = entriesOn(todayStr()).filter(function (x) { return !x.done && x.kind !== 'stillness'; }).map(function (x) { return 'entry:' + x.id; });
+      if (!todayIds.length) { toast('今天还没有待办事项；先记一件事，再来排优先级'); return; }
+      return companion.open('priorities', null, { taskIds: todayIds });
+    }
+    if (act === 'hints-mute') {
+      var muteCat = el.getAttribute('data-cat'); if (!muteCat) return;
+      hintMuted[muteCat] = true;
+      if (!saveHints()) { toast('本地保存失败，本次设置仅在本页生效'); return; }
+      closeSheet(); render(); toast('已关闭这类机会推荐 · 主动打开不受影响，可在设置中恢复');
+      return;
+    }
+    if (act === 'hints-restore') {
+      var restoreCat = el.getAttribute('data-cat'); if (!restoreCat) return;
+      delete hintMuted[restoreCat];
+      if (!saveHints()) { toast('本地保存失败，本次设置仅在本页生效'); return; }
+      closeSheet(); render(); toast('已恢复这类机会推荐');
+      return;
+    }
     if (act === 'assistant-priorities') return companion.open('priorities', el.getAttribute('data-target'));
     if (act === 'assistant-models') return companion.open('models', el.getAttribute('data-target'));
-    if (act === 'assistant-reflect') return companion.open('reflection');
+    if (act === 'assistant-reflect') {
+      var reflectEnd = addDays(todayStr(), -calOff * range), reflectFrom = addDays(reflectEnd, -(range - 1));
+      return companion.open('reflection', null, { range: { from: reflectFrom, to: reflectEnd } });
+    }
     if (act === 'layer-bg') { if (ev.target === el) { if (clashCb) { var cb0 = clashCb; clashCb = null; closeSheet(); cb0('cancel'); } else closeSheet(); } return; }
     if (act === 'mic') return startMic();
     if (act === 'draft-kind') { var d = draftById(el); if (d) { d.kind = KIND_ORDER[(KIND_ORDER.indexOf(d.kind) + 1) % KIND_ORDER.length]; if (d.kind === 'stillness') d.title = '自由安排'; save(); render(); } return; }
@@ -2579,8 +2817,7 @@ window.TangoMethods = (function () {
       save(); closeSheet(); render(); toast('留出来了'); return;
     }
     if (act === 'kept' || act === 'taken') { var e1 = byId(el.getAttribute('data-id')); if (e1) { e1.state = act; e1.kept = act === 'kept' ? dur(e1) : 0; save(); closeSheet(); render(); } return; }
-    if (act === 'del') { var did = el.getAttribute('data-id'); S.entries = S.entries.filter(function (e) { return e.id !== did; }); S.methodUses = S.methodUses.filter(function (use) { return use.taskId !== did; }); if (bubSel === did) bubSel = null; save(); closeSheet(); render(); toast('已删除'); return; }
-    if (act === 'care') return careSheet(el.getAttribute('data-k'), el.getAttribute('data-h'));
+    if (act === 'del') { var did = el.getAttribute('data-id'); S.entries = S.entries.filter(function (e) { return e.id !== did; }); if (bubSel === did) bubSel = null; save(); closeSheet(); render(); toast('已删除'); return; }
     if (act === 'leaf') { var e4 = byId(el.getAttribute('data-id')); if (e4) leafSheet(e4); return; }
     if (act === 'day') { var n = +el.getAttribute('data-d'); lineDate = addDays(lineDate || todayStr(), n); if (lineDate === todayStr()) lineDate = null; render(); return; }
     if (act === 'pick') { var pm = +el.getAttribute('data-m'); if (pick[pm]) delete pick[pm]; else pick[pm] = 1; render(); return; }
@@ -2710,7 +2947,7 @@ window.TangoMethods = (function () {
       S.modelAvailability = S.modelAvailability && typeof S.modelAvailability === 'object' ? S.modelAvailability : {};
       S.modelAvailability[MODEL_IDS[modelIndex]] = { state: stateValue, reason: reasonValue, checkedAt: new Date().toISOString() };
       var savedAccount = save(); toast(savedAccount ? '账户检查已保存 · 以本人实测为准' : '账户检查仅在内存，尚未保存');
-      if (activeModelGuidance) aiTools(activeModelGuidance.title, activeModelGuidance.minutes, activeModelGuidance.targetId);
+      if (activeModelGuidance) aiTools(activeModelGuidance.title, activeModelGuidance.minutes, activeModelGuidance.targetId, activeModelGuidance.sourceRef);
       return;
     }
     if (act === 'range') { range = +el.getAttribute('data-d'); calOff = 0; render(); return; }
@@ -2876,7 +3113,7 @@ window.TangoMethods = (function () {
   setInterval(refreshTree, 30000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshTree(); });
   window.addEventListener('pagehide', cancelMic);
-  window.addEventListener('storage', function (event) { if (event.key === STORE_KEY && event.newValue !== lastStoredRaw) { storageConflict = true; recoveryNotice = '另一个标签页已更改数据，已阻止旧快照覆盖。请先导出内存快照，再刷新检查最新记录。'; showRecoveryNotice(); } });
+  window.addEventListener('storage', function (event) { if (event.key === localStorage.key(STORE_KEY) && event.newValue !== lastStoredRaw) { storageConflict = true; recoveryNotice = '另一个标签页已更改数据，已阻止旧快照覆盖。请先导出内存快照，再刷新检查最新记录。'; showRecoveryNotice(); } });
 
   window.__tangoParse = ruleParse;
 
@@ -3033,47 +3270,66 @@ window.TangoMethods = (function () {
     '学习护栏与技能练习 · 可选': 'Learning safeguards and skill practice (optional)', 'AI 技能练习': 'AI skill practice', '任务模型证据与匿名导出 · 可选': 'Model evidence and anonymous export (optional)', '实际使用的模型': 'Model used', '实际型号版本或快照日期': 'Model version or snapshot date', '输入规模': 'Input size', '最近错误编号': 'Latest error code', '本次会话未记录': 'None recorded this session'
   };
   Object.assign(guidanceCopy, gapCopy);
-  // English fallback for newly added detailed recipes in other locales.
+  // English fallback recipes; locale-copy.js supplies complete messages for each locale.
   Object.keys(GUIDANCE).forEach(function (key) {
     var p = GUIDANCE[key];
-    [p.reason, p.prompt, p.device].concat(p.steps).forEach(function (pair) { guidanceCopy[pair[0]] = pair[1]; });
+    [p.reason].concat(p.steps, [p.prompt, p.device]).forEach(function (pair, index) {
+      guidanceCopy[pair[0]] = pair[1];
+      var workflow = window.TangoWorkflowCopy && window.TangoWorkflowCopy[key];
+      if (workflow) Object.keys(workflow).forEach(function (lang) { I18N[lang][pair[0]] = workflow[lang][index]; });
+    });
   });
-  ["en", "ru", "th", "ar", "ko"].forEach(function (lang) {
-    Object.keys(guidanceCopy).forEach(function (key) { I18N[lang][key] = guidanceCopy[key]; });
+  Object.keys(guidanceCopy).forEach(function (key) { I18N.en[key] = guidanceCopy[key]; });
+  var NUM_RE = /−?\d+(?:[.:]\d+)?/g, CJK_RE = /[一-鿿]/;
+  Object.assign(I18N.en, {
+    '一件件来就好': 'One thing at a time', '给时间留一点空间': 'A little room in your day',
+    '回看我的时间与方法': 'Review my time and methods', '今天，一站一站来': 'Your day, one step at a time',
+    '按开始时间排列 · 非时长比例': 'Ordered by start time, not duration', '此刻计划：': 'Planned now: ', '下一站：': 'Up next: ',
+    '此刻计划': 'Planned now', '待确认': 'To review', '待开始': 'Upcoming', '尚无实际用时': 'Actual time not recorded',
+    '了解怎么用 AI': 'Explore AI for this task', '可以试试：': 'You could try: ', '再用一次': 'Use again',
+    '这次用在哪件事？': 'Which task is this for?', '先调整方法': 'Adapt the method first', '这次先不用': 'Not this time',
+    '暂时不用 AI': 'Continue without AI', '聊天用途': 'Conversation purpose', '仅当前对话': 'Conversation only',
+    '示例模式 · 以下为演示记录': 'Demo mode: sample records below', '看看今天留下了什么': 'What did today leave you with?',
+    '回顾，让下次轻松一点。': 'Reflect for an easier next time.', '今天试了什么，结果怎样，下次怎么做。': 'What you tried, what happened, what to do next.',
+    '可修改、复制的提示词': 'Edit and copy the prompt', '外部工具入口 · 在对应应用中使用': 'External tool: use it in its own app',
+    '由你决定，分享多少': 'Choose what you share', '链接与记录': 'Links and history', '技术支持': 'Support'
   });
-  var NUM_RE = /\d+(?:[.:]\d+)?/g, CJK_RE = /[一-鿿]/;
-  var trCache = {}, fragRe = {};
-  function fragmentsOf(lang) {
-    if (fragRe[lang] !== undefined) return fragRe[lang];
-    var keys = Object.keys(I18N[lang] || {}).filter(function (k) { return k.length > 1 && k.indexOf('{n}') < 0 && CJK_RE.test(k); }).sort(function (a, b) { return b.length - a.length; });
-    fragRe[lang] = keys.length ? new RegExp(keys.map(function (k) { return k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|'), 'g') : null;
-    return fragRe[lang];
-  }
+  var trCache = {};
+  Object.keys(window.TangoLocaleCopy || {}).forEach(function (lang) { Object.assign(I18N[lang] || (I18N[lang] = {}), window.TangoLocaleCopy[lang]); });
+  window.TangoI18n = { text: tr, language: function () { return LANG; } };
   function tr(str) {
-    if (LANG === 'zh' || !str || !CJK_RE.test(str)) return str;
+    if (LANG === 'zh' || !str) return str;
     var D = I18N[LANG]; if (!D) return str;
     var c = trCache[LANG] || (trCache[LANG] = {});
     if (c[str] !== undefined) return c[str];
     var lead = str.match(/^\s*/)[0], tail = str.match(/\s*$/)[0], t = str.trim(), out;
+    if (D[str] !== undefined) return (c[str] = D[str]);
     if (D[t] !== undefined) out = D[t];
     else {
       var nums = t.match(NUM_RE) || [], key = t.replace(NUM_RE, '{n}');
       if (nums.length && D[key] !== undefined) { var i = 0; out = D[key].replace(/\{n\}|\{(\d)\}/g, function (m, k) { return (k ? nums[k - 1] : nums[i++]) || ''; }); }
-      else { var re = fragmentsOf(LANG); out = re ? t.replace(re, function (m) { return D[m]; }) : t; }
+      else out = t;
     }
     return (c[str] = lead + out + tail);
   }
   var TR_ATTRS = ['placeholder', 'aria-label', 'title'];
   var trBusy = false;
   function trNode(n) {
+    var owner = n.nodeType === 1 ? n : n.parentElement;
+    if (owner && owner.closest('[translate="no"], [data-user-content], #appearance-control')) return;
     if (n.nodeType === 3) {
       var p = n.parentNode; if (!p || p.nodeName === 'SCRIPT' || p.nodeName === 'STYLE' || p.nodeName === 'TEXTAREA' || p.nodeName === 'OPTION' && p.parentNode && p.parentNode.id === 'lang') return;
       if (n.__tr === undefined || n.nodeValue !== n.__tr) n.__zh = n.nodeValue;
       var v = tr(n.__zh); n.__tr = v; if (n.nodeValue !== v) n.nodeValue = v;
     } else if (n.nodeType === 1) {
       if (n.nodeName === 'SCRIPT' || n.nodeName === 'STYLE') return;
+      var localLabel = n.getAttribute('data-local-label'), localText = n.getAttribute('data-local-text'), localMessage = n.getAttribute('data-local-message');
+      if (localMessage) { var message = messageParts(localMessage, JSON.parse(n.getAttribute('data-local-values'))); if (n.textContent !== message) n.textContent = message; return; }
+      if (localLabel) { var label = localizedParts(JSON.parse(localLabel)); if (n.getAttribute('aria-label') !== label) n.setAttribute('aria-label', label); }
+      if (localText) { var text = localizedParts(JSON.parse(localText)); if (n.textContent !== text) n.textContent = text; return; }
       for (var i = 0; i < TR_ATTRS.length; i++) {
         var a = TR_ATTRS[i]; if (!n.hasAttribute(a)) continue;
+        if (a === 'aria-label' && localLabel) continue;
         var cur = n.getAttribute(a), mk = '__' + a;
         if (n[mk + 'T'] === undefined || cur !== n[mk + 'T']) n[mk] = cur;
         var tv = tr(n[mk]); n[mk + 'T'] = tv; if (cur !== tv) n.setAttribute(a, tv);
@@ -3086,6 +3342,7 @@ window.TangoMethods = (function () {
     document.documentElement.lang = { zh: 'zh-CN', en: 'en', ru: 'ru', th: 'th', ar: 'ar', ko: 'ko' }[LANG];
     document.documentElement.dir = LANG === 'ar' ? 'rtl' : 'ltr';
     var sel = document.getElementById('lang'); if (sel) sel.value = LANG;
+    document.querySelectorAll('[data-local-date]').forEach(function (el) { el.textContent = fmtDate(el.getAttribute('data-local-date'), el.hasAttribute('data-date-full')); });
     trAll();
   }
   new MutationObserver(function (list) {
@@ -3101,12 +3358,24 @@ window.TangoMethods = (function () {
   document.getElementById('lang').addEventListener('change', function (ev) {
     LANG = LANGS.indexOf(ev.target.value) >= 0 ? ev.target.value : 'zh';
     try { localStorage.setItem('tango-donego.lang', LANG); } catch (e) {}
-    render(); applyLang();
+    // Rebuild copy that was translated before interpolation, retaining unsaved form values.
+    var view = document.getElementById('view'), controls = Array.prototype.map.call(view.querySelectorAll('input, textarea, select'), function (el) { return { id: el.id, name: el.nodeName, type: el.type, value: el.value, checked: el.checked }; });
+    var details = Array.prototype.map.call(view.querySelectorAll('details'), function (el) { return el.open; });
+    var budget = document.getElementById('budgetForm'), budgetOpen = budget && !budget.hidden;
+    render();
+    var updated = view.querySelectorAll('input, textarea, select');
+    controls.forEach(function (saved, index) { var el = saved.id ? document.getElementById(saved.id) : updated[index]; if (!el || el.nodeName !== saved.name || el.type !== saved.type) return; el.value = saved.value; if (saved.checked !== undefined) el.checked = saved.checked; });
+    view.querySelectorAll('details').forEach(function (el, index) { if (details[index] !== undefined) el.open = details[index]; });
+    if (budgetOpen && document.getElementById('budgetForm')) { document.getElementById('budgetForm').hidden = false; var budgetButton = document.querySelector('[data-act="budget-edit"]'); if (budgetButton) budgetButton.hidden = true; }
+    applyLang();
   });
+  collaborationPersonal = window.TangoCollaborationPersonal.create({ state: function () { return S; }, saveBase: saveBaseState, notice: function (message) { recoveryNotice = message; showRecoveryNotice(); } });
+  collaboration = window.TangoCollaborationUI.create({ route: route, refresh: render, openSheet: openSheet, closeSheet: closeSheet, activateAccount: function (user) { collaborationPersonal.activate(user); if (document.getElementById('bubbles')) render(); }, personalInfo: function (linkId) { var entry=S.entries.find(function(e){return e.collaborationRef && e.collaborationRef.linkId===linkId;}); return entry ? {done:entry.done===true,date:entry.date,start:entry.start,minutes:dur(entry),title:entry.title,acceptedStep:entry.collaborationRef.acceptedStep} : null; }, addPersonal: function (link, schedule, update) { return collaborationPersonal.add(link, schedule, update); } });
+  document.addEventListener('click', function (event) { var source = event.target.closest('[data-co-source]'); if (source) { event.preventDefault(); collaboration.source(source.getAttribute('data-co-source'), source.getAttribute('data-co-account')); } });
   render();
   applyLang();
-  if (!S.mode) onboard();
-})();
+  collaboration.start().finally(function () { if (!S.mode && !collaborationPersonal.account() && route() !== 'agreements') onboard(); });
+});
 </script>
 <!-- TANGO:BODY-END -->
 </body>

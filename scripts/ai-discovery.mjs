@@ -106,7 +106,7 @@ export function parseFeed(xml, source, now = Date.now()) {
     if (source.type === 'news' && !/\bAI\b|artificial intelligence|machine learning|deep learning|\bLLM\b|GPT|Claude|Gemini|robot|模型|人工智能/i.test(title + ' ' + excerpt)) continue;
     // A mixed newsletter feed counts as podcast only when this entry has audio.
     if (source.type === 'podcast' && !fields.audio) continue;
-    items.push({ id: createHash('sha256').update(source.id + ':' + url.href).digest('hex').slice(0, 24), type: source.type, title, url: url.href, source: source.source, publishedAt: new Date(published).toISOString(), excerpt });
+    items.push({ id: createHash('sha256').update(source.id + ':' + url.href).digest('hex').slice(0, 24), type: source.type, title, url: url.href, source: source.source, publishedAt: new Date(published).toISOString(), retrievedAt: new Date(now).toISOString(), excerpt });
   }
   return items;
 }

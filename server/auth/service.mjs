@@ -31,7 +31,8 @@ function nameInput(input, fallback) {
   return input.trim();
 }
 function publicUser(row) {
-  return { id: row.id, email: row.email, displayName: row.display_name, createdAt: row.created_at, role: row.role, emailVerified: true, isActive: Boolean(row.is_active), settings: JSON.parse(row.settings_json) };
+  const local = row.account_kind === "local";
+  return { id: row.id, email: local ? null : row.email, username: local ? row.email.split("@")[0] : null, displayName: row.display_name, createdAt: row.created_at, role: row.role, emailVerified: !local, isActive: Boolean(row.is_active), settings: JSON.parse(row.settings_json) };
 }
 async function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
@@ -51,7 +52,8 @@ function send(res, status, payload) {
 }
 
 /** mail2profile contracts adapted to the existing Node host; no browser-held bearer token. */
-export function createAuthService({ databaseFile, config, sendEmail = createEmailSender(config), now = Date.now, resourceHooks = {} }) {
+export function createAuthService({ databaseFile, config, sendEmail = createEmailSender(config), now = Date.now, resourceHooks = {}, localAccounts = false, cookieName = COOKIE, requireLoginAfterRegistration = false }) {
+  if (!/^[a-zA-Z0-9_]{1,80}$/.test(cookieName)) throw new Error('Invalid session cookie name');
   if (!databaseFile || !config || Buffer.byteLength(config.secret || "") < 32) throw new Error("Auth database and strong secret are required");
   if ((config.publicOrigin || config.production) && config.transport === "console") throw new Error("Public authentication cannot use console email");
   if (databaseFile !== ":memory:") mkdirSync(dirname(databaseFile), { recursive: true, mode: 0o700 });
@@ -80,6 +82,7 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
       key TEXT PRIMARY KEY, started_at INTEGER NOT NULL, count INTEGER NOT NULL
     );
   `);
+  if (!db.prepare("PRAGMA table_info(users)").all().some(column => column.name === "account_kind")) db.exec("ALTER TABLE users ADD COLUMN account_kind TEXT NOT NULL DEFAULT 'email'");
 
   const getUser = (id) => db.prepare("SELECT * FROM users WHERE id = ?").get(id);
   const userByEmail = (email) => db.prepare("SELECT * FROM users WHERE email = ?").get(email);
@@ -108,7 +111,7 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
   }
   function signature(value) { return createHmac("sha256", config.secret).update(value).digest("base64url"); }
   function cookie(res, token, maxAge = config.sessionTtlSeconds) {
-    res.setHeader("set-cookie", `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.secureCookie ? "; Secure" : ""}`);
+    res.setHeader("set-cookie", `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.secureCookie ? "; Secure" : ""}`);
   }
   function createSession(user, res) {
     const timestamp = Math.floor(now() / 1000);
@@ -122,9 +125,9 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
   }
   function session(req) {
     const cookies = String(req.headers.cookie || "").split(";").map((part) => part.trim());
-    const entry = cookies.find((part) => part.startsWith(`${COOKIE}=`));
+    const entry = cookies.find((part) => part.startsWith(`${cookieName}=`));
     if (!entry) fail(401, "AUTH_REQUIRED", "请先登录。");
-    const token = entry.slice(COOKIE.length + 1);
+    const token = entry.slice(cookieName.length + 1);
     if (token.length > 2048) fail(401, "AUTH_INVALID", "登录已失效，请重新登录。");
     const parts = token.split(".");
     if (parts.length !== 3 || parts[0] !== JWT_HEADER || !/^[\w-]{43}$/.test(parts[2])) fail(401, "AUTH_INVALID", "登录已失效，请重新登录。");
@@ -202,12 +205,12 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
       db.prepare("INSERT INTO users(id,email,display_name,password_hash,created_at,role) VALUES (?,?,?,?,?,?)").run(id, email, displayName, passwordHash, new Date(now()).toISOString(), config.adminEmails.includes(email) ? "admin" : "user");
     });
     const user = getUser(id);
-    createSession(user, res);
+    if (!requireLoginAfterRegistration) createSession(user, res);
     return { user: publicUser(user) };
   }
   async function login(body, req, res) {
     rate(`login-ip:${address(req)}`, 10);
-    const email = emailInput(body.email);
+    const email = localAccounts && body.username !== undefined ? localEmail(body.username) : emailInput(body.email);
     rate(`login-email:${email}`, 10);
     if (typeof body.password !== "string" || Buffer.byteLength(body.password) > 256) fail(401, "LOGIN_FAILED", "邮箱或密码不正确。");
     const user = userByEmail(email);
@@ -218,6 +221,21 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
     if (!fresh.is_active) fail(401, "ACCOUNT_INACTIVE", "账号已停用，请联系管理员。");
     createSession(fresh, res);
     return { user: publicUser(fresh) };
+  }
+  function localEmail(username) {
+    if (typeof username !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,39}$/.test(username)) fail(400, "INVALID_USERNAME", "用户名需为3–40位字母、数字、点、横线或下划线。");
+    return username.toLowerCase() + "@accounts.tango.invalid";
+  }
+  async function registerLocal(body, req, res) {
+    if (!localAccounts || config.production || config.publicOrigin) fail(403, "LOCAL_REGISTRATION_DISABLED", "当前服务不开放本地账号注册。");
+    rate(`local-register:${address(req)}`, 10, 3600000);
+    const email = localEmail(body.username), password = passwordInput(body.password), name = nameInput(body.displayName, body.username);
+    const hash = await hashPassword(password), id = randomUUID();
+    transaction(() => {
+      if (userByEmail(email)) fail(409, "USERNAME_TAKEN", "这个用户名已被使用。");
+      db.prepare("INSERT INTO users(id,email,display_name,password_hash,created_at,role,account_kind) VALUES (?,?,?,?,?,?,?)").run(id, email, name, hash, new Date(now()).toISOString(), "user", "local");
+    });
+    const user = getUser(id); createSession(user, res); return { user: publicUser(user) };
   }
   async function resetPassword(body, req) {
     rate(`reset-ip:${address(req)}`, 5);
@@ -242,7 +260,8 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
       if (!body || typeof body !== "object" || Array.isArray(body)) fail(400, "INVALID_BODY", "请求内容无效。");
       const method = req.method || "GET";
       let payload;
-      if (method === "GET" && url === "/api/auth/status") payload = { enabled: true, emailDelivery: config.transport === "disabled" ? "unavailable" : config.transport === "console" ? "console" : "email", registrationEnabled: config.transport !== "disabled", passwordMinLength: PASSWORD_MIN };
+      if (method === "GET" && url === "/api/auth/status") payload = { enabled: true, localAccounts, requireLoginAfterRegistration, emailDelivery: config.transport === "disabled" ? "unavailable" : config.transport === "console" ? "console" : "email", registrationEnabled: localAccounts || config.transport !== "disabled", passwordMinLength: PASSWORD_MIN, codeResendSeconds: config.codeResendSeconds };
+      else if (method === "POST" && url === "/api/auth/local-register") payload = await registerLocal(body, req, res);
       else if (method === "POST" && url === "/api/auth/send-code") payload = await sendCode(body, req);
       else if (method === "POST" && url === "/api/auth/register") payload = await register(body, req, res);
       else if (method === "POST" && url === "/api/auth/login") payload = await login(body, req, res);
@@ -289,7 +308,7 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
             });
             payload = { user: publicUser(getUser(target.id)) };
           } else {
-            await resourceHooks.onUserDeleted?.(target.id);
+            await resourceHooks.onUserDeleted?.(target.id,{actor:publicUser(getUser(admin.id))});
             transaction(() => {
               db.prepare("DELETE FROM email_verifications WHERE email = ?").run(target.email);
               db.prepare("DELETE FROM users WHERE id = ?").run(target.id);
@@ -305,5 +324,5 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
     }
     return true;
   }
-  return { handle, authenticate, requireAdmin, close: () => db.close() };
+  return { handle, authenticate, requireAdmin, throttle: rate, userById: id => { const user = getUser(id); return user && user.is_active ? publicUser(user) : null; }, close: () => db.close() };
 }

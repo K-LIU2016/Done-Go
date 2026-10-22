@@ -18,8 +18,9 @@ test('the configured gateway returns a real AI reply on send without changing th
     }
   });
   await page.goto('/#assistant');
-  await expect(page.locator('#assistant-connection')).toContainText('gpt-6.1-sol');
-  await expect(page.locator('#assistant-connection')).toContainText('xhigh');
+  await expect(page.locator('#assistant-connection')).toBeHidden();
+  await expect(page.locator('#assistant-root')).not.toContainText('gpt-6.1-sol');
+  await expect(page.locator('#assistant-root')).not.toContainText('xhigh');
   await page.locator('#assistant-message').fill('合成连通验收，不是真实生活记录。请用一句话提出一个帮助我思考时间安排的问题，不给任何事项改动建议。');
   await page.locator('#assistant-send').click();
   await expect(page.locator('#send-preview')).toHaveCount(0);

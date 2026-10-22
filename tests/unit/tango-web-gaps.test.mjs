@@ -66,12 +66,14 @@ test('cohort export only includes local aggregates and marks unavailable busines
 });
 
 test('settings display release, data mode and account boundaries with explicit export actions', () => {
-  const ctx = vm.createContext({ S: { mode: 'demo', name: '', wake: 960 }, L: { mode: 'off' }, PRODUCT_VERSION: 'test-version', serviceSummary: () => 'service unavailable', safeStorageGet: () => null, localStorage: { getItem: () => null }, BACKUP_KEY: 'backup', aiSettings: () => '', esc: String, memoryOnly: false, corruptedMain: false, corruptRaw: null, recoveryNotice: '', lastErrorCode: null, legacyLLMKeyFound: false });
+  const ctx = vm.createContext({ developerUI: true, S: { mode: 'demo', name: '', wake: 960 }, L: { mode: 'off' }, PRODUCT_VERSION: 'test-version', serviceSummary: () => 'service unavailable', safeStorageGet: () => null, localStorage: { getItem: () => null }, BACKUP_KEY: 'backup', aiSettings: () => '', esc: String, memoryOnly: false, corruptedMain: false, corruptRaw: null, recoveryNotice: '', lastErrorCode: null, legacyLLMKeyFound: false, hintMuted: {}, METHOD_CAT_LABELS: { screen: '资料筛选' } });
   vm.runInContext(appFunction('pageSettings', 'fmtWhen').split('  var agreementState')[0], ctx);
   const view = ctx.pageSettings();
   assert.match(view, /test-version/);
   assert.match(view, /数据模式/);
   assert.match(view, /账户可用性/);
+  assert.match(view, /AI 机会提示/);
+  assert.match(view, /当前没有关闭任何类型的机会推荐/);
   assert.match(view, /cohort-export/);
   assert.match(view, /model-evaluation-export/);
 });
@@ -125,7 +127,7 @@ test('model evaluation exports only explicit opt-in real records with allowed mo
 
 test('storage-disabled settings remain usable and corrupt original state is never silently overwritten', () => {
   const writes = [];
-  const ctx = vm.createContext({ STORE_KEY: 'state', BACKUP_KEY: 'backup', corruptedMain: false, storageConflict: false, memoryOnly: false, recoveryNotice: '', S: { entries: [] }, localStorage: { getItem: () => { throw new Error('disabled'); }, setItem: (...args) => writes.push(args) } });
+  const ctx = vm.createContext({ collaborationPersonal: null, STORE_KEY: 'state', BACKUP_KEY: 'backup', corruptedMain: false, storageConflict: false, memoryOnly: false, recoveryNotice: '', S: { entries: [] }, localStorage: { getItem: () => { throw new Error('disabled'); }, setItem: (...args) => writes.push(args) } });
   vm.runInContext(appFunction('safeStorageGet', 'showRecoveryNotice'), ctx);
   assert.equal(ctx.safeStorageGet('backup'), null);
   assert.equal(ctx.memoryOnly, true);
@@ -137,7 +139,7 @@ test('storage-disabled settings remain usable and corrupt original state is neve
 
 test('another tab changing the stored baseline blocks a stale save before it can overwrite new data', () => {
   const writes = [];
-  const ctx = vm.createContext({ STORE_KEY: 'state', corruptedMain: false, storageConflict: false, lastStoredRaw: 'old', recoveryNotice: '', showRecoveryNotice: () => {}, S: { entries: [] }, localStorage: { getItem: () => 'another-tab', setItem: (...args) => writes.push(args) } });
+  const ctx = vm.createContext({ collaborationPersonal: null, STORE_KEY: 'state', corruptedMain: false, storageConflict: false, lastStoredRaw: 'old', recoveryNotice: '', showRecoveryNotice: () => {}, S: { entries: [] }, localStorage: { getItem: () => 'another-tab', setItem: (...args) => writes.push(args) } });
   vm.runInContext(appFunction('canWriteStorage', 'demoState').split('  // ---------- demo ----------')[0], ctx);
   assert.equal(ctx.save(), false);
   assert.equal(ctx.storageConflict, true);
@@ -187,11 +189,66 @@ test('English review labels describe planned references and accepted differences
   const ctx = vm.createContext({ guidanceCopy: {} });
   const start = html.indexOf('  var gapCopy = {'), end = html.indexOf('  // English fallback', start);
   vm.runInContext(html.slice(start, end), ctx);
-  ctx.LANG = 'en'; ctx.I18N = { en: ctx.guidanceCopy }; ctx.NUM_RE = /\d+(?:[.:]\d+)?/g; ctx.CJK_RE = /[一-鿿]/; ctx.trCache = {}; ctx.fragRe = {};
-  vm.runInContext(appFunction('fragmentsOf', 'trNode').split('  var TR_ATTRS')[0], ctx);
+  ctx.LANG = 'en'; ctx.I18N = { en: ctx.guidanceCopy }; ctx.NUM_RE = /−?\d+(?:[.:]\d+)?/g; ctx.CJK_RE = /[一-鿿]/; ctx.trCache = {};
+  vm.runInContext(appFunction('tr', 'trNode').split('  var TR_ATTRS')[0], ctx);
   assert.equal(ctx.tr('个人历史参考'), 'Personal history reference');
   assert.equal(ctx.tr('待实测'), 'Not measured');
   assert.equal(ctx.tr('已验收差值'), 'Accepted time difference');
   assert.equal(ctx.tr('计划基线'), 'Planned baseline');
   assert.equal(ctx.tr('参考用时'), 'Reference duration');
+  assert.equal(ctx.tr('我写的个人历史参考'), '我写的个人历史参考');
+  ctx.I18N.en['方法卡 · '] = 'Method · ';
+  assert.equal(ctx.tr('方法卡 · '), 'Method · ');
+});
+
+test('assistant streaming accumulates text and surfaces server errors instead of hanging', async () => {
+  const chunks = [];
+  const values = [
+    new TextEncoder().encode('data: ' + JSON.stringify({ text: '你好' }) + '\n\n'),
+    new TextEncoder().encode('data: ' + JSON.stringify({ text: '，探戈' }) + '\n\ndata: [DONE]\n\n'),
+  ];
+  const response = { body: { getReader: () => ({ read: async () => {
+    const value = values.shift();
+    return value ? { done: false, value } : { done: true };
+  }, cancel: async () => {} }) } };
+  const ctx = vm.createContext({ TextDecoder, response, chunks });
+  vm.runInContext(appFunction('readSSE', 'llmText'), ctx);
+  let activity = 0;
+  const full = await ctx.readSSE(response, (text) => chunks.push(text), () => activity++);
+  assert.equal(full, '你好，探戈');
+  assert.deepEqual(chunks, ['你好', '，探戈']);
+  assert.equal(activity, 2, 'each received SSE chunk refreshes the idle timeout');
+
+  let errorReads = 0;
+  const errorResponse = { body: { getReader: () => ({
+    read: async () => errorReads++
+      ? { done: true }
+      : { done: false, value: new TextEncoder().encode('data: ' + JSON.stringify({ error: 'TANGO_AI_TIMEOUT' }) + '\n\n') },
+    cancel: async () => {},
+  }) } };
+  const errorContext = vm.createContext({ TextDecoder, response: errorResponse });
+  vm.runInContext(appFunction('readSSE', 'llmText'), errorContext);
+  await assert.rejects(errorContext.readSSE(errorResponse), /TANGO_AI_TIMEOUT/);
+});
+
+test('assistant chat streaming uses a 130 second default budget and clears it on completion', async () => {
+  const timers = [], cleared = [];
+  let release;
+  const waiting = new Promise((resolve) => { release = resolve; });
+  const response = { ok: true, body: { getReader: () => ({ read: () => waiting, cancel: async () => {} }) } };
+  const ctx = vm.createContext({
+    TextDecoder,
+    setTimeout: (fn, ms) => { timers.push(ms); return 1; },
+    clearTimeout: (id) => cleared.push(id),
+    window: {},
+    fetch: async () => response,
+  });
+  vm.runInContext(appFunction('readSSE', 'llmText'), ctx);
+  vm.runInContext(appFunction('llmText', 'setCap'), ctx);
+  const pending = ctx.llmText({ url: '/api/assistant/chat' }, 'prompt');
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  assert.deepEqual(timers, [130000]);
+  release({ done: true });
+  await pending;
+  assert.deepEqual(cleared, [1]);
 });

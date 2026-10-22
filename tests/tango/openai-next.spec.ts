@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('server-configured extra-high reasoning is visible and outlasts the ordinary client timeout', async ({ page }) => {
+test('server-configured extra-high reasoning outlasts the ordinary client timeout', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-17T10:00:00+08:00') });
   await page.addInitScript(() => {
     localStorage.setItem('tango-donego.web.v1', JSON.stringify({ v: 1, pv: 5, mode: 'real', name: '', wake: 960, entries: [], drafts: [], trials: [], fw: {}, pal: 0 }));
@@ -19,8 +19,9 @@ test('server-configured extra-high reasoning is visible and outlasts the ordinar
     await route.fulfill({ headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: 'data: ' + JSON.stringify({ text: '可以先说说今天最想保留的一段时间。' }) + '\n\ndata: [DONE]\n\n' });
   });
   await page.goto('/#assistant');
-  await expect(page.locator('#assistant-connection')).toContainText('gpt-6.1-sol');
-  await expect(page.locator('#assistant-connection')).toContainText('xhigh');
+  await expect(page.locator('#assistant-connection')).toBeHidden();
+  await expect(page.locator('#assistant-root')).not.toContainText('gpt-6.1-sol');
+  await expect(page.locator('#assistant-root')).not.toContainText('xhigh');
   await page.locator('#assistant-message').fill('帮我理清今天的安排');
   await page.locator('#assistant-send').click();
   await expect(page.locator('#send-preview')).toHaveCount(0);

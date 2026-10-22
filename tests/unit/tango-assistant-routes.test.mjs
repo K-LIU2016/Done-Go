@@ -23,6 +23,20 @@ function rawCall(port, path, { method = 'GET', body, headers = {} } = {}) {
   });
 }
 
+function openRawStream(port, path, { method = 'GET', body, headers = {} } = {}) {
+  let resolveFirst, rejectFirst, resolveDone, rejectDone, responseStatus, responseType, text = '', sawFirst = false;
+  const firstChunk = new Promise((resolve, reject) => { resolveFirst = resolve; rejectFirst = reject; });
+  const finished = new Promise((resolve, reject) => { resolveDone = resolve; rejectDone = reject; });
+  const req = request({ host: '127.0.0.1', port, path, method, headers }, res => {
+    responseStatus = res.statusCode; responseType = res.headers['content-type']; res.setEncoding('utf8');
+    res.on('data', part => { text += part; if (!sawFirst) { sawFirst = true; resolveFirst({ status: responseStatus, type: responseType, text: part }); } });
+    res.on('end', () => resolveDone({ status: responseStatus, type: responseType, text }));
+  });
+  req.on('error', error => { if (!sawFirst) rejectFirst(error); rejectDone(error); });
+  req.end(body);
+  return { firstChunk, finished };
+}
+
 test('assistant routes guard fixed local origins, methods, JSON and byte limits before upstream calls', async t => {
   let calls = 0;
   const server = createTangoServer({ assistant: { configuration: () => ({ available: false, provider: null, model: null, destination: null }), chat: async () => { calls++; return { content: [{ type: 'text', text: '建议' }] }; } }, discovery: { get: async topic => ({ items: [], retrievedAt: '2026-10-17T00:00:00Z', stale: false, failures: [], topic }) } });
@@ -106,14 +120,38 @@ test('assistant chat streams SSE frames and surfaces mid-stream failures as erro
   const port = okServer.address().port, headers = { Origin: 'http://127.0.0.1:' + port, 'Content-Type': 'application/json' };
   const ok = await rawCall(port, '/api/assistant/chat', { method: 'POST', headers, body: '{"prompt":"hello","mode":"chat","stream":true}' });
   assert.equal(ok.status, 200); assert.match(ok.type, /text\/event-stream/);
-  assert.equal(ok.text, 'data: {"text":"你"}\n\ndata: {"text":"好"}\n\ndata: [DONE]\n\n');
+  assert.equal(ok.text, 'data: {"status":"waiting"}\n\ndata: {"text":"你"}\n\ndata: {"text":"好"}\n\ndata: [DONE]\n\n');
   const failServer = createTangoServer({ assistant: { configuration: () => ({}), chat: async () => { throw new Error('unused'); }, streamChat: async function* () { yield '一'; throw Object.assign(new Error('upstream'), { code: 'TANGO_AI_UPSTREAM_FAILED' }); } } });
   t.after(() => new Promise(resolve => failServer.close(resolve)));
   await new Promise(resolve => failServer.listen(0, '127.0.0.1', resolve));
   const failPort = failServer.address().port, failHeaders = { Origin: 'http://127.0.0.1:' + failPort, 'Content-Type': 'application/json' };
   const failed = await rawCall(failPort, '/api/assistant/chat', { method: 'POST', headers: failHeaders, body: '{"prompt":"hello","mode":"chat","stream":true}' });
   assert.equal(failed.status, 200);
-  assert.equal(failed.text, 'data: {"text":"一"}\n\ndata: {"error":"ai-upstream-failed"}\n\n');
+  assert.equal(failed.text, 'data: {"status":"waiting"}\n\ndata: {"text":"一"}\n\ndata: {"error":"ai-upstream-failed"}\n\n');
+});
+
+test('assistant chat flushes an SSE status frame before the first model token', async t => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const server = createTangoServer({ assistant: { configuration: () => ({}), chat: async () => ({}), streamChat: async function* () { await gate; yield '回答'; } } });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  const stream = openRawStream(port, '/api/assistant/chat', { method: 'POST', headers: { Origin: 'http://127.0.0.1:' + port, 'Content-Type': 'application/json' }, body: '{"prompt":"hello","mode":"chat","stream":true}' });
+  let timeout;
+  try {
+    const first = await Promise.race([stream.firstChunk, new Promise((_resolve, reject) => { timeout = setTimeout(() => reject(new Error('SSE status did not arrive before the model token')), 1000); })]);
+    clearTimeout(timeout);
+    assert.equal(first.status, 200);
+    assert.match(first.type, /text\/event-stream/);
+    assert.equal(first.text, 'data: {"status":"waiting"}\n\n');
+    release();
+    const complete = await stream.finished;
+    assert.equal(complete.text, 'data: {"status":"waiting"}\n\ndata: {"text":"回答"}\n\ndata: [DONE]\n\n');
+  } finally {
+    clearTimeout(timeout);
+    release();
+  }
 });
 
 test('assistant routes admit the explicitly bound IPv4 host and still reject unbound hosts', async t => {

@@ -12,6 +12,7 @@ test('discovery parses safe recent RSS and Atom and excludes stale, future and u
   const items = parseFeed(rss(), source, now);
   assert.equal(items.length, 1); assert.equal(items[0].title, 'AI model research & learning');
   assert.equal(items[0].excerpt, 'A new AI model for work');
+  assert.equal(items[0].retrievedAt, new Date(now).toISOString());
   assert.equal(parseFeed(rss('Fri, 01 May 2026 10:00:00 GMT'), source, now).length, 0);
   assert.equal(parseFeed(rss('Fri, 30 Oct 2026 10:00:00 GMT'), source, now).length, 0);
   assert.equal(parseFeed(rss(undefined, 'javascript:alert(1)'), source, now).length, 0);
@@ -65,8 +66,12 @@ test('discovery bounds large or hanging feeds and returns explicitly stale cache
   let time = now, fail = false;
   const app = createDiscovery({ now: () => time, fetch: async () => fail ? new Response('bad', { status: 503 }) : new Response(rss()) });
   const first = await app.get('all'); assert.ok(first.items.length > 0);
+  const firstRetrievedAt = first.items[0].retrievedAt;
+  assert.equal(firstRetrievedAt, new Date(time).toISOString());
   time += 16 * 60 * 1000; fail = true;
   const stale = await app.get('all'); assert.equal(stale.stale, true); assert.ok(stale.items.length > 0);
+  assert.equal(stale.retrievedAt, new Date(time).toISOString(), 'response timestamp records the latest retrieval attempt');
+  assert.equal(stale.items[0].retrievedAt, firstRetrievedAt, 'cached item keeps its original successful retrieval timestamp');
   time += 46 * 24 * 60 * 60 * 1000;
   assert.equal((await app.get('all')).items.length, 0);
 });

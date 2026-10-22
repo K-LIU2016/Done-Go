@@ -42,8 +42,12 @@ async function open(page: Page, options: { configured?: boolean; sessionRaw?: st
   await page.route('**/api/assistant/config', route => route.fulfill({ json: { available: configured, provider: configured ? 'openai' : null, model: configured ? 'fixture-model' : null, destination: configured ? 'https://example.test/v1/chat/completions' : null } }));
   await page.goto('/#today');
   await page.locator('[data-act="assistant-open"]').first().click();
-  if (configured) await expect(page.locator('#assistant-connection')).toContainText('fixture-model');
-  else await expect(page.locator('#assistant-connection')).not.toContainText('本地引导');
+  if (configured) {
+    await expect(page.locator('#assistant-connection')).toBeHidden();
+    await expect(page.locator('#assistant-root')).not.toContainText('fixture-model');
+  } else {
+    await expect(page.locator('#assistant-connection')).not.toContainText('本地引导');
+  }
 }
 async function shareTask(page: Page, mode: 'priorities' | 'models') {
   await page.locator('#assistant-mode').selectOption(mode);

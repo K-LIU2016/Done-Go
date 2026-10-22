@@ -1,0 +1,6 @@
+.users-admin { display:grid; gap:20px; min-width:0; }
+.admin-user { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:16px; border-bottom:1px solid var(--line); padding-block:18px; }
+.admin-user h2 { font-size:17px; }
+.admin-user p { overflow-wrap:anywhere; }
+.admin-delete-confirm { grid-column:1/-1; display:grid; gap:12px; background:var(--subtle); padding:16px; border-radius:var(--radius-control); }
+@media(max-width:600px){.admin-user{grid-template-columns:minmax(0,1fr);}}

@@ -38,7 +38,6 @@ test('unfinished branches grow into flowers and stay visible after their time pa
 
 test('finishing on today turns the same tree event into fruit and preserves the plan', async ({ page }, info) => {
   await open(page, [paper], '2026-10-14T09:30:00+08:00');
-  await page.locator('#task-advice > summary').click();
   await page.locator('[data-act="task-finish"][data-id="paper"]').click();
   await page.locator('#finish-min').fill('40');
   await page.locator('#finish-quality').selectOption('accepted');

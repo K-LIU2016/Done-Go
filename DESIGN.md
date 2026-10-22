@@ -1,78 +1,29 @@
-# Tango Done&Go Design System
+# 探戈 Done&Go · 双主题设计
 
-Existing-system extraction, 2026-09-12. This codifies the shipped token layer and known component patterns, not a new visual direction or a claim that all 18 screens have passed fidelity QA. Source priority: explicit user instructions, supplied `design/` references, `docs/PRD.md`, `docs/SETTINGS-AND-INK-ADDENDUM.md`, then existing code. Default porcelain and optional ink are separate acceptance surfaces.
+## 产品体验
+以日常事件为入口，帮助用户记录时间、发现 AI 辅助机会、尝试并核验结果，再回顾真实经历。休息、陪伴、探索和自主安排都有价值；不以 AI 使用次数、持续忙碌或连续打卡衡量成长。计划节省时间属于估算，只有用户记录并验收的实际结果才作为已验证事实。
 
-## 1. Atmosphere & Identity
+## 两种外观，共用一套产品
+标准主题为默认外观，延续近期的暖白背景、橙红品牌色与清晰分栏布局，辅以森林绿文字和少量雾蓝、金色。设计者推荐主题采用深森林绿、蓝绿至暮光金/灰紫的低对比渐变、树影、蓝花节点与当前时刻柔光，突出时间之树的自然空间感。两套外观共用页面、操作顺序、事件数据、聊天草稿、AI 服务、隐私选择和统计逻辑。
 
-Canonical product identity: **探戈 Done&Go**. The product is a personal agency layer for recording intent, negotiating responsibility, authorizing bounded execution, and making recovered time visible. Historical porcelain references may inform visual tokens only; they do not define product identity or business behavior. Business fixture state remains explicitly labelled independently of LLM connectivity.
+页面右上角、语言下拉框右侧提供原生“外观”下拉框，包含标准主题与设计者推荐主题，并保留键盘操作和读屏支持。首次使用为标准主题；选择写入本地偏好，刷新后沿用。切换通过根元素主题属性和 CSS 变量立即生效，不触发业务页面渲染，不清空输入或业务状态。存储不可用时切换仍在当前会话有效。标准主题固定使用浅色语义，设计者推荐主题固定使用深色语义，系统配色变化不会覆盖用户的明确选择。
 
-## 2. Color
+## 语义色与可读性
+标准主题基础色：背景 `#FAF8F3`、表面 `#FFFFFF`、正文 `#252722`、次要文字 `#64665D`、边界 `#DEDFD5`、森林绿 `#335D4B`、主操作橙红 `#E95432`。设计者主题背景为 `#253D33`、表面为 `#324D40`、正文为 `#F6F4E8`，辅以蓝花和暖金节点。新增主题规则位于 `web/appearance.css` 并通过 `data-appearance` 限定；原组件与业务逻辑保持共用。对比度应以最终前景、背景组合检查，不能仅由色值名称推断达标。
 
-| Token | Porcelain | Ink |
-|---|---|---|
-| --bg | #F3F5F6 | #F5F1E8 |
-| --surface | #FFFFFF | #FCFAF5 |
-| --surface-2 | #FAFCFC | #F3EFE5 |
-| --text | #232C32 | #282A27 |
-| --text-2 | #65727B | #706D64 |
-| --divider | #DDE4E7 | #DCD5C8 |
-| --info | #426D92 | #A44335 |
-| --ok | #4D7771 | #56685A |
-| --warm | #956C43 | #7A6636 |
-| --graphite | #2F3B42 | #282A27 |
-| --focus | #7A9FBA | #A44335 |
+正文使用系统中文无衬线字体，优先保证阅读顺序、内容换行和操作可见。主要触控目标约 44px；焦点状态清晰。页面避免嵌套装饰卡片、持续动画和遮挡操作的大型装饰。减少动态效果设置下关闭非必要运动。
 
-Use existing semantic tokens. Ink #AD9360 and #819081 are decorative accents, not small text on paper. Ink shell-local variable overrides belong on `.shell`, where default shell values are declared. Status must also use readable text/icons, never color alone.
+## 页面原则
+- 今天：清楚展示当天安排和记录入口；AI 建议靠近具体事件，不重复堆叠统计面板。
+- 时间之树：竖向刻度、主干和枝条来自事件的真实时间与持续时长。蓝色花朵和金色花心仅作标记；类别、时间、完成情况也以文字呈现。密集标签错开，完整事件列表可打开详情。仅今天显示当前时刻；日出日落数据、屏幕暴露或健康风险没有可靠依据时不显示。
+- 和探戈聊聊：对话为主体，模型选择和发送操作清楚；隐私与链接记录默认折叠。主题变化不得改变模型调用、上下文、隐私或聊天草稿。
+- 回顾：呈现用户记录、验收结果和已核验用时；样本不足时显示空状态，不编造成长结论。
+- 设置及其他页面：表单、抽屉、弹窗、错误提示和空状态使用相同语义色与焦点规则。
 
-## 3. Typography
+## 品牌与布局
+保留探戈现有机器人形象和 T 字 Logo 的核心识别。标准主题以排版、留白和细分隔线组织内容；设计者主题的树影及渐变只作用于相关区域，不将整站铺成背景图或把聊天、表单置于低对比玻璃面板。沿用项目现有路由和数据结构，不新增主题专属业务模块。
 
-Actual stacks: `--font-serif`: Noto Serif CJK SC, Songti SC, STSong, SimSun, serif; `--font-sans`: Noto Sans CJK SC, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif; `--font-latin`: Inter, Helvetica Neue, Arial, sans-serif. These are configured fallbacks, not a claim that webfont files are bundled.
+桌面延续既有分栏和导航布局，窄屏让内容自然单列，固定导航与页脚控件错开安全区。使用 CSS 逻辑方向属性，保留现有语言和 RTL 入口。主题检查至少覆盖 360–390px 手机、平板和 1440px 桌面；真实手机键盘、Safari 与完整 RTL 仍需实机验证。
 
-Existing scale: 42px/600 page titles; 24px/600 panel titles; 17px subtitles; 16px body at 1.6; 14px secondary controls/notes; 13px navigation/table labels; 88px/600 home time display. Preserve screen-specific responsive CSS, do not introduce a new type scale while replacing data bindings. Time and numeric comparisons use tabular figures. Never use calligraphy for controls or time labels.
-
-## 4. Spacing & Layout
-
-Preserve current page grids and class contracts. s01 uses the existing hero/summary/responsibility hierarchy; s02 uses the existing 2.2:1 board/aside grid, 24px gap, board padding 36px 40px, 430px timeline mechanics. Desktop shell has an 88px rail inset 18px; short-height navigation is the scroll owner. Existing 8px-based rhythm plus measured reference-specific exceptions remain; this extraction does not authorize global spacing normalization. The document owns page scrolling; avoid clipping essential controls or forcing all dense pages into fixed height.
-
-## 5. Components
-
-Measured porcelain quiet-screen exceptions: the shared artwork uses a 560-unit viewBox; S08 maximum artwork container 896px gives an approximately 739px ring at the 1920x1200 reference viewport. S18 maximum 376px gives an approximately 310px ring at 480x1040; primary action maximum width 395px and main time 33px. Crisp porcelain edges and a foreground crossing line replace broad blur. Ink retains smaller 656px/292px artwork limits and no page-wide arc. These are reference measurements, not a claim of final visual acceptance.
-
-Final measured alignment adjustment: S08 content starts at x156 and heading is 60px at1920; S18 artwork/title/time moves down65px, ring band alone scales horizontally0.91 while the disc remains circular. Short screens retain compact spacing and ink excludes these adjustments.
-
-- Shell / MobileChrome: existing shared navigation and framing components. Navigation uses links, active state plus text, visible keyboard focus. Preserve routes and scroll ownership.
-- Paper/porcelain panels: existing screen CSS, semantic surface/divider/radius/shadow tokens; heading and content hierarchy. Loading, empty and error content must use the same panel layout rather than fake data.
-- Main/secondary buttons: existing screen classes, explicit labels, native disabled state, focus-visible, visible busy/error outcomes. No success before durable acknowledgement.
-- AppearanceSettings: native radio group 默认·瓷白 / 水墨, check plus 已选择 text, status feedback for failed read/write and invalid stored values. Stored key `tango-donego.appearance.v1`; only ink sets `html[data-theme=ink]`.
-- DraftAssistant: one selected section, exact outbound preview, explicit generate, proposal and explicit apply; local failure keeps user text. It is not a global auto-sending chat box.
-- Editors and approvals: label every field; preserve pending text on conflict, name selected object and version. Plan preview is distinct from applied state, confirmed is distinct from sent.
-
-These component patterns are existing implementations, not an asserted all-states showcase pass. Final state/viewport QA remains open and must be recorded before release acceptance.
-
-## 6. Motion & Interaction
-
-### RC7 reference-calibration tokens
-
-RC10 follow-up restores S02 boundary-track grid lines using the same hour percentages as the arrangement track; the optional open-time note retires when a protected interval starts too early or the track stacks below 904px. S04 method explanation remains distinct from saved metric evidence. Default S15 hero artwork top is -52px after normalized-reference review; ink placement is unchanged. These remain subject to actual follow-up screenshots.
-
-RC8 follow-up S04 local wide-porcelain targets: saved numeric comparison values 72px, card title 34px, arrow 32px and unit 17px; unsaved/unknown labels remain body-sized, with no invented comparison values. A separate porcelain ring experiment proposes rotation 22deg, scaleX .93 and soft/mid/core strokes 16/8/3 SVG units, removing S18's previous extra .91 scale to avoid double narrowing; these ring values are candidates pending screenshot verification, not measured fidelity acceptance, and ink remains unchanged.
-
-At the 1920×1200 porcelain reference viewport, S01 hero minimum height is 508px and responsibility-section lead space is 40px. S02 main/aside ratio is 2.73:1 and boundary track is 400px, shrinking responsively; the 630px time axis remains data-scaled. Display serif headings use regular 400 weight where the reference has unbolded Song type. S06 material registration and per-section question editing use explicit inline disclosure controls, preserving input values and pending-command locks.
-
-S07 uses a start-aligned left panel with 840px desktop minimum height and a stable 380px ring region, independent of longer right-hand content. S08 porcelain action targets are 244px/254px wide and 60px high, with narrow-layout wrapping. S12 has two right-side cards: summary and combined savings/feedback; ledger values use a 240px column and 34px numeric display type, with unknown text retaining body sizing.
-
-S13 keeps the real sync-status capsule inside its 840px desktop main card; the alert region is 200px and source panel 480px. Alert display type is 38px, section titles 24px, and primary action maximum width 292px with pill radius. S14 display-input measure is 13em, with source/input-mode actions grouped compactly without hiding labels; modal stack gap uses the 16px spacing step. Mobile porcelain comparison numbers use 62px display type and 20px comparison gap; S15/S18 numeric emphasis is 600 while units retain secondary sizing. These measurements are correction targets, not an acceptance claim. Document scrolling and existing responsive breakpoints remain the layout model.
-
-Keep existing quiet motion. Ink feedback token 200ms and panel token 280ms; reduced-motion disables nonessential transitions. No new animation required for data binding. User controls trigger changes explicitly; hover must not hide essential actions. Preserve selected object, input and preview on asynchronous failure; avoid automatic navigation after approval.
-
-## 7. Depth & Surface
-
-Mixed fine-border plus light shadow strategy. Porcelain radii 24/28/34px, panel shadow `0 18px 50px rgba(35,44,50,.06)`, button shadow `0 10px 24px rgba(35,44,50,.16)`. Ink radii 8/12/16px with warmer, lighter paper surfaces. Ink ring is a faint 1.5px outline without inset/outer glow and retires in narrow/short contexts. Decoration cannot cover content or alter data geometry. Do not use full-screen mountains, neon, heavy glass, black-gold styling or distressed paper.
-
-## 8. Accessibility Constraints & Open Debt
-
-Target WCAG AA: 4.5:1 normal text and 3:1 large text, visible keyboard focus, labelled controls, non-color status, readable CJK, reduced motion and touch targets. Scenarios include keyboard-only operation, enlarged text, small viewport, interrupted network and concurrent editing. Full keyboard/screen-reader/contrast audits are not yet verified.
-
-No design or accessibility debt has been accepted by the user. Open release gaps include strict 18-screen reference fidelity, all control states at mobile/tablet/desktop and screen-specific raw CSS consistency. The earlier settings Hook crash is no longer a current blocker: RC9 settings rendered and its empty-candidate validation was exercised. Track exact findings in `docs/DELIVERY-MATRIX.md` and `.omo/evidence/`; do not relabel remaining gaps as accepted debt.
-
-Tool boundary: user permits only Codex built-in browser or Ego Lite. Frontend reference recipes that launch independent Playwright/Chromium do not apply. No Lighthouse 100 claim exists. React debug-tool installation and global primitive refactors are not part of the narrow data-binding repair and are not silently added to other owners' files.
+## 工程约定
+`web/appearance.js` 只管理当前外观、持久化、无障碍选择状态和语言标签；`web/appearance.css` 管理主题变量及有明确作用域的视觉差异。页面 DOM、应用状态、记录存储与模型链路不因主题切换而重建。`scripts/build-web.mjs` 将两份静态主题资源带入构建输出。

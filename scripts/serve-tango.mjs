@@ -1,15 +1,16 @@
 import { createServer } from 'node:http';
 import { isIP } from 'node:net';
 import { readFile } from 'node:fs/promises';
-import { resolve, sep } from 'node:path';
+import { resolve, sep, join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { speechCapabilities, transcribeSpeech, MAX_AUDIO_BYTES } from './tango-speech.mjs';
 import { assistantError, createAssistant, MAX_CHAT_BYTES } from './ai-assistant.mjs';
 import { createDiscovery } from './ai-discovery.mjs';
 import { applyDotEnv, loadAssistantConfig, saveAssistantMetadata } from './assistant-config.mjs';
+import { createCollaborationService } from './collaboration-service.mjs';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
 const AI_ERROR_CODES = ['TANGO_AI_INPUT_INVALID', 'TANGO_AI_NOT_CONFIGURED', 'TANGO_AI_BUSY', 'TANGO_AI_TIMEOUT', 'TANGO_AI_ABORTED', 'TANGO_AI_UPSTREAM_FAILED', 'TANGO_AI_RESPONSE_TOO_LARGE', 'TANGO_AI_RESPONSE_INVALID'];
 const AI_ERROR_STATUS = { TANGO_AI_INPUT_INVALID: 400, TANGO_AI_NOT_CONFIGURED: 503, TANGO_AI_BUSY: 429, TANGO_AI_TIMEOUT: 504, TANGO_AI_ABORTED: 499 };
 function aiFailure(error) {
@@ -21,6 +22,10 @@ export function createTangoServer(options = {}) {
  const assistant = options.assistant || createAssistant();
  const discovery = options.discovery || createDiscovery();
  const server = createServer(async (req, res) => {
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.setHeader('Referrer-Policy','no-referrer');
+  res.setHeader('Content-Security-Policy',"frame-ancestors 'self'; base-uri 'self'; object-src 'none'");
+  if(options.collaboration?.publicOrigin)res.setHeader('Strict-Transport-Security','max-age=31536000');
   let apiRequest = false;
   const send = (status, data) => {
     if (data.error) data = { ...data, code: 'TANGO_' + data.error.toUpperCase().replace(/-/g, '_') };
@@ -28,14 +33,34 @@ export function createTangoServer(options = {}) {
   };
   try {
     const url = new URL(req.url, 'http://127.0.0.1'), pathname = decodeURIComponent(url.pathname);
+    let actor;
+    if(options.collaboration&&pathname.startsWith('/api/')){
+      apiRequest=true;
+      if(!options.collaboration.requestAllowed(req)){send(403,{error:'origin-rejected'});return;}
+      if(!pathname.startsWith('/api/auth/')&&pathname!=='/api/status'){
+        try{actor=options.collaboration.authenticate(req);}catch(error){send(401,{error:error.code||'AUTH_REQUIRED'});return;}
+        if(pathname==='/api/assistant/config'&&req.method==='PUT'&&actor.role!=='admin'){send(403,{error:'ADMIN_REQUIRED'});return;}
+        if(pathname==='/api/assistant/chat'||pathname==='/api/speech/transcribe'){
+          try{options.collaboration.auth.throttle('paid-user:'+actor.id,30);options.collaboration.auth.throttle('paid-ip:'+req.socket.remoteAddress,90);}catch{send(429,{error:'rate-limited'});return;}
+        }
+      }
+    }
+    if (pathname.startsWith('/api/collaboration') || pathname.startsWith('/api/auth/') || pathname.startsWith('/api/admin/')) {
+      apiRequest = true;
+      const address = server.address(), allowedHosts = ['localhost:' + address.port, '127.0.0.1:' + address.port];
+      if (isIP(address.address) === 4 && !['127.0.0.1', '0.0.0.0'].includes(address.address)) allowedHosts.push(address.address + ':' + address.port);
+      if (options.collaboration ? !options.collaboration.requestAllowed(req) : !allowedHosts.includes(req.headers.host) || req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) { send(403, { error: 'origin-rejected' }); return; }
+      if (!options.collaboration) { send(503, { error: 'collaboration-unavailable' }); return; }
+      await options.collaboration.handle(req, res, pathname); return;
+    }
     if (pathname === '/api/status' || pathname === '/api/speech' || pathname === '/api/speech/transcribe' || pathname.startsWith('/api/assistant/') || pathname === '/api/discovery') {
       apiRequest = true;
       const port = server.address()?.port;
       const boundAddress = server.address()?.address;
       const allowedHosts = ['localhost:' + port, '127.0.0.1:' + port];
       if (isIP(boundAddress) === 4 && boundAddress !== '127.0.0.1' && boundAddress !== '0.0.0.0') allowedHosts.push(boundAddress + ':' + port);
-      const allowedHost = allowedHosts.includes(req.headers.host);
-      if (!allowedHost || (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host)) { send(403, { error: 'origin-rejected' }); return; }
+      const allowedHost = options.collaboration ? options.collaboration.requestAllowed(req) : allowedHosts.includes(req.headers.host);
+      if (!allowedHost || (!options.collaboration && req.headers.origin && req.headers.origin !== 'http://' + req.headers.host)) { send(403, { error: 'origin-rejected' }); return; }
       if (pathname.startsWith('/api/assistant/') || pathname === '/api/discovery') {
         if (pathname === '/api/assistant/config') {
           if (url.search) { send(400, { error: 'ai-input-invalid' }); return; }
@@ -70,11 +95,15 @@ export function createTangoServer(options = {}) {
         const abort = new AbortController(); res.once('close', () => { if (!res.writableEnded) abort.abort(); });
         if (input && typeof input === 'object' && !Array.isArray(input) && input.stream === true) {
           const iterator = assistant.streamChat(input, abort.signal)[Symbol.asyncIterator]();
+          let keepAlive;
           try {
+            res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+            const frame = value => { if (!res.destroyed && res.writable) res.write('data: ' + JSON.stringify({ text: value }) + '\n\n'); };
+            res.write('data: {"status":"waiting"}\n\n');
+            keepAlive = setInterval(() => { if (!res.destroyed && res.writable) res.write(': keepalive\n\n'); }, 15000);
+            keepAlive.unref?.();
             const first = await iterator.next();
             if (first.done || typeof first.value !== 'string') throw assistantError('TANGO_AI_RESPONSE_INVALID');
-            res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store' });
-            const frame = value => { if (!res.destroyed && res.writable) res.write('data: ' + JSON.stringify({ text: value }) + '\n\n'); };
             frame(first.value);
             for (;;) { const next = await iterator.next(); if (next.done) break; frame(next.value); }
             if (!res.destroyed && res.writable) res.write('data: [DONE]\n\n');
@@ -82,7 +111,7 @@ export function createTangoServer(options = {}) {
             const failure = aiFailure(error);
             if (!res.headersSent) send(failure.status, { error: failure.error });
             else if (!res.destroyed && res.writable) res.write('data: ' + JSON.stringify({ error: failure.error }) + '\n\n');
-          } finally { if (!res.destroyed) res.end(); }
+          } finally { clearInterval(keepAlive); if (!res.destroyed) res.end(); }
           return;
         }
         try { send(200, await assistant.chat(input, abort.signal)); }
@@ -131,5 +160,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   let assistant = createAssistant({ config });
   const delegate = { configuration: () => assistant.configuration(), chat: (input, signal) => assistant.chat(input, signal), streamChat: (input, signal) => assistant.streamChat(input, signal) };
   const store = { save: async patch => { await saveAssistantMetadata({ projectRoot, patch }); config = await loadAssistantConfig({ projectRoot }); assistant = createAssistant({ config }); } };
-  createTangoServer({ assistant: delegate, assistantConfigStore: store }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
+  const demoMode=process.env.TANGO_DEMO_MODE==='1';
+  const configuredDatabase=process.env.AUTH_DATABASE_PATH||process.env.TANGO_AUTH_DB||process.env.TANGO_COLLAB_DB;
+  if(configuredDatabase&&configuredDatabase!==':memory:'&&!isAbsolute(configuredDatabase))throw new Error('AUTH_DATABASE_PATH must be absolute');
+  const collaboration = await createCollaborationService({ databaseFile: configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite'), assistant: delegate, demoMode, authOptions: demoMode ? { autoStart: true } : {} });
+  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
 }

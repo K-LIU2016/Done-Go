@@ -15,6 +15,17 @@ test('a user can spend a freed personal interval on necessary work and reload it
 const item = { id: 'paper', date: '2026-10-14', title: '读论文', kind: 'explore', start: '09:00', end: '10:00' };
 const state = { v: 1, entries: [item] };
 
+test('optional completion time and a user-entered model survive export and reload without inventing zero', () => {
+  const completion = { actual: null, timeRecorded: false, before: 60, plannedEnd: '10:00', usedAI: true, modelName: 'gpt-6.1-sol', modelId: 'unknown', quality: 'pending' };
+  const result = privacy.validateState({ ...state, entries: [{ ...item, done: true, completion }] });
+  assert.equal(result.ok, true);
+  assert.equal(result.state.entries[0].completion.actual, null);
+  assert.equal(result.state.entries[0].completion.modelName, 'gpt-6.1-sol');
+  for (const invalid of [{ ...completion, timeRecorded: undefined }, { ...completion, actual: 0 }, { ...completion, modelName: 'x'.repeat(81) }]) {
+    assert.equal(privacy.validateState({ ...state, entries: [{ ...item, done: true, completion: invalid }] }).ok, false);
+  }
+});
+
 test('credentials never enter saved preferences, including migrated legacy keys', () => {
   const migrated = privacy.preferences({ mode: 'custom', url: 'https://api.example.com', model: 'test', key: 'legacy-secret', consent: true });
   assert.equal(migrated.key, '');

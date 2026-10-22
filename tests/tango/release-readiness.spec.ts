@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// Explicit engineering fixtures. Ordinary user UI is covered by completion-user.spec.ts.
+test.beforeEach(async ({ page }) => { await page.addInitScript(() => { Object.defineProperty(window, '__TANGO_DEVELOPER_UI__', { value: true }); }); });
+
 const key = 'tango-donego.web.v1';
 const paper = { id: 'paper', date: '2026-10-16', start: '09:00', end: '10:00', title: '读论文 private-task-title', kind: 'explore', prio: 1 };
 const initial = { v: 1, pv: 5, mode: 'real', name: 'private-person-name', wake: 960, entries: [paper], trials: [], drafts: [], fw: {}, pal: 0, sound: false };
@@ -18,7 +21,6 @@ async function open(page: Page, options: { state?: Record<string, unknown>; llm?
   await page.goto('/#today');
 }
 async function finishForm(page: Page) {
-  await page.locator('#task-advice > summary').click();
   await page.locator('[data-act="task-finish"][data-id="paper"]').click();
 }
 async function current(page: Page) { return page.evaluate(key => JSON.parse(localStorage.getItem(key)!), key); }
@@ -113,18 +115,19 @@ test('missing recording costs remain unknown and unconsented task records never 
 
 test('manual account checks persist and an unavailable candidate yields to alternatives', async ({ page }) => {
   await open(page);
-  await page.locator('#task-advice > summary').click();
-  await page.locator('[data-act="ai-tools"][data-id="paper"]').click();
+  await page.locator('.paper-route .paper-event').first().click();
+  await page.locator('.sheet [data-act="event-ai"]').click();
   await page.locator('.tool').first().getByText('记录我的账户检查', { exact: true }).click();
   await page.locator('#account-state-0').selectOption('unavailable');
   await page.locator('#account-reason-0').selectOption('quota');
   await page.locator('[data-act="account-check-save"][data-model="0"]').click();
   await page.reload();
   expect((await current(page)).modelAvailability['claude-sonnet-5.5']).toMatchObject({ state: 'unavailable', reason: 'quota', checkedAt: expect.stringMatching(/^2026-10-16T01:30:/) });
-  await page.locator('#task-advice > summary').click();
-  await page.locator('[data-act="ai-tools"][data-id="paper"]').click();
+  await page.locator('.paper-route .paper-event').first().click();
+  await page.locator('.sheet [data-act="event-ai"]').click();
   await expect(page.locator('.tool').first()).not.toContainText('Claude Sonnet');
-  await expect(page.locator('.sheet')).toContainText('返回本地流程');
+  await page.getByRole('button', { name: '暂时不用 AI', exact: true }).click();
+  await expect(page.locator('.sheet')).toHaveCount(0);
 });
 
 test('blocked browser storage keeps settings and local capture usable', async ({ page }) => {

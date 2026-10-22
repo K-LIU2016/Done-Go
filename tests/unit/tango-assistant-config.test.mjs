@@ -71,19 +71,29 @@ test('metadata reads are capped at 8192 bytes and reject invalid UTF-8', async (
   }
 });
 
-test('nonregular metadata and linked private directories are rejected before reading targets', async () => {
+test('nonregular metadata and linked private directories are rejected before reading targets', async t => {
   const dirFile = await fixture(); await mkdir(join(dirFile.directory, 'assistant.json'));
   await assert.rejects(load({ projectRoot: dirFile.projectRoot, env: {} }), invalid);
   const projectRoot = await mkdtemp(join(tmpdir(), 'tango-config-junction-test-'));
   const target = await fixture(metadata);
-  await symlink(target.directory, join(projectRoot, '.tango-donego'), process.platform === 'win32' ? 'junction' : 'dir');
+  try {
+    await symlink(target.directory, join(projectRoot, '.tango-donego'), process.platform === 'win32' ? 'junction' : 'dir');
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) { t.skip(`platform does not permit creating directory links (${error.code})`); return; }
+    throw error;
+  }
   await assert.rejects(load({ projectRoot, env: {} }), invalid);
 });
 
-test('hard-linked metadata cannot redirect loading to a second file', async () => {
+test('hard-linked metadata cannot redirect loading to a second file', async t => {
   const { projectRoot, directory } = await fixture();
   const publicFixture = join(projectRoot, 'public-fixture.json'); await writeFile(publicFixture, JSON.stringify(metadata));
-  await link(publicFixture, join(directory, 'assistant.json'));
+  try {
+    await link(publicFixture, join(directory, 'assistant.json'));
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) { t.skip(`platform does not permit creating hard links (${error.code})`); return; }
+    throw error;
+  }
   await assert.rejects(load({ projectRoot, env: {} }), invalid);
 });
 

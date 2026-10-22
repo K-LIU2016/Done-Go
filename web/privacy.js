@@ -45,6 +45,18 @@
   function validMethodRef(value) {
     return object(value) && typeof value.methodId === 'string' && ID.test(value.methodId) && integer(value.version, 1, 1000) && requiredText(value, 'name', 60);
   }
+  function validSourceRef(value) {
+    if (!object(value) || value.kind !== 'discovery') return false;
+    if (!requiredText(value, 'title', 200) || !optionalText(value, 'source', 80)) return false;
+    if (typeof value.url !== 'string' || value.url.length > 500 || !/^https:\/\/\S+$/.test(value.url)) return false;
+    try { var sourceURL = new URL(value.url); if (sourceURL.protocol !== 'https:' || sourceURL.username || sourceURL.password) return false; } catch { return false; }
+    if (value.publishedAt != null && !realDate(value.publishedAt) && !isoTime(value.publishedAt)) return false;
+    if (value.retrievedAt != null && !isoTime(value.retrievedAt)) return false;
+    return true;
+  }
+  function validCollaborationRef(value) {
+    return object(value) && ['groupId','stepId','linkId','accountId'].every(function(key){return typeof value[key] === 'string' && ID.test(value[key]);}) && requiredText(value, 'groupName', 120) && integer(value.stepRevision, 1, 1000000) && (value.acceptedStep == null || object(value.acceptedStep) && optionalText(value.acceptedStep,'name',160) && optionalText(value.acceptedStep,'startsAt',40) && optionalText(value.acceptedStep,'dueAt',40) && (value.acceptedStep.ownerId == null || typeof value.acceptedStep.ownerId==='string' && ID.test(value.acceptedStep.ownerId)));
+  }
   function optionalBoolean(o, key) { return o[key] == null || typeof o[key] === 'boolean'; }
   function optionalEnum(o, key, values) { return o[key] == null || values.indexOf(o[key]) >= 0; }
   function validLearning(value) {
@@ -63,7 +75,7 @@
   function validModelEvidence(value) {
     return (value.recording == null || integer(value.recording, 0, 1440)) && optionalEnum(value, 'modelId', MODEL_IDS.concat(['unknown'])) &&
       (value.modelVersion == null || typeof value.modelVersion === 'string' && (value.modelVersion === '' || /^[a-z0-9._-]{1,60}$/i.test(value.modelVersion))) &&
-      optionalEnum(value, 'inputScale', ['short', 'medium', 'long', 'unknown']) && optionalBoolean(value, 'anonymousEvaluationConsent') && optionalEnum(value, 'dataMode', ['real', 'demo', 'unknown']);
+      optionalText(value, 'modelName', 80) && optionalEnum(value, 'inputScale', ['short', 'medium', 'long', 'unknown']) && optionalEnum(value, 'helpful', ['helpful', 'not-helpful', 'unclear']) && optionalBoolean(value, 'anonymousEvaluationConsent') && optionalEnum(value, 'dataMode', ['real', 'demo', 'unknown']);
   }
   function validAvailability(value) {
     if (value == null) return true;
@@ -79,7 +91,7 @@
     });
   }
   function cleanMeasurement(value) {
-    var out = pick(value, ['usedAI', 'quality', 'recording', 'modelId', 'modelVersion', 'inputScale', 'anonymousEvaluationConsent', 'dataMode']);
+    var out = pick(value, ['usedAI', 'quality', 'recording', 'modelId', 'modelName', 'modelVersion', 'inputScale', 'helpful', 'anonymousEvaluationConsent', 'dataMode']);
     if (value.costs != null) out.costs = pick(value.costs, ['execution', 'preparation', 'checking', 'rework']);
     if (value.learning != null) {
       out.learning = pick(value.learning, ['ownAttempt', 'hintLevel', 'independentRetest', 'measurement']);
@@ -95,9 +107,11 @@
   function cleanMethodUse(use) { return pick(use, ['id', 'methodId', 'methodVersion', 'methodName', 'taskId', 'date', 'status', 'at']); }
   function cleanEntry(value) {
     var out = pick(value, ['id', 'date', 'title', 'kind', 'start', 'end', 'done', 'prio', 'at', 'state', 'kept', 'use', 'note', 'intent', 'from', 'modelPreference']);
+    if (value.collaborationRef != null) { out.collaborationRef = pick(value.collaborationRef, ['groupId','stepId','linkId','accountId','groupName','stepRevision']); if(value.collaborationRef.acceptedStep) out.collaborationRef.acceptedStep=pick(value.collaborationRef.acceptedStep,['name','startsAt','dueAt','ownerId']); }
     if (value.methodRef != null) out.methodRef = pick(value.methodRef, ['methodId', 'version', 'name']);
+    if (value.sourceRef != null) out.sourceRef = pick(value.sourceRef, ['kind', 'title', 'source', 'url', 'publishedAt', 'retrievedAt']);
     if (value.completion != null) {
-      out.completion = pick(value.completion, ['actual', 'before', 'plannedEnd']);
+      out.completion = pick(value.completion, ['actual', 'before', 'plannedEnd', 'timeRecorded']);
       var measurement = cleanMeasurement(value.completion);
       Object.keys(measurement).forEach(function (key) { out.completion[key] = measurement[key]; });
     }
@@ -152,6 +166,8 @@
     if (e.kept != null && !integer(e.kept, 0, 1440) || !optionalText(e, 'note', 2000) || !optionalText(e, 'intent', 2000) || e.from != null && (typeof e.from !== 'string' || !ID.test(e.from))) return false;
     if (e.ai != null && (!object(e.ai) || !optionalBoolean(e.ai, 'used'))) return false;
     if (e.methodRef != null && !validMethodRef(e.methodRef)) return false;
+    if (e.sourceRef != null && !validSourceRef(e.sourceRef)) return false;
+    if (e.collaborationRef != null && !validCollaborationRef(e.collaborationRef)) return false;
     if (e.freed != null && (!object(e.freed) || !optionalBoolean(e.freed, 'pending') || !integer(e.freed.minutes, 0, 1440) || !time(e.freed.start, false) || !time(e.freed.end, false) || minutes(e.freed.end) <= minutes(e.freed.start))) return false;
     if (e.forecast != null) {
       var f = e.forecast;
@@ -160,7 +176,9 @@
     }
     if (e.completion != null) {
       var c = e.completion;
-      if (!c || typeof c !== 'object' || Array.isArray(c) || !Number.isInteger(c.actual) || c.actual < 0 || c.actual > 1440) return false;
+      if (!c || typeof c !== 'object' || Array.isArray(c)) return false;
+      if (c.actual === null ? c.timeRecorded !== false || c.costs != null : !integer(c.actual, 0, 1440) || c.timeRecorded === false) return false;
+      if (!optionalBoolean(c, 'timeRecorded')) return false;
       if (c.quality != null && ['accepted', 'pending', 'rework'].indexOf(c.quality) < 0) return false;
       if (c.plannedEnd != null && !time(c.plannedEnd, false)) return false;
       if (c.before != null && (!Number.isInteger(c.before) || c.before < 0 || c.before > 1440)) return false;

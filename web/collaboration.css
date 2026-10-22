@@ -1,0 +1,39 @@
+/* Agreements reuse the application's semantic tokens and shared controls. */
+.co-page { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; min-width:0; }
+#co-group-select { width:100%; min-width:0; }
+.co-page select,.co-ai-send select { min-height:44px; padding:8px 12px; border:1px solid var(--line); border-radius:var(--radius-control); background:var(--surface); color:var(--text); max-width:100%; }
+.co-ai-disclosure > summary { font-weight:600; font-size:19px; }
+.co-toolbar,.co-step-head,.co-member,.co-ai-send { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+.co-group-heading h1 { font-size:clamp(24px,3vw,34px); line-height:1.45; overflow-wrap:anywhere; margin:0 0 8px; }
+.co-group-heading p,.co-step h3 { overflow-wrap:anywhere; }
+.co-empty { display:grid; place-items:center; padding-block:64px; }
+.co-page > section,.co-page > details { border-top:1px solid var(--line); padding-top:20px; }
+.co-next,.co-confirm { padding:16px 18px; background:var(--subtle); border-radius:var(--radius-control); }
+.co-workflow ol { list-style:none; padding:0; margin:0; }
+.co-step,.co-history-row,.co-proposal-item { padding:18px 0; border-bottom:1px solid var(--line); min-width:0; }
+.co-step h3 { margin:0; font-size:17px; }
+.co-step p { margin:6px 0; }
+.co-step details { margin-top:12px; }
+.co-step details .btns { margin-top:12px; }
+.co-step.is-archived { opacity:.7; }
+.co-members .co-member { min-height:52px; padding-block:8px; border-bottom:1px solid var(--line); }
+.co-page summary,#co-form summary { min-height:44px; padding-block:8px; cursor:pointer; }
+.co-account { margin-inline-end:auto; }
+.co-checks { display:flex; gap:8px 20px; flex-wrap:wrap; }
+.co-checks .check { min-height:44px; }
+.co-ai-actions { display:flex; gap:8px; flex-wrap:wrap; margin-block:12px; }
+#co-ai-form { display:grid; gap:12px; }
+#co-question { width:100%; min-height:96px; resize:vertical; background:var(--surface); color:var(--text); border:1px solid var(--line); border-radius:var(--radius-control); padding:12px; }
+.co-ai-answer,.co-chat-page .companion-message { white-space:pre-wrap; overflow-wrap:anywhere; }
+.co-proposal { margin-top:20px; }
+.co-proposal-item p { margin:4px 0; overflow-wrap:anywhere; white-space:pre-wrap; }
+.co-notice { color:var(--warm); overflow-wrap:anywhere; }
+#co-form { display:grid; gap:16px; }
+#co-form textarea { width:100%; min-height:96px; resize:vertical; }
+#co-form select[multiple] { min-height:100px; }
+.co-source-link { border:0; background:none; padding:8px 0; min-height:44px; color:var(--accent); cursor:pointer; font:inherit; text-align:start; }
+.co-source-link:hover { text-decoration:underline; }
+.co-chat-page .co-ai { border:0; }
+.co-chat-page .companion-conversation { min-height:180px; max-height:50vh; }
+@media (max-width:600px){ .co-page { gap:20px; } .co-step-head { align-items:flex-start; } .co-step-head>.btn { flex-shrink:0; } .co-empty .btns { flex-wrap:wrap; } }
+

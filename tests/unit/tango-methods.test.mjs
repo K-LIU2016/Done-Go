@@ -116,3 +116,53 @@ test('edited methods become a new version while historical use records keep thei
   assert.equal(kept.state.methodUses[0].methodVersion, 1, 'old use keeps the version it was applied with');
   assert.equal(kept.state.methodUses[0].methodName, '资料初筛与原文核对', 'old use keeps the name snapshot');
 });
+
+test('helpfulness passes validation only as a known self-report value', () => {
+  const kept = privacy.validateState({ ...state(), trials: [{ taskId: 't9', date: '2026-10-19', before: 60, after: 30, confirmed: true, quality: 'accepted', usedAI: true, helpful: 'not-helpful' }] });
+  assert.equal(kept.ok, true);
+  assert.equal(kept.state.trials[0].helpful, 'not-helpful');
+  const bad = privacy.validateState({ ...state(), trials: [{ taskId: 't9', date: '2026-10-19', before: 60, after: 30, confirmed: true, usedAI: true, helpful: 'awesome' }] });
+  assert.equal(bad.ok, false);
+  const legacy = privacy.validateState({ ...state(), trials: [{ taskId: 't9', date: '2026-10-19', before: 60, after: 30, confirmed: true }] });
+  assert.equal(legacy.ok, true);
+  assert.equal(legacy.state.trials[0].helpful, undefined);
+});
+
+test('local matching states shared tokens and stays silent without a real overlap', () => {
+  assert.ok(methods.sharedTokens('筛选5篇论文', '新工具帮助论文筛选与综述').length >= 1, 'shared CJK tokens found');
+  assert.ok(methods.sharedTokens('筛选5篇论文', '新工具帮助论文筛选与综述').indexOf('论文') >= 0, 'the shared token is the visible reason');
+  assert.equal(methods.sharedTokens('陪女儿去公园', 'GPT-5 发布会纪要与定价').length, 0, 'unrelated content is not force-linked');
+  assert.ok(methods.sharedTokens('修复 login 代码', 'Fix the login flow with tests').indexOf('login') >= 0, 'latin words match case-insensitively');
+});
+
+test('a discovery source reference survives validation and cleaning on the entry', () => {
+  const withSource = { ...entry, sourceRef: { kind: 'discovery', title: '论文筛选工具评述', source: 'Example Weekly', url: 'https://example.test/paper-tools', publishedAt: '2026-10-18' } };
+  const kept = privacy.validateState({ ...state(), entries: [withSource] });
+  assert.equal(kept.ok, true);
+  assert.equal(kept.state.entries[0].sourceRef.url, 'https://example.test/paper-tools');
+  for (const bad of [
+    { kind: 'discovery', title: 'x', url: 'http://insecure.example/x' },
+    { kind: 'discovery', title: 'x', url: 'https://user:password@example.test/x' },
+    { kind: 'discovery', title: 'x', url: 'https://[invalid/x' },
+    { kind: 'discovery', title: 'x', url: 'https://example.test/x', publishedAt: 'yesterday' },
+    { kind: 'bookmark', title: 'x', url: 'https://example.test/x' },
+    { kind: 'discovery', url: 'https://example.test/x' }
+  ]) assert.equal(privacy.validateState({ ...state(), entries: [{ ...entry, sourceRef: bad }] }).ok, false, JSON.stringify(bad));
+  const cleaned = privacy.validateState({ ...state(), entries: [{ ...entry, sourceRef: { kind: 'discovery', title: 'x', url: 'https://example.test/x', javascript: 'alert(1)' } }] });
+  assert.equal(cleaned.ok, true, 'unknown extra fields are stripped, not healed');
+  assert.equal('javascript' in cleaned.state.entries[0].sourceRef, false);
+});
+
+test('manual reuse across categories never invents a same-category recommendation reason', () => {
+  let sheet = '';
+  const scope = vm.createContext({
+    useForTask: () => null, byId: () => null, ruleFor: () => ({ cat: 'food' }),
+    openSheet: value => { sheet = value; }, esc: String, originalText: String,
+    localizedText: parts => parts.flat().join(''), METHOD_CAT_LABELS: { screen: '资料筛选' },
+    MODEL_IDS: [], MODEL_REFERENCES: [], methodUseList: () => ''
+  });
+  vm.runInContext(html.slice(html.indexOf('  function methodSheet('), html.indexOf('  function methodApply(')), scope);
+  scope.methodSheet({ id: 'food', title: '做饭' }, recipe(), '做饭');
+  assert.doesNotMatch(sheet, /推荐原因：同样是/);
+  assert.match(sheet, /不同任务类别/);
+});

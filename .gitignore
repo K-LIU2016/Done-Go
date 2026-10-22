@@ -43,3 +43,9 @@ scripts/start-tango-private.mjs
 *.njsproj
 *.sln
 *.sw?
+
+# Local e2e run artifacts and private one-off helpers (2026-10-22)
+appearance-e2e.err
+appearance-e2e.json
+.codex-line-reader.cjs
+run-appearance-e2e.bat

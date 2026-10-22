@@ -87,7 +87,7 @@
     var period = metrics.period;
     if (object(period) && realDate(period.from) && realDate(period.to) && period.from <= period.to) clean.period = { from: period.from, to: period.to };
     if (own(metrics, 'dataMode') && ['real', 'demo'].indexOf(metrics.dataMode) >= 0) clean.dataMode = metrics.dataMode;
-    [{ key: 'timeUse', fields: KINDS.concat(['stillness']) }, { key: 'personalTime', fields: ['reserved', 'confirmedUsed', 'unconfirmed', 'taskLinkedUsed'] }].forEach(function (schema) {
+    [{ key: 'timeUse', fields: KINDS.concat(['stillness']) }, { key: 'personalTime', fields: ['reserved', 'confirmedUsed', 'unconfirmed', 'taskLinkedUsed'] }, { key: 'recordedTime', fields: ['completed', 'recorded', 'unrecorded', 'minutes', 'usedAI'] }].forEach(function (schema) {
       if (!own(metrics, schema.key) || !object(metrics[schema.key])) return;
       var group = {};
       schema.fields.forEach(function (key) {
@@ -172,6 +172,7 @@
   }
   function dataHonesty() {
     return '诚实账本：事实、本人自述、估计、未知分开说；缺失数据直说未知；不做 AI 因果归因，成稿前自检一遍。\n' +
+      'metrics.recordedTime 是用户可选填写的完成记录汇总，unrecorded 表示未填写用时；没有完成质量评测，不代表通过验收、节省时间或 AI 效果。\n' +
       '型号仅可来自 modelEvidence 且 availability 不为 unavailable。unknown 必须提示本人核验账户。统计都是个人自报；不能把模型自报业绩当事实，不能编造能力排名或 AI 因果收益。缺失、null及样本不足均表示未知。\n' +
       'metrics.dataMode 为 demo 时仅为示例数据，不能当作本人真实时间或模型证据；real 也仅表示真实记录模式，不代表经过独立验证。未提供模式时，数据来源仍未知。\n' +
       'metrics.timeUse 是按事项累加的时间去向，可能有重叠，不等于不重叠的真实日预算；metrics.personalTime 是本人确认的预留用途汇总，reserved 不代表已经使用，unconfirmed 仍未确认。两者均不能归因于 AI，也不能把所有个人预留当作任务腾出的时间。\n' +

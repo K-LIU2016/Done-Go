@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// Explicit engineering fixtures. Ordinary user UI is covered by completion-user.spec.ts.
+test.beforeEach(async ({ page }) => { await page.addInitScript(() => { Object.defineProperty(window, '__TANGO_DEVELOPER_UI__', { value: true }); }); });
+
 const day = '2026-10-14';
 const screen1 = { id: 't1', date: day, title: '筛选5篇论文', kind: 'necessary', start: '14:00', end: '15:00', prio: 3 };
 const screen2 = { id: 't2', date: day, title: '筛选3篇文献', kind: 'necessary', start: '16:00', end: '17:00', prio: 3 };
@@ -25,12 +28,7 @@ async function open(page: Page, patch: Record<string, unknown> = {}) {
   await page.goto('/');
 }
 async function state(page: Page) { return page.evaluate(() => JSON.parse(localStorage.getItem('tango-donego.web.v1')!)); }
-async function expandTasks(page: Page) {
-  const panel = page.locator('#task-advice');
-  if (await panel.getAttribute('open') === null) await panel.locator('summary').click();
-}
 async function finishTask(page: Page, id: string, minutes: string, quality = 'accepted', keepMethod = false) {
-  await expandTasks(page);
   await page.locator('[data-act="task-finish"][data-id="' + id + '"]').first().click();
   await page.locator('#finish-min').fill(minutes);
   if (keepMethod) {
@@ -55,18 +53,20 @@ test('a finished task can keep its method and a similar task finds, applies and 
   expect(kept.methods[0].inputs).not.toContain('筛选5篇论文');
   expect(kept.methods[0].origin).toEqual({ taskId: 't1', date: day, quality: 'accepted' });
   await page.goto('#review');
+  await page.locator('[data-act="method-library"]').click();
   await expect(page.getByRole('heading', { name: '我的 AI 工作手册' })).toBeVisible();
-  await expect(page.locator('.block', { hasText: '我的 AI 工作手册' })).toContainText('资料');
-  await expect(page.locator('.block', { hasText: '我的 AI 工作手册' })).toContainText('尚无完成验收的使用');
+  await expect(page.locator('.sheet .block', { hasText: '我的 AI 工作手册' })).toContainText('资料');
+  await expect(page.locator('.sheet .block', { hasText: '我的 AI 工作手册' })).toContainText('尚无完成验收的使用');
+  await page.keyboard.press('Escape');
   await page.goto('#today');
-  await expandTasks(page);
+
   const hint = page.locator('[data-act="method-view"][data-id="t2"]');
   await expect(hint).toBeVisible();
   await hint.click();
   await expect(page.locator('.sheet')).toContainText('推荐原因');
   await expect(page.locator('.sheet')).toContainText('资料筛选');
   await page.locator('[data-act="method-apply"]').click();
-  await expect(page.locator('article', { has: page.locator('[data-act="task-finish"][data-id="t2"]') })).toContainText('使用方法');
+  await expect(page.locator('.paper-stop', { has: page.locator('[data-act="task-finish"][data-id="t2"]') })).toContainText('使用方法');
   const applied = await state(page);
   expect(applied.entries.find((e: { id: string }) => e.id === 't2').methodRef.name).toContain('筛选');
   expect(applied.methodUses[0].status).toBe('applied');
@@ -75,12 +75,12 @@ test('a finished task can keep its method and a similar task finds, applies and 
   const reused = await state(page);
   expect(reused.methodUses[0].status).toBe('completed');
   await page.goto('#review');
-  await expect(page.locator('.block', { hasText: '我的 AI 工作手册' })).toContainText('1 次完成并验收');
+  await expect(page.locator('.review-method-results')).toContainText('1 次完成并验收');
 });
 
 test('dismissing a suggestion is recorded and stops suggesting for that task only', async ({ page }) => {
   await open(page, { methods: [savedMethod] });
-  await expandTasks(page);
+
   await expect(page.locator('[data-act="method-view"][data-id="t1"]')).toBeVisible();
   await page.locator('[data-act="method-dismiss"][data-id="t1"]').click();
   await expect(page.locator('[data-act="method-view"][data-id="t1"]')).toHaveCount(0);
@@ -93,14 +93,14 @@ test('dismissing a suggestion is recorded and stops suggesting for that task onl
 
 test('aborting an applied method stays visible as an honest non-reuse record', async ({ page }) => {
   await open(page, { methods: [savedMethod] });
-  await expandTasks(page);
+
   await page.locator('[data-act="method-view"][data-id="t1"]').click();
   await page.locator('[data-act="method-apply"]').click();
-  await expect(page.locator('article', { has: page.locator('[data-act="task-finish"][data-id="t1"]') })).toContainText('使用方法');
+  await expect(page.locator('.paper-stop', { has: page.locator('[data-act="task-finish"][data-id="t1"]') })).toContainText('使用方法');
   await page.locator('[data-act="method-view"][data-id="t1"]').click();
   await page.locator('[data-act="method-abort"]').click();
   const after = await state(page);
   expect(after.methodUses[0].status).toBe('aborted');
   await page.goto('#review');
-  await expect(page.locator('.block', { hasText: '我的 AI 工作手册' })).toContainText('1 次应用后中止');
+  await expect(page.locator('.review-method-results')).toContainText('1 次应用后中止');
 });

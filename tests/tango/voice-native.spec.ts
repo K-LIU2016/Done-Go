@@ -24,7 +24,7 @@ test('spoken audio passes through browser capture and native recognition into a 
       localStorage.setItem('tango-donego.llm.v1', JSON.stringify({ mode: 'off' }));
       localStorage.setItem('tango-donego.lang', 'zh');
     });
-    await page.goto('http://localhost:5207/#today');
+    await page.goto(new URL('/#today', info.project.use.baseURL).href);
     const response = page.waitForResponse(response => response.url().includes('/api/speech/transcribe'), { timeout: 30000 });
     await page.locator('#mic').click();
     await expect(page.locator('#capStatus')).toContainText('在听');
