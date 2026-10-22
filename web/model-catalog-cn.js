@@ -8,7 +8,9 @@
   // forensic accessDate (date the official sources were read). Every value was
   // taken from vendor-official pages on that date; anything not verified must
   // read the literal string 未核验. Pure data + pure functions: no DOM, no
-  // network, no storage.
+  // network, no storage. Render-layer plumbing: formatVerifiedDate(entry) → the
+  //「资料核验日期」value ('未核验' unless verified with a parseable accessDate)
+  // and cardEntry(entry) → the card row structure above plus verifiedDate.
   var CN_MODELS = [
     {
       vendor: '字节跳动',
@@ -87,10 +89,47 @@
     return cn.concat(rest);
   }
 
+  var ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+  // Forensic date for the capability card's「资料核验日期」row. Only a verified
+  // entry (verified === true) with a parseable yyyy-mm-dd accessDate may claim a
+  // date; anything else — unverified entries, stale strings, malformed input —
+  // must render the literal 未核验 so an unverified card never borrows a date.
+  function formatVerifiedDate(entry) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return '未核验';
+    if (entry.verified !== true) return '未核验';
+    if (typeof entry.accessDate !== 'string' || !ISO_DATE.test(entry.accessDate)
+      || !isFinite(new Date(entry.accessDate).getTime())) return '未核验';
+    return entry.accessDate;
+  }
+
+  // Card row for the render layer (aiAlternatesSection in web/index.html):
+  // the exact field structure it consumes today — cn / modelId / vendor / name /
+  // desc / fit / appUrl / docUrl — plus verifiedDate from formatVerifiedDate so
+  // the integration node can wire「资料核验日期」into the card without touching
+  // the catalog data. Pure: builds a fresh plain object; never mutates or
+  // aliases the (frozen) catalog entry; null for non-object input.
+  function cardEntry(entry) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+    return {
+      cn: true,
+      modelId: entry.modelId,
+      vendor: entry.vendor,
+      name: entry.displayName,
+      desc: entry.descZh,
+      fit: entry.taskFit,
+      appUrl: entry.appUrl,
+      docUrl: entry.capabilityUrl,
+      verifiedDate: formatVerifiedDate(entry)
+    };
+  }
+
   root.TangoModelCatalogCN = Object.freeze({
     CN_MODELS: Object.freeze(CN_MODELS),
     CN_MODEL_IDS: Object.freeze(CN_MODEL_IDS),
     isCNModel: isCNModel,
-    sortModels: sortModels
+    sortModels: sortModels,
+    formatVerifiedDate: formatVerifiedDate,
+    cardEntry: cardEntry
   });
 }(typeof window !== 'undefined' ? window : globalThis));

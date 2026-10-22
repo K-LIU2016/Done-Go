@@ -93,3 +93,65 @@ test('entries without a catalog modelId (unknown ids, tuple rows) sort as non-CN
   assert.equal(sorted[1], tupleRow);
   assert.equal(sorted[2].modelId, 'unknown-model');
 });
+
+// ---------- 资料核验日期 on the capability card (裁决 9) ----------
+// The render layer (aiAlternatesSection in web/index.html) consumes card rows
+// built from catalog entries; these tests pin the exported date plumbing that
+// the integration node wires into the card markup.
+
+test('exports render-layer date helpers as pure functions', () => {
+  assert.equal(typeof catalog.formatVerifiedDate, 'function', 'formatVerifiedDate is exported');
+  assert.equal(typeof catalog.cardEntry, 'function', 'cardEntry is exported');
+});
+
+test('every catalog entry has a verification date the render structure can consume', () => {
+  for (const entry of catalog.CN_MODELS) {
+    const date = catalog.formatVerifiedDate(entry);
+    assert.ok(typeof date === 'string' && date.length > 0, entry.modelId + ' formats a non-empty date');
+    assert.equal(date, entry.accessDate, entry.modelId + ' verified entry renders its accessDate');
+    assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(date), entry.modelId + ' renders an ISO yyyy-mm-dd date');
+
+    const card = catalog.cardEntry(entry);
+    assert.ok(card && typeof card === 'object' && !Array.isArray(card), entry.modelId + ' card entry is an object');
+    assert.equal(card.cn, true, entry.modelId + ' card is flagged cn');
+    assert.equal(card.modelId, entry.modelId, entry.modelId + ' card modelId');
+    assert.equal(card.vendor, entry.vendor, entry.modelId + ' card vendor');
+    assert.equal(card.name, entry.displayName, entry.modelId + ' card name');
+    assert.equal(card.desc, entry.descZh, entry.modelId + ' card desc');
+    assert.equal(card.fit, entry.taskFit, entry.modelId + ' card fit');
+    assert.equal(card.appUrl, entry.appUrl, entry.modelId + ' card appUrl');
+    assert.equal(card.docUrl, entry.capabilityUrl, entry.modelId + ' card docUrl');
+    assert.equal(card.verifiedDate, date, entry.modelId + ' card carries the same verified date for rendering');
+  }
+});
+
+test('verified=false entries keep the 未核验 marker in the date and the card', () => {
+  const unverified = Object.assign({}, catalog.CN_MODELS[0], { verified: false });
+  assert.equal(catalog.formatVerifiedDate(unverified), '未核验');
+  const card = catalog.cardEntry(unverified);
+  assert.equal(card.verifiedDate, '未核验', 'unverified card row still reads 未核验');
+
+  // The marker survives even when a stale accessDate string is present.
+  const staleDate = Object.assign({}, unverified);
+  assert.equal(catalog.formatVerifiedDate(staleDate), '未核验');
+
+  // Malformed inputs never produce a claimed date either.
+  assert.equal(catalog.formatVerifiedDate(null), '未核验');
+  assert.equal(catalog.formatVerifiedDate(undefined), '未核验');
+  assert.equal(catalog.formatVerifiedDate('2026-10-22'), '未核验');
+  assert.equal(catalog.formatVerifiedDate({ accessDate: '2026-10-22' }), '未核验', 'no verified flag means 未核验');
+  const badDate = Object.assign({}, catalog.CN_MODELS[0], { accessDate: 'not-a-date' });
+  assert.equal(catalog.formatVerifiedDate(badDate), '未核验', 'verified entry with unparseable accessDate falls back to 未核验');
+  assert.equal(catalog.cardEntry(badDate).verifiedDate, '未核验', 'card falls back too');
+});
+
+test('cardEntry is pure: fresh object each call, catalog entry never mutated or aliased', () => {
+  const entry = catalog.CN_MODELS[2];
+  const card = catalog.cardEntry(entry);
+  assert.notEqual(card, entry, 'returns a new object, never the frozen catalog entry');
+  assert.notEqual(catalog.cardEntry(entry), card, 'each call returns a fresh object');
+  assert.equal(entry.verifiedDate, undefined, 'source entry untouched');
+  assert.equal(entry.cn, undefined, 'source entry untouched');
+  assert.deepEqual(Object.keys(card).sort(), ['appUrl', 'cn', 'desc', 'docUrl', 'fit', 'modelId', 'name', 'vendor', 'verifiedDate']);
+  assert.equal(catalog.cardEntry(null), null, 'non-object input returns null');
+});
