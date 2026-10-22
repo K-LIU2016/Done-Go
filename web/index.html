@@ -2862,18 +2862,18 @@ window.TangoAppAuth.start(function (authUser) {
   }
   // CN catalog → capability-card rows. web/model-catalog-cn.js loads deferred in <head>;
   // when absent (release bundle, blocked) the sheet keeps only the tracked candidates.
+  // cardEntry() also carries 资料核验日期（未核验 unless verified）for the card date row.
   function aiAlternatesSection(order, renderTracked) {
     var entries = order.slice(1).map(function (index) { return { cn: false, modelId: MODEL_IDS[index], index: index }; });
     var lib = window.TangoModelCatalogCN;
-    if (lib) lib.CN_MODELS.forEach(function (m) {
-      entries.push({ cn: true, modelId: m.modelId, vendor: m.vendor, name: m.displayName, desc: m.descZh, fit: m.taskFit, appUrl: m.appUrl, docUrl: m.capabilityUrl });
-    });
+    if (lib) lib.CN_MODELS.forEach(function (m) { entries.push(lib.cardEntry(m)); });
     if (lib) entries = lib.sortModels(entries, LANG);
     var cards = entries.map(function (entry) {
       if (!entry.cn) return renderTracked(entry.index);
       return '<li class="tool"><div class="tool-h"><b>' + esc(entry.name) + '</b><span class="small muted">' + esc(entry.vendor) + '</span></div>' +
         '<p class="model-rank">国产模型 · 任务级效果未实测</p><p class="small model-access">外部工具入口 · 在对应应用中使用</p>' +
         '<p class="small model-reason">' + esc(entry.fit) + '</p><p class="small muted">' + esc(entry.desc) + '</p>' +
+        '<p class="small muted">' + localizedMessage('资料核验日期：{date}', { date: [entry.verifiedDate] }) + '</p>' +
         '<div class="tool-links"><a href="' + esc(entry.appUrl) + '" target="_blank" rel="noopener noreferrer">打开应用 ↗</a><a href="' + esc(entry.docUrl) + '" target="_blank" rel="noopener noreferrer">官方能力说明 ↗</a></div></li>';
     }).join('');
     return '<details><summary>' + localizedMessage('备选模型 · {n}', { n: [String(entries.length)] }) + '</summary><ul class="tools">' + cards + '</ul></details>';
