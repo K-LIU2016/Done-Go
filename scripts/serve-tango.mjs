@@ -11,9 +11,9 @@ import { createCollaborationService } from './collaboration-service.mjs';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
-const AI_ERROR_CODES = ['TANGO_AI_INPUT_INVALID', 'TANGO_AI_NOT_CONFIGURED', 'TANGO_AI_BUSY', 'TANGO_AI_TIMEOUT', 'TANGO_AI_ABORTED', 'TANGO_AI_UPSTREAM_FAILED', 'TANGO_AI_RESPONSE_TOO_LARGE', 'TANGO_AI_RESPONSE_INVALID', 'TANGO_AI_MODE_DISABLED', 'TANGO_AI_RATE_LIMITED', 'TANGO_AI_DAILY_LIMIT', 'TANGO_AI_INPUT_TOO_LONG'];
-const AI_ERROR_STATUS = { TANGO_AI_INPUT_INVALID: 400, TANGO_AI_NOT_CONFIGURED: 503, TANGO_AI_BUSY: 429, TANGO_AI_TIMEOUT: 504, TANGO_AI_ABORTED: 499, TANGO_AI_MODE_DISABLED: 400, TANGO_AI_RATE_LIMITED: 429, TANGO_AI_DAILY_LIMIT: 429, TANGO_AI_INPUT_TOO_LONG: 413 };
-const AI_ERROR_MESSAGE = { TANGO_AI_MODE_DISABLED: '该 AI 功能未开放', TANGO_AI_RATE_LIMITED: '访问过于频繁，请稍后再试', TANGO_AI_DAILY_LIMIT: '今日体验额度已用完', TANGO_AI_INPUT_TOO_LONG: '输入内容过长，请精简后重试' };
+const AI_ERROR_CODES = ['TANGO_AI_INPUT_INVALID', 'TANGO_AI_NOT_CONFIGURED', 'TANGO_AI_BUSY', 'TANGO_AI_TIMEOUT', 'TANGO_AI_ABORTED', 'TANGO_AI_UPSTREAM_FAILED', 'TANGO_AI_RESPONSE_TOO_LARGE', 'TANGO_AI_RESPONSE_INVALID', 'TANGO_AI_MODE_DISABLED', 'TANGO_AI_RATE_LIMITED', 'TANGO_AI_DAILY_LIMIT', 'TANGO_AI_VISITOR_DAILY_LIMIT', 'TANGO_AI_INPUT_TOO_LONG'];
+const AI_ERROR_STATUS = { TANGO_AI_INPUT_INVALID: 400, TANGO_AI_NOT_CONFIGURED: 503, TANGO_AI_BUSY: 429, TANGO_AI_TIMEOUT: 504, TANGO_AI_ABORTED: 499, TANGO_AI_MODE_DISABLED: 400, TANGO_AI_RATE_LIMITED: 429, TANGO_AI_DAILY_LIMIT: 429, TANGO_AI_VISITOR_DAILY_LIMIT: 429, TANGO_AI_INPUT_TOO_LONG: 413 };
+const AI_ERROR_MESSAGE = { TANGO_AI_MODE_DISABLED: '该 AI 功能未开放', TANGO_AI_RATE_LIMITED: '访问过于频繁，请稍后再试', TANGO_AI_DAILY_LIMIT: '今日体验额度已用完', TANGO_AI_VISITOR_DAILY_LIMIT: '今日体验额度已用完', TANGO_AI_INPUT_TOO_LONG: '输入内容过长，请精简后重试' };
 function aiFailure(error) {
   const code = AI_ERROR_CODES.includes(error?.code) ? error.code : 'TANGO_AI_UPSTREAM_FAILED';
   const message = AI_ERROR_MESSAGE[code];
@@ -25,10 +25,12 @@ export function createAIGuard(options = {}) {
  const positive = (value, fallback) => { const num = Number(value); return Number.isInteger(num) && num > 0 ? num : fallback; };
  const features = { parse: flag(env.TANGO_AI_PARSE), prompts: flag(env.TANGO_AI_PROMPTS) };
  const dailyLimit = positive(env.TANGO_AI_DAILY_LIMIT, 500);
+ const visitorDailyLimit = positive(env.TANGO_AI_VISITOR_DAILY_LIMIT, 30);
  const minuteLimit = positive(env.TANGO_AI_RATE_LIMIT, 60);
  const now = options.now || Date.now;
  let dayKey = '', dayCount = 0;
  const windows = new Map();
+ const visitorDaily = new Map();
  const dayStamp = time => { const date = new Date(time); return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0'); };
  const visitorKey = req => {
   const remote = req.socket?.remoteAddress || 'unknown';
@@ -38,12 +40,28 @@ export function createAIGuard(options = {}) {
   }
   return remote;
  };
+ // D23: every demo visitor (demo session or anonymous IP) carries a per-day AI
+ // budget counted on BOTH the demo session key and the IP key — whichever
+ // bucket reaches the cap first blocks the call, so clearing the demo cookie
+ // cannot mint a fresh bucket from the same IP and one busy IP cannot cycle
+ // sessions to dodge its bucket. Authenticated non-demo actors are exempt
+ // (they are not demo visitors); the global in-memory daily budget above
+ // keeps its own TANGO_AI_DAILY_LIMIT code.
+ const visitorDailyKeys = (req, actor) => {
+  if (actor && actor.demo !== true) return [];
+  const keys = [];
+  if (actor?.id) keys.push('demo:' + String(actor.id).slice(0, 64));
+  keys.push('ip:' + visitorKey(req));
+  return keys;
+ };
  function check(req, actor, mode) {
   if (mode === 'parse' && !features.parse) throw assistantError('TANGO_AI_MODE_DISABLED', 400);
   if (mode === 'prompt' && !features.prompts) throw assistantError('TANGO_AI_MODE_DISABLED', 400);
   const time = now(), day = dayStamp(time);
   if (day !== dayKey) { dayKey = day; dayCount = 0; }
   if (dayCount >= dailyLimit) throw assistantError('TANGO_AI_DAILY_LIMIT', 429);
+  const dailyKeys = visitorDailyKeys(req, actor);
+  for (const name of dailyKeys) { const slot = visitorDaily.get(name); if (slot && slot.day === day && slot.count >= visitorDailyLimit) throw assistantError('TANGO_AI_VISITOR_DAILY_LIMIT', 429); }
   const key = (actor?.id ? 'user:' + String(actor.id) : visitorKey(req)).slice(0, 80);
   const window = Math.floor(time / 60000);
   const slot = windows.get(key);
@@ -53,6 +71,10 @@ export function createAIGuard(options = {}) {
   } else if (slot.count >= minuteLimit) throw assistantError('TANGO_AI_RATE_LIMITED', 429);
   else slot.count++;
   dayCount++;
+  if (dailyKeys.length) {
+   if (visitorDaily.size > 16384) for (const [name, value] of visitorDaily) if (value.day !== day) visitorDaily.delete(name);
+   for (const name of dailyKeys) { const slot = visitorDaily.get(name); if (!slot || slot.day !== day) visitorDaily.set(name, { day, count: 1 }); else slot.count++; }
+  }
  }
  return { features: () => ({ ...features }), check };
 }

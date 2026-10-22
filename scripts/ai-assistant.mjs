@@ -10,10 +10,15 @@ const systemFor = mode => (MODE_SYSTEMS[mode] ? ASSISTANT_SYSTEM + '\n\n' + MODE
 const TIER_ENV = { heavy: 'TANGO_AI_MODEL_HEAVY', standard: 'TANGO_AI_MODEL_STANDARD', light: 'TANGO_AI_MODEL_LIGHT' };
 const STREAM_TOTAL_MS = 300000;
 const STREAM_TOTAL_MAX_MS = 600000;
-// AI tidy (parse) is an interactive diff flow with a rule-result fallback and a
-// seconds-scale p95 envelope, so its default upstream budget is 6s; TANGO_AI_TIMEOUT_MS
-// or an explicit timeoutMs still overrides it.
-const PARSE_BUDGET_MS = 6000;
+// D21: parse and prompt budgets are TOTAL-duration caps counted from the start
+// of the request, not idle budgets — a reasoning model can stream reasoning
+// deltas for tens of seconds while rearming any idle timer, so only a wall
+// clock over the whole request keeps the seconds-scale envelopes (parse tidy
+// flow falls back to its rule result, prompt keeps its current error
+// semantics). The idle rearm watchdog stays in place below the total cap;
+// TANGO_AI_TIMEOUT_MS or an explicit timeoutMs still overrides both modes.
+const PARSE_BUDGET_MS = 8000;
+const PROMPT_BUDGET_MS = 20000;
 // Reasoning-tier models can stream hundreds of KB of reasoning_content deltas
 // and per-chunk metadata while the visible content stays short, so the raw SSE
 // byte guard is a lenient bounded fallback (default 4 MiB, TANGO_AI_STREAM_MAX_BYTES
@@ -36,6 +41,7 @@ function budgetMs(options, config, tier, env, mode) {
   const fromEnv = Number(env.TANGO_AI_TIMEOUT_MS);
   if (Number.isInteger(fromEnv) && fromEnv >= 1000 && fromEnv <= STREAM_TOTAL_MAX_MS) return fromEnv;
   if (mode === 'parse') return PARSE_BUDGET_MS;
+  if (mode === 'prompt') return PROMPT_BUDGET_MS;
   return config.reasoningEffort === 'xhigh' && tier === 'heavy' ? 120000 : 25000;
 }
 
@@ -164,7 +170,11 @@ export function createAssistant(options = {}) {
       if (signal?.aborted) abort.abort();
       const idleMs = budgetMs(options, config, tier, env, mode);
       const rawBytes = streamRawBytes(options, env);
-      const deadline = Date.now() + Math.min(Math.max(idleMs, STREAM_TOTAL_MS), STREAM_TOTAL_MAX_MS);
+      // D21: parse/prompt budgets are total-duration caps counted from request
+      // start, so their deadline IS the budget; every other mode keeps the 300s
+      // total floor (raised to the idle budget when longer, capped at 600s).
+      const cappedMode = mode === 'parse' || mode === 'prompt';
+      const deadline = Date.now() + (cappedMode ? idleMs : Math.min(Math.max(idleMs, STREAM_TOTAL_MS), STREAM_TOTAL_MAX_MS));
       let timer; let stopReader = () => {};
       const rearm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; abort.abort(); }, idleMs); };
       const pastDeadline = () => { if (Date.now() < deadline) return false; timedOut = true; abort.abort(); return true; };
