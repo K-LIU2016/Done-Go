@@ -10,6 +10,7 @@
 <script src="/app-auth.js"></script>
 <link rel="stylesheet" href="/users-admin.css">
 <script src="/users-admin.js"></script>
+<script defer src="/model-catalog-cn.js"></script>
 <link rel="stylesheet" href="/collaboration.css">
 <!-- TANGO:BODY-START -->
 <title>探戈 Done&amp;Go</title>
@@ -1071,6 +1072,34 @@ window.TangoAppAuth.start(function (authUser) {
   }
   var assistantP = (/^https?:$/.test(location.protocol) ? fetch('/api/assistant/config', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }) : Promise.resolve(null))
     .then(adoptAssistantConfig, function () { return adoptAssistantConfig(null); });
+  // ---------- AI gateway integration: server feature switches + lazy modules ----------
+  // Entries are hidden unless the server reports them via GET /api/assistant/features
+  // ({parse, prompts}). A missing endpoint (old server, file://, fetch failure) keeps
+  // everything off — the safe default.
+  var aiFeatures = { parse: false, prompts: false };
+  var aiTidyOn = false, aiDiffPending = null, aiPromptLib = null;
+  var aiFeaturesP = (/^https?:$/.test(location.protocol) ? fetch('/api/assistant/features', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }, function () { return null; }) : Promise.resolve(null))
+    .then(function (f) {
+      if (f && typeof f === 'object') { aiFeatures.parse = f.parse === true; aiFeatures.prompts = f.prompts === true; }
+      return aiFeatures;
+    });
+  // Re-render once both the feature flags and the assistant config are in, so the
+  // AI 整理 toggle appears without waiting for the next unrelated interaction.
+  Promise.all([aiFeaturesP, assistantP]).then(function () {
+    if (aiFeatures.parse && document.getElementById('capForm')) render();
+  });
+  // web/ai-prompt.js is a classic script mounted at window.TangoAIPrompt; load on first use.
+  function aiPromptModule() {
+    if (window.TangoAIPrompt) return Promise.resolve(window.TangoAIPrompt);
+    if (!aiPromptLib) aiPromptLib = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = '/ai-prompt.js';
+      s.onload = function () { window.TangoAIPrompt ? resolve(window.TangoAIPrompt) : reject(new Error('ai-prompt.js load')); };
+      s.onerror = function () { reject(new Error('ai-prompt.js load')); };
+      document.head.appendChild(s);
+    });
+    return aiPromptLib;
+  }
   function serverTarget(mode) {
     var tier = mode === 'test' ? 'light' : ['priorities', 'models', 'reflection'].indexOf(mode) >= 0 ? 'standard' : 'heavy';
     if (assistantCfg) return { url: '/api/assistant/chat', protocol: 'donego', model: assistantCfg.models && assistantCfg.models[tier] || assistantCfg.model, destination: assistantCfg.destination, reasoningEffort: tier === 'heavy' ? assistantCfg.reasoningEffort : undefined };
@@ -1446,6 +1475,7 @@ window.TangoAppAuth.start(function (authUser) {
     var html = '<header class="paper-date"><span class="paper-day">' + t.slice(8) + '</span><div><time class="label" data-local-date="' + t + '" data-date-full datetime="' + t + '">' + esc(fmtDate(t, true)) + '</time><p class="hello">' + greet + (S.name ? ' <span translate="no" data-user-content>' + esc(S.name) + '</span>' : '') + '</p></div></header>' +
       '<section class="voice" aria-label="记录"><button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" value="' + esc(capState.text) + '" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
+      (aiFeatures.parse && assistantCfg ? '<button type="button" id="aiTidyBtn" class="btn sm" data-act="ai-tidy" aria-pressed="' + aiTidyOn + '">AI 整理' + (aiTidyOn ? ' · 开' : '') + '</button>' : '') +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section>' +
       '<div class="today-workspace"><div class="today-bubble-panel">' + bubbleField() + '</div><aside class="col paper-tools">' + timeOverview(list) + picker() + '</aside></div>' +
       '<section class="companion-invite"><div><b>想一起理清今天？</b></div><div class="btns"><button class="btn sm primary" data-act="priorities-today">帮我排优先级</button><button class="btn sm" data-act="assistant-open">和探戈聊聊</button></div></section>' + pendingChoices() + todayRoute(list);
@@ -2057,7 +2087,8 @@ window.TangoAppAuth.start(function (authUser) {
       '<details class="estimate-help"><summary>' + (estimate.source === 'history' ? localizedText([estimate.dataMode === 'demo' ? '示例历史差值参考' : '个人历史差值参考']) + ' · ' + estimate.samples : '待实测 · 不承诺节省时间') + ' ⓘ</summary><p>' + (estimate.source === 'history' ? '同类任务的个人计划与实际差值；任务难度可能不同，差值不等于 AI 的贡献。负值表示多花费。至少两条已验收记录才展示范围，这不是统计置信区间，也不是模型之间的对照实验。' : '还没有足够的同类已验收 AI 记录。先完成一次尝试，记录准备、执行、核对和返工时间，再验收结果。') + '</p></details>' +
       '<p class="model-access small">' + (assistantCfg ? localizedMessage('探戈聊天已配置：{model}。以下是外部工具参考，选择不会切换聊天模型。', { model: [serverTarget('models').model] }) : '探戈聊天尚未连接；以下工具可在对应应用中了解。') + '</p><p class="small paper-tool-label">' + localizedMessage('适用任务：{task} · 本地工作流规则候选', { task: r.method }) + '</p><p class="small muted">使用前：确认账户可用与材料可分享。输出后：对照原始材料和任务要求逐项核验。</p><ul class="tools">' + modelCard(order[0], 0) + '</ul><h3>怎么用</h3><ol class="guidance-steps">' + p.steps.map(function (step) { return '<li>' + esc(guidanceText(step)) + '</li>'; }).join('') + '</ol>' +
       '<p class="small muted">' + esc(guidanceText(p.device)) + '</p><details><summary>可修改、复制的提示词</summary><textarea class="prompt" id="model-prompt" maxlength="4000" aria-label="可复制的提示词">' + esc(prompt) + '</textarea><button class="btn sm" data-act="copy-prompt">复制提问</button></details>' +
-      '<details><summary>备选模型 · 2</summary><ul class="tools">' + order.slice(1).map(function (index) { return modelCard(index, 1); }).join('') + '</ul></details>' +
+      (aiFeatures.prompts && assistantCfg ? '<button class="btn sm" data-act="ai-prompt-gen">生成专属提示词</button>' : '') +
+      aiAlternatesSection(order, function (index) { return modelCard(index, 1); }) +
       '<p class="small muted">' + localizedMessage('能力来源：官方文档 · 资料核验日期 {date}。候选顺序按任务工作流选择，尚未证明哪个模型更好；你的地区、账户、预算与可用性尚未核验。型号、价格与额度以官方为准。', { date: ['2026-10-14'] }) + '</p><p class="small muted">失败时换备选，或回到人工与规则流程。上传前移除身份信息、密钥和未授权的研究或公司资料。</p>' + (hintMuted[r.cat] ? '<p class="small muted">这类机会的主动推荐已关闭；这里是你主动打开的，不受影响。</p>' : '') + '<div class="btns"><button class="btn sm" data-act="model-evaluation-export">模型评测导出</button>' + (hintMuted[r.cat] ? '' : '<button class="btn sm" data-act="hints-mute" data-cat="' + r.cat + '">不再推荐这类机会</button>') + '<button class="btn sm" data-act="close">暂时不用 AI</button></div>');
   }
   var editPrio = 3;
@@ -2730,6 +2761,119 @@ window.TangoAppAuth.start(function (authUser) {
     }
   }
 
+  // ---------- AI gateway integration: AI 整理 diff flow, 专属提示词, CN model cards ----------
+  function aiLimitMessage(err) {
+    if (!err) return '';
+    var code = String(err.code || '').toUpperCase();
+    if (code === 'TANGO_AI_DAILY_LIMIT') return '今日体验额度已用完';
+    if (code === 'TANGO_AI_RATE_LIMITED') return '访问过于频繁，请稍后再试';
+    return '';
+  }
+  // Non-streaming POST /api/assistant/chat for the gateway flows. Resolves with the text
+  // payload; rejects with {code, status, aiMessage} so guard limits can map to UI copy.
+  function aiChatText(body, timeoutMs) {
+    var ac = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ac) ac.abort(); }, timeoutMs || 45000);
+    return fetch('/api/assistant/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, redirect: 'error', signal: ac ? ac.signal : undefined, body: JSON.stringify(body) })
+      .then(function (r) {
+        return r.text().then(function (raw) {
+          var data = null; try { data = JSON.parse(raw); } catch (e) {}
+          clearTimeout(timer);
+          if (!r.ok) { var wireCode = (data && (typeof data.code === 'string' ? data.code : data.error)) || 'HTTP ' + r.status; var err = new Error(wireCode); err.code = wireCode; err.status = r.status; err.aiMessage = (data && data.message) || ''; throw err; }
+          return String(Array.isArray(data && data.content) ? data.content.filter(function (c) { return c && c.type === 'text'; }).map(function (c) { return c.text; }).join('') : '');
+        });
+      }, function (e) { clearTimeout(timer); lastErrorCode = 'TANGO_MODEL_FAILED'; throw e; });
+  }
+  function aiSubmit(text) {
+    if (!(aiFeatures.parse && assistantCfg && aiTidyOn)) return parseInput(text);
+    return aiTidyFlow(text);
+  }
+  // AI 整理: the rule result shows first (parseInput is forced down its synchronous rule
+  // path), then the AI diff arrives asynchronously; nothing is written until the user
+  // explicitly adopts it. Any failure keeps the rule result without claiming AI success.
+  function aiTidyFlow(text) {
+    var ruleItems = ruleParse(text), prevConsent = L.consent, before = S.drafts.length;
+    L.consent = false;
+    try { parseInput(text); } finally { L.consent = prevConsent; }
+    if (!ruleItems.length || S.drafts.length - before !== ruleItems.length) return;
+    aiTidyDiff(text, ruleItems, S.drafts[S.drafts.length - ruleItems.length]);
+  }
+  function aiTidyDiff(text, ruleItems, draft) {
+    var tg = serverTarget('chat');
+    if (!tg || tg.protocol !== 'donego') return;
+    import('/ai-parse.js').then(function (Parse) {
+      var req = Parse.buildParseRequest(text, ruleItems, new Date());
+      return requestPreview(tg.destination || tg.url, tg.model + (tg.reasoningEffort ? ' · 推理 ' + tg.reasoningEffort : ''), req.prompt).then(function (approved) {
+        if (!approved) return null;
+        setCap('AI 整理中…');
+        return aiChatText({ prompt: req.prompt, mode: 'chat', stream: false });
+      }).then(function (reply) {
+        if (reply == null) return;
+        var result = Parse.resolveParse(reply, text, ruleItems, new Date());
+        setCap('');
+        if (result.source !== 'ai' || !result.diff.hasDiff || S.drafts.indexOf(draft) < 0) return;
+        aiDiffPending = { draftId: draft.id, adopt: result.diff.adopt, fields: result.diff.fields };
+        openSheet(aiDiffSheetHtml(result.diff));
+      });
+    }).catch(function (err) { var msg = aiLimitMessage(err); setCap(msg || '', !!msg); });
+  }
+  var AI_DIFF_LABELS = { date: '日期', start: '开始', end: '结束', title: '名称', kind: '类别', prio: '优先级' };
+  function aiDiffValue(key, value) {
+    if (value == null || value === '') return '（空）';
+    if (key === 'kind' && Object.prototype.hasOwnProperty.call(KINDS, value)) return KINDS[value].label;
+    return String(value);
+  }
+  function aiDiffSheetHtml(diff) {
+    var rows = diff.fields.filter(function (f) { return f.differs; }).map(function (f) {
+      return '<p class="small">' + esc(AI_DIFF_LABELS[f.key] || f.key) + '：' + esc(aiDiffValue(f.key, f.ruleValue)) + ' → <b>' + esc(aiDiffValue(f.key, f.aiValue)) + '</b></p>';
+    }).join('');
+    return '<h2>AI 整理建议</h2><p class="small muted">AI 与规则解析结果不同。点「采纳」才会修改刚才的记录；关闭则保持规则结果。</p>' + rows +
+      '<div class="btns"><button class="btn primary" data-act="ai-diff-adopt">采纳 AI 建议</button><button class="btn" data-act="close">保持规则结果</button></div>';
+  }
+  function aiPromptSheet(title, targetId) {
+    var tg = serverTarget('chat');
+    if (!tg || tg.protocol !== 'donego') { toast('AI 服务未连接'); return; }
+    aiPromptModule().then(function (Mod) {
+      var target = targetId && targetId.indexOf('draft:') === 0 ? S.drafts.filter(function (d) { return 'draft:' + d.id === targetId; })[0] : targetId ? byId(targetId.replace(/^entry:/, '')) : null;
+      var context = target ? { kind: Object.prototype.hasOwnProperty.call(KINDS, target.kind) ? target.kind : undefined, priority: P(target), date: target.date, start: target.start, end: target.end } : {};
+      var req;
+      try { req = Mod.buildPromptRequest(title, context); } catch (e) { toast('无法生成：事项信息不完整'); return; }
+      requestPreview(tg.destination || tg.url, tg.model + (tg.reasoningEffort ? ' · 推理 ' + tg.reasoningEffort : ''), req.prompt).then(function (approved) {
+        if (!approved) return null;
+        openSheet('<h2>生成专属提示词</h2><p class="small muted">正在生成…</p>');
+        return aiChatText({ prompt: req.prompt, mode: 'chat', stream: false }).then(function (reply) {
+          var card = Mod.renderPromptCard(reply, { model: tg.model });
+          if (!card) { openSheet('<h2>生成专属提示词</h2><p class="status warn">生成失败或内容为空，稍后再试；不会显示未经验证的内容。</p><div class="btns"><button class="btn" data-act="close">关闭</button></div>'); return; }
+          openSheet('<h2>生成专属提示词</h2><p class="small status warn">' + esc(card.disclaimer) + '</p>' +
+            '<ol class="guidance-steps">' + card.steps.map(function (step) { return '<li>' + esc(step) + '</li>'; }).join('') + '</ol>' +
+            '<div class="field"><label for="ai-prompt-out">可复制的提示词</label><textarea class="prompt" id="ai-prompt-out" readonly>' + esc(card.prompt) + '</textarea></div>' +
+            (card.model ? '<p class="small muted">型号：' + esc(card.model) + '</p>' : '') +
+            '<div class="btns"><button class="btn sm" data-act="ai-prompt-copy">复制提示词</button><button class="btn" data-act="close">关闭</button></div>');
+        });
+      }).catch(function (err) {
+        var msg = aiLimitMessage(err);
+        openSheet('<h2>生成专属提示词</h2><p class="status warn">' + esc(msg || '生成失败，稍后再试。') + '</p><div class="btns"><button class="btn" data-act="close">关闭</button></div>');
+      });
+    }, function () { toast('提示词模块加载失败'); });
+  }
+  // CN catalog → capability-card rows. web/model-catalog-cn.js loads deferred in <head>;
+  // when absent (release bundle, blocked) the sheet keeps only the tracked candidates.
+  function aiAlternatesSection(order, renderTracked) {
+    var entries = order.slice(1).map(function (index) { return { cn: false, modelId: MODEL_IDS[index], index: index }; });
+    var lib = window.TangoModelCatalogCN;
+    if (lib) lib.CN_MODELS.forEach(function (m) {
+      entries.push({ cn: true, modelId: m.modelId, vendor: m.vendor, name: m.displayName, desc: m.descZh, fit: m.taskFit, appUrl: m.appUrl, docUrl: m.capabilityUrl });
+    });
+    if (lib) entries = lib.sortModels(entries, LANG);
+    var cards = entries.map(function (entry) {
+      if (!entry.cn) return renderTracked(entry.index);
+      return '<li class="tool"><div class="tool-h"><b>' + esc(entry.name) + '</b><span class="small muted">' + esc(entry.vendor) + '</span></div>' +
+        '<p class="model-rank">国产模型 · 任务级效果未实测</p><p class="small model-access">外部工具入口 · 在对应应用中使用</p>' +
+        '<p class="small model-reason">' + esc(entry.fit) + '</p><p class="small muted">' + esc(entry.desc) + '</p>' +
+        '<div class="tool-links"><a href="' + esc(entry.appUrl) + '" target="_blank" rel="noopener noreferrer">打开应用 ↗</a><a href="' + esc(entry.docUrl) + '" target="_blank" rel="noopener noreferrer">官方能力说明 ↗</a></div></li>';
+    }).join('');
+    return '<details><summary>' + localizedMessage('备选模型 · {n}', { n: [String(entries.length)] }) + '</summary><ul class="tools">' + cards + '</ul></details>';
+  }
   // ---------- actions ----------
   function draftById(el) { var box = el.closest('.draft'); var id = box && box.getAttribute('data-id'); return S.drafts.filter(function (d) { return d.id === id; })[0]; }
   function byId(id) { return S.entries.filter(function (e) { return e.id === id; })[0]; }
@@ -2935,6 +3079,23 @@ window.TangoAppAuth.start(function (authUser) {
       if (navigator.clipboard) navigator.clipboard.writeText(promptEl.value).then(function () { toast('已复制'); }, function () { promptEl.select(); toast('已选中'); }); else { promptEl.select(); toast('已选中'); } return;
     }
 
+    if (act === 'ai-tidy') { aiTidyOn = !aiTidyOn; var tidyBtn = document.getElementById('aiTidyBtn'); if (tidyBtn) { tidyBtn.setAttribute('aria-pressed', String(aiTidyOn)); tidyBtn.textContent = 'AI 整理' + (aiTidyOn ? ' · 开' : ''); } return; }
+    if (act === 'ai-diff-adopt') {
+      var aiPending = aiDiffPending; aiDiffPending = null; closeSheet();
+      if (!aiPending) return;
+      var aiDraft = S.drafts.filter(function (d) { return d.id === aiPending.draftId; })[0];
+      if (!aiDraft) { toast('事项已变化，未修改'); return; }
+      aiPending.fields.forEach(function (f) { if (f.suggestAdopt && f.aiValue != null) aiDraft[f.key] = f.aiValue; });
+      if (aiDraft.kind === 'stillness') aiDraft.title = '自由安排';
+      save(); render(); toast('已按 AI 建议更新'); return;
+    }
+    if (act === 'ai-prompt-gen') { var aiGuide = activeModelGuidance; if (aiGuide && aiGuide.title) return aiPromptSheet(aiGuide.title, aiGuide.targetId); return; }
+    if (act === 'ai-prompt-copy') {
+      var aiOut = document.getElementById('ai-prompt-out');
+      if (aiOut && navigator.clipboard) navigator.clipboard.writeText(aiOut.value).then(function () { toast('已复制'); }, function () { aiOut.select(); toast('已选中'); });
+      else if (aiOut) { aiOut.select(); toast('已选中'); }
+      return;
+    }
     if (act === 'send-confirm') return resolveSendPreview(true);
     if (act === 'cohort-export') return exportEvidence('cohort');
     if (act === 'model-evaluation-export') return exportEvidence('model-evaluation');
@@ -3070,7 +3231,7 @@ window.TangoAppAuth.start(function (authUser) {
   document.addEventListener('submit', function (ev) {
     ev.preventDefault();
     if (ev.target.id === 'budgetForm') return saveTodayBudget();
-    if (ev.target.id === 'capForm') { if (!capState.listening && !micLoading) return parseInput(capState.pendingText); return; }
+    if (ev.target.id === 'capForm') { if (!capState.listening && !micLoading) return aiSubmit(capState.pendingText); return; }
     if (ev.target.id === 'setForm') {
       S.name = document.getElementById('s-name').value.trim();
       S.sound = document.getElementById('s-sound').checked;
