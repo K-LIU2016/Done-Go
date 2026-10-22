@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createAssistant } from '../../scripts/ai-assistant.mjs';
 
 const config = { provider: 'openai', url: 'https://api.example.com/v1/chat/completions', model: 'auto', key: 'private-key' };
-const parseReply = '{"date":"2026-10-22","start":"22:00","end":null,"title":"复盘会","kind":"event","prio":2}';
+const parseReply = '{"date":"2026-10-22","start":"22:00","end":null,"title":"复盘会","kind":"connect","prio":2}';
 const openaiReply = text => new Response(JSON.stringify({ choices: [{ message: { content: text } }] }));
 
 test('parse mode routes to the light tier with a strict-JSON system contract and passes the reply through verbatim', async () => {
@@ -32,6 +32,11 @@ test('parse mode routes to the light tier with a strict-JSON system contract and
   assert.match(system, /title/);
   assert.match(system, /kind/);
   assert.match(system, /prio/);
+  // The kind enum and title cap must mirror web/ai-parse.js (PARSE_KINDS / TITLE_MAX):
+  // anything the system prompt teaches has to survive validateAndExtract.
+  assert.match(system, /necessary.*restore.*create.*connect.*explore.*stillness/s);
+  assert.doesNotMatch(system, /task.*event.*reminder/s);
+  assert.match(system, /不超过 30 字/);
   assert.match(system, /「晚上10点」是 22:00/);
   assert.match(system, /不可信数据/);
 });
@@ -46,22 +51,36 @@ test('parse mode never injects reasoning effort even when the heavy tier is conf
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'reasoning_effort'), false);
 });
 
-test('prompt mode routes to the standard tier and instructs three-step usage plus a copyable prompt', async () => {
+test('parse mode carries a 6 second default budget so the tidy flow falls back inside the A1 envelope', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = (_url, { signal }) => new Promise((_resolve, reject) => { signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }); });
+  let chatCode;
+  const app = createAssistant({ config, fetch: pending });
+  const parse = app.chat({ prompt: '晚上10点复盘会', mode: 'parse' }).catch(error => error.code);
+  const chat = app.chat({ prompt: '晚上10点复盘会', mode: 'chat' }).catch(error => { chatCode = error.code; return error.code; });
+  await t.mock.timers.tick(6000);
+  assert.equal(await parse, 'TANGO_AI_TIMEOUT');
+  assert.equal(chatCode, undefined); // ordinary chat keeps the 25s default
+  t.mock.timers.tick(19000);
+  assert.equal(await chat, 'TANGO_AI_TIMEOUT');
+});
+
+test('prompt mode routes to the standard tier and asks for a plain copyable prompt body', async () => {
   const payloads = [];
   const app = createAssistant({ config: { ...config, reasoningEffort: 'xhigh' }, env: { TANGO_AI_MODEL_STANDARD: 'standard-fixture' }, fetch: async (_url, options) => {
     payloads.push(JSON.parse(options.body));
     return openaiReply('三步用法');
   } });
-  const prompt = '<item_title>写周报</item_title><shared_context>{"kind":"task"}</shared_context>';
+  const prompt = 'USER_REQUEST_JSON\n{"userRequest":{"title":"写周报"}}\nCONTEXT_JSON\n{"kind":"create"}';
   const result = await app.chat({ prompt, mode: 'prompt' });
   assert.equal(result.content[0].text, '三步用法');
   const [payload] = payloads;
   assert.equal(payload.model, 'standard-fixture');
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'reasoning_effort'), false);
   const system = payload.messages[0].content;
-  assert.match(system, /三步用法/);
-  assert.match(system, /提示词：/);
-  assert.match(system, /AI 生成，未实测/);
+  assert.match(system, /只输出可直接复制的提示词正文/);
+  assert.match(system, /USER_REQUEST_JSON/);
+  assert.match(system, /CONTEXT_JSON/);
   assert.match(system, /不虚构/);
   assert.match(system, /已明确同意共享/);
   assert.match(system, /不可信数据/);

@@ -2771,6 +2771,10 @@ window.TangoAppAuth.start(function (authUser) {
   }
   // Non-streaming POST /api/assistant/chat for the gateway flows. Resolves with the text
   // payload; rejects with {code, status, aiMessage} so guard limits can map to UI copy.
+  // Backstop timers sit just above the server budgets (parse 6s, prompt 25s default) so
+  // the gateway's typed timeout JSON wins and the UI falls back to the rule result.
+  var AI_PARSE_TIMEOUT_MS = 8000;
+  var AI_PROMPT_TIMEOUT_MS = 30000;
   function aiChatText(body, timeoutMs) {
     var ac = window.AbortController ? new AbortController() : null;
     var timer = setTimeout(function () { if (ac) ac.abort(); }, timeoutMs || 45000);
@@ -2806,7 +2810,7 @@ window.TangoAppAuth.start(function (authUser) {
       return requestPreview(tg.destination || tg.url, tg.model + (tg.reasoningEffort ? ' · 推理 ' + tg.reasoningEffort : ''), req.prompt).then(function (approved) {
         if (!approved) return null;
         setCap('AI 整理中…');
-        return aiChatText({ prompt: req.prompt, mode: 'chat', stream: false });
+        return aiChatText({ prompt: req.prompt, mode: req.mode, stream: false }, AI_PARSE_TIMEOUT_MS);
       }).then(function (reply) {
         if (reply == null) return;
         var result = Parse.resolveParse(reply, text, ruleItems, new Date());
@@ -2841,7 +2845,7 @@ window.TangoAppAuth.start(function (authUser) {
       requestPreview(tg.destination || tg.url, tg.model + (tg.reasoningEffort ? ' · 推理 ' + tg.reasoningEffort : ''), req.prompt).then(function (approved) {
         if (!approved) return null;
         openSheet('<h2>生成专属提示词</h2><p class="small muted">正在生成…</p>');
-        return aiChatText({ prompt: req.prompt, mode: 'chat', stream: false }).then(function (reply) {
+        return aiChatText({ prompt: req.prompt, mode: req.mode, stream: false }, AI_PROMPT_TIMEOUT_MS).then(function (reply) {
           var card = Mod.renderPromptCard(reply, { model: tg.model });
           if (!card) { openSheet('<h2>生成专属提示词</h2><p class="status warn">生成失败或内容为空，稍后再试；不会显示未经验证的内容。</p><div class="btns"><button class="btn" data-act="close">关闭</button></div>'); return; }
           openSheet('<h2>生成专属提示词</h2><p class="small status warn">' + esc(card.disclaimer) + '</p>' +

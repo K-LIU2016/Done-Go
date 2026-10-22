@@ -15,7 +15,7 @@ function contextOf(prompt) {
   return JSON.parse(prompt.slice(prompt.indexOf('\nCONTEXT_JSON\n') + '\nCONTEXT_JSON\n'.length));
 }
 
-test('buildPromptRequest assembles a chat request from the title and allow-listed context only', () => {
+test('buildPromptRequest assembles a prompt-mode request from the title and allow-listed context only', () => {
   const request = buildPromptRequest('完成论文大纲', {
     kind: 'create',
     priority: 2,
@@ -29,7 +29,7 @@ test('buildPromptRequest assembles a chat request from the title and allow-liste
     secretNote: '私密备注不许外发',
     done: false
   });
-  assert.equal(request.mode, 'chat');
+  assert.equal(request.mode, 'prompt');
   assert.equal(request.stream, false);
   assert.deepEqual(
     Object.keys(request.context).sort(),
