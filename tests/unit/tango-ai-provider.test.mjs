@@ -235,12 +235,12 @@ test('TANGO_AI_TIMEOUT_MS raises the upstream budget and invalid values keep the
   const fallback = createAssistant({ config, env: { TANGO_AI_TIMEOUT_MS: 'soon' }, fetch: pendingFetch }).chat({ prompt: 'hello' }).catch(error => { fallbackCode = error.code; return error.code; });
   const invalidOption = createAssistant({ config, timeoutMs: 0, env: {}, fetch: pendingFetch }).chat({ prompt: 'hello' }).catch(error => { optionCode = error.code; return error.code; });
   t.mock.timers.tick(25000);
-  await Promise.resolve();
+  await fallback; await invalidOption;
   assert.equal(raisedCode, undefined);
   assert.equal(fallbackCode, 'TANGO_AI_TIMEOUT');
   assert.equal(optionCode, 'TANGO_AI_TIMEOUT');
   t.mock.timers.tick(15000);
-  await Promise.resolve();
+  await raised;
   assert.equal(raisedCode, 'TANGO_AI_TIMEOUT');
   await Promise.all([raised, fallback, invalidOption]);
 });

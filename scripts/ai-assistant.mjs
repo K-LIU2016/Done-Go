@@ -130,7 +130,7 @@ export function createAssistant(options = {}) {
       if (signal?.aborted) abort.abort();
       const idleMs = budgetMs(options, config, tier, env);
       const deadline = Date.now() + Math.min(Math.max(idleMs, STREAM_TOTAL_MS), STREAM_TOTAL_MAX_MS);
-      let timer;
+      let timer; let stopReader = () => {};
       const rearm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; abort.abort(); }, idleMs); };
       const pastDeadline = () => { if (Date.now() < deadline) return false; timedOut = true; abort.abort(); return true; };
       rearm();
@@ -152,6 +152,8 @@ export function createAssistant(options = {}) {
           return;
         }
         const reader = response.body.getReader(); const decoder = new TextDecoder();
+        stopReader = () => { reader.cancel().catch(() => {}); };
+        abort.signal.addEventListener('abort', stopReader, { once: true });
         let bytes = 0, buffer = '', sawDone = false, total = '';
         const event = line => {
           if (!line.startsWith('data:')) return null;
@@ -191,7 +193,7 @@ export function createAssistant(options = {}) {
         if (error.code?.startsWith('TANGO_AI_')) throw error;
         if (signal?.aborted || abort.signal.aborted) throw assistantError('TANGO_AI_ABORTED', 499);
         throw assistantError('TANGO_AI_UPSTREAM_FAILED');
-      } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); active--; }
+      } finally { clearTimeout(timer); abort.signal.removeEventListener('abort', stopReader); signal?.removeEventListener('abort', onAbort); active--; }
     }
   };
 }

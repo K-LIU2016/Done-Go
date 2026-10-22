@@ -1148,7 +1148,7 @@ window.TangoAppAuth.start(function (authUser) {
       if (!approved) throw new Error('cancelled');
       var ac = window.AbortController ? new AbortController() : null;
       var timer, timeoutMs = ms || 130000;
-      function armTimeout() { clearTimeout(timer); timer = setTimeout(function () { if (ac) ac.abort(); }, timeoutMs); }
+      function armTimeout() { if (timer !== undefined) clearTimeout(timer); timer = setTimeout(function () { if (ac) ac.abort(); }, timeoutMs); }
       armTimeout();
       var body = { prompt: prompt, mode: mode, stream: true };
       return fetch(tg.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, redirect: 'error', signal: ac ? ac.signal : undefined, body: JSON.stringify(body) })
