@@ -199,15 +199,42 @@ export function createAssistant(options = {}) {
         const reader = response.body.getReader(); const decoder = new TextDecoder();
         stopReader = () => { reader.cancel().catch(() => {}); };
         abort.signal.addEventListener('abort', stopReader, { once: true });
-        let bytes = 0, buffer = '', sawDone = false, total = '';
-        const event = line => {
-          if (!line.startsWith('data:')) return null;
-          const data = line.slice(5).trim();
-          if (!data) return null;
-          if (data === '[DONE]') return { done: true };
-          let parsed; try { parsed = JSON.parse(data); } catch { throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
+        let bytes = 0, buffer = '', sawDone = false, total = '', dataLines = [];
+        const event = data => {
+          const value = data.trim();
+          if (!value) return null;
+          if (value === '[DONE]') return { done: true };
+          let parsed; try { parsed = JSON.parse(value); } catch { throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
           const delta = parsed.choices?.[0]?.delta?.content;
           return typeof delta === 'string' ? { text: delta } : null;
+        };
+        const finishEvent = () => {
+          if (!dataLines.length) return null;
+          const item = event(dataLines.join('\n'));
+          dataLines = [];
+          return item;
+        };
+        const consume = final => {
+          const items = [];
+          const consumeLine = line => {
+            if (!line) { const item = finishEvent(); if (item) items.push(item); return; }
+            if (!line.startsWith('data:')) return;
+            let data = line.slice(5);
+            if (data.startsWith(' ')) data = data.slice(1);
+            dataLines.push(data);
+          };
+          for (;;) {
+            let index = -1;
+            for (let i = 0; i < buffer.length; i += 1) if (buffer[i] === '\n' || buffer[i] === '\r') { index = i; break; }
+            if (index < 0) break;
+            if (!final && buffer[index] === '\r' && index + 1 === buffer.length) break;
+            const width = buffer[index] === '\r' && buffer[index + 1] === '\n' ? 2 : 1;
+            consumeLine(buffer.slice(0, index));
+            buffer = buffer.slice(index + width);
+          }
+          if (final && buffer) { consumeLine(buffer); buffer = ''; }
+          if (final) { const item = finishEvent(); if (item) items.push(item); }
+          return items;
         };
         const emit = item => { total += item.text; if (total.length > 24000) throw assistantError('TANGO_AI_RESPONSE_INVALID'); return item.text.split(config.key).join('[redacted]'); };
         try {
@@ -219,18 +246,16 @@ export function createAssistant(options = {}) {
             bytes += value.byteLength;
             if (bytes > rawBytes) throw assistantError('TANGO_AI_RESPONSE_TOO_LARGE');
             buffer += decoder.decode(value, { stream: true });
-            let index;
-            while ((index = buffer.indexOf('\n')) >= 0) {
-              const line = buffer.slice(0, index).replace(/\r$/, ''); buffer = buffer.slice(index + 1);
-              const item = event(line);
-              if (item?.done) { sawDone = true; continue; }
-              if (item?.text) yield emit(item);
+            for (const item of consume(false)) {
+              if (item.done) sawDone = true;
+              if (item.text) yield emit(item);
             }
           }
           buffer += decoder.decode();
-          const tail = event(buffer.trim());
-          if (tail?.text) yield emit(tail);
-          if (tail?.done) sawDone = true;
+          for (const item of consume(true)) {
+            if (item.done) sawDone = true;
+            if (item.text) yield emit(item);
+          }
           if (!sawDone || !total.trim()) throw assistantError('TANGO_AI_RESPONSE_INVALID');
         } finally { await reader.cancel().catch(() => {}); }
       } catch (error) {
