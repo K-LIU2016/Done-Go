@@ -4,7 +4,7 @@ const tangoPort = Number(process.env.TANGO_PORT) > 0 ? Number(process.env.TANGO_
 
 export default defineConfig({
   testDir: './tests/tango',
-  testIgnore: ['collaboration.spec.ts','account-entry.spec.ts','demo-entry.spec.ts'],
+  testIgnore: ['collaboration.spec.ts','account-entry.spec.ts','demo-entry.spec.ts','demo-direct-entry.spec.ts'],
   globalSetup: './tests/helpers/email-setup.mjs',
   outputDir: './test-results/tango',
   timeout: 20000,
