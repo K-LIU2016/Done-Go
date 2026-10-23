@@ -116,7 +116,7 @@
       Object.keys(measurement).forEach(function (key) { out.completion[key] = measurement[key]; });
     }
     if (value.freed != null) out.freed = pick(value.freed, ['pending', 'minutes', 'start', 'end']);
-    if (value.forecast != null) out.forecast = pick(value.forecast, ['before', 'low', 'high', 'samples', 'source']);
+    if (value.forecast != null) out.forecast = pick(value.forecast, ['before', 'low', 'high', 'samples', 'source', 'dataMode']);
     if (value.ai != null) out.ai = pick(value.ai, ['used']);
     return out;
   }
