@@ -1,0 +1,90 @@
+# R6 line C — minimal, auditable CI gate for integration/r1.
+# Audited scope rules: no secrets are read into logs; no LiteLLM calls; no
+# production systems; no public accounts; every step failure fails the job.
+# The repo preflight scripts (scripts/release-preflight.mjs,
+# scripts/production-readiness.mjs) require production credential env names
+# (RESEND_API_KEY, SMTP_PASSWORD, TANGO_AUTH_SECRET, ...) and cannot run
+# credential-less in CI; the secret/manifest gates below are self-contained
+# CI-scope equivalents.
+name: ci-integration
+
+on:
+  push:
+    branches: [integration/r1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-integration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: verify-web + demo-direct + secret/manifest scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # package.json declares no "engines"; devDependencies pin
+      # @types/node ^24.13.3 and the validated environment runs Node v24.22.0,
+      # so the gate pins exactly 24.22.0 (Node 24 LTS line).
+      - name: Pin Node 24.22.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.0
+          cache: npm
+
+      # Manifest gate: npm ci is strict — it fails the job when
+      # package-lock.json is missing, out of sync with package.json, or not
+      # installable exactly as locked.
+      - name: npm ci (lockfile/manifest consistency gate)
+        run: npm ci
+
+      - name: verify:web (unit tests + node --check)
+        run: npm run verify:web
+
+      - name: Install Playwright Chromium + OS deps
+        run: npx playwright install --with-deps chromium
+
+      # Credential-less auth/guest gate: demo-direct-entry.spec.ts via
+      # playwright.demo-direct.config.ts. That config boots isolated loopback
+      # auth servers (scripts/start-local-auth.mjs with TANGO_REQUIRE_ACCOUNT=0,
+      # 127.0.0.1 only, sqlite inside the workspace, EMAIL_TRANSPORT=console) —
+      # no real credentials, no LiteLLM, no production, no public accounts.
+      - name: demo-direct-entry e2e (Playwright)
+        run: npm run verify:demo-direct
+
+      # Secret scan over git-tracked files; fixed high-signal patterns only.
+      # Prints file names only (-l), never matched content. Any hit fails the
+      # job. Pattern set validated against this repo: synthetic fixture keys
+      # (sk-tango-donego-fake-*, dash-containing) and prose like
+      # "task-and-nothing-executes" do not match.
+      - name: Secret scan (tracked files)
+        run: |
+          set -euo pipefail
+          patterns=(
+            '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+            'sk-ant-[A-Za-z0-9_-]{16,}'
+            'sk-proj-[A-Za-z0-9_-]{16,}'
+            'sk-[A-Za-z0-9]{32,}'
+            'AKIA[0-9A-Z]{16}'
+            'ghp_[A-Za-z0-9]{20,}'
+            'gho_[A-Za-z0-9]{20,}'
+            'github_pat_[A-Za-z0-9_]{20,}'
+            'xox[baprs]-[A-Za-z0-9-]{10,}'
+            'AIza[0-9A-Za-z_-]{35}'
+            're_[A-Za-z0-9_-]{24,}'
+          )
+          args=()
+          for p in "${patterns[@]}"; do args+=(--regexp="$p"); done
+          hits="$(git ls-files -z | xargs -0 -r grep -IlEn "${args[@]}" || true)"
+          if [ -n "$hits" ]; then
+            echo "::error::Secret scan found candidate secrets in tracked files:"
+            printf '%s\n' "$hits"
+            exit 1
+          fi
+          echo "SECRET_SCAN_OK: 0 hits in $(git ls-files | wc -l) tracked files"
