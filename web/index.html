@@ -729,7 +729,9 @@ window.TangoAppAuth.start(function (authUser) {
   var localStorage = window.TangoAccountStorage;
   var usersAdmin = window.TangoUsersAdmin.create({user:authUser,route:route,refresh:render});
   var developerUI = window.__TANGO_DEVELOPER_UI__ === true;
-  var demoOnboarding = window.TangoDemoOnboarding.create(window.localStorage, authUser.id);
+  var demoStorage = null;
+  try { demoStorage = window.localStorage; } catch (e) {}
+  var demoOnboarding = window.TangoDemoOnboarding.create(demoStorage, authUser.id);
 
   var KINDS = {
     necessary: { label: '必要', color: 'var(--k-nec)' },

@@ -4,20 +4,21 @@ import { test, expect, type Page } from '@playwright/test';
 test.beforeEach(async ({ page }) => { await page.addInitScript(() => { Object.defineProperty(window, '__TANGO_DEVELOPER_UI__', { value: true }); }); });
 
 const key = 'tango-donego.web.v1';
+const damaged = '{preserve-this-damaged-data';
 const paper = { id: 'paper', date: '2026-10-16', start: '09:00', end: '10:00', title: '读论文 private-task-title', kind: 'explore', prio: 1 };
 const initial = { v: 1, pv: 5, mode: 'real', name: 'private-person-name', wake: 960, entries: [paper], trials: [], drafts: [], fw: {}, pal: 0, sound: false };
 async function open(page: Page, options: { state?: Record<string, unknown>; llm?: Record<string, unknown>; blockedStorage?: boolean; corrupt?: boolean } = {}) {
   await page.clock.install({ time: new Date('2026-10-16T09:30:00+08:00') });
   await page.route('https://**', route => route.abort());
-  await page.addInitScript(({ state, llm, blocked, corrupt }) => {
+  await page.addInitScript(({ state, llm, blocked, corrupt, damaged }) => {
     if (!localStorage.getItem('donego-readiness-seeded')) {
-      localStorage.setItem('tango-donego.web.v1', corrupt ? '{preserve-this-damaged-data' : JSON.stringify(state));
+      localStorage.setItem('tango-donego.web.v1', corrupt ? damaged : JSON.stringify(state));
       localStorage.setItem('tango-donego.llm.v1', JSON.stringify(llm));
       localStorage.setItem('tango-donego.lang', 'zh');
       localStorage.setItem('donego-readiness-seeded', '1');
     }
     if (blocked) Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('disabled', 'SecurityError'); } });
-  }, { state: { ...initial, ...options.state }, llm: options.llm || { mode: 'off' }, blocked: options.blockedStorage || false, corrupt: options.corrupt || false });
+  }, { state: { ...initial, ...options.state }, llm: options.llm || { mode: 'off' }, blocked: options.blockedStorage || false, corrupt: options.corrupt || false, damaged });
   await page.goto('/#today');
 }
 async function finishForm(page: Page) {
@@ -141,15 +142,83 @@ test('blocked browser storage keeps settings and local capture usable', async ({
   expect(errors).toEqual([]);
 });
 
-test('damaged saved data cannot be overwritten by starting or recording', async ({ page }) => {
+test('damaged saved data stays protected while capture continues in memory and recovery exports remain available', async ({ page }) => {
   await open(page, { corrupt: true });
-  await page.locator('[data-act="ob-real"]').click();
+  // Authenticated startup selects real mode directly, including the protected fallback.
+  await expect(page.locator('[data-act="ob-real"]')).toHaveCount(0);
+  await expect(page.locator('#runtime-notice')).toContainText('原始内容未被覆盖');
+  await expect(page.locator('#cap-text')).toBeVisible();
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(damaged);
   await page.locator('#cap-text').fill('下午两点到三点开会');
   await page.locator('#capGo').click();
+  await expect(page.locator('.draft')).toHaveCount(1);
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(damaged);
   await page.locator('[data-act="draft-commit"]').click();
-  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe('{preserve-this-damaged-data');
-  await page.goto('/#settings');
+  await expect(page.locator('.paper-route .paper-event')).toHaveCount(1);
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(damaged);
+  await page.locator('#runtime-notice [data-act="export"]').click();
+  const snapshot = JSON.parse(await page.locator('#exp').inputValue());
+  expect(snapshot.mode).toBe('real');
+  expect(snapshot.entries).toEqual([expect.objectContaining({ title: '开会', date: '2026-10-16', start: '14:00', end: '15:00' })]);
+  expect(snapshot.drafts).toEqual([]);
+  await page.locator('[data-act="close"]').click();
+  await page.locator('#runtime-notice a[href="#settings"]').click();
+  await expect(page.locator('#view')).toContainText('仅内存，刷新可能丢失');
   await expect(page.locator('#view')).toContainText('原始内容未被覆盖');
+  await page.locator('[data-act="corrupt-export"]').click();
+  await expect(page.locator('#exp')).toHaveValue(damaged);
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(damaged);
+  await page.reload();
+  await expect(page.locator('#runtime-notice')).toContainText('原始内容未被覆盖');
+  await page.locator('[data-act="corrupt-export"]').click();
+  await expect(page.locator('#exp')).toHaveValue(damaged);
+  await page.locator('[data-act="close"]').click();
+  await page.goto('/#today');
+  await expect(page.locator('.paper-route .paper-event')).toHaveCount(0);
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(damaged);
+});
+
+test('damaged saved data can be explicitly restored from a valid backup while retaining a protected original', async ({ page }) => {
+  await open(page, { corrupt: true });
+  await expect(page.locator('#runtime-notice')).toBeVisible();
+  // Seed the backup through the current account scope; the legacy fixture migrates only main keys.
+  await page.evaluate(({ key, backup }) => {
+    (window as unknown as { TangoAccountStorage: Storage }).TangoAccountStorage.setItem(key + '.backup', JSON.stringify(backup));
+  }, { key, backup: initial });
+  await page.locator('#runtime-notice a[href="#settings"]').click();
+  await expect(page.locator('[data-act="restore-backup"]')).toBeVisible();
+  await page.locator('[data-act="restore-backup"]').click();
+  await expect(page.locator('.sheet')).toContainText('独立受保护副本');
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(damaged);
+  await page.locator('[data-act="close"]').click();
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(damaged);
+
+  // Record only writes to the synthetic recovery-copy namespace.
+  await page.evaluate(key => {
+    const storage = (window as unknown as { TangoAccountStorage: Storage }).TangoAccountStorage;
+    const setItem = storage.setItem;
+    const recoveryCopies: string[] = [];
+    Object.defineProperty(window, '__readinessRecoveryCopies', { value: recoveryCopies });
+    storage.setItem = function (name: string, value: string) {
+      const result = setItem.call(this, name, value);
+      if (name.startsWith(key + '.corrupt.')) recoveryCopies.push(name);
+      return result;
+    };
+  }, key);
+  await page.locator('[data-act="restore-backup"]').click();
+  await page.locator('[data-act="restore-backup-yes"]').click();
+  await expect(page.locator('#runtime-notice')).toBeHidden();
+  expect((await current(page)).entries).toEqual([paper]);
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key + '.backup')!), key)).toEqual(initial);
+  const copies = await page.evaluate(() => {
+    const fixture = window as unknown as { __readinessRecoveryCopies: string[]; TangoAccountStorage: Storage };
+    return fixture.__readinessRecoveryCopies.map(name => ({ name, raw: fixture.TangoAccountStorage.getItem(name) }));
+  });
+  expect(copies).toEqual([{ name: expect.stringMatching(/^tango-donego\.web\.v1\.corrupt\./), raw: damaged }]);
+  await page.reload();
+  await expect(page.locator('#runtime-notice')).toBeHidden();
+  expect((await current(page)).entries).toEqual([paper]);
+  expect(await page.evaluate(name => localStorage.getItem(name), copies[0].name)).toBe(damaged);
 });
 
 test('malformed imports preserve current data and unrecognized secrets are removed from accepted imports', async ({ page }) => {
