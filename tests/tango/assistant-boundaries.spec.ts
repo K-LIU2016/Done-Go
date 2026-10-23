@@ -207,22 +207,34 @@ test('a provider error produces no fake answer and no local guidance action', as
   expect(await savedState(page)).toEqual(before);
 });
 
-test('revoking conversation sharing immediately shows a persistence failure instead of silently restoring old consent on reload', async ({ page }) => {
+test('revoking conversation sharing reports a persistence failure and preserves the revoked intent in memory', async ({ page }) => {
   const original = JSON.stringify({ v: 1, messages: [], notes: '', useChatForSuggestions: true });
   await open(page, { sessionRaw: original });
   await expect(page.locator('#assistant-use-chat')).toBeChecked();
   await page.evaluate(key => {
     const setItem = Storage.prototype.setItem;
+    const windowState = window as unknown as { __f01ConsentSetItemHits: number };
+    windowState.__f01ConsentSetItemHits = 0;
     Storage.prototype.setItem = function (name: string, value: string) {
-      if (name === key) throw new DOMException('Controlled quota failure for conversation only', 'QuotaExceededError');
+      if (name === key || name.endsWith('.' + key)) {
+        windowState.__f01ConsentSetItemHits += 1;
+        throw new DOMException('Controlled quota failure for conversation only', 'QuotaExceededError');
+      }
       return setItem.call(this, name, value);
     };
   }, SESSION_KEY);
   await page.locator('#assistant-privacy summary').click();
   await page.locator('#assistant-use-chat').uncheck();
   await expect(page.locator('#assistant-use-chat')).not.toBeChecked();
+  expect(await page.evaluate(() => (window as unknown as { __f01ConsentSetItemHits: number }).__f01ConsentSetItemHits)).toBeGreaterThan(0);
   expect(await page.evaluate(key => localStorage.getItem(key), SESSION_KEY)).toBe(original);
   expect((await savedSession(page)).useChatForSuggestions).toBe(true);
   await expect(page.locator('#assistant-notice')).toContainText(/保存|内存|存储受保护/);
   await expect(page.locator('#assistant-notice')).toContainText('导出');
+  await page.locator('#assistant-records summary').click();
+  await page.locator('[data-companion-export]').click();
+  await expect(page.locator('#exp')).toBeVisible();
+  const exported = JSON.parse(await page.locator('#exp').inputValue());
+  expect(exported.currentSession.useChatForSuggestions).toBe(false);
+  expect(exported.protectedOriginal).toBe(original);
 });
