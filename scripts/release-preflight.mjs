@@ -45,6 +45,7 @@ const CAP_LIMIT_NAMES = Object.freeze([
 
 const DIRECT_TESTS = Object.freeze([
   'tests/unit/tango-release.test.mjs',
+  'tests/unit/tango-release-rollback.test.mjs',
   'tests/unit/tango-production-readiness.test.mjs'
 ]);
 
@@ -334,6 +335,73 @@ async function checkRollbackTarget() {
   }
 }
 
+const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
+
+async function gitIn(repository, args) {
+  try {
+    const output = await execFile('git', args, { cwd: repository, timeout: 5000, maxBuffer: 1024 * 1024, windowsHide: true });
+    return { ok: true, stdout: output.stdout, stderr: output.stderr };
+  } catch (error) {
+    return { ok: false, stdout: typeof error?.stdout === 'string' ? error.stdout : '', stderr: typeof error?.stderr === 'string' ? error.stderr : '' };
+  }
+}
+
+// Read-only git identity verification for a rollback target commit. It never
+// checks out, fetches, or writes; it only resolves and reports facts so a
+// rollback cannot be driven by a mistyped or non-existent commit id.
+export async function rollbackCommitCheck({ repository = root, target = null, anchor = null } = {}) {
+  const details = {
+    repository: resolve(repository),
+    input: target,
+    resolves: false,
+    objectType: null,
+    targetSha: null,
+    subject: null,
+    commitDate: null,
+    refsPointingAtTarget: [],
+    anchor: null,
+    headSha: null,
+    onReleaseLine: null
+  };
+  if (!target) return result('UNKNOWN', 'no git rollback target was configured', details);
+  const resolvedTarget = await gitIn(repository, ['rev-parse', '--verify', target + '^{commit}']);
+  const targetSha = resolvedTarget.ok ? resolvedTarget.stdout.trim() : '';
+  if (!GIT_SHA_PATTERN.test(targetSha)) {
+    return result('FAIL', 'rollback target does not resolve to a commit in the repository', details);
+  }
+  details.resolves = true;
+  details.objectType = 'commit';
+  details.targetSha = targetSha;
+  const meta = await gitIn(repository, ['show', '-s', '--format=%s%n%cI', targetSha]);
+  if (meta.ok) {
+    const lines = meta.stdout.trim().split(/\r?\n/);
+    details.subject = lines[0] || null;
+    details.commitDate = lines[1] || null;
+  }
+  const refs = await gitIn(repository, ['for-each-ref', '--format=%(refname)', '--points-at', targetSha]);
+  if (refs.ok) details.refsPointingAtTarget = refs.stdout.trim().split(/\r?\n/).filter(Boolean);
+  const head = await gitIn(repository, ['rev-parse', '--verify', 'HEAD']);
+  if (head.ok && GIT_SHA_PATTERN.test(head.stdout.trim())) {
+    details.headSha = head.stdout.trim();
+    const ancestry = await gitIn(repository, ['merge-base', '--is-ancestor', targetSha, 'HEAD']);
+    details.onReleaseLine = ancestry.ok;
+  }
+  if (anchor) {
+    const anchorDetails = { input: anchor, resolves: false, anchorSha: null, matchesTarget: false };
+    details.anchor = anchorDetails;
+    const resolvedAnchor = await gitIn(repository, ['rev-parse', '--verify', anchor + '^{commit}']);
+    const anchorSha = resolvedAnchor.ok ? resolvedAnchor.stdout.trim() : '';
+    if (!GIT_SHA_PATTERN.test(anchorSha)) {
+      return result('FAIL', 'configured rollback anchor does not resolve to a commit in the repository', details);
+    }
+    anchorDetails.resolves = true;
+    anchorDetails.anchorSha = anchorSha;
+    anchorDetails.matchesTarget = anchorSha === targetSha;
+    if (!anchorDetails.matchesTarget) return result('FAIL', 'rollback target does not match the configured rollback anchor', details);
+  }
+  return result('VERIFIED', 'rollback target identity, existence, and anchor consistency verified', details);
+}
+
 function openSocket(host, port, timeout = 2500) {
   return new Promise(resolvePromise => {
     const socket = net.createConnection({ host, port });
@@ -378,17 +446,30 @@ async function checkHealth() {
   }
 }
 
-function parseArgs(argv) {
+const VALUE_OPTIONS = Object.freeze({
+  '--rollback-target': 'rollbackTarget',
+  '--rollback-anchor': 'rollbackAnchor',
+  '--rollback-repo': 'rollbackRepo'
+});
+
+export function parseArgs(argv) {
   const flags = new Set();
-  for (const arg of argv) {
-    if (arg === '--runtime' || arg === '--health' || arg === '--json') flags.add(arg.slice(2));
-    else if (arg === '--help' || arg === '-h') return { help: true, flags };
+  const values = {};
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index];
+    if (Object.prototype.hasOwnProperty.call(VALUE_OPTIONS, arg)) {
+      const value = argv[index + 1];
+      if (!value || value.startsWith('--')) throw new Error('missing value for ' + arg);
+      values[VALUE_OPTIONS[arg]] = value;
+      index++;
+    } else if (arg === '--runtime' || arg === '--health' || arg === '--json') flags.add(arg.slice(2));
+    else if (arg === '--help' || arg === '-h') return { help: true, flags, values };
     else throw new Error('unknown option');
   }
-  return { help: false, flags };
+  return { help: false, flags, values };
 }
 
-export async function releasePreflight({ runtime = false, health = false } = {}) {
+export async function releasePreflight({ runtime = false, health = false, rollbackTarget = null, rollbackAnchor = null, rollbackRepository = null } = {}) {
   const safety = await checkSafety();
   const packageInfo = await readPackage();
   const checks = {
@@ -404,7 +485,12 @@ export async function releasePreflight({ runtime = false, health = false } = {})
     aiCapsAndLimits: checkCapsAndLimits(),
     productionConfiguration: await checkProductionConfiguration(),
     serviceUnit: await checkServiceUnit(),
-    rollbackTarget: await checkRollbackTarget()
+    rollbackTarget: await checkRollbackTarget(),
+    rollbackTargetCommit: await rollbackCommitCheck({
+      repository: rollbackRepository || process.env.RELEASE_ROLLBACK_REPO || undefined,
+      target: rollbackTarget || process.env.RELEASE_ROLLBACK_COMMIT || process.env.DONEGO_ROLLBACK_COMMIT || null,
+      anchor: rollbackAnchor || process.env.RELEASE_ROLLBACK_ANCHOR || process.env.DONEGO_ROLLBACK_ANCHOR || null
+    })
   };
   if (runtime || health) checks.runtime = await checkRuntime();
   if (health) checks.health = await checkHealth();
@@ -422,10 +508,16 @@ export async function releasePreflight({ runtime = false, health = false } = {})
 function help() {
   return [
     'Usage: node scripts/release-preflight.mjs [--runtime] [--health] [--json]',
+    '                                  [--rollback-target <commit>] [--rollback-anchor <commit>]',
+    '                                  [--rollback-repo <path>]',
     '',
     'Default mode is offline and read-only. --runtime probes the expected localhost TCP port.',
     '--health probes the expected localhost HTTP root and implies --runtime.',
-    'No mode starts, restarts, deploys, installs, pushes, or prints environment values.'
+    '--rollback-target verifies that a git commit id resolves in the repository and reports',
+    'its identity (full SHA, subject, date, refs, ancestry); --rollback-anchor additionally',
+    'fails the report when the target does not match that anchor commit. --rollback-repo',
+    'runs the read-only rollback identity check against another repository path.',
+    'No mode starts, restarts, deploys, installs, pushes, checks out, or prints environment values.'
   ].join('\n');
 }
 
@@ -435,7 +527,13 @@ if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
     if (parsed.help) {
       process.stdout.write(help() + '\n');
     } else {
-      const report = await releasePreflight({ runtime: parsed.flags.has('runtime') || parsed.flags.has('health'), health: parsed.flags.has('health') });
+      const report = await releasePreflight({
+        runtime: parsed.flags.has('runtime') || parsed.flags.has('health'),
+        health: parsed.flags.has('health'),
+        rollbackTarget: parsed.values.rollbackTarget || null,
+        rollbackAnchor: parsed.values.rollbackAnchor || null,
+        rollbackRepository: parsed.values.rollbackRepo || null
+      });
       process.stdout.write(JSON.stringify(report, null, 2) + '\n');
       if (report.summary.blocked) process.exitCode = 2;
       else if (report.summary.failures) process.exitCode = 1;

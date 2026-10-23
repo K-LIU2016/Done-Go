@@ -39,7 +39,7 @@ Outside the freeze window, the preflight build is written below the system tempo
 3. Run the directly related tests:
 
    ```sh
-   node --test tests/unit/tango-release.test.mjs tests/unit/tango-production-readiness.test.mjs
+   node --test tests/unit/tango-release.test.mjs tests/unit/tango-release-rollback.test.mjs tests/unit/tango-production-readiness.test.mjs
    ```
 
 4. Run `node scripts/release-preflight.mjs` and retain its JSON output with the commit and timestamp.
@@ -60,6 +60,26 @@ Production readiness is a configuration check only. It does not verify email del
 
 Set `RELEASE_ROLLBACK_TARGET` (or `DONEGO_ROLLBACK_TARGET`) to the previous verified release directory or its `manifest.json`. The preflight verifies only that the target is a Done&Go manifest with file metadata; it does not switch traffic or alter files.
 
+### Rollback target identity (git anchor)
+
+The R1 rollback anchor is a git commit, not only a build directory. The canonical anchor is recorded by the branch `rollback/prod-20261023-7fa444d` and is the previous verified production release (2026-10-23, "Fix streaming false too-large: bound raw SSE bytes at 4 MiB"). Never trust a SHA copied by hand into a ticket: resolve the anchor from the ref, verify it resolves in both the candidate repository and the repository that will serve the rollback, and fail the gate on any mismatch. The preflight performs these read-only checks (`rev-parse`, `show`, `for-each-ref`, `merge-base`; it never checks out or fetches):
+
+```sh
+# 1. Resolve the anchor truth from the recorded ref (never from a pasted SHA).
+ANCHOR=$(git rev-parse --verify rollback/prod-20261023-7fa444d^{commit})
+
+# 2. Verify identity + anchor consistency in the candidate repository.
+node scripts/release-preflight.mjs --rollback-target "$ANCHOR" --rollback-anchor "$ANCHOR"
+
+# 3. Verify the same object exists in the repository that would serve the rollback.
+node scripts/release-preflight.mjs --rollback-target "$ANCHOR" --rollback-anchor "$ANCHOR" \
+  --rollback-repo /home/jc/projects/Done-Go
+```
+
+The `rollbackTargetCommit` report field carries `resolves`, `targetSha`, `objectType`, `subject`, `commitDate`, `refsPointingAtTarget`, `headSha`, `onReleaseLine`, and `anchor.matchesTarget`. A target or anchor that does not resolve, or a target that resolves to a different commit than the anchor, is `FAIL` and must stop the rollback. The same options are available as `RELEASE_ROLLBACK_COMMIT`/`DONEGO_ROLLBACK_COMMIT` (target), `RELEASE_ROLLBACK_ANCHOR`/`DONEGO_ROLLBACK_ANCHOR` (anchor), and `RELEASE_ROLLBACK_REPO` (repository).
+
+### Rollback procedure (identity → switch → post-checks)
+
 Trigger rollback when authentication or data isolation fails, the health probe fails, the candidate manifest differs from the frozen candidate, a critical write is unconfirmed, or a secret appears in an artifact or log.
 
 1. Stop or detach the public connector using the approved service procedure; preserve DNS and tunnel credentials.
@@ -67,6 +87,14 @@ Trigger rollback when authentication or data isolation fails, the health probe f
 3. Restore the previous verified build directory and matching manifest.
 4. Verify loopback health, authentication, session behavior, and account isolation before reconnecting any public connector.
 5. Record the trigger, restored release ID, data state, commands, timestamps, and remaining `UNKNOWN` items.
+
+For the git-anchored production shape (systemd user service `donego.service`, `WorkingDirectory=/home/jc/projects/Done-Go`, loopback `127.0.0.1:17507`), the switch and post-checks are auditable as:
+
+1. **Identity** — run the three commands above; require `rollbackTargetCommit` `VERIFIED` with `anchor.matchesTarget=true` in both repositories, and record the resolved 40-hex SHA, subject, and date in the rollback record. Any `FAIL` stops the rollback.
+2. **Switch** — in the serving repository only: `git status --porcelain` must be clean, then `git checkout --detach "$ANCHOR"` and restart through the service owner (`systemctl --user restart donego.service`). Never `reset`, `clean`, or force-push; never check out into a dirty tree.
+3. **Post-checks** — `git -C /home/jc/projects/Done-Go rev-parse HEAD` equals the anchor SHA and `git status --porcelain` is clean; `systemctl --user is-active donego.service` is `active`; `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:17507/` returns `200`; `curl -s http://127.0.0.1:17507/api/auth/status` reports the expected auth shape; an unauthenticated `GET /api/auth/me` returns HTTP 401 `AUTH_REQUIRED` (the expected login wall). Keep AI flags off during a rollback unless the trigger investigation requires otherwise.
+
+A rollback drill that proves identity, restore, service shape, and the authentication wall without touching production data uses a temporary detached worktree and an isolated port (for example `git worktree add --detach /home/jc/projects/Done-Go-rollback-drill "$ANCHOR"`, run `TANGO_PORT=<drill-port> TANGO_DEMO_MODE=1 TANGO_COLLAB_DB=<isolated absolute path> node scripts/serve-tango.mjs`, probe, stop, then `git worktree remove`). The drill result is evidence for the procedure only, never for production state.
 
 Never clear SQLite files, user records, session material, AI settings, or tunnel credentials during rollback. Database migration rollback requires a verified backup and restore exercise; without that evidence, the state is `UNKNOWN`.
 
@@ -79,7 +107,7 @@ Use these labels in the release report:
 - **FAIL**: a direct check found a release blocker.
 - **BLOCKED**: the freeze or `heavy.lock` prevented release work.
 
-At minimum, record the preflight JSON, `node --check` result, the two direct test results, the candidate commit, and the build manifest. Keep these claims separate:
+At minimum, record the preflight JSON, `node --check` result, the direct test results, the candidate commit, and the build manifest. Keep these claims separate:
 
 | Claim | Default status without extra evidence |
 | --- | --- |
