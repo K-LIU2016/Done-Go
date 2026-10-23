@@ -4,6 +4,11 @@ test('visitors enter immediately, keep their session on refresh and cannot acces
  await page.route('https://**',route=>route.abort());
  const authWrites:string[]=[];
  page.on('request',request=>{if(request.method()==='POST'&&request.url().includes('/api/auth/'))authWrites.push(request.url());});
+ // Harness contract: this spec requires the direct-entry demo launcher (playwright.demo-direct.config.ts,
+ // scripts/start-local-auth.mjs with TANGO_REQUIRE_ACCOUNT=0). Any other harness must fail here, not below.
+ const harness=await(await page.request.get('/api/auth/status',{headers:{'x-tango-client':'tango-settings/1'}})).json();
+ expect(harness.demoMode).toBe(true);
+ expect(harness.autoStart).toBe(true);
  await page.goto('/#agreements');
  await expect(page.locator('.tabs')).toBeVisible();
  await expect(page.locator('#app-auth-form,#app-demo-form,input[type=email],input[type=password]')).toHaveCount(0);
@@ -28,6 +33,9 @@ test('visitors enter immediately, keep their session on refresh and cannot acces
 
 test('all appearances and languages stay usable without exposing account screens',async({page},info)=>{
  await page.route('https://**',route=>route.abort());
+ const harness=await(await page.request.get('/api/auth/status',{headers:{'x-tango-client':'tango-settings/1'}})).json();
+ expect(harness.demoMode).toBe(true);
+ expect(harness.autoStart).toBe(true);
  await page.goto('/#today');
  await expect(page.locator('.tabs')).toBeVisible();
  for(const theme of ['standard','swiss','archive','designer','workbench']){
