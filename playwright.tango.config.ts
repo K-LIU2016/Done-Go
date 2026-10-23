@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 const tangoPort = Number(process.env.TANGO_PORT) > 0 ? Number(process.env.TANGO_PORT) : 5207;
+const tangoUiWorkers = Number(process.env.TANGO_UI_WORKERS) > 0 ? Number(process.env.TANGO_UI_WORKERS) : 1;
 
 export default defineConfig({
   testDir: './tests/tango',
@@ -8,7 +9,7 @@ export default defineConfig({
   globalSetup: './tests/helpers/email-setup.mjs',
   outputDir: './test-results/tango',
   timeout: 20000,
-  workers: 2,
+  workers: tangoUiWorkers,
   use: { storageState: './artifacts/tango-ui-auth.json', baseURL: 'http://127.0.0.1:' + tangoPort, timezoneId: 'Asia/Shanghai', reducedMotion: 'reduce', screenshot: 'only-on-failure', channel: process.env.TANGO_BROWSER || (process.platform === 'win32' ? 'msedge' : undefined) },
   projects: [
     { name: 'desktop', use: { viewport: { width: 1440, height: 1000 } } },
