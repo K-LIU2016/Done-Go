@@ -212,7 +212,7 @@ export function createTangoServer(options = {}) {
     const extension = target.slice(target.lastIndexOf('.'));
     const acceptsGzip = /(?:^|,)\s*gzip(?:\s*;|,|$)/i.test(String(req.headers['accept-encoding'] || ''));
     const payload = acceptsGzip ? gzipSync(body) : body;
-    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': payload.length, 'Connection': 'close', ...(acceptsGzip ? { 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' } : {}) }).end(payload);
+    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': payload.length, ...(acceptsGzip ? { 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' } : {}) }).end(payload);
   } catch {
     if (apiRequest) send(503, { error: 'service-unavailable' });
     else if (!res.destroyed) res.writeHead(404).end();
