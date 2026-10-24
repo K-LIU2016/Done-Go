@@ -209,7 +209,7 @@ export function createTangoServer(options = {}) {
     if (!target.startsWith(root.endsWith(sep) ? root : root + sep)) { res.writeHead(403).end(); return; }
     const body = await readFile(target);
     const extension = target.slice(target.lastIndexOf('.'));
-    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store' }).end(body);
+    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': body.length }).end(body);
   } catch {
     if (apiRequest) send(503, { error: 'service-unavailable' });
     else if (!res.destroyed) res.writeHead(404).end();
