@@ -1,7 +1,6 @@
 import { createServer } from 'node:http';
 import { isIP } from 'node:net';
 import { readFile } from 'node:fs/promises';
-import { gzipSync } from 'node:zlib';
 import { resolve, sep, join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { speechCapabilities, transcribeSpeech, MAX_AUDIO_BYTES } from './tango-speech.mjs';
@@ -210,9 +209,8 @@ export function createTangoServer(options = {}) {
     if (!target.startsWith(root.endsWith(sep) ? root : root + sep)) { res.writeHead(403).end(); return; }
     const body = await readFile(target);
     const extension = target.slice(target.lastIndexOf('.'));
-    const acceptsGzip = /(?:^|,)\s*gzip(?:\s*;|,|$)/i.test(String(req.headers['accept-encoding'] || ''));
-    const payload = acceptsGzip ? gzipSync(body) : body;
-    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': payload.length, ...(acceptsGzip ? { 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' } : {}) });
+    const payload = body;
+    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': payload.length });
     for (let offset = 0; offset < payload.length; offset += 16384) res.write(payload.subarray(offset, offset + 16384));
     res.end();
   } catch {
