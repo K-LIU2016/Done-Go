@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="zh-CN" data-appearance="standard">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>同频 · 实验入口（lab）</title>
+<!-- S9实验入口线：四屏演示外壳。数据全部来自 /api/social/*（scripts/social-lab.mjs
+     装配 createTangoServer + createSocialService + S2 引擎 matcher）；渲染复用
+     web/social/home.js（①）、baton.js（②）、poster.js（④）与 social.css（.soc
+     tokens，relay-v2 SPEC §3）。③ 搭档/圈/挑战与 lab 外壳样式在本文件内联
+     （social.css 属 S5 线，本线不改他人文件）。
+     演示鉴权：所有请求带 x-lab-account: demo-*，示例账号全部标记「·示例」。 -->
+<link rel="stylesheet" href="/social/social.css">
+<style>
+  /* ===== lab 展台（暗底，照原型 .stage 观感；不影响 .soc 域） ===== */
+  body.lab{margin:0;background:#2a2b27;color:#ddd;font-family:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .lab-top{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #3a3b36;background:#23241f;position:sticky;top:0;z-index:20}
+  .lab-top b{font-size:16px;color:#fff}
+  .lab-top .meta{font-size:12.5px;color:#9d9f95}
+  .lab-top select{font:inherit;font-size:13px;padding:5px 8px;border-radius:8px;background:#faf8f3;color:#252722;border:1px solid #555}
+  .lab-top button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:8px;border:1px solid #555;background:#33342e;color:#ddd;cursor:pointer}
+  .lab-stage{display:flex;gap:28px;padding:24px;flex-wrap:wrap;align-items:flex-start}
+  .lab-col>.cap{color:#ddd;font-size:15px;font-weight:600;margin-bottom:10px}
+  .lab-note{color:#8e9086;font-size:12px;margin-top:8px;max-width:390px;line-height:1.6}
+  .phone{width:390px;height:844px;border-radius:36px;background:var(--bg,#FAF8F3);position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .scroll{position:absolute;inset:0 0 72px 0;overflow-y:auto;padding:56px 18px 12px;scrollbar-width:thin}
+  .tabbar{position:absolute;left:0;right:0;bottom:0;height:72px;background:#fff;border-top:1px solid #E4E2D8;display:flex;justify-content:space-around;align-items:center;font-size:11.5px;color:#8E9086}
+  .tabbar span{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .tabbar i{width:22px;height:22px;border-radius:7px;background:#E4E2D8;display:block}
+  .tabbar .on{color:#E95432;font-weight:600}.tabbar .on i{background:#E95432}
+  /* ===== ② 屏：我的用法背景 + 传棒 sheet（sheet 内容由 baton.js 内联样式兜底） ===== */
+  .p2-usage{filter:blur(1px);opacity:.55;user-select:none}
+  .p2-usage h1{font-size:26px;color:#252722;margin:0}
+  .p2-usage .u{margin-top:14px;background:#fff;border-radius:14px;box-shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);padding:12px 14px;color:#252722}
+  .p2-usage .u b{font-size:14px}
+  .p2-usage .u small{display:block;color:#64665D;margin-top:4px;font-size:12px}
+  .p2-sheet{position:absolute;inset:0;z-index:5}
+  .p2-result{position:absolute;left:20px;right:20px;bottom:90px;z-index:6;background:#fff;color:#252722;border-radius:14px;padding:12px 14px;font-size:12.5px;box-shadow:0 12px 30px rgba(0,0,0,.25);line-height:1.6}
+  .p2-result code{background:#F3F0E8;border-radius:6px;padding:2px 6px;font-size:11px;word-break:break-all}
+  /* ===== ③ 屏：搭档 / 圈 / 挑战（原型 ③ 类名，.soc 域内 token 生效） ===== */
+  .soc .pairrow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;box-shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);padding:10px 12px;margin-bottom:8px}
+  .soc .pairrow b{font-size:14px}
+  .soc .pairrow .st{font-size:11.5px;color:#64665D}
+  .soc .flame{margin-left:auto;display:flex;align-items:center;gap:4px;font-weight:700;color:#E95432;font-size:15px}
+  .soc .flame i{width:18px;height:22px;border-radius:50% 50% 45% 45%/60% 60% 40% 40%;background:linear-gradient(180deg,#FFB27A,#E95432);display:block}
+  .soc .flame.cold{color:#8E9086}.soc .flame.cold i{background:linear-gradient(180deg,#DADBD3,#A3A59B)}
+  .soc .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;flex:none}
+  .soc .av.s{width:24px;height:24px;font-size:10px}
+  .soc .circlecard{background:#fff;border-radius:20px;box-shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);padding:14px;margin-top:4px}
+  .soc .circlecard h4{font-size:16px;display:flex;justify-content:space-between;margin:0}
+  .soc .circlecard h4 span{font-size:12px;color:#8E9086;font-weight:400}
+  .soc .wall{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .soc .wall span{font-size:12px;border-radius:99px;padding:4px 10px;background:#E7F0EA;color:#335D4B;font-weight:500}
+  .soc .freed .bar{display:flex;height:12px;border-radius:6px;overflow:hidden}
+  .soc .freed .lg{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:11.5px;color:#64665D}
+  .soc .freed .lg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+  .soc .rank{margin-top:12px;font-size:12.5px}
+  .soc .rank div{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #E4E2D8}
+  .soc .rank div b{width:18px;color:#8E9086;font-weight:600}
+  .soc .rank div em{margin-left:auto;font-style:normal;font-weight:700}
+  .soc .rank .you{background:#FBF1DC;border-radius:8px;padding:6px 8px;border:0}
+  .soc .questrow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;box-shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);padding:10px 12px;margin-top:8px;font-size:13px;color:#252722}
+  .soc .prog{height:6px;border-radius:3px;background:#F3F0E8;flex:1;overflow:hidden}
+  .soc .prog i{display:block;height:100%;background:#335D4B;border-radius:3px}
+  .soc .chainline{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#64665D;flex-wrap:wrap}
+  .soc .chainline .arr{color:#8E9086}
+  .soc .kudosline{margin-top:12px;font-size:12.5px;color:#64665D}
+  /* ===== ④ 屏：分享图 ===== */
+  .p4-wrap{position:absolute;inset:0;padding:40px 26px;color:#fff;background:radial-gradient(120% 70% at 80% 0%,#4F86A3 0%,#24475A 55%,#16303E 100%)}
+  .p4-wrap .brand{font-size:13px;opacity:.85;display:flex;justify-content:space-between}
+  .p4-wrap canvas{width:100%;border-radius:14px;margin-top:24px;display:block}
+  .p4-wrap .empty{margin-top:120px;font-size:15px;opacity:.9;line-height:1.7}
+  .p4-actions{position:absolute;left:26px;right:26px;bottom:26px;display:flex;gap:10px}
+  .p4-actions a,.p4-actions button{flex:1;text-align:center;font-size:13px;font-weight:600;padding:10px;border-radius:12px;border:0;cursor:pointer;text-decoration:none}
+  .p4-actions a{background:#fff;color:#24475A}
+  .p4-actions button{background:rgba(255,255,255,.14);color:#fff}
+  /* ===== onboarding 演示兜底（social.css 尚未含 soc-onb-*） ===== */
+  .lab #lab-onb-host{position:fixed;inset:0;z-index:40;display:none;background:rgba(37,39,34,.55)}
+  .lab #lab-onb-host.show{display:grid;place-items:center}
+  .lab .soc-onb-overlay{width:min(420px,92vw)}
+  .lab .soc-onb-card{background:#FAF8F3;color:#252722;border-radius:24px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .lab .soc-onb-kicker{font-size:12px;color:#E95432;font-weight:700;letter-spacing:1px;margin:0}
+  .lab .soc-onb-title{font-size:22px;margin:8px 0 10px}
+  .lab .soc-onb-body{font-size:13.5px;color:#64665D;line-height:1.7;margin:0 0 12px}
+  .lab .soc-onb-list{margin:0 0 14px;padding-left:18px;font-size:12.5px;color:#64665D;line-height:1.9}
+  .lab .soc-onb-dots{display:flex;gap:6px;margin-bottom:14px}
+  .lab .soc-onb-dot{width:7px;height:7px;border-radius:50%;background:#E4E2D8}
+  .lab .soc-onb-dot.on{background:#E95432}
+  .lab .soc-onb-actions{display:flex;gap:10px}
+  .lab .soc-onb-btn{flex:1;height:44px;border-radius:12px;font-size:14px;font-weight:600;border:0;cursor:pointer}
+  .lab .soc-onb-btn.pri{background:#E95432;color:#fff}
+  .lab .soc-onb-btn.ghost{background:#F3F0E8;color:#64665D}
+  /* ===== API 日志 ===== */
+  #lab-log{position:fixed;right:14px;bottom:14px;width:320px;max-height:260px;overflow:auto;background:#1c1d19;border:1px solid #3a3b36;border-radius:12px;padding:10px 12px;font-size:11.5px;z-index:30}
+  #lab-log b{color:#bbb;font-size:12px}
+  #lab-log ol{margin:6px 0 0;padding-left:18px;color:#9d9f95}
+  #lab-log li{margin:2px 0}
+  #lab-log .ok{color:#7fbf9f}
+  #lab-log .bad{color:#e08f7f}
+</style>
+</head>
+<body class="lab">
+<header class="lab-top">
+  <div>
+    <b>探戈 · 同频 — 实验入口</b>
+    <span class="meta" id="lab-week"></span>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <label class="meta" for="lab-account">演示账号</label>
+    <select id="lab-account" aria-label="切换演示账号"></select>
+    <button id="lab-onb" type="button">首次引导 3 屏</button>
+  </div>
+</header>
+
+<main class="lab-stage">
+  <section class="lab-col">
+    <div class="cap">① 同频首页（home.js · 流派卡 + 同频的人）</div>
+    <div class="phone"><div class="scroll soc" id="p1"></div>
+      <div class="tabbar"><span><i></i>开始</span><span><i></i>我的用法</span><span class="on"><i></i>同频</span><span><i></i>发现</span></div>
+    </div>
+    <p class="lab-note">流派卡三条证据与「略多一点」推荐全部来自 /api/social/matches（S2 引擎 + S4 服务），加油一键完成（本地反馈），结为搭档真实入库。</p>
+  </section>
+
+  <section class="lab-col">
+    <div class="cap">② 传棒（baton.js · 用法卡 + 三途发送）</div>
+    <div class="phone soc">
+      <div class="scroll p2-usage" id="p2-usage"></div>
+      <div class="p2-sheet" id="p2-sheet"></div>
+      <div class="p2-result" id="p2-result" hidden></div>
+      <div class="tabbar"><span><i></i>开始</span><span class="on"><i></i>我的用法</span><span><i></i>同频</span><span><i></i>发现</span></div>
+    </div>
+    <p class="lab-note">用法卡只含 usageId + 场景标题 + 提示词模板（D6）；对方只看到用法与提示词。发出的传棒真实落库，链接访客可直接打开。</p>
+  </section>
+
+  <section class="lab-col">
+    <div class="cap">③ 接力搭档 · 同频圈 · 周挑战</div>
+    <div class="phone"><div class="scroll soc" id="p3"></div>
+      <div class="tabbar"><span><i></i>开始</span><span><i></i>我的用法</span><span class="on"><i></i>同频</span><span><i></i>发现</span></div>
+    </div>
+    <p class="lab-note">圈内排名只按传棒与毕业，只显示前 3 名和「你」；「空出来的时间」只显示占比（D5）。挑战进度与「太多了」反馈均走正式端点。</p>
+  </section>
+
+  <section class="lab-col">
+    <div class="cap">④ 流派分享图（poster.js · 1080×1920）</div>
+    <div class="phone">
+      <div class="p4-wrap">
+        <div class="brand"><span id="p4-brand">探戈 Done&amp;Go</span><span>同频</span></div>
+        <canvas id="p4-canvas" width="1080" height="1920" aria-label="流派分享图"></canvas>
+        <p class="empty" id="p4-empty" hidden>本周还没有流派卡——先在 ① 开启同频并上传画像。</p>
+        <div class="p4-actions">
+          <a id="p4-download" download="tango-social-week.png" href="#">保存分享图</a>
+          <button id="p4-redraw" type="button">重画</button>
+        </div>
+      </div>
+    </div>
+    <p class="lab-note">画布由 poster.js drawPoster 渲染；facts 只取本人聚合计数（relays / self-kept / freed）。</p>
+  </section>
+</main>
+
+<div id="lab-onb-host" aria-live="polite"></div>
+<aside id="lab-log"><b>API 调用日志</b><ol id="lab-log-list"></ol></aside>
+
+<script type="module">
+import { createSocialHome } from '/social/home.js';
+import {
+  sendSheetView, initialSendState, selectSendTarget, selectSendLink, sendButtonLabel,
+} from '/social/baton.js';
+import { drawPoster, exportPosterDataURL } from '/social/poster.js';
+import { createOnboarding } from '/social/onboarding.js';
+import { STYLES, FREED_TO_KEYS } from '/social/contracts.js';
+
+// ---- 演示词典（场景库标题；用法卡上的标题是场景名，不是任何人的事项标题） ----
+const USAGE_TITLES = {
+  'meeting-notes': '会议材料 → 重点和待办', 'paper-read': '论文 → 5 个要点',
+  'abstract-en': '摘要翻成英文', 'notes-condense': '笔记 → 一页纸',
+  'wrong-questions': '错题本整理', 'homework-plan': '作业计划',
+  'survey-read': '综述精读', 'long-doc': '长文档速读', 'refs-format': '参考文献格式',
+  'ask-doctor': '看懂体检单', 'recipe-plan': '一周菜谱', 'med-schedule': '服药提醒表',
+  'quiz-10': '出 10 道题', 'grade-analysis': '成绩分析', 'email-work': '工作邮件',
+  'meeting-prep': '会前准备', 'data-summary': '数据清洗小结',
+};
+const FREED_LABELS = { family: '家人', exercise: '运动', study: '学新东西', rest: '休息', hobby: '爱好', other: '其他' };
+const FREED_COLORS = { family: '#E8B04B', exercise: '#3E7B5B', study: '#615CED', rest: '#C9CBC1', hobby: '#C7701F', other: '#8E9086' };
+
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let currentAccount = null;
+let accountMap = new Map();   // id -> {id, alias, label, optIn}
+let homeController = null;
+let baton = { state: null, targets: [] };
+
+function log(method, path, status, note) {
+  const item = document.createElement('li');
+  item.innerHTML = '<span class="' + (status >= 400 ? 'bad' : 'ok') + '">' + status + '</span> ' + esc(method + ' ' + path) + (note ? ' — ' + esc(note) : '');
+  const list = $('lab-log-list');
+  list.insertBefore(item, list.firstChild);
+  while (list.children.length > 40) list.removeChild(list.lastChild);
+}
+
+async function api(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (currentAccount) headers['x-lab-account'] = currentAccount;
+  const started = performance.now();
+  const res = await fetch(path, { ...options, headers });
+  log(options.method || 'GET', path, res.status, Math.round(performance.now() - started) + 'ms');
+  return res;
+}
+async function apiJson(path, options = {}) {
+  const res = await api(path, options);
+  let body = null;
+  try { body = await res.json(); } catch { body = null; }
+  return { res, body };
+}
+const post = (path, payload) => apiJson(path, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify(payload || {}),
+});
+
+const aliasOf = (id) => (accountMap.get(id) && accountMap.get(id).alias) || id;
+const colorOf = (id) => {
+  const entry = accountMap.get(id);
+  if (entry) {
+    const state = entry.state;
+    if (state && state.avatarColor) return state.avatarColor;
+  }
+  let hash = 0;
+  for (const ch of String(id)) hash = ((hash * 31) + ch.charCodeAt(0)) >>> 0;
+  return STYLES[hash % STYLES.length].color;
+};
+
+// ===========================================================================
+// ① 同频首页
+// ===========================================================================
+function mountHome() {
+  homeController = createSocialHome({
+    usageTitles: USAGE_TITLES,
+    onKudos: (view) => {
+      log('♥', '同频加油（本地标记）：' + view.alias, 200, '对方事件需本人确认分享后才能被加油——隐私设计');
+    },
+    onPair: async (view) => {
+      const target = [...accountMap.entries()].find(([, entry]) => entry.alias === view.alias);
+      if (!target) { log('✗', '结为搭档', 404, '示例账号清单里没有 ' + view.alias); return; }
+      const { res, body } = await post('/api/social/pairs', { with: target[0] });
+      if (res.status === 200) refresh3();
+      else log('✗', 'POST /api/social/pairs', res.status, body && body.error);
+    },
+    onShare: () => { $('p4-redraw').scrollIntoView({ behavior: 'smooth', block: 'center' }); draw4(); },
+    onInvite: () => log('✉', '邀请同学加入，一起找同频', 200, '冷启动不造假人（D4）'),
+  });
+  homeController.mount($('p1'));
+}
+
+async function refresh1(state, card, matches, pairsCount) {
+  if (!state || !state.optIn) {
+    const alias = currentAccount ? aliasOf(currentAccount) : '';
+    homeController.update({
+      me: { alias },
+      styleCard: null,
+      matches: [],
+      myGraduations: 0,
+      pairsCount: 0,
+    });
+    const gate = document.createElement('div');
+    gate.className = 'pending';
+    gate.style.marginTop = '14px';
+    gate.innerHTML = '同频还未开启。开启前请看「会分享什么」（右上角「首次引导 3 屏」），'
+      + '然后 <button type="button" class="share" id="p1-optin" style="margin-top:10px">开启同频</button>';
+    $('p1').appendChild(gate);
+    gate.querySelector('#p1-optin').addEventListener('click', async () => {
+      const { res, body } = await post('/api/social/opt-in', { enabled: true, minor: false });
+      if (res.status === 200) refresh();
+      else log('✗', 'POST /api/social/opt-in', res.status, body && body.error);
+    });
+    return;
+  }
+  homeController.update({
+    me: { alias: state.alias || '' },
+    styleCard: card && card.styleCard,
+    matches: matches || [],
+    myGraduations: card ? card.graduations : 0,
+    pairsCount,
+    usageTitles: USAGE_TITLES,
+  });
+}
+
+// ===========================================================================
+// ② 传棒
+// ===========================================================================
+const DEMO_USAGE = {
+  usageId: 'meeting-notes',
+  scenarioTitle: USAGE_TITLES['meeting-notes'],
+  promptTemplate: '把会议内容交给 AI，先要「重点、待办、没说清的地方」。附带提示词，不含你的任何内容。',
+};
+
+function renderUsageBackground() {
+  $('p2-usage').innerHTML = '<h1>我的用法</h1>'
+    + Object.entries(USAGE_TITLES).slice(0, 6).map(([id, title]) => '<div class="u"><b>' + esc(title) + '</b><small>#' + esc(id) + ' · 点「传给 TA」发起传棒</small></div>').join('');
+}
+
+function renderBatonSheet(pairs, circles) {
+  const targets = [];
+  for (const pair of pairs || []) {
+    const other = pair.a === currentAccount ? pair.b : pair.a;
+    targets.push({ id: other, kind: 'pair', alias: aliasOf(other), avatarColor: colorOf(other) });
+  }
+  for (const circle of circles || []) targets.push({ id: circle.id, kind: 'circle', alias: circle.name, avatarColor: '#3E7B5B' });
+  baton.targets = targets;
+  baton.state = initialSendState(targets);
+  paintBatonSheet();
+}
+
+function paintBatonSheet() {
+  $('p2-sheet').innerHTML = sendSheetView(baton.state, {
+    card: { usageId: DEMO_USAGE.usageId, scenarioTitle: DEMO_USAGE.scenarioTitle, promptTemplate: DEMO_USAGE.promptTemplate },
+    chain: ['demo-you', 'demo-lake'].map((id) => ({ alias: aliasOf(id), avatarColor: colorOf(id) })),
+    targets: baton.targets,
+  });
+}
+
+$('p2-sheet').addEventListener('click', async (event) => {
+  const node = event.target.closest('[data-target],[data-link],[data-send],[data-close]');
+  if (!node) return;
+  if (node.dataset.close != null) return;
+  if (node.dataset.target) { baton.state = selectSendTarget(baton.state, node.dataset.target, baton.targets); paintBatonSheet(); return; }
+  if (node.dataset.link != null) { baton.state = selectSendLink(baton.state); paintBatonSheet(); return; }
+  if (node.dataset.send != null) {
+    const card = { usageId: DEMO_USAGE.usageId, scenarioTitle: DEMO_USAGE.scenarioTitle, promptTemplate: DEMO_USAGE.promptTemplate };
+    const payload = baton.state.linkMode || !baton.state.targetId
+      ? { targetKind: 'link', targetId: null, card }
+      : (() => {
+        const target = baton.targets.find((t) => t.id === baton.state.targetId);
+        return { targetKind: target ? target.kind : 'link', targetId: target ? target.id : null, card };
+      })();
+    const { res, body } = await post('/api/social/baton', payload);
+    const result = $('p2-result');
+    result.hidden = false;
+    if (res.status === 200) {
+      const label = sendButtonLabel(baton.state, baton.targets);
+      result.innerHTML = '✓ 已发出（' + esc(label) + '）。用法卡 id <code>' + esc(body.id) + '</code>，'
+        + '访客链接：<code>/api/social/baton/' + esc(body.id) + '</code>';
+      const opened = await apiJson('/api/social/baton/' + body.id);
+      if (opened.res.status === 200) {
+        result.innerHTML += '<br>传递链（≤5 跳，D6）：' + (opened.body.chain || []).map((id) => esc(aliasOf(id))).join(' → ');
+      }
+    } else {
+      result.innerHTML = '✗ 发出失败：' + esc(body && body.error || res.status) + '（未开启同频会返回 SOCIAL_OPT_IN_REQUIRED）';
+    }
+  }
+});
+
+// ===========================================================================
+// ③ 搭档 / 圈 / 挑战
+// ===========================================================================
+function render3(pairs, circles, circleHome, quests, kudos) {
+  let html = '<div class="sec"><h3>接力搭档</h3><span>每天各接力 1 次 · 最多 5 位</span></div>';
+  if (!pairs || !pairs.length) {
+    html += '<p class="sub">还没有搭档——在 ① 的推荐卡上点「结为搭档」。</p>';
+  } else {
+    for (const pair of pairs) {
+      const other = pair.a === currentAccount ? pair.b : pair.a;
+      const cold = pair.flame === 0;
+      html += '<div class="pairrow"><span class="av" style="background:' + colorOf(other) + '">' + esc(aliasOf(other).slice(0, 1)) + '</span>'
+        + '<div><b>' + esc(aliasOf(other)) + '</b><div class="st">火苗 ' + pair.flame + ' · 本周冻结 ' + pair.freezesUsed + '/1 · <u>提醒一下</u></div></div>'
+        + '<span class="flame' + (cold ? ' cold' : '') + '"><i></i>' + pair.flame + '</span></div>';
+    }
+  }
+  html += '<div class="sec"><h3>我的圈</h3><span>邀请码加入</span></div>';
+  if (!circles || !circles.length) {
+    html += '<p class="sub">还没有圈——POST /api/social/circles（邀请码 ' + esc('DEMO2026') + ' 可加入示例圈）。</p>';
+  } else {
+    const circle = circles[0];
+    html += '<div class="circlecard"><h4>' + esc(circle.name) + ' <span>' + (circle.memberCount || 0) + ' 人 · ' + esc(aliasOf(circle.owner)) + ' 的圈</span></h4>';
+    if (circleHome) {
+      html += '<div class="wall">' + (circleHome.wall || []).map((w) => '<span>' + esc(USAGE_TITLES[w.usageId] || w.usageId) + ' ×' + w.count + '</span>').join('') + '</div>';
+      if (circleHome.freedTo) {
+        html += '<div class="freed"><p style="font-size:12.5px;font-weight:600;margin:12px 0 6px">大家空出来的时间去了哪（只显示占比）</p><div class="bar">'
+          + FREED_TO_KEYS.filter((k) => circleHome.freedTo[k] > 0).map((k) => '<i style="flex:' + Math.round(circleHome.freedTo[k] * 100) + ';background:' + FREED_COLORS[k] + '"></i>').join('')
+          + '</div><div class="lg">' + FREED_TO_KEYS.filter((k) => circleHome.freedTo[k] > 0).map((k) => '<span><i style="background:' + FREED_COLORS[k] + '"></i>' + FREED_LABELS[k] + ' ' + Math.round(circleHome.freedTo[k] * 100) + '%</span>').join('') + '</div></div>';
+      }
+      if (circleHome.chain && circleHome.chain.length) {
+        html += '<div class="chainline">' + circleHome.chain.map((id) => '<span class="av s" style="background:' + colorOf(id) + '">' + esc(aliasOf(id).slice(0, 1)) + '</span>').join('<span class="arr">→</span>') + '<span>传棒经过了 ' + circleHome.chain.length + ' 个人</span></div>';
+      }
+      if (circleHome.rank) {
+        html += '<div class="rank">'
+          + circleHome.rank.top.map((entry) => '<div><b>' + entry.rank + '</b>' + esc(entry.alias) + '<em>传棒 ' + entry.batons + '</em></div>').join('');
+        if (circleHome.rank.you) html += '<div class="you"><b>' + circleHome.rank.you.rank + '</b>你<em>传棒 ' + circleHome.rank.you.batons + '</em></div>';
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+  }
+  html += '<div class="sec"><h3>本周挑战</h3><span>每周 3 个</span></div>';
+  for (const item of quests || []) {
+    const quest = item.quest; const progress = item.progress;
+    const pct = Math.min(100, Math.round((progress.progress / quest.target) * 100));
+    html += '<div class="questrow">' + esc(quest.title)
+      + '<div class="prog"><i style="width:' + pct + '%"></i></div>'
+      + (progress.done ? '✓' : progress.progress + '/' + quest.target)
+      + '<button type="button" data-too-much="' + esc(quest.id) + '" style="font-size:11px;color:#8E9086;text-decoration:underline;background:none;border:0;cursor:pointer">太多了</button>'
+      + '</div>';
+  }
+  html += '<p class="kudosline">收到的加油：' + ((kudos && kudos.kudos) || []).length + ' 次（只统计本人确认分享的事件）</p>';
+  $('p3').innerHTML = html;
+  $('p3').querySelectorAll('[data-too-much]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const { res, body } = await post('/api/social/quests/' + button.dataset.tooMuch + '/feedback', { type: 'too-much' });
+      log('☺', 'POST /api/social/quests/…/feedback', res.status, body && body.error);
+    });
+  });
+}
+
+async function refresh3() {
+  if (!currentAccount) return;
+  const pairsQ = apiJson('/api/social/pairs');
+  const circlesQ = apiJson('/api/social/circles');
+  const questsQ = apiJson('/api/social/quests');
+  const kudosQ = apiJson('/api/social/kudos');
+  const [pairsR, circlesR, questsR, kudosR] = await Promise.all([pairsQ, circlesQ, questsQ, kudosQ]);
+  let circleHome = null;
+  if (circlesR.res.status === 200 && circlesR.body.circles && circlesR.body.circles.length) {
+    const id = circlesR.body.circles[0].id;
+    const home = await apiJson('/api/social/circles/' + id);
+    if (home.res.status === 200) circleHome = home.body;
+  }
+  const gated = pairsR.res.status === 403 || circlesR.res.status === 403;
+  if (gated) {
+    render3([], [], null, [], { kudos: [] });
+    $('p3').insertAdjacentHTML('afterbegin', '<p class="pending">同频未开启——搭档、圈与挑战都需要先 opt-in（见 ①）。</p>');
+    return;
+  }
+  render3(
+    pairsR.res.status === 200 ? pairsR.body.pairs : [],
+    circlesR.res.status === 200 ? circlesR.body.circles : [],
+    circleHome,
+    questsR.res.status === 200 ? questsR.body.quests : [],
+    kudosR.res.status === 200 ? kudosR.body : { kudos: [] },
+  );
+  renderBatonSheet(pairsR.body ? pairsR.body.pairs : [], circlesR.body ? circlesR.body.circles : []);
+}
+
+// ===========================================================================
+// ④ 分享图
+// ===========================================================================
+let posterData = null;
+
+async function draw4() {
+  const canvas = $('p4-canvas');
+  if (!posterData || !posterData.styleCard) {
+    canvas.hidden = true;
+    $('p4-empty').hidden = false;
+    $('p4-download').style.display = 'none';
+    return;
+  }
+  canvas.hidden = false;
+  $('p4-empty').hidden = true;
+  $('p4-download').style.display = '';
+  const ok = drawPoster(canvas, { styleCard: posterData.styleCard, facts: posterData.facts });
+  if (ok) {
+    const url = exportPosterDataURL(canvas);
+    if (url) $('p4-download').href = url;
+  }
+  log('🖼', 'drawPoster', ok ? 200 : 500, '1080×1920 PNG');
+}
+$('p4-redraw').addEventListener('click', draw4);
+
+// ===========================================================================
+// 账号切换 + 总刷新
+// ===========================================================================
+async function refresh() {
+  if (!currentAccount) return;
+  const stateQ = apiJson('/api/social/state');
+  const cardQ = apiJson('/api/social/lab/style-card');
+  const matchesQ = apiJson('/api/social/matches');
+  const [stateR, cardR, matchesR] = await Promise.all([stateQ, cardQ, matchesQ]);
+  const state = stateR.res.status === 200 ? stateR.body : null;
+  const card = cardR.res.status === 200 ? cardR.body : null;
+  const matches = matchesR.res.status === 200 ? matchesR.body : { matches: [] };
+  posterData = card;
+  $('p4-brand').textContent = '探戈 Done&Go · 第 ' + ((card && card.week) || '').replace(/^\d{4}-W/, '') + ' 周';
+
+  let pairsCount = 0;
+  if (state && state.optIn) {
+    const pairs = await apiJson('/api/social/pairs');
+    if (pairs.res.status === 200) pairsCount = pairs.body.pairs.length;
+  }
+  refresh1(state, card, matches.matches || [], pairsCount);
+  refresh3();
+  draw4();
+}
+
+async function loadAccounts() {
+  const { res, body } = await apiJson('/api/social/lab/accounts');
+  if (res.status !== 200) { log('✗', 'GET /api/social/lab/accounts', res.status); return; }
+  $('lab-week').textContent = '第 ' + body.week.replace(/^\d{4}-W/, '') + ' 周 · ' + body.week
+    + (body.demoSeeded ? ' · 示例用户已标记「·示例」' : ' · 未 seed（启动加 --seed-demo）');
+  accountMap = new Map(body.accounts.map((entry) => [entry.id, entry]));
+  const select = $('lab-account');
+  select.innerHTML = body.accounts.map((entry) => '<option value="' + esc(entry.id) + '">' + esc(entry.alias) + '（' + esc(entry.id) + (entry.optIn ? '' : ' · 未开启') + '）</option>').join('')
+    || '<option value="">（无示例账号）</option>';
+  const saved = localStorage.getItem('lab-account');
+  if (saved && accountMap.has(saved)) select.value = saved;
+  currentAccount = accountMap.has(select.value) ? select.value : body.accounts.length ? body.accounts[0].id : null;
+  if (currentAccount) select.value = currentAccount;
+}
+
+$('lab-account').addEventListener('change', (event) => {
+  currentAccount = event.target.value || null;
+  if (currentAccount) localStorage.setItem('lab-account', currentAccount);
+  refresh();
+});
+
+// 首次引导 3 屏（onboarding.js；内存态，不写 storage）
+$('lab-onb').addEventListener('click', () => {
+  const host = $('lab-onb-host');
+  const onboarding = createOnboarding({
+    storage: null,
+    onOptIn: async () => {
+      if (currentAccount) {
+        const { res } = await post('/api/social/opt-in', { enabled: true, minor: false });
+        if (res.status === 200) refresh();
+      }
+      host.classList.remove('show');
+    },
+    onDone: () => host.classList.remove('show'),
+  });
+  onboarding.reset();
+  onboarding.mount(host);
+  host.classList.add('show');
+  host.onclick = (event) => { if (event.target === host) host.classList.remove('show'); };
+  log('◇', '首次引导 3 屏（S8）', 200, '开启前先讲清楚会分享什么');
+});
+
+// ===========================================================================
+// 启动
+// ===========================================================================
+mountHome();
+renderUsageBackground();
+paintBatonSheet();
+await loadAccounts();
+await refresh();
+</script>
+</body>
+</html>
