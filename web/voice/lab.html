@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探戈 · 语音实验室（V8）</title>
+<!-- web/voice/lab.html — V8 · Lab 入口：复刻 design/voice-intent/prototype.html 4 屏的真实交互。
+     ① 正在听（WS 流式转写，灰=partial 黑=final）→ ② 正在理解（锁定转写+高亮+骨架）
+     → ③ 听出了几件事（事件卡可编辑/纠正/全部加入）→ ④ 加入后的首页（模拟列表演示，二期才接真实首页）。
+     数据契约唯一来源：/voice/contracts.js（commit 77a59d5）。
+     V1–V5（capture/stream-client/transcript-view/intent-view/voice-sheet）未合入前，本页内置
+     参考实现（走同一 contracts）；合入状态显示在顶部实验条，函数级接线待集成节点对齐。 -->
+<style>
+/* Tokens shared with relay-v2 (design/relay-v2/SPEC.md §3) + voice-specific tokens below. */
+:root{
+  --bg:#FAF8F3; --surface:#FFFFFF; --sunk:#F3F0E8; --ink:#252722; --ink2:#64665D; --ink3:#8E9086; --line:#E4E2D8;
+  --brand:#E95432; --brand-soft:#FDECE6; --forest:#335D4B; --forest-soft:#E7F0EA; --gold:#E8B04B; --gold-soft:#FBF1DC; --warn:#B7791F;
+  --r-lg:20px; --r-md:14px; --shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  /* voice（SPEC §4） */
+  --vt-size:22px; --vt-line:1.62; --vt-track:.3px; --vt-weight-final:500; --vt-weight-partial:400;
+  --vt-final:#252722; --vt-partial:#A3A59B; --vt-caret:#E95432;
+  --p1:#C2412D; --p1-bg:#FCE8E3; --p2:#C7701F; --p2-bg:#FDF0E1; --p3:#5E6158; --p3-bg:#EFEEE8; --p4:#4C7A93; --p4-bg:#E6EFF4; --p5:#3E7B5B; --p5-bg:#E5F1EA;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#2a2b27;font-family:var(--font);-webkit-font-smoothing:antialiased;color:var(--ink)}
+.stage{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:18px;padding:26px 20px 40px}
+/* lab 工具条（原型之外，仅为验收对照；phone 内保持原型纯净） */
+.labbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;color:#ddd;font-size:13px}
+.labbar .phases{display:flex;gap:6px}
+.labbar .phases button{border:1px solid #565850;background:transparent;color:#bbb;border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer;font-family:inherit}
+.labbar .phases button.on{border-color:var(--brand);color:#fff;background:rgba(233,84,50,.18)}
+.labbar .badge{border-radius:99px;padding:3px 10px;font-size:12px;background:#3a3b36;color:#cfcfc6}
+.labbar .badge.demo{color:#E8B04B}
+.labbar .badge.module{color:#7fd0a2}
+.labbar .badge.wait{color:#9aa}
+.labbar button.reset{border:1px solid #565850;background:transparent;color:#ddd;border-radius:8px;padding:5px 12px;font-size:12.5px;cursor:pointer;font-family:inherit}
+.phone{width:390px;max-width:100vw;height:844px;max-height:calc(100vh - 90px);border-radius:36px;background:var(--bg);position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.phone.wide{height:auto;min-height:844px}
+/* dimmed home behind the sheet */
+.home{padding:76px 20px 0}
+.home.sunk{filter:saturate(.9)}
+.home h1{font-size:28px;margin:6px 0}
+.home p{color:var(--ink2);font-size:15px}
+.home .ask{margin-top:18px;height:60px;border:2px solid var(--ink);border-radius:18px;background:#fff}
+.home .ask{display:flex;align-items:center;justify-content:flex-end;padding-right:10px}
+.home .mic{width:44px;height:44px;border-radius:12px;background:var(--brand-soft);display:grid;place-items:center;color:var(--brand);font-size:20px;border:0;cursor:pointer;font-family:inherit}
+.scrim{position:absolute;inset:0;background:rgba(37,39,34,.38)}
+/* bottom sheet */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:28px 28px 0 0;padding:14px 22px 26px;box-shadow:0 -10px 40px rgba(0,0,0,.12);min-height:520px;display:flex;flex-direction:column;max-height:100%;overflow-y:auto}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+.sh-top{display:flex;align-items:center;gap:10px}
+.live{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--brand);font-weight:600}
+.live.done{color:var(--forest)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 0 rgba(233,84,50,.5);animation:pulse 1.4s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 10px rgba(233,84,50,0)}100%{box-shadow:0 0 0 0 rgba(233,84,50,0)}}
+.timer{font-size:13px;color:var(--ink3);font-variant-numeric:tabular-nums}
+.sp{flex:1}
+.x{width:36px;height:36px;border-radius:50%;background:var(--sunk);display:grid;place-items:center;color:var(--ink2);font-size:18px;border:0;cursor:pointer;font-family:inherit}
+/* ===== transcript typography（JC 在意的部分；SPEC §4）===== */
+.tx{margin-top:18px;font-size:var(--vt-size);line-height:var(--vt-line);letter-spacing:var(--vt-track);min-height:220px;font-feature-settings:"palt";text-wrap:pretty}
+.tx .f{color:var(--vt-final);font-weight:var(--vt-weight-final)}
+.tx .f.just{animation:settle .32s ease-out}
+@keyframes settle{from{color:var(--vt-partial)}to{color:var(--vt-final)}}
+.tx .p{color:var(--vt-partial);font-weight:var(--vt-weight-partial)}
+.tx .p .ch:last-child{animation:rise .18s ease-out both,breathe 1.2s ease-in-out .2s infinite}
+@keyframes breathe{50%{opacity:.45}}
+@keyframes shimmer{to{background-position:-200% 0}}
+.tx .ch{display:inline-block;animation:rise .18s ease-out both}
+@keyframes rise{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.caret{display:inline-block;width:2.5px;height:1.05em;background:var(--vt-caret);border-radius:2px;vertical-align:-.16em;margin-left:2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+/* waveform（SPEC §4：高度由实时音量驱动，静音回落 8px；demo 回放由帧到达驱动并如实标注） */
+.wave{display:flex;align-items:center;justify-content:center;gap:4px;height:56px;margin-top:auto}
+.wave b{width:4px;border-radius:2px;background:var(--brand);opacity:.85;height:8px;transition:height .09s ease-out}
+.hint{text-align:center;font-size:12.5px;color:var(--ink3);margin-top:8px}
+.done{margin-top:14px;height:56px;border-radius:18px;background:var(--ink);color:#fff;font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center;gap:10px;border:0;width:100%;cursor:pointer;font-family:inherit}
+.done .sq{width:14px;height:14px;border-radius:3px;background:var(--brand)}
+/* understanding（②） */
+.think{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:14px;color:var(--forest);font-weight:600}
+.dots{display:inline-flex;gap:4px}.dots i{width:6px;height:6px;border-radius:50%;background:var(--forest);animation:d 1s infinite}.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes d{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+.tx.locked{font-size:18px;color:var(--ink2);min-height:auto}
+.tx.locked .f{color:inherit;font-weight:400}
+.tx mark{background:linear-gradient(transparent 58%,var(--gold-soft) 0);color:inherit;border-radius:2px;padding:0 1px}
+.skel{height:76px;border-radius:var(--r-md);background:linear-gradient(90deg,var(--sunk),#ece8de,var(--sunk));background-size:200% 100%;animation:shimmer 1.4s linear infinite;margin-top:10px}
+/* recognized events（③） */
+.got{font-size:13px;color:var(--ink2);margin-top:14px}
+.got b{color:var(--ink);font-size:17px;margin-right:6px}
+.ev{border:1.5px solid var(--line);border-radius:var(--r-md);padding:12px 14px;margin-top:10px;animation:rise .28s ease-out both;cursor:pointer}
+.ev:nth-child(2){animation-delay:.06s}.ev:nth-child(3){animation-delay:.12s}
+.ev .t{font-size:16.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.ev .t .k{font-size:11.5px;font-weight:600;color:var(--forest);background:var(--forest-soft);border-radius:6px;padding:2px 6px}
+.ev .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.chip{height:28px;border-radius:99px;padding:0 10px;font-size:12.5px;display:inline-flex;align-items:center;gap:5px;background:var(--sunk);color:var(--ink2);border:0}
+.chip.time{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.chip.warn{background:var(--gold-soft);color:var(--warn)}
+.pri{font-weight:600}
+.pri.p1{background:var(--p1-bg);color:var(--p1)}.pri.p2{background:var(--p2-bg);color:var(--p2)}.pri.p3{background:var(--p3-bg);color:var(--p3)}.pri.p4{background:var(--p4-bg);color:var(--p4)}.pri.p5{background:var(--p5-bg);color:var(--p5)}
+.why{font-size:12px;color:var(--ink3);margin-top:6px}
+.why q{quotes:"「" "」";color:var(--ink2)}
+.acts{display:flex;gap:8px;margin-top:auto;padding-top:14px}
+.btn{height:52px;border-radius:16px;font-weight:600;font-size:15.5px;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit}
+.btn.pri-b{flex:1;background:var(--brand);color:#fff}
+.btn.gh{padding:0 18px;background:var(--sunk);color:var(--ink)}
+.btn:disabled{opacity:.5;cursor:default}
+.reask{font-size:12.5px;color:var(--ink2);text-align:center;margin-top:10px}
+.reask u{color:var(--ink);text-underline-offset:3px;cursor:pointer}
+.edit{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;cursor:default}
+.edit label{font-size:11.5px;color:var(--ink3);display:block;margin-bottom:3px}
+.edit input,.edit select{width:100%;height:36px;border:1px solid var(--line);border-radius:10px;padding:0 8px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink)}
+.edit .wide{grid-column:1 / -1}
+.edit .save{grid-column:1 / -1;height:40px;border:0;border-radius:12px;background:var(--ink);color:#fff;font-weight:600;cursor:pointer;font-family:inherit}
+.fixbox{margin-top:12px;display:flex;gap:8px}
+.fixbox input{flex:1;height:46px;border:1.5px solid var(--line);border-radius:14px;padding:0 12px;font-size:14.5px;font-family:inherit}
+.fixbox input:focus{outline:none;border-color:var(--brand)}
+/* home list after add（④） */
+.today{margin-top:22px;padding-bottom:110px}
+.today h3{font-size:16px;display:flex;justify-content:space-between;align-items:baseline}
+.today h3 span{font-size:12.5px;color:var(--ink3);font-weight:400}
+.today .empty{margin-top:14px;font-size:13.5px;color:var(--ink3)}
+.item{background:#fff;border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px 14px;margin-top:10px;display:flex;align-items:center;gap:12px}
+.item .bar{width:4px;align-self:stretch;border-radius:2px}
+.item div{flex:1}
+.item b{font-size:15px;display:block}
+.item small{font-size:12px;color:var(--ink2)}
+.item .ai{height:32px;padding:0 12px;border-radius:10px;background:var(--ink);color:#fff;font-size:12.5px;font-weight:600;border:0;cursor:pointer;font-family:inherit}
+.toast{position:absolute;left:20px;right:20px;bottom:96px;background:var(--ink);color:#fff;border-radius:14px;padding:12px 16px;font-size:14px;display:flex;justify-content:space-between;z-index:5}
+.toast u{color:#FFD8CC;cursor:pointer}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:72px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;font-size:12px;color:var(--ink3)}
+.tabbar .on{color:var(--brand);font-weight:600}
+.hidden{display:none!important}
+/* 降级：语音不可用时的文字输入（SPEC §2.2「打字也行」） */
+.fallback{margin-top:12px}
+.fallback p{font-size:12.5px;color:var(--warn);margin-bottom:8px}
+.errline{margin-top:10px;font-size:13px;color:var(--p1)}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="labbar" id="labbar">
+    <span class="badge wait" id="mod-gateway">asr 探测中…</span>
+    <span class="badge wait" id="mod-intent">intent 探测中…</span>
+    <span class="phases" id="phases">
+      <button data-phase="idle">首页</button><button data-phase="listening">① 正在听</button><button data-phase="understanding">② 理解</button><button data-phase="review">③ 事件卡</button><button data-phase="added">④ 加入后</button>
+    </span>
+    <button class="reset" id="reset">重置</button>
+  </div>
+
+  <div class="phone" id="phone">
+    <div class="home" id="home">
+      <p id="greet">周日上午好</p>
+      <h1>今天要做什么？</h1>
+      <div class="ask"><button class="mic" id="mic" aria-label="语音输入" title="语音输入">🎤</button></div>
+      <div class="today" id="today">
+        <h3>接下来的事 <span>按优先级</span></h3>
+        <div id="items"><p class="empty" id="emptyTip">还没有加入的事 · 点上面的 🎤 说几句</p></div>
+      </div>
+    </div>
+    <div class="scrim hidden" id="scrim"></div>
+
+    <!-- ① 正在听 -->
+    <div class="sheet hidden" id="sheet-listen">
+      <div class="grab"></div>
+      <div class="sh-top"><span class="live"><i></i>正在听</span><span class="timer" id="timer">0:00</span><span class="sp"></span><button class="x" id="x1" aria-label="取消">×</button></div>
+      <p class="tx" id="tx"></p>
+      <div class="wave" id="wave"></div>
+      <p class="hint">停顿 2 秒自动结束 · 可以一次说好几件事</p>
+      <div class="fallback hidden" id="fallback">
+        <p>语音暂时不可用，打字也行</p>
+        <div class="fixbox"><input id="fallbackText" placeholder="把想说的话打在这里…" aria-label="文字输入"><button class="btn gh" id="fallbackGo">理解一下</button></div>
+      </div>
+      <p class="errline hidden" id="errline"></p>
+      <button class="done" id="doneBtn"><span class="sq"></span>说完了</button>
+    </div>
+
+    <!-- ② 正在理解 -->
+    <div class="sheet hidden" id="sheet-think">
+      <div class="grab"></div>
+      <div class="sh-top"><span class="live done">✓ 听完了</span><span class="timer" id="timer2">0:00</span><span class="sp"></span><button class="x" id="x2" aria-label="取消">×</button></div>
+      <p class="tx locked" id="txLocked"></p>
+      <p class="think"><span class="dots"><i></i><i></i><i></i></span>正在理解你说的事…</p>
+      <div class="skel"></div><div class="skel" style="opacity:.7"></div><div class="skel" style="opacity:.45"></div>
+    </div>
+
+    <!-- ③ 听出了几件事 -->
+    <div class="sheet hidden" id="sheet-review" style="min-height:690px">
+      <div class="grab"></div>
+      <div class="sh-top"><span class="live done">✓ 听完了</span><span class="sp"></span><button class="x" id="x3" aria-label="取消">×</button></div>
+      <p class="got"><b id="gotCount">听出了 0 件事</b>点一下可以改</p>
+      <div id="events"></div>
+      <div class="acts"><button class="btn gh" id="again">再说一次</button><button class="btn pri-b" id="addAll">全部加入</button></div>
+      <p class="reask">识别不对？<u id="fixHint">直接说"把跑步改到八点"</u></p>
+      <div class="fixbox hidden" id="fixbox"><input id="fixText" placeholder='比如：把跑步改到八点 / 删掉第二件'><button class="btn gh" id="fixGo">改</button></div>
+    </div>
+
+    <!-- ④ toast：加入结果 -->
+    <div class="toast hidden" id="toast"><span id="toastText">已加入 0 件事</span><u id="undo">撤销</u></div>
+    <div class="tabbar"><span class="on">开始</span><span>我的用法</span><span>发现</span></div>
+  </div>
+</div>
+
+<script type="module">
+import * as contracts from '/voice/contracts.js';
+
+const $ = (id) => document.getElementById(id);
+const KIND_LABELS = { necessary: '必要', create: '创造', connect: '协作', explore: '探索', restore: '恢复', stillness: '静息' };
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// 演示规则（SPEC §5 未定义谁能「交给 AI」，lab 按 kind 演示：可执行类显示、恢复/静息不显示——报告已注明）
+const AI_KINDS = new Set(['necessary', 'create', 'connect', 'explore']);
+
+// —— 全局状态 ——
+const S = {
+  phase: 'idle',            // idle | listening | understanding | review | added
+  ws: null, wsState: null, wsFatal: false,
+  items: [], addedItems: [], transcript: '',
+  startedAt: 0, timerId: null, silenceId: null, limitId: null, lastFinalAt: 0,
+  micStream: null, micRAF: 0, waveMode: 'demo',
+  intentMeta: null, editBase: null,
+};
+
+// —— 模块状态徽章（V1–V7 合入情况；V6/V7 服务端模式来自 lab-status）——
+async function probeModules() {
+  const front = {};
+  for (const name of ['capture', 'stream-client', 'transcript-view', 'intent-view', 'voice-sheet']) {
+    try { const res = await fetch(`/voice/${name}.js`, { method: 'HEAD' }); front[name] = res.ok; } catch { front[name] = false; }
+  }
+  let serverInfo = null;
+  try { serverInfo = await (await fetch('/api/voice/lab-status')).json(); } catch { /* 服务器不可达时只显示前端探测 */ }
+  const gw = $('mod-gateway'), it = $('mod-intent');
+  const frontOn = Object.values(front).filter(Boolean).length;
+  if (serverInfo) {
+    gw.textContent = `asr ${serverInfo.modules.gateway.mode}`; gw.className = `badge ${serverInfo.modules.gateway.mode}`;
+    it.textContent = `intent ${serverInfo.modules.intent.mode}`; it.className = `badge ${serverInfo.modules.intent.mode}`;
+    gw.title = `WS ${serverInfo.wsPath} · V1–V5 前端模块 ${frontOn}/5 已合入（本页用内置参考实现，接线待集成对齐）`;
+    it.title = `POST ${serverInfo.modules.intent.name || ''}`;
+  } else {
+    gw.textContent = 'asr 不可达'; gw.className = 'badge demo';
+    it.textContent = 'intent 不可达'; it.className = 'badge demo';
+  }
+  return { serverInfo, front };
+}
+
+// —— 相对日期展示（demo 语义与 lab 页一致：按浏览器当前时间）——
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+function relDay(dateStr) {
+  const today = new Date(); const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const t = fmt(today);
+  if (dateStr === t) return '今天';
+  const tm = new Date(today.getTime() + 86400000);
+  if (dateStr === fmt(tm)) return '明天';
+  const d = new Date(dateStr + 'T12:00:00');
+  return `${WEEKDAYS[d.getDay()]} ${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+}
+function fmtTimeChip(item) {
+  const bits = [];
+  if (item.deadline) bits.push(`截止 ${relDay(item.deadline)}`);
+  if (item.date) bits.push(relDay(item.date));
+  if (item.start && item.end) bits.push(`${item.start}–${item.end}`);
+  else if (item.start) bits.push(item.deadline ? `${item.start} 前` : item.start);
+  if (!item.start && item.durationMin) bits.push(`约 ${item.durationMin} 分钟`);
+  if (item.recurrence) bits.push(item.recurrence);
+  if (!bits.length) bits.push(item.timeText || '没说时间');
+  return bits.join(' · ');
+}
+
+// —— ① 转写渲染：只增量更新（final 追加 span.f；partial 尾部逐字浮现；SPEC §3 transcript-view 语义）——
+const txEl = $('tx');
+let renderedPartial = '';
+function renderTranscript() {
+  const view = contracts.transcriptView(S.wsState);
+  const finalChanged = txEl.querySelectorAll('.f').length !== S.wsState.segments.filter((s) => s.final).length;
+  if (finalChanged) {
+    // 只追加新定稿句，已确认前缀不动
+    const finals = S.wsState.segments.filter((s) => s.final).map((s) => s.text).join('');
+    const current = Array.from(txEl.querySelectorAll('.f')).map((n) => n.textContent).join('');
+    let add = finals.slice(current.length);
+    if (add) {
+      const span = document.createElement('span');
+      span.className = 'f' + (S.wsState.segments.length > 1 ? ' just' : '');
+      span.textContent = add;
+      txEl.insertBefore(span, txEl.querySelector('.p'));
+      const p = txEl.querySelector('.p');
+      if (p) txEl.appendChild(p); // partial 永远在最后
+    } else if (finals !== current) {
+      // 定稿句内容被替换（迟到 final 覆盖）：整体重建 final 区（罕见路径）
+      txEl.querySelectorAll('.f').forEach((n) => n.remove());
+      const span = document.createElement('span'); span.className = 'f'; span.textContent = finals;
+      txEl.insertBefore(span, txEl.querySelector('.p'));
+    }
+  }
+  const p = txEl.querySelector('.p');
+  if (view.partialText) {
+    if (!p) { const el = document.createElement('span'); el.className = 'p'; txEl.appendChild(el); }
+    const target = p || txEl.querySelector('.p');
+    // 只把新增的字逐个 append（新字 rise 动画）
+    if (view.partialText.startsWith(renderedPartial)) {
+      for (const ch of view.partialText.slice(renderedPartial.length)) {
+        const c = document.createElement('span'); c.className = 'ch'; c.textContent = ch; target.appendChild(c);
+      }
+    } else { // 该句 partial 被上游替换：重建该句灰字
+      target.textContent = ''; for (const ch of view.partialText) { const c = document.createElement('span'); c.className = 'ch'; c.textContent = ch; target.appendChild(c); } }
+    renderedPartial = view.partialText;
+  } else if (p) { p.remove(); renderedPartial = ''; }
+  let caret = txEl.querySelector('.caret');
+  if (!caret) { caret = document.createElement('span'); caret.className = 'caret'; txEl.appendChild(caret); }
+  if (caret.previousSibling !== txEl.lastChild && caret !== txEl.lastChild) txEl.appendChild(caret);
+}
+
+// —— 波形：真实麦克风 AnalyserNode 优先；失败/demo 回放用「帧到达脉冲」驱动（如实：非假随机动画）——
+const waveEl = $('wave');
+for (let i = 0; i < 15; i++) waveEl.appendChild(document.createElement('b'));
+const bars = waveEl.children;
+async function startMicLevel() {
+  try {
+    S.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = new AudioContext();
+    const src = ctx.createMediaStreamSource(S.micStream);
+    const analyser = ctx.createAnalyser(); analyser.fftSize = 256;
+    src.connect(analyser);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    S.waveMode = 'mic';
+    const tick = () => {
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0; for (const v of buf) sum += (v - 128) ** 2;
+      const rms = Math.sqrt(sum / buf.length) / 64; // 0..~1
+      for (let i = 0; i < bars.length; i++) bars[i].style.height = Math.max(8, Math.min(40, 8 + rms * 34 * (0.7 + 0.3 * Math.sin(i * 1.7 + performance.now() / 90)))) + 'px';
+      S.micRAF = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch { S.waveMode = 'demo'; /* 麦克风被拒：SPEC §3 capture 的提示职责，此处 demo 波形兜底 */ }
+}
+function pulseWave() { if (S.waveMode !== 'demo') return; for (let i = 0; i < bars.length; i++) bars[i].style.height = Math.max(8, Math.min(40, 10 + Math.random() * 30)) + 'px'; }
+function idleWave() { if (S.waveMode !== 'demo') return; for (const b of bars) b.style.height = '8px'; }
+function stopMic() {
+  cancelAnimationFrame(S.micRAF);
+  S.micStream?.getTracks().forEach((t) => t.stop());
+  S.micStream = null; S.waveMode = 'demo'; idleWave();
+}
+
+// —— 计时与自动收尾 ——
+function startTimer() {
+  S.startedAt = Date.now();
+  clearInterval(S.timerId);
+  S.timerId = setInterval(() => {
+    const s = Math.floor((Date.now() - S.startedAt) / 1000);
+    $('timer').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }, 250);
+}
+function armSilence() { // SPEC §3 capture：静音 2 秒自动结束；demo 下以「最后 final 后 2s」代替 VAD
+  clearTimeout(S.silenceId);
+  S.silenceId = setTimeout(() => { if (S.phase === 'listening') finishSpeaking(); }, 2000);
+}
+function armLimit() { S.limitId = setTimeout(() => { if (S.phase === 'listening') finishSpeaking(); }, 60000); } // 60 秒上限（SPEC §2.2）
+
+// —— WS 客户端（内置参考实现；走 contracts 协议，重连一次，asr-unavailable → 文字降级）——
+function wsConnect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  let retried = false;
+  const open = () => {
+    const ws = new WebSocket(`${proto}://${location.host}/api/voice/stream`);
+    S.ws = ws; S.wsState = contracts.initTranscriptState(); renderedPartial = ''; txEl.textContent = '';
+    const caret = document.createElement('span'); caret.className = 'caret'; txEl.appendChild(caret);
+    ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'start', sampleRate: contracts.VOICE_SAMPLE_RATE })));
+    ws.addEventListener('message', (event) => {
+      let msg; try { msg = JSON.parse(event.data); } catch { return; }
+      try { S.wsState = contracts.applyServerMessage(S.wsState, msg); } catch { return; }
+      if (msg.type === 'partial' || msg.type === 'final') { renderTranscript(); pulseWave(); }
+      if (msg.type === 'final') { armSilence(); idleWaveSoon(); }
+      if (msg.type === 'error') { wsError(msg.code); }
+      if (msg.type === 'end') { ws.close(); }
+    });
+    ws.addEventListener('close', () => {
+      if (S.phase === 'listening' && !S.wsFatal && !retried) { retried = true; open(); return; } // 重连一次（SPEC §3）
+      if (S.phase === 'listening') toUnderstanding();
+    });
+    ws.addEventListener('error', () => { /* close 会跟进来 */ });
+  };
+  open();
+}
+let idleTimer = null;
+function idleWaveSoon() { clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (S.waveMode === 'demo') idleWave(); }, 450); }
+function wsError(code) {
+  S.wsFatal = true;
+  if (code === 'asr-unavailable') { $('fallback').classList.remove('hidden'); $('errline').classList.add('hidden'); S.ws?.close(); return; } // SPEC §2.2 降级
+  const map = { 'session-too-long': '说到 60 秒上限了', 'daily-limit': '今日语音额度已用完', busy: '同时听的人太多，稍后再试', unauthorized: '会话失效，刷新页面试试', 'bad-message': '内部协议错误' };
+  const line = $('errline'); line.textContent = map[code] || `语音出错（${code}）`; line.classList.remove('hidden');
+  if (code !== 'bad-message') { $('fallback').classList.remove('hidden'); }
+  S.ws?.close();
+}
+function finishSpeaking() {
+  clearTimeout(S.silenceId); clearTimeout(S.limitId);
+  if (S.ws && S.ws.readyState === S.ws.OPEN) S.ws.send(JSON.stringify({ type: 'stop' }));
+  else toUnderstanding();
+}
+
+// —— ② 理解 → ③ 事件卡 ——
+function transcriptText() { return contracts.transcriptView(S.wsState).finalText + contracts.transcriptView(S.wsState).partialText; }
+function toUnderstanding(textOverride) {
+  if (S.phase !== 'listening' && textOverride === undefined) return;
+  S.transcript = textOverride ?? transcriptText().trim() || S.transcript;
+  if (!S.transcript) { reset(); return; }
+  setPhase('understanding');
+  stopMic();
+  clearInterval(S.timerId);
+  $('timer2').textContent = $('timer').textContent;
+  renderLocked();
+  requestIntent(S.transcript, null);
+}
+function collectHighlights(items) {
+  const set = new Set();
+  for (const it of items) { for (const p of [it.timeText, it.source]) if (p) set.add(p); if (it.priorityReason) for (const m of it.priorityReason.matchAll(/「(.+?)」/g)) set.add(m[1]); }
+  return [...set].filter((p) => p && p.length <= 12).sort((a, b) => b.length - a.length);
+}
+function renderLocked() {
+  const el = $('txLocked'); el.textContent = '';
+  const text = S.transcript;
+  const phrases = collectHighlights(S.items);
+  const ranges = [];
+  for (const p of phrases) { let i = text.indexOf(p); while (i >= 0) { ranges.push([i, i + p.length]); i = text.indexOf(p, i + 1); } }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const r of ranges) { const last = merged[merged.length - 1]; if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else merged.push([...r]); }
+  let cursor = 0;
+  for (const [a, b] of merged) {
+    if (a < cursor) continue;
+    if (a > cursor) el.appendChild(document.createTextNode(text.slice(cursor, a)));
+    const mark = document.createElement('mark'); mark.textContent = text.slice(a, b); el.appendChild(mark);
+    cursor = b;
+  }
+  if (cursor < text.length) el.appendChild(document.createTextNode(text.slice(cursor)));
+}
+async function requestIntent(transcript, edit) {
+  const body = { transcript, now: new Date().toISOString().slice(0, 19) + '+08:00', tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai' };
+  if (edit) body.edit = edit;
+  try {
+    const res = await fetch('/api/voice/intent', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    S.items = data.items; S.intentMeta = data.meta;
+  } catch (error) {
+    S.items = [{ title: '理解失败，点开可改', kind: 'create', date: null, start: null, end: null, durationMin: null, deadline: null, timeText: null, vague: false, recurrence: null, priority: 3, priorityReason: null, confidence: 0, source: null }];
+    S.intentMeta = { engine: 'error', error: String(error.message || error) };
+  }
+  renderEvents();
+  setPhase('review');
+}
+function renderEvents() {
+  const box = $('events'); box.textContent = '';
+  $('gotCount').textContent = S.items.length === 0 ? '没听出日程' : `听出了 ${S.items.length} 件事`;
+  S.items.forEach((item, idx) => {
+    const card = document.createElement('div'); card.className = 'ev';
+    const t = document.createElement('div'); t.className = 't';
+    t.textContent = item.title;
+    const k = document.createElement('span'); k.className = 'k'; k.textContent = KIND_LABELS[item.kind] || item.kind;
+    t.appendChild(k);
+    const row = document.createElement('div'); row.className = 'row';
+    const time = document.createElement('span'); time.className = 'chip time'; time.textContent = fmtTimeChip(item);
+    row.appendChild(time);
+    if (item.vague && !item.start && !item.deadline) { const w = document.createElement('span'); w.className = 'chip warn'; w.textContent = '没说具体几点'; row.appendChild(w); }
+    const pri = document.createElement('span'); pri.className = `chip pri p${item.priority}`; pri.textContent = contracts.PRIORITY_LABELS[item.priority];
+    row.appendChild(pri);
+    const why = document.createElement('p'); why.className = 'why';
+    if (item.priorityReason) why.textContent = item.priorityReason; else why.textContent = '没听出优先级依据，先按「一般」';
+    card.append(t, row, why);
+    card.addEventListener('click', (e) => { if (e.target.closest('.edit')) return; toggleEdit(card, idx); });
+    box.appendChild(card);
+  });
+}
+function toggleEdit(card, idx) {
+  const existing = card.querySelector('.edit');
+  document.querySelectorAll('.ev .edit').forEach((n) => n.remove());
+  if (existing) return;
+  const item = S.items[idx];
+  const form = document.createElement('div'); form.className = 'edit';
+  form.innerHTML = `
+    <div class="wide"><label>标题</label><input data-f="title" value=""></div>
+    <div><label>日期</label><input data-f="date" type="date"></div>
+    <div><label>开始</label><input data-f="start" type="time"></div>
+    <div><label>结束</label><input data-f="end" type="time"></div>
+    <div><label>优先级</label><select data-f="priority">${[1, 2, 3, 4, 5].map((p) => `<option value="${p}">${p} · ${contracts.PRIORITY_LABELS[p]}</option>`).join('')}</select></div>
+    <button class="save">保存</button>`;
+  form.querySelector('[data-f=title]').value = item.title;
+  form.querySelector('[data-f=date]').value = item.date || '';
+  form.querySelector('[data-f=start]').value = item.start || '';
+  form.querySelector('[data-f=end]').value = item.end || '';
+  form.querySelector('[data-f=priority]').value = String(item.priority);
+  form.querySelector('.save').addEventListener('click', () => {
+    const get = (f) => form.querySelector(`[data-f=${f}]`).value;
+    item.title = get('title').slice(0, 20) || item.title;
+    item.date = get('date') || null; item.start = get('start') || null; item.end = get('end') || null;
+    item.priority = Number(get('priority'));
+    if (item.start || item.date) item.vague = false;
+    renderEvents();
+  });
+  card.appendChild(form);
+}
+
+// —— ④ 模拟首页列表 ——
+function addToHome() {
+  S.addedItems = S.items.map((it) => ({ ...it }));
+  S.addedItems.sort((a, b) => a.priority - b.priority || ((a.start || a.deadline || a.date || '9999') < (b.start || b.deadline || b.date || '9999') ? -1 : 1));
+  const box = $('items'); box.textContent = '';
+  $('emptyTip')?.remove();
+  for (const item of S.addedItems) {
+    const row = document.createElement('div'); row.className = 'item';
+    const bar = document.createElement('span'); bar.className = 'bar'; bar.style.background = `var(--p${item.priority})`;
+    const mid = document.createElement('div');
+    const b = document.createElement('b'); b.textContent = item.title;
+    const small = document.createElement('small'); small.textContent = `${fmtTimeChip(item)} · ${contracts.PRIORITY_LABELS[item.priority]}`;
+    mid.append(b, small);
+    row.append(bar, mid);
+    if (AI_KINDS.has(item.kind)) {
+      const ai = document.createElement('button'); ai.className = 'ai'; ai.textContent = '交给 AI';
+      ai.addEventListener('click', () => showToast('relay 流程是二期接入（演示）', null));
+      row.appendChild(ai);
+    }
+    box.appendChild(row);
+  }
+  setPhase('added');
+  showToast(`已加入 ${S.addedItems.length} 件事`, () => { setPhase('review'); }); // 撤销 → 回 ③
+}
+let toastTimer = null;
+function showToast(text, undoFn) {
+  const t = $('toast'); $('toastText').textContent = text;
+  t.classList.remove('hidden');
+  const undo = $('undo');
+  undo.style.display = undoFn ? '' : 'none';
+  undo.onclick = () => { t.classList.add('hidden'); undoFn?.(); };
+  clearTimeout(toastTimer);
+  if (!undoFn) toastTimer = setTimeout(() => t.classList.add('hidden'), 2600);
+}
+
+// —— 状态机与导航 ——
+const SHEETS = { listening: 'sheet-listen', understanding: 'sheet-think', review: 'sheet-review' };
+function setPhase(phase) {
+  S.phase = phase;
+  document.querySelectorAll('#phases button').forEach((b) => b.classList.toggle('on', b.dataset.phase === phase));
+  for (const [p, id] of Object.entries(SHEETS)) $(id).classList.toggle('hidden', p !== phase);
+  $('scrim').classList.toggle('hidden', !(phase in SHEETS));
+  $('home').classList.toggle('sunk', phase in SHEETS);
+  if (phase === 'idle' || phase === 'added') { $('toast').classList.toggle('hidden', phase !== 'added'); }
+  if (phase === 'listening') { $('fallback').classList.add('hidden'); $('errline').classList.add('hidden'); }
+}
+function startListening() {
+  setPhase('listening');
+  $('timer').textContent = '0:00';
+  startTimer(); armLimit(); armSilence();
+  startMicLevel();
+  wsConnect();
+}
+function reset() {
+  clearTimeout(S.silenceId); clearTimeout(S.limitId); clearInterval(S.timerId);
+  if (S.ws) { S.wsFatal = true; try { S.ws.close(); } catch {} }
+  stopMic();
+  S.items = []; S.transcript = ''; S.editBase = null; S.wsFatal = false;
+  txEl.textContent = '';
+  setPhase(S.addedItems.length ? 'added' : 'idle');
+}
+// 顶部跳转（验收对照 4 屏用）：目标屏缺数据时用演示数据补
+function jumpTo(phase) {
+  if (phase === 'listening') { reset(); startListening(); return; }
+  if (phase === 'understanding') {
+    if (!S.transcript) S.transcript = '明天下午三点要跟导师开组会，必须把实验数据先整理好。还有周五前交课程报告，晚上有空的话去跑个步';
+    if (!S.items.length) { S.items = demoItemsFor(S.transcript); }
+    setPhase('understanding'); renderLocked(); return;
+  }
+  if (phase === 'review') {
+    if (!S.items.length) { S.transcript = S.transcript || '明天下午三点要跟导师开组会，必须把实验数据先整理好。还有周五前交课程报告，晚上有空的话去跑个步'; S.items = demoItemsFor(S.transcript); }
+    renderEvents(); setPhase('review'); return;
+  }
+  if (phase === 'added') { if (!S.addedItems.length) { S.items = S.items.length ? S.items : demoItemsFor(S.transcript || '组会'); addToHome(); } setPhase('added'); return; }
+  reset();
+}
+function demoItemsFor(transcript) { // 与服务端 lab-demo 同款演示数据（仅用于 4 屏对照跳转）
+  const tomorrow = new Date(Date.now() + 86400000); const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const dow = new Date().getDay(); const friday = new Date(Date.now() + ((5 - dow + 7) % 7 || 0) * 86400000);
+  const today = fmt(new Date());
+  return [
+    { title: '整理实验数据', kind: 'necessary', date: null, start: null, end: null, durationMin: null, deadline: fmt(tomorrow), timeText: '明天下午三点', vague: false, recurrence: null, priority: 1, priorityReason: '你说「必须」，且要赶在组会前', confidence: 0.9, source: '必须把实验数据先整理好' },
+    { title: '和导师开组会', kind: 'necessary', date: fmt(tomorrow), start: '15:00', end: '16:00', durationMin: null, deadline: null, timeText: '明天下午三点', vague: false, recurrence: null, priority: 2, priorityReason: '和导师有约，时间已定', confidence: 0.92, source: '要跟导师开组会' },
+    { title: '交课程报告', kind: 'create', date: null, start: null, end: null, durationMin: null, deadline: fmt(friday), timeText: '周五前', vague: false, recurrence: null, priority: 2, priorityReason: '有明确截止日', confidence: 0.88, source: '周五前交课程报告' },
+    { title: '跑步', kind: 'restore', date: today, start: null, end: null, durationMin: null, deadline: null, timeText: '晚上有空的话', vague: true, recurrence: null, priority: 5, priorityReason: '你说「有空的话」', confidence: 0.85, source: '晚上有空的话去跑个步' },
+  ];
+}
+
+// —— 事件绑定 ——
+$('mic').addEventListener('click', () => { reset(); startListening(); });
+$('doneBtn').addEventListener('click', finishSpeaking);
+$('x1').addEventListener('click', reset);
+$('x2').addEventListener('click', reset);
+$('x3').addEventListener('click', reset);
+$('again').addEventListener('click', () => { reset(); startListening(); });
+$('addAll').addEventListener('click', addToHome);
+$('fixHint').addEventListener('click', () => $('fixbox').classList.toggle('hidden'));
+$('fixGo').addEventListener('click', () => {
+  const text = $('fixText').value.trim();
+  if (!text) return;
+  S.editBase = S.items.map((i) => ({ ...i }));
+  setPhase('understanding'); renderLocked();
+  requestIntent(text, S.editBase); // SPEC §2.3 纠正：带当前 items 做增量修改
+});
+$('fallbackGo').addEventListener('click', () => {
+  const text = $('fallbackText').value.trim();
+  if (!text) return;
+  S.phase = 'listening'; // 允许 toUnderstanding 切换
+  toUnderstanding(text);
+});
+$('reset').addEventListener('click', () => { S.addedItems = []; $('items').innerHTML = '<p class="empty" id="emptyTip">还没有加入的事 · 点上面的 🎤 说几句</p>'; reset(); });
+document.querySelectorAll('#phases button').forEach((b) => b.addEventListener('click', () => jumpTo(b.dataset.phase)));
+
+// 问候语按当前时间（原型：周日上午好）
+(function greet() {
+  const d = new Date(); const h = d.getHours();
+  const part = h < 5 ? '凌晨好' : h < 11 ? '上午好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好';
+  $('greet').textContent = `${WEEKDAYS[d.getDay()]}${part}`;
+})();
+
+setPhase('idle');
+probeModules();
+</script>
+</body>
+</html>
