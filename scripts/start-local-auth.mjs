@@ -1,4 +1,4 @@
-// Local preview launcher: direct guest entry by default; TANGO_REQUIRE_ACCOUNT=1 restores real accounts.
+// Local beta launcher: real account entry by default; TANGO_DEMO_MODE=1 restores the guest preview.
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, join } from 'node:path';
 import { createAssistant } from './ai-assistant.mjs';
@@ -21,7 +21,7 @@ if (requestedDatabase !== ':memory:' && !isAbsolute(requestedDatabase)) {
 // Shell-provided ADMIN_EMAILS and EMAIL_TRANSPORT win; everything else is pinned to this loopback launcher.
 if (designatedAdminEmail) process.env.ADMIN_EMAILS = designatedAdminEmail;
 process.env.EMAIL_TRANSPORT = process.env.EMAIL_TRANSPORT || 'console';
-const demoMode = process.env.TANGO_REQUIRE_ACCOUNT !== '1';
+const demoMode = process.env.TANGO_DEMO_MODE === '1' || process.env.TANGO_REQUIRE_ACCOUNT === '0';
 process.env.TANGO_DEMO_MODE = demoMode ? '1' : '0';
 process.env.TANGO_PUBLIC_ORIGIN = '';
 process.env.NODE_ENV = 'development';
@@ -38,6 +38,6 @@ const server = createTangoServer({ assistant: delegate, assistantConfigStore: as
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { collaboration.close(); process.exit(0); });
 server.listen(port, '127.0.0.1', () => {
  process.stdout.write(`Local auth dev server: http://127.0.0.1:${port}\n`);
- process.stdout.write(demoMode ? 'Direct guest preview; registration hidden; TANGO_REQUIRE_ACCOUNT=1 restores real accounts.\n' : `Demo mode: off; email transport: ${process.env.EMAIL_TRANSPORT}; admin whitelist: ${process.env.ADMIN_EMAILS}\n`);
+ process.stdout.write(demoMode ? 'Direct guest preview; registration hidden; unset TANGO_DEMO_MODE to restore real accounts.\n' : `Demo mode: off; email transport: ${process.env.EMAIL_TRANSPORT}; admin whitelist: ${process.env.ADMIN_EMAILS}\n`);
  process.stdout.write(`Database: ${demoMode ? ':memory: (temporary preview groups)' : requestedDatabase}\n`);
 });

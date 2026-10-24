@@ -467,7 +467,7 @@ button:active, .btn:active { transform: scale(.98); }
 </div>
 <div class="app">
   <a class="skip-link" href="#view" data-act="skip-content">跳到内容</a>
-<header class="top"><div class="brand"><a class="logo" href="#today"><img class="brand-logo" src="/brand/robot-logo.png" width="42" height="38" alt="">探戈<span class="logo-en">Done&amp;Go</span></a><span class="slogan">从一件件的小事里拥抱我们的大时代</span></div><div class="top-actions"><button class="companion-entry" data-act="assistant-open">和探戈聊聊</button><label class="lang"><span class="sr">语言</span><select id="lang" aria-label="语言"><option value="zh">中文</option><option value="en">English</option><option value="ru">Русский</option><option value="th">ไทย</option><option value="ar">العربية</option><option value="ko">한국어</option></select></label><label id="appearance-control" class="appearance-control"><span id="appearance-label" class="appearance-caption" aria-hidden="true">外观</span><select id="appearance-select" class="appearance-select" aria-label="外观"><option value="standard">标准主题</option><option value="swiss">瑞士研究桌面</option><option value="archive">个人时间档案</option><option value="designer">夜间观测花园</option><option value="workbench">知识工作台</option></select></label></div></header>
+<header class="top"><div class="brand"><a class="logo" href="#today"><img class="brand-logo" src="/brand/robot-logo.png" width="42" height="38" alt="">探戈<span class="logo-en">Done&amp;Go</span></a><span class="slogan">从一件件的小事里拥抱我们的大时代</span></div><div class="top-actions"><button class="companion-entry" data-act="assistant-open">和探戈聊聊</button><label class="lang"><span class="lang-caption" aria-hidden="true">语言</span><select id="lang" aria-label="语言"><option value="zh">中文</option><option value="en">English</option><option value="ru">Русский</option><option value="th">ไทย</option><option value="ar">العربية</option><option value="ko">한국어</option></select></label><label id="appearance-control" class="appearance-control"><span id="appearance-label" class="appearance-caption" aria-hidden="true">外观</span><select id="appearance-select" class="appearance-select" aria-label="外观"><option value="standard">标准主题</option><option value="swiss">瑞士研究桌面</option><option value="archive">个人时间档案</option><option value="designer">夜间观测花园</option><option value="workbench">知识工作台</option></select></label></div></header>
   <aside id="runtime-notice" class="small status warn" role="status" hidden></aside>
   <div id="app-auth" aria-live="polite"></div>
   <main id="view" tabindex="-1"></main>
@@ -3296,7 +3296,7 @@ window.TangoAppAuth.start(function (authUser) {
   });
   var trCache = {};
   Object.keys(window.TangoLocaleCopy || {}).forEach(function (lang) { Object.assign(I18N[lang] || (I18N[lang] = {}), window.TangoLocaleCopy[lang]); });
-  window.TangoI18n = { text: tr, language: function () { return LANG; } };
+  window.TangoI18n = { text: tr, language: function () { return LANG; }, refresh: function () { applyLang(); } };
   function tr(str) {
     if (LANG === 'zh' || !str) return str;
     var D = I18N[LANG]; if (!D) return str;

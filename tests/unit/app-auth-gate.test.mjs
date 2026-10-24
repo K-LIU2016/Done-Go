@@ -30,7 +30,6 @@ function request(port, path, { method = "GET", body, raw, headers = {}, cookie }
 
 async function fixture(t, { publicOrigin = "", ...options } = {}) {
   const directory = await mkdtemp(join(tmpdir(), "tango-donego-app-auth-"));
-  const sent = [];
   const config = readAuthConfig({
     TANGO_AUTH_SECRET: SECRET,
     TANGO_PUBLIC_ORIGIN: publicOrigin,
@@ -39,15 +38,14 @@ async function fixture(t, { publicOrigin = "", ...options } = {}) {
     MAIL_FROM: "noreply@example.test",
     ADMIN_EMAILS: "admin@example.test",
   });
-  const auth = createAuthService({ databaseFile: join(directory, "auth.sqlite"), config, sendEmail: async (message) => sent.push(message) });
+  const auth = createAuthService({ databaseFile: join(directory, "auth.sqlite"), config });
   const app = createAppServer({ settingsFile: join(directory, "settings.json"), auth, publicOrigin, ...options });
   const port = await app.start();
   t.after(async () => { await app.close(); auth.close(); await rm(directory, { recursive: true, force: true }); });
   const headers = publicOrigin ? { host: new URL(publicOrigin).host, origin: publicOrigin } : {};
   const api = (path, options = {}) => request(port, path, { ...options, headers: { ...headers, ...options.headers } });
   const register = async (email) => {
-    assert.equal((await api("/api/auth/send-code", { method: "POST", body: { email } })).status, 200);
-    const response = await api("/api/auth/register", { method: "POST", body: { email, code: sent.at(-1).code, password: "Local test password 123456" } });
+    const response = await api("/api/auth/register", { method: "POST", body: { email, password: "LocalPass123", confirmPassword: "LocalPass123" } });
     assert.equal(response.status, 200);
     return response.cookie;
   };
@@ -156,7 +154,7 @@ test("TANGO_AUTH_DISABLED=1 preserves loopback settings access and skips sqlite 
   assert.equal((await request(port, "/api/settings/llm", { headers: { host: "tango-donego.example.test" } })).status, 403);
   const status = await request(port, "/api/auth/status");
   assert.equal(status.status, 200);
-  assert.deepEqual(status.body, { enabled: false, emailDelivery: "unavailable", registrationEnabled: false, passwordMinLength: 12 });
+  assert.deepEqual(status.body, { enabled: false, emailDelivery: "unavailable", registrationEnabled: false, passwordMinLength: 8, passwordMaxLength: 15 });
   assert.equal((await request(port, "/api/auth/login", { method: "POST", body: { email: "a@b.test", password: "x".repeat(12) } })).status, 403);
   assert.equal((await request(port, "/api/admin/unknown")).status, 403);
 });

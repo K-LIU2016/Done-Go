@@ -45,3 +45,14 @@ export function createEmailSender(config, { fetchImpl = fetch, consoleLog = cons
     throw new Error("email_unavailable");
   };
 }
+
+export function createSmsSender(config, { consoleLog = console.log } = {}) {
+  return async ({ phone, code, purpose }) => {
+    if (config.transport === "console") {
+      if (config.publicOrigin || config.production) throw new Error("console_prohibited");
+      consoleLog(`[Tango Done&Go local SMS verification] ${phone} ${purpose} ${code}`);
+      return;
+    }
+    throw new Error("sms_unavailable");
+  };
+}

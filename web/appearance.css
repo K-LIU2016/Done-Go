@@ -47,6 +47,10 @@
 body { background:var(--bg); }
 .top-actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:10px; }
 .top-actions .lang { margin-inline-start:0; }
+.lang { display:inline-flex; align-items:center; position:relative; flex:none; min-width:72px; min-height:44px; }
+.lang-caption { position:relative; z-index:1; display:flex; align-items:center; min-height:44px; padding-inline:12px 30px; pointer-events:none; font-size:13px; }
+.lang select { position:absolute; inset:0; width:100%; color:transparent; }
+.lang select option { color:var(--text); background:var(--surface); }
 .appearance-control { display:inline-flex; align-items:center; position:relative; flex:none; min-width:88px; }
 .appearance-select { appearance:none; -webkit-appearance:none; min-height:44px; padding:8px 27px 8px 12px; border:1px solid var(--line); border-radius:var(--radius-control); color:var(--text); background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23808A7F' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 10px center; font:inherit; font-size:13px; cursor:pointer; }
 .appearance-caption { position:relative; z-index:1; display:flex; align-items:center; min-height:44px; padding-inline:12px 30px; pointer-events:none; font-size:13px; }
