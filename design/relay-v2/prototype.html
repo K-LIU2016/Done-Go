@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探戈 Done&amp;Go · AI 接力 v2 定稿原型</title>
+<style>
+/* ===== Design tokens (final). Implementation MUST use these names. ===== */
+:root{
+  --bg:#FAF8F3; --surface:#FFFFFF; --sunk:#F3F0E8; --ink:#252722; --ink2:#64665D; --ink3:#8E9086; --line:#E4E2D8;
+  --brand:#E95432; --brand-ink:#FFFFFF; --brand-soft:#FDECE6; --forest:#335D4B; --forest-soft:#E7F0EA; --gold:#E8B04B; --gold-soft:#FBF1DC;
+  --ok:#2F7D57; --warn:#B7791F; --err:#B4432F;
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --t-hero:28px; --t-h2:20px; --t-body:16px; --t-sm:14px; --t-xs:12px;
+  --tap:48px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:var(--t-body);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.app{max-width:720px;margin:0 auto;min-height:100vh;padding:0 20px 104px;position:relative}
+/* top bar */
+.top{display:flex;align-items:center;height:64px;gap:10px}
+.top .logo{width:32px;height:32px}
+.top .name{font-weight:700;font-size:18px}
+.top .name small{font-weight:500;color:var(--ink2);font-size:13px;margin-left:4px}
+.top .sp{flex:1}
+.top .guest{font-size:var(--t-xs);color:var(--ink2);background:var(--sunk);border-radius:99px;padding:5px 10px}
+.iconbtn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--ink2)}
+.iconbtn:hover{background:var(--sunk)}
+.tabs-desk{display:none;gap:4px;margin-left:18px}
+.tabs-desk button{padding:8px 14px;border-radius:10px;color:var(--ink2);font-weight:500}
+.tabs-desk button.on{background:var(--ink);color:#fff}
+/* bottom tabs (mobile) */
+.tabbar{position:fixed;left:0;right:0;bottom:0;height:72px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);display:flex;justify-content:center;z-index:5}
+.tabbar .in{display:flex;width:100%;max-width:720px}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;color:var(--ink3)}
+.tabbar button.on{color:var(--brand);font-weight:600}
+.tabbar svg{width:24px;height:24px}
+@media(min-width:900px){.tabbar{display:none}.tabs-desk{display:flex}.app{padding-bottom:48px}}
+svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+/* common */
+.hello{color:var(--ink2);font-size:var(--t-sm);margin-top:12px}
+h1{font-size:var(--t-hero);line-height:1.25;margin:6px 0 6px;letter-spacing:.2px}
+.lead{color:var(--ink2);font-size:15px;line-height:1.6}
+.card{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:18px}
+.ask{margin-top:18px;display:flex;align-items:center;gap:8px;background:var(--surface);border:2px solid var(--ink);border-radius:18px;padding:6px 6px 6px 16px;min-height:60px}
+.ask input,.ask textarea{flex:1;border:0;outline:0;font:inherit;font-size:17px;background:transparent;resize:none}
+.ask .mic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--ink2);background:var(--sunk)}
+.btn{height:var(--tap);padding:0 20px;border-radius:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.btn.pri{background:var(--brand);color:var(--brand-ink)}
+.btn.dark{background:var(--ink);color:#fff}
+.btn.ghost{background:var(--sunk);color:var(--ink)}
+.btn.line{border:1.5px solid var(--line);background:var(--surface)}
+.btn.wide{width:100%}
+.btn svg{width:20px;height:20px}
+.seg{display:flex;gap:6px;margin-top:22px;overflow-x:auto}
+.seg button{height:36px;padding:0 14px;border-radius:99px;background:var(--surface);border:1px solid var(--line);font-size:14px;color:var(--ink2);flex:none}
+.seg button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+@media(min-width:900px){.grid{grid-template-columns:1fr 1fr 1fr}}
+.scene{background:var(--surface);border-radius:var(--r-md);padding:14px;text-align:left;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;min-height:104px}
+.scene .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center}
+.scene .ic svg{width:20px;height:20px}
+.scene b{font-size:15px}
+.scene span{font-size:12.5px;color:var(--ink2);line-height:1.4}
+.c1 .ic{background:var(--brand-soft);color:var(--brand)} .c2 .ic{background:var(--forest-soft);color:var(--forest)} .c3 .ic{background:var(--gold-soft);color:var(--warn)}
+.sec{display:flex;align-items:baseline;justify-content:space-between;margin-top:26px}
+.sec h3{font-size:16px}
+.sec a{font-size:13px;color:var(--ink2)}
+.badges{display:flex;gap:8px;margin-top:10px;overflow-x:auto}
+.badge{flex:none;display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:99px;padding:6px 12px 6px 6px;box-shadow:var(--shadow);font-size:13px}
+.badge i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--forest-soft);color:var(--forest);font-style:normal}
+.badge i svg{width:15px;height:15px}
+.empty{margin-top:10px;border:1.5px dashed var(--line);border-radius:var(--r-md);padding:14px;color:var(--ink2);font-size:13.5px;line-height:1.6}
+/* stepper */
+.steps{display:flex;align-items:center;gap:6px;margin:10px 0 14px;font-size:12.5px;color:var(--ink3)}
+.steps .s{display:flex;align-items:center;gap:6px}
+.steps .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-size:12px;font-weight:600}
+.steps .on{color:var(--ink);font-weight:600}.steps .on .n{background:var(--brand);color:#fff}
+.steps .done .n{background:var(--forest);color:#fff}
+.steps .bar{flex:1;height:2px;background:var(--line);min-width:12px}
+.back{display:inline-flex;align-items:center;gap:4px;color:var(--ink2);font-size:14px;margin-top:6px}
+.back svg{width:18px;height:18px}
+.evt{font-size:13px;color:var(--ink2);margin-top:4px}
+.evt b{color:var(--ink)}
+.match .kicker{font-size:12px;color:var(--forest);font-weight:600;display:flex;align-items:center;gap:6px}
+.match .kicker svg{width:16px;height:16px}
+.match h2{font-size:22px;margin:6px 0 10px}
+.does{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px}
+.does span{background:var(--forest-soft);color:var(--forest);border-radius:8px;padding:5px 10px;font-size:13px;font-weight:500}
+.label{font-size:13.5px;font-weight:600;margin:6px 0 8px;display:flex;justify-content:space-between}
+.label em{font-style:normal;font-weight:400;color:var(--ink3);font-size:12px}
+.material{width:100%;min-height:128px;border:1.5px solid var(--line);border-radius:var(--r-md);padding:12px;font:inherit;font-size:15px;line-height:1.6;background:var(--bg);resize:vertical;outline:none}
+.material:focus{border-color:var(--ink)}
+.tools{display:flex;gap:8px;margin-top:8px}
+.chip{height:34px;padding:0 12px;border-radius:99px;background:var(--sunk);font-size:13px;display:inline-flex;align-items:center;gap:6px;color:var(--ink2)}
+.chip svg{width:16px;height:16px}
+.privacy{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--ink2);line-height:1.5;margin:14px 0}
+.privacy svg{width:16px;height:16px;flex:none;margin-top:2px}
+.alt{text-align:center;font-size:13px;color:var(--ink2);margin-top:12px}
+.alt button{color:var(--ink);text-decoration:underline;text-underline-offset:3px;margin:0 4px}
+/* running / result */
+.run-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.run-h b{font-size:16px;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--brand);animation:p 1s infinite}
+@keyframes p{50%{opacity:.3}}
+.timer{font-size:12.5px;color:var(--ink3)}
+.out{font-size:15.5px;line-height:1.75}
+.out h4{font-size:14px;color:var(--ink2);margin:10px 0 4px}
+.out li{margin-left:18px}
+.caret{display:inline-block;width:8px;height:18px;background:var(--ink);vertical-align:-3px;animation:p 1s infinite}
+.skel{height:12px;border-radius:6px;background:linear-gradient(90deg,var(--sunk),#ece8de,var(--sunk));margin:10px 0}
+.res-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.tweak{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.ai-tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink3)}
+/* rate + learned + baton */
+.rate{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.rate button{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);padding:12px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13.5px}
+.rate button .e{font-size:24px}
+.rate button.on{border-color:var(--forest);background:var(--forest-soft);color:var(--forest);font-weight:600}
+.learned{background:var(--gold-soft);border-radius:var(--r-lg);padding:16px;display:flex;gap:12px;align-items:flex-start;margin-top:14px}
+.learned .medal{width:44px;height:44px;border-radius:50%;background:var(--gold);color:#fff;display:grid;place-items:center;flex:none}
+.learned .medal svg{width:22px;height:22px}
+.learned small{display:block;font-size:12px;color:var(--warn);font-weight:600;margin-bottom:3px}
+.learned b{font-size:15.5px;line-height:1.5}
+.baton{margin-top:14px;border:2px solid var(--ink);border-radius:var(--r-lg);padding:16px;background:var(--surface)}
+.baton .k{font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--brand);display:flex;align-items:center;gap:6px}
+.baton .k svg{width:16px;height:16px}
+.baton h3{font-size:18px;margin:6px 0 4px}
+.baton p{font-size:13.5px;color:var(--ink2);line-height:1.6}
+.apps{display:flex;gap:8px;margin:12px 0;overflow-x:auto}
+.app-c{flex:none;display:flex;align-items:center;gap:8px;border:1.5px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px;font-weight:500}
+.app-c i{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:#fff;font-style:normal;font-size:12px;font-weight:700}
+.app-c.on{border-color:var(--ink);background:var(--sunk)}
+.prompt{background:var(--bg);border:1px dashed var(--ink3);border-radius:12px;padding:12px;font-size:13.5px;line-height:1.65;color:var(--ink);position:relative}
+.prompt .cp{position:absolute;right:8px;top:8px}
+.done-link{display:block;text-align:center;margin-top:10px;font-size:14px;color:var(--forest);font-weight:600}
+.saved-toast{display:flex;align-items:center;gap:8px;justify-content:center;font-size:13px;color:var(--ok);margin-top:14px}
+.saved-toast svg{width:16px;height:16px}
+/* passport */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.stat{background:var(--surface);border-radius:var(--r-md);padding:14px;box-shadow:var(--shadow)}
+.stat b{font-size:26px;display:block;line-height:1.1}
+.stat span{font-size:12px;color:var(--ink2)}
+.stat.g b{color:var(--forest)}
+.skills{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.skill{background:var(--surface);border-radius:var(--r-md);padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px}
+.skill .top2{display:flex;align-items:center;gap:8px}
+.skill .m{width:32px;height:32px;border-radius:50%;background:var(--forest-soft);color:var(--forest);display:grid;place-items:center}
+.skill .m svg{width:16px;height:16px}
+.skill .m.gold{background:var(--gold);color:#fff}
+.skill b{font-size:14.5px}
+.skill span{font-size:12px;color:var(--ink2)}
+.skill button{align-self:flex-start;font-size:13px;color:var(--brand);font-weight:600;margin-top:2px}
+.hist{margin-top:12px;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+.hist .row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--line)}
+.hist .row:first-child{border-top:0}
+.hist .row .e{font-size:20px}
+.hist .row div{flex:1}
+.hist .row b{font-size:14.5px;display:block}
+.hist .row span{font-size:12px;color:var(--ink2)}
+.grad{font-size:11.5px;color:var(--forest);background:var(--forest-soft);border-radius:99px;padding:3px 8px;font-weight:600;white-space:nowrap}
+/* discover */
+.cat{font-size:13px;color:var(--ink2);font-weight:600;margin:20px 0 4px}
+/* more */
+.list{margin-top:14px;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+.list .it{display:flex;align-items:center;gap:12px;padding:15px 16px;border-top:1px solid var(--line);font-size:15px}
+.list .it:first-child{border-top:0}
+.list .it svg{width:20px;height:20px;color:var(--ink2)}
+.list .it span{flex:1}
+.list .it em{font-style:normal;color:var(--ink3);font-size:13px}
+.lab{font-size:12px;color:var(--ink3);margin:22px 4px 0}
+/* fail */
+.fail{border-left:4px solid var(--warn)}
+.fail h2{font-size:19px;margin-bottom:6px}
+.keep{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ok);margin:10px 0}
+.keep svg{width:16px;height:16px}
+/* signup nudge */
+.nudge{display:flex;align-items:center;gap:10px;background:var(--sunk);border-radius:var(--r-md);padding:12px 14px;font-size:13px;color:var(--ink2);margin-top:14px}
+.nudge b{color:var(--ink)}
+.nudge button{margin-left:auto;font-weight:600;color:var(--brand)}
+/* prototype nav (not part of product) */
+.proto{position:fixed;top:8px;right:8px;z-index:9;background:#111;color:#fff;border-radius:10px;padding:6px;font-size:11px;display:flex;flex-wrap:wrap;gap:4px;max-width:330px;opacity:.9}
+.proto button{color:#fff;background:#333;border-radius:6px;padding:3px 6px}
+body.shot .proto{display:none}
+body.shot{position:relative}
+body.shot .tabbar{position:absolute}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<!-- Icon sprite (lucide-style strokes) -->
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-medal" viewBox="0 0 24 24"><circle cx="12" cy="15" r="5"/><path d="M8.5 10.5 6 3h4l2 5 2-5h4l-2.5 7.5"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+  <symbol id="i-notes" viewBox="0 0 24 24"><path d="M9 4h6M9 4a2 2 0 0 0-2 2v0H5v15h14V6h-2a2 2 0 0 0-2-2"/><path d="M8 11h8M8 15h5"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m4 6 1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-baton" viewBox="0 0 24 24"><path d="M4 20 16 8M14 4l6 6M12 6l6 6"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-lang" viewBox="0 0 24 24"><path d="M4 5h9M8.5 3v2M6 5c1 4 4 7 7 8M11 5c-1 4-4 7-7 8M13 21l4-9 4 9M14.5 18h5"/></symbol>
+  <symbol id="i-paint" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16" cy="10" r="1.2"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L5 19a1 1 0 0 0 .9 1.5h12.2A1 1 0 0 0 19 19l-5-10V3"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-cap" viewBox="0 0 24 24"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/></symbol>
+</svg>
+
+<div class="proto" id="proto"></div>
+
+<div class="app">
+  <header class="top">
+    <svg class="logo" viewBox="0 0 100 100" style="stroke:none"><path d="M30 30 L28 12" stroke="#E95432" stroke-width="6" stroke-linecap="round"/><circle cx="27.5" cy="10" r="6" fill="#E95432"/><path d="M70 30 C71 18 74 13 79 14 C84 15 83 22 78 21" stroke="#E95432" stroke-width="6" fill="none" stroke-linecap="round"/><rect x="9" y="42" width="12" height="24" rx="5" fill="#E95432"/><rect x="79" y="42" width="12" height="24" rx="5" fill="#E95432"/><rect x="16" y="28" width="68" height="62" rx="18" fill="#E95432"/><path d="M33 45 H68 M51 46 L46 76" stroke="#FAF6EC" stroke-width="8" stroke-linecap="round" fill="none"/></svg>
+    <div class="name">探戈<small>Done&amp;Go</small></div>
+    <nav class="tabs-desk"><button data-go="home" class="on">开始</button><button data-go="passport">我的用法</button><button data-go="discover">发现</button></nav>
+    <div class="sp"></div>
+    <span class="guest">访客</span>
+    <button class="iconbtn" data-go="more" aria-label="更多"><svg width="22" height="22"><use href="#i-more"/></svg></button>
+  </header>
+
+  <!-- ========== S1 开始 ========== -->
+  <section id="s-home">
+    <p class="hello">周六下午好</p>
+    <h1>今天要做什么？</h1>
+    <p class="lead">说一件手头的事，探戈帮你交给合适的 AI。</p>
+    <div class="ask"><input value="" placeholder="说一件今天要做的事"><button class="mic" aria-label="语音输入"><svg width="22" height="22"><use href="#i-mic"/></svg></button><button class="btn pri" data-go="match">开始<svg><use href="#i-arrow"/></svg></button></div>
+    <div class="seg" role="tablist" aria-label="我是"><button class="on">学生</button><button>老师</button><button>上班族</button><button>长辈</button></div>
+    <div class="grid">
+      <button class="scene c1" data-go="match"><span class="ic"><svg><use href="#i-doc"/></svg></span><b>读懂一篇论文</b><span>先给你 5 个要点和 3 个问题</span></button>
+      <button class="scene c2" data-go="match"><span class="ic"><svg><use href="#i-mail"/></svg></span><b>给导师写邮件</b><span>说清意图，AI 先起草</span></button>
+      <button class="scene c3" data-go="match"><span class="ic"><svg><use href="#i-notes"/></svg></span><b>整理组会纪要</b><span>重点、待办、待补充</span></button>
+      <button class="scene c2" data-go="match"><span class="ic"><svg><use href="#i-globe"/></svg></span><b>摘要翻成英文</b><span>保留术语，可校对</span></button>
+      <button class="scene c3" data-go="match"><span class="ic"><svg><use href="#i-list"/></svg></span><b>拆解作业计划</b><span>按截止日拆成小步</span></button>
+      <button class="scene c1" data-go="match"><span class="ic"><svg><use href="#i-pen"/></svg></span><b>改一版简历</b><span>突出经历，不编造</span></button>
+    </div>
+    <div class="sec"><h3>我学会的用法</h3><a data-go="passport">全部</a></div>
+    <div class="badges">
+      <span class="badge"><i><svg><use href="#i-check"/></svg></i>会议材料 → 重点和待办</span>
+      <span class="badge"><i><svg><use href="#i-check"/></svg></i>长文 → 5 个要点</span>
+      <span class="badge"><i><svg><use href="#i-check"/></svg></i>口语 → 礼貌邮件</span>
+    </div>
+  </section>
+
+  <!-- ========== S2 匹配：这件事可以这样交给 AI ========== -->
+  <section id="s-match" hidden>
+    <button class="back" data-go="home"><svg><use href="#i-left"/></svg>换一件事</button>
+    <div class="steps"><div class="s on"><span class="n">1</span>说清楚</div><div class="bar"></div><div class="s"><span class="n">2</span>AI 先做</div><div class="bar"></div><div class="s"><span class="n">3</span>你来接棒</div></div>
+    <div class="card match">
+      <div class="kicker"><svg><use href="#i-spark"/></svg>这件事适合交给 AI</div>
+      <p class="evt">你说的是：<b>整理今天的组会记录</b></p>
+      <h2>整理会议纪要</h2>
+      <div class="does"><span>① 列出重点</span><span>② 拆出待办和负责人</span><span>③ 标出没说清的地方</span></div>
+      <div class="label">把会议内容给我<em>粘贴文字，或直接说</em></div>
+      <textarea class="material" placeholder="把聊天记录、笔记或转写文字粘贴到这里……">今天周会讨论了新版首页，决定本周五上线；张三负责测试，李四写上线公告；下周一复盘数据。</textarea>
+      <div class="tools"><span class="chip"><svg><use href="#i-mic"/></svg>说给我听</span><span class="chip"><svg><use href="#i-copy"/></svg>从剪贴板粘贴</span></div>
+      <p class="privacy"><svg><use href="#i-lock"/></svg>点下面的按钮后，这段内容会发给 AI 处理。不包含你的账号信息，不会给任何人看。</p>
+      <button class="btn pri wide" data-go="running">让 AI 先做一版</button>
+      <p class="alt">不太对？换成<button>写一封回复</button>或<button>列一个计划</button></p>
+    </div>
+  </section>
+
+  <!-- ========== S3 AI 先做（流式中） ========== -->
+  <section id="s-running" hidden>
+    <div class="steps"><div class="s done"><span class="n">✓</span>说清楚</div><div class="bar"></div><div class="s on"><span class="n">2</span>AI 先做</div><div class="bar"></div><div class="s"><span class="n">3</span>你来接棒</div></div>
+    <div class="card">
+      <div class="run-h"><b><span class="dot"></span>AI 正在整理…</b><span class="timer">已用 4 秒</span></div>
+      <div class="out"><h4>会议重点</h4><ol><li>新版首页计划本周五上线</li><li>下周一复盘上线数据<span class="caret"></span></li></ol></div>
+      <div class="skel" style="width:72%"></div><div class="skel" style="width:54%"></div>
+      <button class="btn line wide" style="margin-top:14px" data-go="match"><svg><use href="#i-stop"/></svg>先停一下</button>
+    </div>
+    <p class="lead" style="font-size:13px;text-align:center;margin-top:12px">一般 5–15 秒。你的内容都留着，随时可以停。</p>
+  </section>
+
+  <!-- ========== S4 结果 + 自评 + 学会了 + 接力棒 ========== -->
+  <section id="s-result" hidden>
+    <div class="steps"><div class="s done"><span class="n">✓</span>说清楚</div><div class="bar"></div><div class="s done"><span class="n">✓</span>AI 先做</div><div class="bar"></div><div class="s on"><span class="n">3</span>你来接棒</div></div>
+    <div class="card">
+      <div class="run-h"><b>AI 先做好的一版</b><span class="ai-tag"><svg width="14" height="14"><use href="#i-spark"/></svg>AI 生成 · 请你核对</span></div>
+      <div class="out" contenteditable="true">
+        <h4>会议重点</h4><ol><li>新版首页计划本周五上线</li><li>下周一复盘上线数据</li></ol>
+        <h4>待办</h4><ol><li>张三：完成上线前测试</li><li>李四：写好上线公告</li></ol>
+        <h4>没说清的地方</h4><ol><li>测试范围和完成时间</li><li>复盘会的具体时间</li></ol>
+      </div>
+      <div class="res-actions"><button class="btn dark"><svg><use href="#i-copy"/></svg>复制</button><button class="btn ghost"><svg><use href="#i-edit"/></svg>直接改</button><button class="btn ghost"><svg><use href="#i-redo"/></svg>再来一版</button></div>
+      <div class="tweak"><span class="chip">更短一点</span><span class="chip">更正式</span><span class="chip">加上时间</span></div>
+    </div>
+
+    <div class="sec"><h3>这次帮上忙了吗？</h3></div>
+    <div class="rate"><button class="on"><span class="e">😀</span>省了不少</button><button><span class="e">🙂</span>省了一点</button><button><span class="e">😐</span>没省时间</button></div>
+
+    <div class="learned"><span class="medal"><svg><use href="#i-medal"/></svg></span><div><small>你学会了一个新用法</small><b>把会议材料交给 AI，先要「重点、待办、没说清的地方」。</b></div></div>
+
+    <div class="baton">
+      <div class="k"><svg><use href="#i-baton"/></svg>接力棒 · 下次你自己来</div>
+      <h3>在你常用的 AI 里，自己做一次</h3>
+      <p>复制这段话，粘贴到下面任意一个 AI，再贴上你的会议内容。做到一次，这个用法就真正是你的了。</p>
+      <div class="apps"><span class="app-c on"><i style="background:#3E6BF5">豆</i>豆包</span><span class="app-c"><i style="background:#4D6BFE">D</i>DeepSeek</span><span class="app-c"><i style="background:#615CED">千</i>通义千问</span><span class="app-c"><i style="background:#111">K</i>Kimi</span><span class="app-c"><i style="background:#1BB46B">元</i>元宝</span></div>
+      <div class="prompt"><button class="chip cp"><svg><use href="#i-copy"/></svg>复制</button>请把下面的会议内容整理成三部分：1. 会议重点；2. 待办（写清负责人）；3. 没说清、需要追问的地方。只根据内容整理，不要补充没提到的信息。<br>会议内容：……</div>
+      <button class="btn pri wide" style="margin-top:12px">复制并打开豆包<svg><use href="#i-arrow"/></svg></button>
+      <button class="done-link" data-go="passport">✓ 我自己做到了</button>
+    </div>
+    <div class="nudge"><svg width="18" height="18"><use href="#i-user"/></svg><span>已存到这台设备。<b>登录</b>后换手机也能看到。</span><button>登录</button></div>
+  </section>
+
+  <!-- ========== S5 我的用法（护照） ========== -->
+  <section id="s-passport" hidden>
+    <h1 style="margin-top:14px">我的用法</h1>
+    <p class="lead">你和 AI 一起做过的事，都在这里。</p>
+    <div class="stats"><div class="stat"><b>4</b><span>学会的用法</span></div><div class="stat"><b>9</b><span>次 AI 接力</span></div><div class="stat g"><b>3</b><span>次自己做到</span></div></div>
+    <div class="sec"><h3>学会的用法</h3></div>
+    <div class="skills">
+      <div class="skill"><div class="top2"><span class="m gold"><svg><use href="#i-medal"/></svg></span><b>会议 → 重点和待办</b></div><span>接力 4 次 · 自己做到 2 次</span><button data-go="match">再做一次 →</button></div>
+      <div class="skill"><div class="top2"><span class="m gold"><svg><use href="#i-medal"/></svg></span><b>长文 → 5 个要点</b></div><span>接力 3 次 · 自己做到 1 次</span><button data-go="match">再做一次 →</button></div>
+      <div class="skill"><div class="top2"><span class="m"><svg><use href="#i-medal"/></svg></span><b>口语 → 礼貌邮件</b></div><span>接力 1 次 · 还没自己试</span><button data-go="result">去试一次 →</button></div>
+      <div class="skill"><div class="top2"><span class="m"><svg><use href="#i-medal"/></svg></span><b>想法 → 分步计划</b></div><span>接力 1 次 · 还没自己试</span><button data-go="result">去试一次 →</button></div>
+    </div>
+    <div class="sec"><h3>最近</h3></div>
+    <div class="hist">
+      <div class="row"><span class="e">😀</span><div><b>整理组会纪要</b><span>今天 · 会议 → 重点和待办</span></div><span class="grad">自己做到</span></div>
+      <div class="row"><span class="e">🙂</span><div><b>给导师回邮件</b><span>昨天 · 口语 → 礼貌邮件</span></div></div>
+      <div class="row"><span class="e">😀</span><div><b>读论文 Attention…</b><span>10-22 · 长文 → 5 个要点</span></div><span class="grad">自己做到</span></div>
+      <div class="row"><span class="e">😐</span><div><b>周末旅行安排</b><span>10-21 · 想法 → 分步计划</span></div></div>
+    </div>
+  </section>
+
+  <!-- ========== S6 发现 ========== -->
+  <section id="s-discover" hidden>
+    <h1 style="margin-top:14px">发现</h1>
+    <p class="lead">挑一件跟你有关的事，点一下就开始。</p>
+    <div class="seg"><button>学生</button><button class="on">老师</button><button>上班族</button><button>长辈</button></div>
+    <p class="cat">写</p>
+    <div class="grid">
+      <button class="scene c1" data-go="match"><span class="ic"><svg><use href="#i-pen"/></svg></span><b>写 30 条学生评语</b><span>给要点，AI 先起草，你来改</span></button>
+      <button class="scene c2" data-go="match"><span class="ic"><svg><use href="#i-mail"/></svg></span><b>家长群通知</b><span>说清事项，语气温和</span></button>
+      <button class="scene c3" data-go="match"><span class="ic"><svg><use href="#i-notes"/></svg></span><b>班会发言稿</b><span>3 分钟，有一个小故事</span></button>
+    </div>
+    <p class="cat">备课</p>
+    <div class="grid">
+      <button class="scene c2" data-go="match"><span class="ic"><svg><use href="#i-cap"/></svg></span><b>一节课的教案</b><span>目标、环节、提问</span></button>
+      <button class="scene c1" data-go="match"><span class="ic"><svg><use href="#i-list"/></svg></span><b>出 10 道练习题</b><span>分难度，附答案</span></button>
+      <button class="scene c3" data-go="match"><span class="ic"><svg><use href="#i-doc"/></svg></span><b>读懂一份文件</b><span>新政策说了什么</span></button>
+    </div>
+  </section>
+
+  <!-- ========== S7 更多 ========== -->
+  <section id="s-more" hidden>
+    <h1 style="margin-top:14px">更多</h1>
+    <div class="list">
+      <div class="it"><svg><use href="#i-user"/></svg><span>账号</span><em>访客 · 去登录</em><svg width="16" height="16"><use href="#i-chev"/></svg></div>
+      <div class="it"><svg><use href="#i-lang"/></svg><span>语言</span><em>中文</em><svg width="16" height="16"><use href="#i-chev"/></svg></div>
+      <div class="it"><svg><use href="#i-paint"/></svg><span>外观</span><em>标准</em><svg width="16" height="16"><use href="#i-chev"/></svg></div>
+    </div>
+    <div class="list">
+      <div class="it"><svg><use href="#i-cpu"/></svg><span>我们用了哪些 AI</span><em>说明与出处</em><svg width="16" height="16"><use href="#i-chev"/></svg></div>
+      <div class="it"><svg><use href="#i-shield"/></svg><span>隐私与数据</span><em>导出 · 删除</em><svg width="16" height="16"><use href="#i-chev"/></svg></div>
+    </div>
+    <p class="lab">实验室（早期功能，不影响主流程）</p>
+    <div class="list">
+      <div class="it"><svg><use href="#i-flask"/></svg><span>时间记录与回顾</span><em>旧版</em><svg width="16" height="16"><use href="#i-chev"/></svg></div>
+      <div class="it"><svg><use href="#i-cal"/></svg><span>约定与小组</span><em>旧版</em><svg width="16" height="16"><use href="#i-chev"/></svg></div>
+    </div>
+  </section>
+
+  <!-- ========== S8 失败 ========== -->
+  <section id="s-fail" hidden>
+    <div class="steps"><div class="s done"><span class="n">✓</span>说清楚</div><div class="bar"></div><div class="s on"><span class="n">2</span>AI 先做</div><div class="bar"></div><div class="s"><span class="n">3</span>你来接棒</div></div>
+    <div class="card fail">
+      <h2>AI 这次没接上</h2>
+      <p class="lead" style="font-size:14px">它想得太久了（超过 60 秒）。不是你的问题。</p>
+      <div class="keep"><svg><use href="#i-check"/></svg>你填的内容都还在。</div>
+      <button class="btn pri wide" data-go="running">再试一次</button>
+    </div>
+    <div class="baton">
+      <div class="k"><svg><use href="#i-baton"/></svg>不想等？自己接力</div>
+      <h3>把这件事带去豆包，自己做</h3>
+      <p>复制下面这段话，粘贴到豆包，再贴上你的会议内容。</p>
+      <div class="prompt"><button class="chip cp"><svg><use href="#i-copy"/></svg>复制</button>请把下面的会议内容整理成：会议重点、待办（写清负责人）、没说清的地方。</div>
+      <button class="btn dark wide" style="margin-top:12px">复制并打开豆包<svg><use href="#i-arrow"/></svg></button>
+    </div>
+  </section>
+</div>
+
+<nav class="tabbar"><div class="in">
+  <button data-go="home" class="on"><svg><use href="#i-home"/></svg>开始</button>
+  <button data-go="passport"><svg><use href="#i-medal"/></svg>我的用法</button>
+  <button data-go="discover"><svg><use href="#i-compass"/></svg>发现</button>
+</div></nav>
+
+<script>
+const S=['home','match','running','result','passport','discover','more','fail'];
+const TAB={home:'home',match:'home',running:'home',result:'home',fail:'home',passport:'passport',discover:'discover',more:''};
+function go(s){S.forEach(x=>document.getElementById('s-'+x).hidden=x!==s);
+  document.querySelectorAll('.tabbar button,.tabs-desk button').forEach(b=>b.classList.toggle('on',b.dataset.go===TAB[s]));
+  window.scrollTo(0,0);history.replaceState(null,'','?s='+s+(document.body.classList.contains('shot')?'&shot=1':''));}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-go]');if(t){e.preventDefault();go(t.dataset.go);}
+  const r=e.target.closest('.rate button');if(r){r.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));r.classList.add('on');}
+  const a=e.target.closest('.app-c');if(a){a.parentNode.querySelectorAll('.app-c').forEach(b=>b.classList.remove('on'));a.classList.add('on');}
+  const g=e.target.closest('.seg button');if(g){g.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));g.classList.add('on');}});
+const q=new URLSearchParams(location.search);if(q.get('shot'))document.body.classList.add('shot');
+document.getElementById('proto').innerHTML='原型：'+S.map(s=>`<button data-go="${s}">${s}</button>`).join('');
+go(S.includes(q.get('s'))?q.get('s'):'home');
+</script>
+</body>
+</html>
