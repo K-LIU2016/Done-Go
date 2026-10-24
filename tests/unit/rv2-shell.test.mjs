@@ -467,6 +467,17 @@ test('renderMorePage: en copy falls in for lang=en', () => {
   assert.ok(html.includes('Privacy &amp; data'));
 });
 
+test('shellCopy: i18n.js RELAY_COPY shell group plugs in via aliases', () => {
+  const bar = renderTopBar(resolveRoute('#/start'), {
+    user: null, lang: 'zh',
+    copy: { appName: 'Tango', appSub: 'D&G', more: 'Plus', tabStart: 'Go' },
+  });
+  assert.ok(bar.includes('Tango'), 'appName alias → brand name');
+  assert.ok(bar.includes('D&amp;G'), 'appSub alias → brand sub');
+  assert.ok(bar.includes('aria-label="Plus"'), 'more alias → more aria/title');
+  assert.ok(bar.includes('>Go</a>'), 'tabStart override applies');
+});
+
 // ---------------------------------------------------------------------------
 // 挂载（createRelayShell, DI 风格 — fake DOM）
 // ---------------------------------------------------------------------------

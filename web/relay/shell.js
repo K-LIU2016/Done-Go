@@ -206,12 +206,32 @@ var COPY = {
   },
 };
 
+// i18n 线（web/relay/i18n.js RELAY_COPY.*.shell）的键名别名，使
+// copyGroup(lang, 'shell') 可以不做映射直接作为 options.copy 注入。
+var COPY_ALIASES = {
+  brandName: ['appName'],
+  brandSub: ['appSub'],
+  moreTitle: ['more'],
+  moreAria: ['more'],
+};
+
 export function shellCopy(lang, overrides) {
   var table = COPY[lang === 'en' ? 'en' : 'zh'];
   if (overrides && typeof overrides === 'object') {
     var merged = {};
     for (var key in table) {
-      merged[key] = Object.prototype.hasOwnProperty.call(overrides, key) && overrides[key] != null ? String(overrides[key]) : table[key];
+      merged[key] = table[key];
+      if (Object.prototype.hasOwnProperty.call(overrides, key) && overrides[key] != null) {
+        merged[key] = String(overrides[key]);
+        continue;
+      }
+      var aliases = COPY_ALIASES[key];
+      for (var i = 0; aliases && i < aliases.length; i += 1) {
+        if (Object.prototype.hasOwnProperty.call(overrides, aliases[i]) && overrides[aliases[i]] != null) {
+          merged[key] = String(overrides[aliases[i]]);
+          break;
+        }
+      }
     }
     return merged;
   }
