@@ -150,6 +150,21 @@ const MIGRATIONS = [
         target_id TEXT NOT NULL, reason TEXT NOT NULL, at TEXT NOT NULL);
     `),
   },
+  {
+    // v2（2026-10-25 修复轮）：
+    // - onboarding_seen：PRD §5「开启前一屏讲清楚会分享什么」的服务端可查落点
+    //   （service /opt-in 开启时校验；/onboarding-seen 幂等标记）。
+    // - 三个热查询索引：profiles_weekly 按 week 分区（PRD §7「候选池按周分区」，
+    //   poolCandidates 的 JOIN 不再全表扫）；kudos(to_account)（listKudos）；
+    //   pairs(b)（listPairs/pairCount 的 b 侧，原先只有 UNIQUE(a,b) 覆盖 a 侧）。
+    version: 2,
+    up: (db) => db.exec(`
+      ALTER TABLE social_accounts ADD COLUMN onboarding_seen INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX IF NOT EXISTS idx_profiles_weekly_week ON profiles_weekly(week);
+      CREATE INDEX IF NOT EXISTS idx_kudos_to ON kudos(to_account);
+      CREATE INDEX IF NOT EXISTS idx_pairs_b ON pairs(b);
+    `),
+  },
 ];
 
 function migrate(db) {
@@ -205,11 +220,21 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
     catch (error) { db.exec('ROLLBACK'); throw error; }
   }
 
-  const all = (sql, ...params) => db.prepare(sql).all(...params);
-  const get = (sql, ...params) => db.prepare(sql).get(...params) ?? null;
+  // 预编译语句缓存：all()/get() 是全部热路径（匹配管线逐候选 blockedBetween
+  // 曾被每调用 db.prepare 放大成最大成本项）；同一条 SQL 只编译一次。
+  const statements = new Map();
+  const stmt = (sql) => {
+    let prepared = statements.get(sql);
+    if (!prepared) { prepared = db.prepare(sql); statements.set(sql, prepared); }
+    return prepared;
+  };
+  const all = (sql, ...params) => stmt(sql).all(...params);
+  const get = (sql, ...params) => stmt(sql).get(...params) ?? null;
   const count = (sql, ...params) => Number(get(sql, ...params)?.count ?? 0);
 
   // ---- 行 ↔ 契约形状 ------------------------------------------------------
+  // pairOf 有意不含 freezes_week：validatePair 是六键白名单，公共形状不加键；
+  // 周预算判断走 pairFreezeState（专用读面）。
   const pairOf = (row) => row && { id: row.id, a: row.a, b: row.b, startedWeek: row.started_week, flame: row.flame, freezesUsed: row.freezes_used };
   const questOf = (row) => row && { id: row.id, week: row.week, scope: row.scope, title: row.title, target: row.target, unit: row.unit };
   const progressOf = (row) => row && { questId: row.quest_id, scope: row.scope, owner: row.owner, progress: row.progress, done: !!row.done };
@@ -218,7 +243,7 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
     targetKind: row.target_kind, targetId: row.target_id, card: JSON.parse(row.card),
   };
   const eventOf = (row) => row && { id: row.id, batonId: row.baton_id, kind: row.kind, at: row.at, byAccount: row.by_account };
-  const stateOf = (row) => row && { optIn: !!row.opted_in, minor: !!row.is_minor, alias: row.alias, avatarColor: row.avatar_color };
+  const stateOf = (row) => row && { optIn: !!row.opted_in, minor: !!row.is_minor, alias: row.alias, avatarColor: row.avatar_color, onboardingSeen: !!row.onboarding_seen };
   const circleRow = (id) => get('SELECT * FROM circles WHERE id=?', id);
   const circleOf = (row) => row && {
     id: row.id, name: row.name, inviteCode: row.invite_code, owner: row.owner_account,
@@ -228,6 +253,7 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
   const api = {
     close() { tighten(); db.close(); },
     schemaVersion: () => schemaVersion,
+    indexNames: () => all("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%'").map((row) => row.name),
     tableCounts() {
       const names = all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").map((r) => r.name);
       requireValue(names.every((name) => SOCIAL_TABLES.includes(name)), 'SCHEMA_DRIFT', 500);
@@ -243,7 +269,7 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
       requireValue(id);
       const existing = get('SELECT * FROM social_accounts WHERE account=?', id);
       const enabled = input.enabled === true;
-      if (!enabled && !existing) return { optIn: false, minor: false, alias: null, avatarColor: null };
+      if (!enabled && !existing) return { optIn: false, minor: false, alias: null, avatarColor: null, onboardingSeen: false };
       // S4 契约：开启时服务端已生成化名+头像色；已有值优先（可再开启语义）
       const alias = existing?.alias || validateAlias(input.alias);
       const avatarColor = existing?.avatar_color || (isAvatarColor(input.avatarColor) ? input.avatarColor : null);
@@ -271,6 +297,26 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
         return api.getState(id);
       });
     },
+    // 「已看过会分享什么」幂等标记（PRD §5）。账号行不存在时用调用方给的
+    // 化名/头像色占位建档（opted_in=0）；之后的 /opt-in 会复用这个化名。
+    markOnboardingSeen(account, input = {}) {
+      const id = accountText(account);
+      requireValue(id);
+      const stamp = now();
+      return transaction(() => {
+        const existing = get('SELECT * FROM social_accounts WHERE account=?', id);
+        if (existing) {
+          db.prepare('UPDATE social_accounts SET onboarding_seen=1, updated_at=? WHERE account=?').run(stamp, id);
+        } else {
+          const alias = validateAlias(input.alias);
+          const avatarColor = isAvatarColor(input.avatarColor) ? input.avatarColor : null;
+          requireValue(alias && avatarColor, 'INVALID_INPUT');
+          db.prepare(`INSERT INTO social_accounts(account, alias, avatar_color, is_minor, opted_in, onboarding_seen, created_at, updated_at)
+            VALUES (?,?,?,?,0,1,?,?)`).run(id, alias, avatarColor, 0, stamp, stamp);
+        }
+        return api.getState(id);
+      });
+    },
 
     // ---- 每周画像（D2 白名单在存储边界） -----------------------------------
     saveProfile(account, features) {
@@ -294,6 +340,10 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
         WHERE s.opted_in=1 AND (?=1 OR s.is_minor=0)`, week, allowMinors ? 1 : 0)
         .map((row) => { const features = JSON.parse(row.features); return { account: row.account, graduations: features.graduations, record: { alias: row.alias, avatarColor: row.avatar_color, features } }; });
     },
+    // 是否同圈（kudos 圈级挑战「圈内互相加油」的判定面）。
+    isCirclePeer: (account, other) => !!get(
+      'SELECT 1 AS one FROM circle_members m1 JOIN circle_members m2 ON m2.circle_id=m1.circle_id WHERE m1.account=? AND m2.account=?',
+      accountText(account), accountText(other)),
     circlePeerCandidates(account, week, { allowMinors = true } = {}) {
       const id = accountText(account);
       requireValue(id && typeof week === 'string' && week);
@@ -319,6 +369,32 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
     getSharedEvent: (owner, eventId) => {
       const row = get('SELECT * FROM shared_events WHERE id=? AND owner_account=?', eventId, accountText(owner));
       return row ? { id: row.id, kind: row.kind, owner: row.owner_account } : null;
+    },
+    // 仅按 id 反查（kudos 新形状：客户端只拿 sharedEventId，服务端自己找 owner，
+    // 客户端永远不需要知道对方的 account id —— 化名体系 PRD §3.3/§5）。
+    findSharedEvent: (eventId) => {
+      const row = get('SELECT * FROM shared_events WHERE id=?', typeof eventId === 'string' ? eventId.trim() : '');
+      return row ? { id: row.id, kind: row.kind, owner: row.owner_account } : null;
+    },
+    listSharedEvents: (owner, { limit = 50 } = {}) =>
+      all('SELECT * FROM shared_events WHERE owner_account=? ORDER BY rowid LIMIT ?', accountText(owner), limit)
+        .map((row) => ({ id: row.id, kind: row.kind, owner: row.owner_account, at: row.at })),
+    // 「能被谁加油」面：本人确认分享的事件里，属于我的搭档或圈友的那部分
+    // （PRD §4.3：可以对搭档或圈友的事件加油）。屏蔽过滤在 service 层做
+    // （blocksInvolving 一次载入）。
+    listShareableEvents(account, { limit = 20 } = {}) {
+      const id = accountText(account);
+      requireValue(id);
+      return all(`SELECT e.id AS id, e.owner_account AS owner, e.kind AS kind, e.at AS at
+        FROM shared_events e
+        WHERE e.owner_account IN (
+          SELECT b FROM pairs WHERE a=? UNION SELECT a FROM pairs WHERE b=?
+          UNION SELECT m2.account FROM circle_members m1
+            JOIN circle_members m2 ON m2.circle_id=m1.circle_id AND m2.account<>?
+            WHERE m1.account=?
+        )
+        ORDER BY e.at DESC, e.rowid DESC LIMIT ?`, id, id, id, id, limit)
+        .map((row) => ({ id: row.id, owner: row.owner, kind: row.kind, at: row.at }));
     },
     addKudos(entry) {
       const validated = validateKudos({ from: entry?.from, to: entry?.to, eventKind: entry?.eventKind, sharedEventId: entry?.sharedEventId });
@@ -412,6 +488,12 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
     listPairs: (account) => all('SELECT * FROM pairs WHERE a=? OR b=? ORDER BY rowid', accountText(account), accountText(account)).map(pairOf),
     pairCount: (account) => count('SELECT COUNT(*) AS count FROM pairs WHERE a=? OR b=?', accountText(account), accountText(account)),
     deletePair(id) { return transaction(() => { db.prepare('DELETE FROM pairs WHERE id=?').run(id); return { deleted: true }; }); },
+    // 周预算专用读面：service 的「每周 1 次」预检用它与 store 层同口径按周
+    // 重置（pairOf 的公共形状不含 freezes_week，白名单加键会炸 validatePair）。
+    pairFreezeState: (id) => {
+      const row = get('SELECT freezes_used, freezes_week FROM pairs WHERE id=?', id);
+      return row ? { freezesUsed: row.freezes_used, freezesWeek: row.freezes_week } : null;
+    },
     // 每周 PAIR_FREEZES_PER_WEEK 次冻结；换了周自动重置预算（freezes_week 锚定）。
     freezePair(id, { week } = {}) {
       return transaction(() => {
@@ -508,19 +590,31 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
         freedTo = validateFreedToSummary(mean);
         requireValue(freedTo, 'SOCIAL_DATA_INVALID', 500);
       }
-      // 圈内排名：只按传棒数与毕业数（D5），前 CIRCLE_RANK_SHOWN 名 + 你
-      const batonsBy = new Map(all(`SELECT from_account, COUNT(*) AS n FROM baton_shares WHERE created_week=? AND from_account IN (${marks}) GROUP BY from_account`, week, ...members).map((row) => [row.from_account, row.n]));
+      // 圈内排名：只按传棒数与毕业数（D5），前 CIRCLE_RANK_SHOWN 名 + 你。
+      // 传棒口径 = PRD §4.4/§8 北极星：发出的棒【被对方完成接力或毕业】才 +1
+      // （EXISTS baton_events relay-completed/graduated）——零交互发棒不计数，
+      // D5 防灌水。并列用 competition ranking（同名次），与 web/social/
+      // circles.js circleRanking 纯函数同口径；「你」在前 3 内不重复输出。
+      const batonsBy = new Map(all(`SELECT bs.from_account AS from_account, COUNT(*) AS n
+        FROM baton_shares bs
+        WHERE bs.created_week=? AND bs.from_account IN (${marks})
+          AND EXISTS (SELECT 1 FROM baton_events be WHERE be.baton_id=bs.id AND be.kind IN ('relay-completed','graduated'))
+        GROUP BY bs.from_account`, week, ...members).map((row) => [row.from_account, row.n]));
       const stateBy = new Map(all(`SELECT account, alias, avatar_color FROM social_accounts WHERE account IN (${marks})`, ...members).map((row) => [row.account, row]));
       const ranked = members.map((member) => ({
         member, batons: batonsBy.get(member) || 0, graduations: featuresBy.get(member)?.graduations || 0,
       })).sort((x, y) => y.batons - x.batons || y.graduations - x.graduations || (x.member < y.member ? -1 : 1));
-      const entry = (row, index) => {
+      const rows = [];
+      let viewerIndex = -1;
+      ranked.forEach((row, index) => {
+        const prev = rows[rows.length - 1];
+        const rank = prev && prev.batons === row.batons && prev.graduations === row.graduations ? prev.rank : index + 1;
+        if (viewer && row.member === viewer) viewerIndex = index;
         const state = stateBy.get(row.member);
-        return { rank: index + 1, alias: state?.alias || '同频圈友', avatarColor: state?.avatar_color || '#4C7A93', batons: row.batons, graduations: row.graduations };
-      };
-      const top = ranked.slice(0, CIRCLE_RANK_SHOWN).map(entry);
-      const viewerIndex = viewer ? ranked.findIndex((row) => row.member === viewer) : -1;
-      const you = viewerIndex >= 0 ? entry(ranked[viewerIndex], viewerIndex) : null;
+        rows.push({ rank, alias: state?.alias || '同频圈友', avatarColor: state?.avatar_color || '#4C7A93', batons: row.batons, graduations: row.graduations });
+      });
+      const top = rows.slice(0, CIRCLE_RANK_SHOWN);
+      const you = viewerIndex >= CIRCLE_RANK_SHOWN ? rows[viewerIndex] : null; // 在前 3 里已经可见，不重复
       const rankView = validateCircleRankView({ top, you });
       requireValue(rankView, 'SOCIAL_DATA_INVALID', 500);
       return { wall, chain, freedTo, rankView };
@@ -582,6 +676,11 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
     },
     listBlocks: (account) => all('SELECT blocked_account FROM blocks WHERE blocker_account=? ORDER BY rowid', accountText(account)).map((row) => row.blocked_account),
     blockedBetween: (a, b) => !!get('SELECT 1 AS one FROM blocks WHERE (blocker_account=? AND blocked_account=?) OR (blocker_account=? AND blocked_account=?)', a, b, b, a),
+    // 与我相关的全部屏蔽对（两个方向一次载入）：匹配管线用它做 O(1) 过滤，
+    // 替代逐候选 blockedBetween 的 1 万次往返（prepare 缓存后仍是纯开销）。
+    blocksInvolving: (account) => new Set(all(
+      'SELECT blocker_account AS a FROM blocks WHERE blocked_account=? UNION SELECT blocked_account AS a FROM blocks WHERE blocker_account=?',
+      accountText(account), accountText(account)).map((row) => row.a)),
     report(entry = {}) {
       const reporter = accountText(entry.reporter);
       const reason = reasonText(entry.reason);

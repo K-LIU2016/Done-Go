@@ -26,7 +26,10 @@
 
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { resolve, normalize, sep } from 'node:path';
+import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
+import { readFile } from 'node:fs/promises';
 import { createTangoServer } from './serve-tango.mjs';
 import { createSocialStore } from './social-store.mjs';
 import { createSocialService, questPlan } from './social-service.mjs';
@@ -227,6 +230,17 @@ export function seedDemoUsers(store, options = {}) {
     store.setQuestProgress({ questId: plan[1].id, scope: plan[1].scope, owner: 'demo-you', progress: 30, done: false });
   }
 
+  // 示例分享事件（PRD §4.3「事件只在本人确认分享后出现」）：给示例用户各铺
+  // 一条已确认分享的事件，① 屏「加油」端到端可用（GET /shared-events →
+  // POST /kudos）。demo-lake 的由下面示例加油顺带创建，不重复铺。
+  const DEMO_SHARED_KINDS = {
+    'demo-you': 'usage-learned', 'demo-pine': 'self-kept', 'demo-dawn': 'time-given',
+    'demo-mom': 'time-given', 'demo-relay': 'self-kept',
+  };
+  for (const [userId, kind] of Object.entries(DEMO_SHARED_KINDS)) {
+    if ((store.listSharedEvents ? store.listSharedEvents(userId) : []).length === 0) store.recordSharedEvent(userId, kind);
+  }
+
   // 示例加油：demo-lake 分享「学会了一个用法」，并给主视角加油一次。
   if (store.listKudos('demo-you').length === 0) {
     const shared = store.recordSharedEvent('demo-lake', 'usage-learned');
@@ -309,12 +323,15 @@ export function createSocialLabServer(options = {}) {
     if (!myProfile) return [];
     const pool = allowPublicPool ? store.poolCandidates(at, { allowMinors: false }) : [];
     const peers = store.circlePeerCandidates(account, at) || [];
+    // 屏蔽对一次载入（blocksInvolving）：万级候选下逐候选 blockedBetween 的
+    // 1 万次往返是 /matches 最大成本项，O(1) Set 过滤后整段 <1ms。
+    const blocked = store.blocksInvolving ? store.blocksInvolving(account) : new Set();
     const seen = new Set([account]);
     const candidates = [];
     for (const hit of [...pool, ...peers]) {
       if (!hit || seen.has(hit.account) || !hit.record) continue;
       seen.add(hit.account);
-      if (store.blockedBetween(account, hit.account)) continue;
+      if (blocked.has(hit.account)) continue;
       candidates.push({ account: hit.account, alias: hit.record.alias, avatarColor: hit.record.avatarColor, features: hit.record.features });
     }
     return findMatches(myProfile, candidates, { myAccount: account }); // S2 引擎：略多一点 + 相似度 + 理由
@@ -331,6 +348,44 @@ export function createSocialLabServer(options = {}) {
 
   const tango = createTangoServer(options.tango || {});
   const tangoHandler = tango.listeners('request')[0]; // createTangoServer 的 request handler（静态 web/ 服务）
+
+  // lab 静态资产（/social/* 与 social 前端的依赖 /relay/*）：lab 在 tango 之前
+  // 接手 —— gzip + ETag/304。首屏 JS 门槛（≤60KB）按传输字节计；gzip 后
+  // lab-app+home+contracts ≈ 26KB。no-cache（每次带 ETag 重验证）保证换版本
+  // 不取陈货，304 时零正文。
+  const WEB_ROOT = resolve(fileURLToPath(import.meta.url), '../../web');
+  const STATIC_PREFIXES = { '/social/': 'social', '/relay/': 'relay' };
+  const SOCIAL_STATIC_TYPES = { '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
+  const staticCache = new Map(); // path -> { body, gz, etag, type }
+
+  async function serveSocialStatic(req, res, pathname) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+    const prefix = Object.keys(STATIC_PREFIXES).find((name) => pathname.startsWith(name));
+    if (!prefix || pathname.endsWith('/')) return false;
+    const rel = normalize(pathname.slice(prefix.length)).split(sep).join('/');
+    if (!rel || rel.startsWith('..') || rel.includes('../')) return false;
+    const dirRoot = resolve(WEB_ROOT, STATIC_PREFIXES[prefix]);
+    const file = resolve(dirRoot, rel);
+    if (!file.startsWith(dirRoot + sep)) return false;
+    let entry = staticCache.get(pathname);
+    if (!entry) {
+      let body;
+      try { body = await readFile(file); } catch { return false; }
+      const type = SOCIAL_STATIC_TYPES[file.slice(file.lastIndexOf('.'))] || 'application/octet-stream';
+      entry = { body, gz: gzipSync(body), etag: '"' + createHash('sha1').update(body).digest('hex').slice(0, 20) + '"', type };
+      staticCache.set(pathname, entry);
+    }
+    if (req.headers['if-none-match'] === entry.etag) {
+      res.writeHead(304, { ETag: entry.etag, 'Cache-Control': 'no-cache', Vary: 'Accept-Encoding' });
+      res.end();
+      return true;
+    }
+    const canGzip = /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
+    const headers = { 'Content-Type': entry.type, 'Cache-Control': 'no-cache', ETag: entry.etag, Vary: 'Accept-Encoding' };
+    if (canGzip) { headers['Content-Encoding'] = 'gzip'; headers['Content-Length'] = entry.gz.length; res.writeHead(200, headers); res.end(req.method === 'HEAD' ? undefined : entry.gz); }
+    else { headers['Content-Length'] = entry.body.length; res.writeHead(200, headers); res.end(req.method === 'HEAD' ? undefined : entry.body); }
+    return true;
+  }
 
   function accountsView() {
     return {
@@ -384,6 +439,7 @@ export function createSocialLabServer(options = {}) {
         await social.handle(req, res, req.url); // req.url 保留 query（service 自行解析）
         return;
       }
+      if (await serveSocialStatic(req, res, pathname)) return; // lab 自有资产：gzip + ETag
       if (typeof tangoHandler === 'function') await tangoHandler(req, res); // 静态 web/ 与既有 tango 行为
       else tango.emit('request', req, res);
     })().catch(() => {

@@ -158,8 +158,12 @@ test('D6 链裁剪：8 跳只展示最后 5 跳（contracts.clipBatonChain 同�
   vm.hops.forEach((h) => {
     assert.ok(validateAlias(h.alias));
     assert.ok(/^#[0-9A-Fa-f]{6}$/.test(h.avatarColor));
-    assert.equal(h.initial, h.alias.slice(0, 1));
+    // 徽章字 = 尾字（自然物，contracts.aliasBadgeChar；与 home.js ① 屏同规则）
+    assert.equal(h.initial, Array.from(h.alias)[Array.from(h.alias).length - 1]);
   });
+  // 「·」标记后缀不参与取字：今晚的风·示例 → 风（lab 示例徽章不再全变「例」）
+  const marked = chainViewModel(['今晚的风·示例', '安静的湖']);
+  assert.equal(marked.hops[0].initial, '风');
 });
 
 test('链边界：≤5 跳不裁剪；垃圾项被丢弃；5/6 跳分界正确', () => {

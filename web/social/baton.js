@@ -30,7 +30,7 @@
 
 import {
   BATON_CHAIN_MAX_HOPS, BATON_TARGET_KINDS, STYLES,
-  clipBatonChain, isAvatarColor, validateAlias,
+  aliasBadgeChar, clipBatonChain, isAvatarColor, validateAlias,
   validateBatonCard, validateBatonEvent, validateBatonShare,
 } from './contracts.js';
 import { batonMaterialPreview, validateUsage } from '../relay/contracts.js';
@@ -207,8 +207,10 @@ export function chainViewModel(chain, options) {
   });
   var total = aliases.length;
   var shown = clipBatonChain(aliases); // contracts：白名单字符串、保留最后 5 跳
+  // 徽章字与 home.js 同规则（contracts.aliasBadgeChar：尾字=自然物，
+  // 「·示例」等标记后缀不参与）—— 同一化名跨屏徽章一致。
   var hops = shown.map(function (alias) {
-    return { alias: alias, initial: alias.slice(0, 1), avatarColor: colors[alias] };
+    return { alias: alias, initial: aliasBadgeChar(alias) || alias.slice(-1), avatarColor: colors[alias] };
   });
   return {
     hops: hops,
@@ -336,7 +338,7 @@ function pickChipHtml(target, on) {
     + ' aria-pressed="' + (on ? 'true' : 'false') + '"'
     + ' style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11.5px;color:#64665D;'
     + 'border:0;background:none;padding:0;cursor:pointer">'
-    + avatarSpan(target.alias.slice(0, 1), target.avatarColor, 48, on)
+    + avatarSpan(aliasBadgeChar(target.alias) || String(target.alias).slice(-1), target.avatarColor, 48, on)
     + '<span>' + esc(target.alias) + '</span></button>';
 }
 

@@ -180,6 +180,54 @@ test('端点存在：传棒发出与访客打开链接', async () => {
     const opened = await json(await fetch(base + '/api/social/baton/' + sent.id)); // 无鉴权（访客）
     assert.equal(opened.card.usageId, 'meeting-notes');
     assert.ok(Array.isArray(opened.chain) && opened.chain.length <= 5);
+    // 隐私红线：链出库即化名（{alias, avatarColor}），原始 account id 不出服务
+    for (const hop of opened.chain) {
+      assert.equal(typeof hop.alias, 'string');
+      assert.ok(/^[#][0-9A-Fa-f]{6}$/.test(hop.avatarColor));
+    }
+    assert.ok(!JSON.stringify(opened.chain).includes('demo-you'), 'raw demo ids must not leak');
+  } finally { await lab.close(); }
+});
+
+test('端点存在：kudos 端到端 —— GET /shared-events 化名可见，POST /kudos 新形状入库', async () => {
+  const { lab, base } = await startLab();
+  try {
+    const listed = await json(await fetch(base + '/api/social/shared-events', { headers: as('demo-you') }));
+    assert.ok(Array.isArray(listed.events) && listed.events.length >= 1, '搭档/圈友的确认分享事件可见');
+    for (const event of listed.events) {
+      assert.equal(typeof event.ownerAlias, 'string');
+      assert.ok(event.ownerAlias.includes(LAB_DEMO_ALIAS_MARK), '示例账号化名带标记：' + event.ownerAlias);
+    }
+    assert.ok(!JSON.stringify(listed).match(/"owner"/), '不回原始 account id');
+    const peer = listed.events[0];
+    const cheer = await fetch(base + '/api/social/kudos', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...as('demo-you') },
+      body: JSON.stringify({ eventKind: peer.kind, sharedEventId: peer.id }),
+    });
+    assert.equal(cheer.status, 200);
+  } finally { await lab.close(); }
+});
+
+test('lab 静态资产：gzip 压缩 + ETag 304（首屏 JS 门槛按传输字节计）', async () => {
+  const { lab, base } = await startLab();
+  try {
+    const plain = await fetch(base + '/social/home.js', { headers: { 'accept-encoding': 'identity' } }); // fetch 默认会带 gzip，显式 identity 才能拿原始字节
+    assert.equal(plain.status, 200);
+    assert.match(plain.headers.get('content-type'), /javascript/);
+    assert.equal(plain.headers.get('content-encoding'), null, 'identity request must not be gzipped');
+    assert.ok(plain.headers.get('etag'));
+    const gz = await fetch(base + '/social/home.js', { headers: { 'accept-encoding': 'gzip' } });
+    assert.equal(gz.status, 200);
+    assert.equal(gz.headers.get('content-encoding'), 'gzip');
+    const rawLength = Number(plain.headers.get('content-length'));
+    const packedLength = Number(gz.headers.get('content-length'));
+    assert.ok(packedLength < rawLength, 'gzip transfer smaller than raw: ' + packedLength + ' < ' + rawLength);
+    const etag = gz.headers.get('etag');
+    const revalidate = await fetch(base + '/social/home.js', { headers: { 'if-none-match': etag } });
+    assert.equal(revalidate.status, 304, 'ETag revalidation returns 304');
+    const missing = await fetch(base + '/social/../package.json');
+    assert.ok(missing.status === 404 || missing.status === 400, 'path traversal not served');
   } finally { await lab.close(); }
 });
 
@@ -231,6 +279,18 @@ test('演示鉴权：未知账号 401；未开启账号 matches 403 后可 opt-i
     assert.equal(gated.status, 403);
     assert.equal((await gated.json()).error, 'SOCIAL_OPT_IN_REQUIRED');
 
+    const direct = await fetch(base + '/api/social/opt-in', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...as('demo-new') },
+      body: JSON.stringify({ enabled: true, minor: false }),
+    });
+    assert.equal(direct.status, 403, 'PRD §5：未看过「会分享什么」不能开启（ONBOARDING_REQUIRED）');
+    const seen = await fetch(base + '/api/social/onboarding-seen', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...as('demo-new') },
+      body: JSON.stringify({}),
+    });
+    assert.equal(seen.status, 200);
     const enabled = await fetch(base + '/api/social/opt-in', {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...as('demo-new') },

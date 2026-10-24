@@ -267,8 +267,14 @@ export function createOnboarding(options) {
       render();
       return true;
     },
+    // 「暂不开启」收尾：只有已经展示过「会分享什么」（step ≥ 1，即 shares
+    // 屏及之后）才算 seen —— 第 1 屏就退出的人没有被讲清楚会分享什么，
+    // 不能获得 optIn 资格（PRD §5；此前 step 0 即 seen，可跳过讲解直接开）。
+    // onDone 始终发出（收尾关卡片），seen 是否落盘由步骤决定。
     complete: function () {
-      if (state.seen) return false;
+      const informed = state.step >= ONBOARDING_STEPS.indexOf('shares');
+      if (!informed) { emit('onDone'); return false; }
+      if (state.seen) { emit('onDone'); return false; }
       state.seen = true;
       persist();
       render();

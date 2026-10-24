@@ -261,6 +261,17 @@ export function validateAlias(value) {
   return text(value, ALIAS_MAX);
 }
 
+// 化名徽章字（原型①②③统一规则）：徽章画的是自然物 —— 即「·」前主体的
+// 尾字（PRD §5 化名 = 形容词 + 自然物；原型① 安静的湖→湖、原型② 链=晨、
+// 原型③ 课题组→组/妈妈→妈）。「·」后是标记后缀（lab 示例「·示例」等），
+// 不参与取字，避免三张推荐卡徽章全变「例」的分裂。
+export function aliasBadgeChar(alias) {
+  var raw = String(alias == null ? '' : alias).trim();
+  var core = raw.indexOf('·') >= 0 ? raw.slice(0, raw.lastIndexOf('·')).trim() : raw;
+  var chars = Array.from(core);
+  return chars.length ? chars[chars.length - 1] : '';
+}
+
 export function isAvatarColor(value) {
   return typeof value === 'string' && AVATAR_COLOR_RE.test(value);
 }

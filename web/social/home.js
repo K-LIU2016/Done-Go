@@ -38,7 +38,7 @@
 
 import {
   STYLES, MATCHES_PER_WEEK, MATCH_RECENT_USAGES_MAX, MAX_PAIRS,
-  validateStyleCard, validateMatch,
+  validateStyleCard, validateMatch, aliasBadgeChar,
 } from './contracts.js';
 
 export var SOCIAL_HOME_COPY = {
@@ -113,9 +113,10 @@ export function weekLabel(week) {
 
 // 化名徽章字 = 尾字（自然物）。PRD §5 化名系统是「形容词 + 自然物」，原型
 // ① 安静的湖→湖、原型③ 课题组→组 / 妈妈→妈，头像画的都是尾字。
+// 取字规则统一在 contracts.aliasBadgeChar（「·」标记后缀不参与，如 lab 示例
+// 「今晚的风·示例」→风），①②③屏同一化名同一徽章。
 export function aliasBadge(alias) {
-  var chars = Array.from(String(alias == null ? '' : alias).trim());
-  return chars.length ? chars[chars.length - 1] : '';
+  return aliasBadgeChar(alias);
 }
 
 export function similarityLabel(similarity) {

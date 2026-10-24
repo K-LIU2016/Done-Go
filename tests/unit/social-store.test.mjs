@@ -68,7 +68,7 @@ test('S3: store creates every PRD §7 table plus the privacy tables (tableCounts
   const store = mkStore();
   const counts = store.tableCounts();
   assert.deepEqual(Object.keys(counts).sort(), TABLES.sort(), 'all tables exist');
-  assert.equal(store.schemaVersion(), 1, 'social_meta stamped at v1');
+  assert.equal(store.schemaVersion(), 2, 'social_meta stamped at v2 (v1 表 + v2 onboarding_seen/热索引)');
   store.close();
 });
 
@@ -83,7 +83,7 @@ test('S3: file store is 0600 (social.sqlite, WAL sidecars too) and survives reop
   first.close();
   assert.equal(statSync(file).mode & 0o777, 0o600, 'social.sqlite is 0600');
   const second = createSocialStore({ databaseFile: file, now: NOW });
-  assert.equal(second.schemaVersion(), 1, 'reopen does not re-migrate');
+  assert.equal(second.schemaVersion(), 2, 'reopen does not re-migrate');
   assert.equal(second.getProfile('u1', WEEK).graduations, 3, 'data survives reopen');
   second.close();
   rmSync(dir, { recursive: true, force: true });
@@ -134,10 +134,10 @@ test('S3: getState/optIn/setAlias match the S4 store contract semantics', () => 
   const store = mkStore();
   assert.equal(store.getState('u1'), null);
   store.optIn('u1', { enabled: true, minor: false, alias: '安静的湖', avatarColor: '#4C7A93' });
-  assert.deepEqual(store.getState('u1'), { optIn: true, minor: false, alias: '安静的湖', avatarColor: '#4C7A93' });
+  assert.deepEqual(store.getState('u1'), { optIn: true, minor: false, alias: '安静的湖', avatarColor: '#4C7A93', onboardingSeen: false });
   // 关闭同频：optIn=false 但保留化名与未成年标记（PRD §5 可再开启）
   store.optIn('u1', { enabled: false });
-  assert.deepEqual(store.getState('u1'), { optIn: false, minor: false, alias: '安静的湖', avatarColor: '#4C7A93' });
+  assert.deepEqual(store.getState('u1'), { optIn: false, minor: false, alias: '安静的湖', avatarColor: '#4C7A93', onboardingSeen: false });
   store.setAlias('u1', { alias: '晚风的溪', avatarColor: '#3E7B5B' });
   assert.equal(store.getState('u1').alias, '晚风的溪');
   assert.throws(() => store.setAlias('u1', { alias: 'x'.repeat(40) }), (e) => e.code === 'INVALID_INPUT');
@@ -313,24 +313,129 @@ test('S3: removeCircleMember removes; circleHome aggregates wall/freedTo/rankVie
   store.createBatonShare({ id: 'b-f1', usageId: CARD.usageId, fromAccount: 'founder', targetKind: 'circle', targetId: 'c1', card: CARD });
   store.createBatonShare({ id: 'b-f2', usageId: 'paper-5points', fromAccount: 'founder', targetKind: 'circle', targetId: 'c1', card: { ...CARD, usageId: 'paper-5points', scenarioTitle: '长文 → 5 个要点' } });
   store.createBatonShare({ id: 'b-m1', usageId: CARD.usageId, fromAccount: 'mate', targetKind: 'circle', targetId: 'c1', card: CARD });
+  store.createBatonShare({ id: 'b-m2', usageId: CARD.usageId, fromAccount: 'mate2', targetKind: 'circle', targetId: 'c1', card: CARD }); // 无人完成 → 不计数
+  // 完成接力才计数（PRD §4.4/§8）：founder 2 根都被 mate 完成；mate 1 根被 founder 完成
+  for (const [baton, by] of [['b-f1', 'mate'], ['b-f2', 'mate'], ['b-m1', 'founder']]) {
+    store.addBatonEvent({ id: 'ev-' + baton, batonId: baton, kind: 'relay-completed', at: '2026-10-21T08:00:00Z', byAccount: by });
+  }
 
   const home = store.circleHome('c1', WEEK, 'mate2');
   // 用法墙：三个成员本周用过 meeting-notes，两个用过 paper-5points
   assert.deepEqual(home.wall, [{ usageId: 'meeting-notes', count: 3 }, { usageId: 'paper-5points', count: 1 }]);
   // 传棒链：圈内传棒经过的人（≤5 跳，D6 视图封顶在聚合层生效）
   assert.ok(home.chain.length <= BATON_CHAIN_MAX_HOPS);
-  assert.deepEqual([...home.chain].sort(), ['founder', 'mate']);
+  assert.deepEqual([...home.chain].sort(), ['founder', 'mate', 'mate2'], '链=传棒经过的人（含未完成棒的发送者；计数才看完成）');
   // 空出来的时间：只显示占比
   assert.ok(validateFreedToSummary(home.freedTo), 'freedTo summary passes the D5 validator');
-  // 圈内排名：只按传棒与毕业，前 3 + 你，无任何工时字段
+  // 圈内排名：只按【被完成的】传棒与毕业（D5 + PRD §4.4），前 3 + 你
   assert.ok(validateCircleRankView(home.rankView), 'rank view passes the D5 validator');
-  assert.equal(home.rankView.top[0].alias, '远山的松', 'most batons ranks first');
-  assert.equal(home.rankView.you.alias, '安静的湖');
+  assert.equal(home.rankView.top[0].alias, '远山的松', 'most completed batons ranks first');
+  assert.equal(home.rankView.top[0].batons, 2);
+  assert.equal(home.rankView.top[1].batons, 1);
+  const mate2Row = home.rankView.top.find((entry) => entry.alias === '安静的湖');
+  assert.equal(mate2Row.batons, 0, 'uncompleted batons never count (D5 防灌水)');
+  assert.equal(home.rankView.you, null, 'viewer already inside top is not duplicated（与 circles.js 同口径）');
   const rankText = JSON.stringify(home.rankView);
   for (const banned of ['hours', 'minutes', 'workHours', 'duration']) assert.ok(!rankText.includes(banned), 'no work-time metric in the rank view: ' + banned);
 
+  // viewer 跌出前 3 时才单出「你」行；并列同名次（competition ranking）
+  store.joinCircle('c1', 'big1');
+  store.joinCircle('c1', 'big2');
+  store.joinCircle('c1', 'big3');
+  store.optIn('big1', { enabled: true, minor: false, alias: '高山的鹰', avatarColor: '#E95432' });
+  store.optIn('big2', { enabled: true, minor: false, alias: '林间的鸟', avatarColor: '#3E7B5B' });
+  store.optIn('big3', { enabled: true, minor: false, alias: '谷雨的竹', avatarColor: '#C7701F' });
+  for (const [i, who] of ['big1', 'big2', 'big3'].entries()) {
+    const id = 'b-big-' + i;
+    store.createBatonShare({ id, usageId: CARD.usageId, fromAccount: who, targetKind: 'circle', targetId: 'c1', card: CARD });
+    store.addBatonEvent({ id: 'ev-' + id, batonId: id, kind: 'relay-completed', at: '2026-10-21T08:00:00Z', byAccount: 'founder' });
+  }
+  const shifted = store.circleHome('c1', WEEK, 'mate2');
+  assert.equal(shifted.rankView.you && shifted.rankView.you.alias, '安静的湖', 'outside top → you row appears');
+  assert.deepEqual(shifted.rankView.top.map((entry) => entry.rank), [1, 2, 3, 4, 5].slice(0, 3), 'distinct scores get sequential ranks');
+  // 并列：mate(1 baton,1 graduation) vs 无并列者 —— 用相同数值构造并列
+  const tied = store.circleHome('c1', WEEK, null);
+  assert.ok(validateCircleRankView(tied.rankView));
+
   store.removeCircleMember('c1', 'mate2');
   assert.equal(store.isCircleMember('c1', 'mate2'), false);
+  store.close();
+});
+
+test('S3: circleHome 传棒口径 —— 零交互发棒不计（PRD §8 北极星）', () => {
+  const store = mkStore();
+  seedCircle(store);
+  store.joinCircle('c1', 'mate');
+  store.optIn('founder', { enabled: true, minor: false, alias: '远山的松', avatarColor: '#615CED' });
+  store.optIn('mate', { enabled: true, minor: false, alias: '晨跑的鹿', avatarColor: '#E8B04B' });
+  store.saveProfile('founder', mkFeatures({ graduations: 2 }));
+  store.saveProfile('mate', mkFeatures({ graduations: 1 }));
+  for (let i = 0; i < 3; i += 1) {
+    store.createBatonShare({ id: 'b-x-' + i, usageId: CARD.usageId, fromAccount: 'founder', targetKind: 'circle', targetId: 'c1', card: CARD });
+  }
+  const home = store.circleHome('c1', WEEK, 'mate');
+  const founderRow = home.rankView.top.find((entry) => entry.alias === '远山的松');
+  assert.equal(founderRow ? founderRow.batons : 0, 0, '发 3 根无人完成的棒不计传棒');
+  // 「毕业」也计数（PRD §4.4：完成接力或毕业后）
+  store.addBatonEvent({ id: 'ev-grad', batonId: 'b-x-0', kind: 'graduated', at: '2026-10-21T08:00:00Z', byAccount: 'mate' });
+  const home2 = store.circleHome('c1', WEEK, 'mate');
+  assert.equal(home2.rankView.top.find((entry) => entry.alias === '远山的松').batons, 1);
+  store.close();
+});
+
+test('S3: v2 migration — onboarding_seen persisted, hot-path indexes exist, statement cache works', () => {
+  const store = mkStore();
+  assert.equal(store.schemaVersion() >= 2, true);
+  // onboarding_seen：标记 → optIn 保留标记
+  assert.equal(store.getState('u1'), null);
+  const seen = store.markOnboardingSeen('u1', { alias: '山间的湖', avatarColor: '#4C7A93' });
+  assert.equal(seen.onboardingSeen, true);
+  assert.equal(seen.optIn, false);
+  const aliasBefore = store.getState('u1').alias;
+  const after = store.optIn('u1', { enabled: true, minor: false });
+  assert.equal(after.optIn, true);
+  assert.equal(after.onboardingSeen, true, 'optIn preserves the seen mark');
+  assert.equal(after.alias, aliasBefore, 'optIn reuses the alias minted at onboarding-seen');
+  // pairFreezeState：周锚定
+  store.createPair({ id: 'pr-1', a: 'a', b: 'b', startedWeek: WEEK, flame: 0, freezesUsed: 0 });
+  assert.deepEqual(store.pairFreezeState('pr-1'), { freezesUsed: 0, freezesWeek: null });
+  store.freezePair('pr-1', { week: WEEK });
+  assert.deepEqual(store.pairFreezeState('pr-1'), { freezesUsed: 1, freezesWeek: WEEK });
+  // blocksInvolving：双向
+  store.block('x', 'u1');
+  const involving = store.blocksInvolving('u1');
+  assert.equal(involving.has('x'), true);
+  assert.equal(store.blocksInvolving('nobody').size, 0);
+  // isCirclePeer
+  store.createCircle({ id: 'cc', name: '圈', inviteCode: 'PEER001', owner: 'u1' });
+  store.joinCircle('cc', 'y');
+  assert.equal(store.isCirclePeer('u1', 'y'), true);
+  assert.equal(store.isCirclePeer('u1', 'z'), false);
+  // 索引存在性（性能门槛的物理落点）
+  const indexNames = store.indexNames();
+  for (const name of ['idx_profiles_weekly_week', 'idx_kudos_to', 'idx_pairs_b']) {
+    assert.ok(indexNames.includes(name), name + ' missing');
+  }
+  store.close();
+});
+
+test('S3: listShareableEvents —— 搭档与圈友的确认分享事件，屏蔽过滤由 service 执行', () => {
+  const store = mkStore();
+  store.optIn('me', { enabled: true, minor: false, alias: '安静的湖', avatarColor: '#4C7A93' });
+  store.optIn('partner', { enabled: true, minor: false, alias: '远山的松', avatarColor: '#615CED' });
+  store.optIn('mate', { enabled: true, minor: false, alias: '晨跑的鹿', avatarColor: '#E8B04B' });
+  store.optIn('outsider', { enabled: true, minor: false, alias: '晚风的溪', avatarColor: '#E8B04B' });
+  store.createPair({ id: 'pr-1', a: 'me', b: 'partner', startedWeek: WEEK, flame: 0, freezesUsed: 0 });
+  store.createCircle({ id: 'cc', name: '圈', inviteCode: 'SHARE01', owner: 'me' });
+  store.joinCircle('cc', 'mate');
+  const partnerEvent = store.recordSharedEvent('partner', 'usage-learned');
+  const mateEvent = store.recordSharedEvent('mate', 'time-given');
+  store.recordSharedEvent('outsider', 'self-kept');
+  store.recordSharedEvent('me', 'self-kept'); // 自己的不进可加油面
+  const ids = store.listShareableEvents('me').map((event) => event.id).sort();
+  assert.deepEqual(ids, [mateEvent.id, partnerEvent.id].sort());
+  assert.equal(store.findSharedEvent(partnerEvent.id).owner, 'partner');
+  assert.equal(store.findSharedEvent('made-up'), null);
   store.close();
 });
 

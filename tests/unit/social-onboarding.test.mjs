@@ -177,10 +177,10 @@ test('optIn on the last screen opts in, marks seen and persists', () => {
   assert.equal(again.state().step, 2);
 });
 
-test('complete() without opt-in marks seen (暂不开启) and persists', () => {
+test('complete() after the shares screen marks seen (暂不开启) and persists', () => {
   const storage = mapStorage();
   const ob = createOnboarding({ storage });
-  ob.next();
+  ob.next(); // 到「会分享什么」屏
   assert.equal(ob.complete(), true);
   assert.equal(ob.state().seen, true);
   assert.equal(ob.state().optedIn, false);
@@ -189,9 +189,21 @@ test('complete() without opt-in marks seen (暂不开启) and persists', () => {
   assert.equal(again.state().firstVisit, false);
 });
 
+test('PRD §5 gate: bailing out on screen 1 does NOT mark seen — no opt-in credit without the shares screen', () => {
+  const storage = mapStorage();
+  const ob = createOnboarding({ storage });
+  assert.equal(ob.complete(), false); // 第 1 屏就退出：没有被讲清楚会分享什么
+  assert.equal(ob.state().seen, false);
+  assert.equal(ob.state().canOptIn, false);
+  assert.equal(ob.optIn(), false, 'step 0 且未 seen —— 不能开启');
+  const again = createOnboarding({ storage });
+  assert.equal(again.state().seen, false);
+});
+
 test('after completing once, optIn can be re-enabled later (settings re-toggle) and opted out again', () => {
   const storage = mapStorage();
   const ob = createOnboarding({ storage });
+  ob.next();
   ob.complete();
   assert.equal(ob.state().canOptIn, true); // seen → may opt in from settings
   assert.equal(ob.optIn(), true);
@@ -327,15 +339,21 @@ test('mount renders screen 1, advances via primary, and opts in on the last scre
   ob.unmount();
 });
 
-test('mount secondary button completes without opt-in; unmount clears', () => {
+test('mount secondary button completes without opt-in (after shares screen); unmount clears', () => {
   const events = { done: 0 };
   const ob = createOnboarding({ storage: mapStorage(), onDone: () => { events.done += 1; } });
   const el = stubEl();
   ob.mount(el);
+  // 第 1 屏点「暂不开启」：关卡片（onDone）但不记 seen（没看过会分享什么）
+  fire(el, 'click', el.querySelector('#soc-onb-secondary'));
+  assert.equal(events.done, 1);
+  assert.equal(ob.state().seen, false);
+  // 走到「会分享什么」屏再退出：seen 成立
+  fire(el, 'click', el.querySelector('#soc-onb-primary')); // what → shares
   fire(el, 'click', el.querySelector('#soc-onb-secondary'));
   assert.equal(ob.state().seen, true);
   assert.equal(ob.state().optedIn, false);
-  assert.equal(events.done, 1);
+  assert.equal(events.done, 2);
   ob.unmount();
   assert.equal(el.html, '');
 });

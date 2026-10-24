@@ -112,6 +112,9 @@ test('aliasBadge takes the LAST character（自然物：原型①湖、原型③
   assert.equal(aliasBadge('𝕏file'), 'e'); // 代理对安全：取最后一个码点
   assert.equal(aliasBadge(''), '');
   assert.equal(aliasBadge(null), '');
+  // 「·」标记后缀不参与取字（lab 示例「·示例」不再让三张推荐卡徽章全变「例」）
+  assert.equal(aliasBadge('今晚的风·示例'), '风');
+  assert.equal(aliasBadge('安静的湖·示例'), '湖');
 });
 
 test('similarityLabel formats 同频 N% with rounding and clamping', () => {

@@ -23,8 +23,9 @@
 //
 // Store 接口（由 S1 线 scripts/social-store.mjs 实现；测试注入内存 stub，
 // 形状必须一致）：
-//   getState(account) -> { optIn, minor, alias, avatarColor } | null
+//   getState(account) -> { optIn, minor, alias, avatarColor, onboardingSeen } | null
 //   optIn(account, { enabled, minor, alias, avatarColor }) -> 同上（首次开启时落服务端生成的化名）
+//   markOnboardingSeen(account, { alias, avatarColor }) -> 同上（幂等；PRD §5 开启前看过引导）
 //   setAlias(account, { alias, avatarColor }) -> 同上
 //   saveProfile(account, features) -> void            // features 已过白名单
 //   getProfile(account, week) -> features | null
@@ -32,16 +33,20 @@
 //   circlePeerCandidates(account, week) -> [{ account, graduations, record }]
 //   recordSharedEvent(account, kind) -> { id, kind, owner }
 //   getSharedEvent(owner, eventId) -> { id, kind, owner } | null
+//   findSharedEvent(eventId) / listSharedEvents(owner) /
+//   listShareableEvents(account) -> [{ id, owner, kind, at }]   // 搭档+圈友的分享事件
 //   addKudos(entry) / listKudos(account)
-//   createBatonShare(share) / getBatonShare(id) / addBatonEvent(event) / batonChain(id)
+//   createBatonShare(share) / getBatonShare(id) / addBatonEvent(event) /
+//   batonEvents(batonId) / batonChain(id)
 //   listPairs(account) / pairCount(account) / createPair(pair) / getPair(id) /
-//   deletePair(id) / freezePair(id)
+//   deletePair(id) / pairFreezeState(id) / freezePair(id, { week })
 //   listCircles(account) / createCircle({ id, name, inviteCode, owner }) /
 //   findCircleByInvite(code) / getCircle(id) / circleMemberCount(id) /
 //   joinCircle(id, account) / leaveCircle(id, account) / isCircleMember(id, account) /
-//   circleOwner(id) / removeCircleMember(id, member) /
+//   isCirclePeer(account, other) / circleOwner(id) / removeCircleMember(id, member) /
 //   circleHome(id, week, viewer) -> { wall, chain, freedTo, rankView }
-//   block(a, b) / unblock(a, b) / listBlocks(a) / blockedBetween(a, b)
+//   block(a, b) / unblock(a, b) / listBlocks(a) / blockedBetween(a, b) /
+//   blocksInvolving(a) -> Set
 //   report(entry) / questFeedback(questId, account, type) / getQuestProgress(questId, owner)
 //   purgeAccount(account) -> void                      // D2 级联彻底删除
 
@@ -51,7 +56,7 @@ import {
   ACCOUNT_ID_MAX, ALIAS_MAX,
   validateFeaturesUpload,
   validateAlias, isAvatarColor, validateMatch,
-  MATCHES_PER_WEEK, KUDOS_EVENT_KINDS, validateKudos,
+  MATCHES_PER_WEEK, KUDOS_EVENT_KINDS, KUDOS_EVENT_LABELS, validateKudos,
   validateBatonCard, validateBatonShare, validateBatonEvent,
   BATON_TARGET_KINDS, clipBatonChain,
   MAX_PAIRS, PAIR_FREEZES_PER_WEEK, validatePair,
@@ -60,6 +65,7 @@ import {
   QUEST_FEEDBACK_TYPES, validateQuest, validateQuestProgress,
   STYLES, isIsoWeek,
 } from '../web/social/contracts.js';
+import { findMatches } from './social-features.mjs';
 
 const BODY_MAX_BYTES = 128 * 1024;
 const REPORT_REASON_MAX = 200;
@@ -84,6 +90,11 @@ const QUEST_CIRCLE_POOL = [
   { title: '全圈学会 3 个新用法', target: 3, unit: '个' },
   { title: '给圈友传棒 2 次', target: 2, unit: '次' },
 ];
+// 周挑战进度与真实动作的绑定（PRD §4.7「完成后得徽章」的生产写入路径）：
+// 按标题锚定 —— 池子在 questPlan 是确定性的，标题即语义。
+const QUEST_PERSONAL_GIVE_BATON = '给 1 个人传棒';
+const QUEST_CIRCLE_KUDOS = '圈内互相加油 5 次';
+const QUEST_CIRCLE_BATON = '给圈友传棒 2 次';
 
 export function socialError(code, status = 400) {
   return Object.assign(new Error(code), { code, status });
@@ -176,14 +187,28 @@ export function createSocialService(options = {}) {
   const currentWeek = options.currentWeek || (() => defaultCurrentWeek(now()));
   const rng = options.rng || Math.random;
   const limits = { write: 30, read: 240, preview: 12, windowMs: 60000, ...(options.rateLimits || {}) };
-  // 默认 matcher：公开池（排除未成年人与未开启者 —— store 侧执行）+ 所在圈
-  // 成员（PRD §3.3 冷启动）。屏蔽过滤在这里做（service 层只有化名记录）。
-  const matcher = options.matcher || (async ({ account, week, allowPublicPool }) => {
-    const pool = allowPublicPool ? (store.poolCandidates(week, { allowMinors: false }) || []) : [];
-    const peers = store.circlePeerCandidates ? (store.circlePeerCandidates(account, week) || []) : [];
-    return [...pool, ...peers]
-      .filter(candidate => candidate.record && !store.blockedBetween(account, candidate.account))
-      .map(candidate => candidate.record);
+  // 默认 matcher：S2 引擎（findMatches）真推荐 —— 公开池（排除未成年人与
+  // 未开启者，store 侧执行）+ 所在圈成员（PRD §3.3 冷启动），不推自己、
+  // 屏蔽对一次载入（blocksInvolving）O(1) 过滤。此前默认只回 {alias,
+  // avatarColor, features} 原始记录，逐条过 validateMatch 七键白名单必失败
+  // → /matches 恒空、恒 fallback invite（serve-tango 一行挂载不注入 matcher
+  // 时同频推荐整体空转）。真引擎产出 similarity/style/reasons/recentUsages
+  // 全键记录，validateMatch 必过。
+  const matcher = options.matcher || (async ({ account, week: at, allowPublicPool }) => {
+    const myProfile = store.getProfile(account, at);
+    if (!myProfile) return []; // 没上传过画像 → 没有可比的聚合特征
+    const pool = allowPublicPool ? (store.poolCandidates(at, { allowMinors: false }) || []) : [];
+    const peers = store.circlePeerCandidates ? (store.circlePeerCandidates(account, at) || []) : [];
+    const blocked = store.blocksInvolving ? store.blocksInvolving(account) : new Set();
+    const seen = new Set([account]); // 不推自己
+    const candidates = [];
+    for (const hit of [...pool, ...peers]) {
+      if (!hit || seen.has(hit.account) || !hit.record) continue;
+      seen.add(hit.account);
+      if (blocked.has(hit.account)) continue;
+      candidates.push({ account: hit.account, alias: hit.record.alias, avatarColor: hit.record.avatarColor, features: hit.record.features });
+    }
+    return findMatches(myProfile, candidates, { myAccount: account }); // 略多一点 + 相似度 + 同频理由
   });
 
   const buckets = new Map();
@@ -211,7 +236,50 @@ export function createSocialService(options = {}) {
       minor: !!(state && state.minor),
       alias: (state && state.alias) || null,
       avatarColor: (state && state.avatarColor) || null,
+      onboardingSeen: !!(state && state.onboardingSeen),
     };
+  }
+
+  // 出库化名视图（PRD §3.3/§5 化名体系）：任何 account id 离开服务前映射为
+  // 化名 + 头像色；已注销/未知账号一律「同频圈友」，绝不回原始 id。
+  function accountView(account) {
+    const state = store.getState(account);
+    return { alias: (state && state.alias) || '同频圈友', avatarColor: (state && state.avatarColor) || '#4C7A93' };
+  }
+
+  // ---- 周挑战进度（PRD §4.7）----------------------------------------------
+  // 进度只随真实动作推进（发棒 / 加油），不开放裸写端点；「用 AI 完成 3 件
+  // 生活小事」「学会 2 个新用法」等来自主应用的用法面，由二期集成在主应用
+  // 事件里调 store.setQuestProgress。个人 quest 在此自动物化；圈级 quest 的
+  // 行由装配方锚定圈后物化（lab seed / 二期集成），未物化时不写假进度。
+  function questByTitle(week, scope, title) {
+    return questPlan(week).find(quest => quest.scope === scope && quest.title === title) || null;
+  }
+  function ensureQuestRow(quest) {
+    if (typeof store.addQuest !== 'function' || typeof store.quest !== 'function') return;
+    if (store.quest(quest.id)) return;
+    try { store.addQuest(quest); } catch { /* 已物化（并发）—— 以库内为准 */ }
+  }
+  function bumpQuest(quest, owner, delta) {
+    if (!quest || typeof store.setQuestProgress !== 'function' || typeof store.getQuestProgress !== 'function') return;
+    if (typeof store.quest === 'function' && !store.quest(quest.id)) return; // 未物化：不写假进度
+    const current = store.getQuestProgress(quest.id, owner) || { questId: quest.id, scope: quest.scope, owner, progress: 0, done: false };
+    const progress = Math.min(quest.target, Math.max(0, (current.progress || 0) + delta));
+    try {
+      store.setQuestProgress({ questId: quest.id, scope: quest.scope, owner, progress, done: progress >= quest.target });
+    } catch { /* 竞态时以库内值为准 */ }
+  }
+  function recordBatonQuests(actorId, targetKind) {
+    const week = currentWeek();
+    const personal = questByTitle(week, 'personal', QUEST_PERSONAL_GIVE_BATON);
+    if (personal) { ensureQuestRow(personal); bumpQuest(personal, actorId, 1); }
+    if (targetKind === 'circle') {
+      bumpQuest(questByTitle(week, 'circle', QUEST_CIRCLE_BATON), actorId, 1);
+    }
+  }
+  function recordKudosQuests(actorId, toAccount) {
+    if (typeof store.isCirclePeer !== 'function' || !store.isCirclePeer(actorId, toAccount)) return;
+    bumpQuest(questByTitle(currentWeek(), 'circle', QUEST_CIRCLE_KUDOS), actorId, 1);
   }
 
   function sharedEvent(actor, body) {
@@ -242,9 +310,22 @@ export function createSocialService(options = {}) {
 
   on('GET', /^\/api\/social\/state$/, 'read', (actor, _body, ctx) => publicState(ctx.state));
 
+  // 「已看过会分享什么」标记（PRD §5：开启前一屏讲清楚会分享什么）。
+  // 幂等；不要求同频已开启 —— 引导在任何时候都可以看。
+  on('POST', /^\/api\/social\/onboarding-seen$/, 'write', (actor) => {
+    const alias = validateAlias(genAlias(rng));
+    const avatarColor = pick(rng, AVATAR_COLORS);
+    return publicState(store.markOnboardingSeen(actor.id, { alias, avatarColor }));
+  });
+
   on('POST', /^\/api\/social\/opt-in$/, 'write', (actor, body, ctx) => {
     need(exactKeys(body, ['enabled', 'minor']), 'INVALID_INPUT', 400);
     need(typeof body.enabled === 'boolean' && typeof body.minor === 'boolean', 'INVALID_INPUT', 400);
+    // 开启前必须看过「会分享什么」引导（服务端可查的 onboarding_seen）；
+    // 关闭（enabled=false）不受限。客户端绕过引导直发 opt-in 一律 403。
+    if (body.enabled === true && !(ctx.state && ctx.state.onboardingSeen === true)) {
+      throw socialError('ONBOARDING_REQUIRED', 403);
+    }
     const existing = ctx.state;
     const alias = body.enabled && !(existing && existing.alias) ? validateAlias(genAlias(rng)) : null;
     const avatarColor = body.enabled && !(existing && existing.avatarColor) ? pick(rng, AVATAR_COLORS) : null;
@@ -283,16 +364,51 @@ export function createSocialService(options = {}) {
 
   on('POST', /^\/api\/social\/shared-event$/, 'write', (actor, body) => sharedEvent(actor, body), { optIn: true });
 
-  on('GET', /^\/api\/social\/kudos$/, 'read', actor => ({ kudos: store.listKudos(actor.id) }), { optIn: true });
+  // 可加油面（PRD §4.3：对搭档或圈友确认分享过的事件加油）：出库即化名
+  // （ownerAlias + ownerAvatarColor），客户端拿 sharedEventId 就能 POST kudos，
+  // 全程不需要知道对方 account id。屏蔽对过滤在此执行。
+  on('GET', /^\/api\/social\/shared-events$/, 'read', (actor) => {
+    const blocked = store.blocksInvolving ? store.blocksInvolving(actor.id) : new Set();
+    const events = (store.listShareableEvents ? store.listShareableEvents(actor.id) : [])
+      .filter(event => event.owner !== actor.id && !blocked.has(event.owner))
+      .map(event => {
+        const view = accountView(event.owner);
+        return { id: event.id, kind: event.kind, ownerAlias: view.alias, ownerAvatarColor: view.avatarColor, at: event.at };
+      });
+    return { events, kinds: KUDOS_EVENT_LABELS };
+  }, { optIn: true });
+
+  on('GET', /^\/api\/social\/kudos$/, 'read', actor => ({
+    kudos: (store.listKudos(actor.id) || []).map(row => ({
+      id: row.id,
+      fromAlias: accountView(row.from).alias, // 出库即化名：不回 from 的 account id
+      eventKind: row.eventKind,
+      at: row.at,
+    })),
+  }), { optIn: true });
 
   on('POST', /^\/api\/social\/kudos$/, 'write', (actor, body) => {
-    const value = validateKudos(body);
-    need(value, 'INVALID_INPUT', 400);
-    need(value.from === actor.id, 'FORBIDDEN', 403); // 只能以本人名义加油
+    // 两种合法形状：{eventKind, sharedEventId}（推荐 —— 服务端从事件反查
+    // owner，客户端不需要也不应该知道对方 account id）或完整旧形状
+    // {from, to, eventKind, sharedEventId}（from 必须是本人）。
+    let value;
+    if (exactKeys(body, ['eventKind', 'sharedEventId'])) {
+      const eventId = typeof body.sharedEventId === 'string' ? body.sharedEventId.trim() : '';
+      need(eventId && KUDOS_EVENT_KINDS.includes(body.eventKind), 'INVALID_INPUT', 400);
+      const found = store.findSharedEvent ? store.findSharedEvent(eventId) : null;
+      need(found, 'KUDOS_EVENT_NOT_SHARED', 403);
+      value = { from: actor.id, to: found.owner, eventKind: body.eventKind, sharedEventId: eventId };
+    } else {
+      value = validateKudos(body);
+      need(value, 'INVALID_INPUT', 400);
+      need(value.from === actor.id, 'FORBIDDEN', 403); // 只能以本人名义加油
+    }
+    need(value.to !== value.from, 'FORBIDDEN', 403); // 不能给自己的事件加油
     need(!store.blockedBetween(value.from, value.to), 'BLOCKED', 403);
     const shared = store.getSharedEvent(value.to, value.sharedEventId);
     need(shared && shared.owner === value.to && shared.kind === value.eventKind, 'KUDOS_EVENT_NOT_SHARED', 403);
     store.addKudos({ ...value, at: new Date(now()).toISOString() });
+    recordKudosQuests(actor.id, value.to); // 圈级挑战「圈内互相加油」随真实动作推进
     return { ok: true };
   }, { optIn: true });
 
@@ -314,15 +430,17 @@ export function createSocialService(options = {}) {
     need(validateBatonShare(share), 'SOCIAL_DATA_INVALID', 500);
     store.createBatonShare(share);
     store.addBatonEvent({ id: 'be-' + randomUUID(), batonId: id, kind: 'sent', at: new Date(now()).toISOString(), byAccount: actor.id });
+    recordBatonQuests(actor.id, body.targetKind); // PRD §4.7：发棒推进周挑战进度
     return { id, card: share.card };
   }, { optIn: true });
 
-  // 打开传棒链接：访客可用（PRD §4.8），按 IP 限流。
+  // 打开传棒链接：访客可用（PRD §4.8），按 IP 限流。链出库前映射化名+
+  // 头像色（隐私红线：原始 account id 不出服务；已注销账号显示「同频圈友」）。
   on('GET', /^\/api\/social\/baton\/([\w-]+)$/, 'preview', (actor, _body, ctx) => {
     const share = store.getBatonShare(ctx.params[0]);
     need(share, 'BATON_NOT_FOUND', 404);
     if (actor) store.addBatonEvent({ id: 'be-' + randomUUID(), batonId: share.id, kind: 'opened', at: new Date(now()).toISOString(), byAccount: actor.id });
-    return { id: share.id, card: share.card, chain: clipBatonChain(store.batonChain(share.id)) }; // D6：最多 5 跳
+    return { id: share.id, card: share.card, chain: clipBatonChain(store.batonChain(share.id)).map(accountView) }; // D6：最多 5 跳
   }, { guest: true });
 
   on('POST', /^\/api\/social\/baton\/([\w-]+)\/event$/, 'write', (actor, body, ctx) => {
@@ -330,6 +448,19 @@ export function createSocialService(options = {}) {
     need(share, 'BATON_NOT_FOUND', 404);
     need(exactKeys(body, ['kind']), 'INVALID_INPUT', 400);
     need(['opened', 'relay-completed', 'graduated'].includes(body.kind), 'INVALID_INPUT', 400); // sent 只随发送产生
+    if (body.kind === 'relay-completed' || body.kind === 'graduated') {
+      // PRD §4.4：发送者的传棒 +1 由【接收方完成接力/毕业】触发 —— 完成事件
+      // 只有接收方能确认：发送者不能自证（含 targetId=自己的 pair 途幻影棒），
+      // 无关者不能代确认；pair 途接收者 = targetId，circle 途 = 圈内成员，
+      // link 途 = 任何登录同频用户（§4.8 访客试用后注册再确认）。
+      need(share.fromAccount !== actor.id, 'BATON_SENDER_CANNOT_CONFIRM', 403);
+      if (share.targetKind === 'pair') need(share.targetId === actor.id, 'BATON_NOT_RECEIVER', 403);
+      else if (share.targetKind === 'circle') need(store.isCircleMember(share.targetId, actor.id), 'BATON_NOT_RECEIVER', 403);
+      // 同一人对同一棒同类完成事件幂等：重复确认不落第二行（计数不灌水）。
+      const dup = (store.batonEvents ? store.batonEvents(share.id) : [])
+        .some(event => event.kind === body.kind && event.byAccount === actor.id);
+      if (dup) return { ok: true, kind: body.kind, duplicate: true };
+    }
     const event = { id: 'be-' + randomUUID(), batonId: share.id, kind: body.kind, at: new Date(now()).toISOString(), byAccount: actor.id };
     need(validateBatonEvent(event), 'SOCIAL_DATA_INVALID', 500);
     store.addBatonEvent(event);
@@ -349,8 +480,13 @@ export function createSocialService(options = {}) {
     const target = accountId(body.with);
     need(target, 'INVALID_INPUT', 400);
     need(target !== actor.id, 'PAIR_SELF_FORBIDDEN', 400);
+    // 对方必须是真实存在且已开启同频的账号 —— 不与不存在的 id 结「幻影搭档」。
+    const targetState = store.getState(target);
+    need(targetState, 'ACCOUNT_NOT_FOUND', 404);
+    need(targetState.optIn === true, 'SOCIAL_OPT_IN_REQUIRED', 403);
     need(!store.blockedBetween(actor.id, target), 'BLOCKED', 403);
     need(store.pairCount(actor.id) < MAX_PAIRS, 'PAIR_LIMIT_REACHED', 409); // 最多 5 位搭档
+    need(store.pairCount(target) < MAX_PAIRS, 'PAIR_TARGET_LIMIT_REACHED', 409); // 被动方同样最多 5 位，不可被堆到 6+
     const pair = { id: 'pr-' + randomUUID(), a: actor.id, b: target, startedWeek: currentWeek(), flame: 0, freezesUsed: 0 };
     need(validatePair(pair), 'SOCIAL_DATA_INVALID', 500);
     store.createPair(pair);
@@ -369,7 +505,13 @@ export function createSocialService(options = {}) {
     const pair = store.getPair(ctx.params[0]);
     need(pair, 'PAIR_NOT_FOUND', 404);
     need(pair.a === actor.id || pair.b === actor.id, 'FORBIDDEN', 403);
-    need(pair.freezesUsed < PAIR_FREEZES_PER_WEEK, 'PAIR_FROZEN_ALREADY', 409); // 每周 1 次冻结
+    // 每周 1 次冻结（PRD §4.5）：预算按周重置 —— 与 store 层 freezePair 的
+    // freezes_week 锚定同口径，跨周后不再永久 409。
+    const freezeState = store.pairFreezeState
+      ? store.pairFreezeState(pair.id)
+      : { freezesUsed: pair.freezesUsed, freezesWeek: null };
+    const usedThisWeek = freezeState && freezeState.freezesWeek === currentWeek() ? freezeState.freezesUsed : 0;
+    need(usedThisWeek < PAIR_FREEZES_PER_WEEK, 'PAIR_FROZEN_ALREADY', 409);
     store.freezePair(pair.id, { week: currentWeek() });
     return { pair: store.getPair(pair.id) };
   }, { optIn: true });
@@ -446,7 +588,8 @@ export function createSocialService(options = {}) {
       circle: { id: circle.id, name: circle.name, inviteCode: circle.inviteCode, owner: circle.owner, memberCount: store.circleMemberCount(circle.id) },
       week,
       wall: home.wall || [],
-      chain: clipBatonChain(home.chain || []),
+      // store 的 chain 已封顶 5 跳；此处只做化名映射（原始 id 不出服务）。
+      chain: (home.chain || []).map(accountView),
       freedTo,
       rank,
     };
@@ -494,7 +637,10 @@ export function createSocialService(options = {}) {
     const target = accountId(body.account);
     const reason = textMax(body.reason, REPORT_REASON_MAX);
     need(target && target !== actor.id && reason, 'INVALID_INPUT', 400);
-    store.report({ from: actor.id, about: target, reason, at: new Date(now()).toISOString() });
+    // store 契约形状：{reporter, targetKind, targetId, reason}（此前误发
+    // {from, about, …} 导致真实 store 恒 400 INVALID_INPUT —— 举报在装配
+    // 路径整体断裂，D2 门槛「屏蔽与举报全部实现并测试」落空）。
+    store.report({ reporter: actor.id, targetKind: 'account', targetId: target, reason });
     return { ok: true };
   });
 
