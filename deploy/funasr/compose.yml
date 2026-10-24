@@ -1,0 +1,30 @@
+# deploy/funasr/compose.yml — Done-Go FunASR 2pass 容器（design/voice-intent/SPEC.md §2.1）
+# 项目名 donego-asr；容器 donego-funasr；只听 127.0.0.1:10195（voice-gateway 内网直连）。
+# 红线：镜像只用本地已有 tag（pull_policy: never，绝不拉取）；模型【只读】挂 Salon9
+# （绝不改 Salon9 任何文件/容器/定时器）；mem 1500m / cpus 2。
+# 仅供 CTO 安装：donego-funasr-restart.{service,timer} 与本文件同目录、入仓但不安装。
+name: donego-asr
+
+services:
+  funasr:
+    image: registry.cn-hangzhou.aliyuncs.com/funasr_repo/funasr:funasr-runtime-sdk-online-cpu-0.1.13
+    pull_policy: never
+    container_name: donego-funasr
+    command: ["bash", "/usr/local/bin/run-light.sh"]
+    ports:
+      - "127.0.0.1:10195:10195"
+    volumes:
+      # Salon9 模型库（paraformer online/offline + VAD + realtime punc + SenseVoice + ITN），只读
+      - /home/jc/projects/Salon9/models:/workspace/models:ro
+      # 轻量 2pass 启动脚本：Salon9 run-light.sh 的副本改三处（端口 10195 / 线程 ≤2 / 禁自动下载）
+      - ./run-light.sh:/usr/local/bin/run-light.sh:ro
+    mem_limit: 1500m
+    cpus: 2
+    restart: unless-stopped
+    healthcheck:
+      # 容器内 plain-ws 2pass server 监听 10195（run-light.sh --port 10195）
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/10195 && exec 3>&-'"]
+      interval: 60s
+      timeout: 5s
+      start_period: 600s
+      retries: 5
