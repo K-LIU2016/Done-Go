@@ -8,6 +8,7 @@ import { assistantError, createAssistant, MAX_CHAT_BYTES } from './ai-assistant.
 import { createDiscovery } from './ai-discovery.mjs';
 import { applyDotEnv, loadAssistantConfig, saveAssistantMetadata } from './assistant-config.mjs';
 import { createCollaborationService } from './collaboration-service.mjs';
+import { createMetrics, metricsDay, validMetricsDay, METRICS_BODY_MAX_BYTES } from './metrics.mjs';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
@@ -83,6 +84,10 @@ export function createTangoServer(options = {}) {
  const assistant = options.assistant || createAssistant();
  const discovery = options.discovery || createDiscovery();
  const aiGuard = options.aiGuard || createAIGuard();
+ // SPEC §5.5 / D10: count-only funnel counters; the production main() below
+ // injects a persistent instance (.tango-donego/metrics/<day>.json), anything
+ // else gets the memory-only default so tests never touch the disk.
+ const metrics = options.metrics || createMetrics();
  const server = createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
@@ -99,7 +104,11 @@ export function createTangoServer(options = {}) {
     if(options.collaboration&&pathname.startsWith('/api/')){
       apiRequest=true;
       if(!options.collaboration.requestAllowed(req)){send(403,{error:'origin-rejected'});return;}
-      if(!pathname.startsWith('/api/auth/')&&pathname!=='/api/status'){
+      // D5: guests walk the whole relay flow — funnel metrics (§5.5) must be
+      // postable without an account, so POST /api/metrics skips the
+      // authenticate gate; GET below still requires the admin actor.
+      const guestMetrics=pathname==='/api/metrics'&&req.method==='POST';
+      if(!pathname.startsWith('/api/auth/')&&pathname!=='/api/status'&&!guestMetrics){
         try{actor=options.collaboration.authenticate(req);}catch(error){send(401,{error:error.code||'AUTH_REQUIRED'});return;}
         if(pathname==='/api/assistant/config'&&req.method==='PUT'&&actor.role!=='admin'){send(403,{error:'ADMIN_REQUIRED'});return;}
         if(pathname==='/api/assistant/chat'||pathname==='/api/speech/transcribe'){
@@ -115,7 +124,7 @@ export function createTangoServer(options = {}) {
       if (!options.collaboration) { send(503, { error: 'collaboration-unavailable' }); return; }
       await options.collaboration.handle(req, res, pathname); return;
     }
-    if (pathname === '/api/status' || pathname === '/api/speech' || pathname === '/api/speech/transcribe' || pathname.startsWith('/api/assistant/') || pathname === '/api/discovery') {
+    if (pathname === '/api/status' || pathname === '/api/speech' || pathname === '/api/speech/transcribe' || pathname.startsWith('/api/assistant/') || pathname === '/api/discovery' || pathname === '/api/metrics') {
       apiRequest = true;
       const port = server.address()?.port;
       const boundAddress = server.address()?.address;
@@ -123,6 +132,32 @@ export function createTangoServer(options = {}) {
       if (isIP(boundAddress) === 4 && boundAddress !== '127.0.0.1' && boundAddress !== '0.0.0.0') allowedHosts.push(boundAddress + ':' + port);
       const allowedHost = options.collaboration ? options.collaboration.requestAllowed(req) : allowedHosts.includes(req.headers.host);
       if (!allowedHost || (!options.collaboration && req.headers.origin && req.headers.origin !== 'http://' + req.headers.host)) { send(403, { error: 'origin-rejected' }); return; }
+      if (pathname === '/api/metrics') {
+        if (req.method === 'POST') {
+          if (!req.headers.origin) { send(403, { error: 'origin-required' }); return; }
+          if (url.search) { send(400, { error: 'metrics-invalid' }); return; }
+          if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) { send(415, { error: 'metrics-json-required' }); return; }
+          if (Number(req.headers['content-length']) > METRICS_BODY_MAX_BYTES) { send(413, { error: 'metrics-body-too-large' }); req.resume(); return; }
+          let size = 0; const parts = [];
+          for await (const part of req) { size += part.length; if (size > METRICS_BODY_MAX_BYTES) { send(413, { error: 'metrics-body-too-large' }); req.resume(); return; } parts.push(part); }
+          let body; try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { send(400, { error: 'metrics-invalid' }); return; }
+          // D10: only a validated count-only {event} body may enter a counter.
+          const counted = await metrics.record(body);
+          if (!counted) { send(400, { error: 'metrics-invalid' }); return; }
+          if (!res.destroyed) res.writeHead(204).end();
+          return;
+        }
+        if (req.method === 'GET') {
+          if (!actor || actor.role !== 'admin') { send(403, { error: 'ADMIN_REQUIRED' }); return; }
+          const keys = [...url.searchParams.keys()];
+          const day = url.searchParams.get('day') || metricsDay(Date.now());
+          if (keys.some(key => key !== 'day') || keys.length > 1 || !validMetricsDay(day)) { send(400, { error: 'metrics-invalid' }); return; }
+          send(200, await metrics.snapshot(day));
+          return;
+        }
+        send(405, { error: 'method-rejected' });
+        return;
+      }
       if (pathname.startsWith('/api/assistant/') || pathname === '/api/discovery') {
         if (pathname === '/api/assistant/config') {
           if (url.search) { send(400, { error: 'ai-input-invalid' }); return; }
@@ -236,5 +271,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const configuredDatabase=process.env.AUTH_DATABASE_PATH||process.env.TANGO_AUTH_DB||process.env.TANGO_COLLAB_DB;
   if(configuredDatabase&&configuredDatabase!==':memory:'&&!isAbsolute(configuredDatabase))throw new Error('AUTH_DATABASE_PATH must be absolute');
   const collaboration = await createCollaborationService({ databaseFile: configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite'), assistant: delegate, demoMode, authOptions: demoMode ? { autoStart: true } : {} });
-  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
+  const metrics = createMetrics({ dir: join(projectRoot, '.tango-donego', 'metrics') });
+  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration, metrics }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
 }
