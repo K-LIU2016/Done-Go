@@ -17,7 +17,7 @@ test('administrators list, disable, enable and confirm-delete users; ordinary me
 test('password recovery uses the emailed reset code and rejects the previous password',async({page})=>{
  await prepare(page);const username='reset'+Math.random().toString(36).slice(2,10),email=username+'@fixture.test';
  const created=await page.context().request.post('/__test/register',{data:{username,password,displayName:'Recovery account'}});expect(created.status()).toBe(200);
- await page.goto('/#today');await page.locator('#app-auth-logout').click();await page.locator('[data-auth="login"]').click();await page.locator('[data-auth="reset"]').click();
+ await page.goto('/#today');await page.locator('#app-auth-logout').click();await page.locator('[data-auth="reset"]').click();
  await page.locator('#auth-email').fill(email);await page.locator('#auth-password').fill('New synthetic password 456');await page.locator('[data-auth="send-code"]').click();await expect(page.locator('.auth-notice')).toContainText('验证码已发送');
  const mail=await(await page.context().request.get('/__test/mailbox?email='+encodeURIComponent(email))).json();expect(mail.purpose).toBe('reset');await page.locator('#auth-code').fill(mail.code);await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.auth-notice')).toContainText('密码已重设');
  await page.locator('#auth-password').fill(password);await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.auth-notice')).toContainText('邮箱或密码不正确');
@@ -25,7 +25,7 @@ test('password recovery uses the emailed reset code and rejects the previous pas
 });
 async function prepare(page:Page){await page.route('https://**',route=>route.abort());await page.addInitScript(()=>{if(!localStorage.getItem('tango-donego.web.v1'))localStorage.setItem('tango-donego.web.v1',JSON.stringify({v:1,pv:5,mode:'real',entries:[{id:'unclaimed',title:'PRIVATE LEGACY RECORD',date:'2026-10-21',start:'09:00',end:'09:30',kind:'necessary'}],drafts:[],trials:[],methods:[],methodUses:[]}));});}
 async function signUp(page:Page,email:string){
- await page.locator('#auth-email').fill(email);await page.locator('#auth-password').fill(password);await page.locator('#auth-displayName').fill('Research member');
+ await expect(page.locator('[data-auth="register"]')).toBeVisible();await page.locator('[data-auth="register"]').click();await page.locator('#auth-email').fill(email);await page.locator('#auth-password').fill(password);await page.locator('#auth-displayName').fill('Research member');
  await page.locator('[data-auth="send-code"]').click();await expect(page.locator('.auth-notice')).toContainText('验证码已发送');
  const mail=await(await page.context().request.get('/__test/mailbox?email='+encodeURIComponent(email))).json();expect(mail.email).toBe(email);
  await page.locator('#auth-code').fill(mail.code==='000000'?'000001':'000000');await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.auth-notice')).toContainText('验证码无效');
@@ -47,6 +47,13 @@ test('entry verifies email then signs in; agreements accept one phrase for indep
  await page.locator('#app-auth-logout').click();await expect(page.locator('#app-auth-form')).toBeVisible();await expect(page.locator('.tabs')).toBeHidden();
  await page.screenshot({path:info.outputPath('email-entry.png'),fullPage:true});
  await signUp(page,'second'+Math.random().toString(36).slice(2,10)+'@fixture.test');await expect(page.locator('.bubble.pb')).toHaveCount(0);expect(await page.evaluate(()=>localStorage.getItem('tango-donego.web.v1'))).toBe(original);
+});
+test('signed-in settings connect account identity, app data and logout',async({page})=>{
+ await prepare(page);await page.goto('/#today');await signUp(page,'settings'+Math.random().toString(36).slice(2,10)+'@fixture.test');await page.goto('/#settings');
+ await expect(page.locator('#app-account-link')).toHaveText('账户设置');await expect(page.locator('#account-settings')).toContainText('真实账号已登录');await expect(page.locator('#account-email')).toHaveValue(/@fixture\.test$/);await expect(page.locator('#account-settings')).toContainText('已验证邮箱');
+ await page.locator('#account-display-name').fill('Updated settings member');await page.locator('#account-profile-form button[type=submit]').click();await expect(page.locator('.toast')).toContainText('账号设置已保存');await expect(page.locator('#account-display-name')).toHaveValue('Updated settings member');
+ await page.locator('#account-old-password').fill(password);await page.locator('#account-new-password').fill('Updated account password 456');await page.locator('#account-password-form button[type=submit]').click();await expect(page.locator('.toast')).toContainText('密码已更新');
+ await page.locator('#account-settings [data-auth="logout"]').click();await expect(page.locator('#app-auth-form')).toBeVisible();await expect(page.locator('.tabs')).toBeHidden();expect((await page.context().request.get('/api/auth/me',{headers:{'x-tango-client':'tango-settings/1'}})).status()).toBe(401);
 });
 test('auth forms keep drafts across both themes and every language without calling AI',async({page},info)=>{
  await prepare(page);let calls=0;page.on('request',request=>{if(request.url().includes('/api/assistant/chat'))calls++;});await page.goto('/#today');await page.locator('#auth-email').fill('draft@example.test');

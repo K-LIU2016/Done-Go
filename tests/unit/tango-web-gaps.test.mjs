@@ -66,12 +66,12 @@ test('cohort export only includes local aggregates and marks unavailable busines
 });
 
 test('settings display release, data mode and account boundaries with explicit export actions', () => {
-  const ctx = vm.createContext({ developerUI: true, S: { mode: 'demo', name: '', wake: 960 }, L: { mode: 'off' }, PRODUCT_VERSION: 'test-version', serviceSummary: () => 'service unavailable', safeStorageGet: () => null, localStorage: { getItem: () => null }, BACKUP_KEY: 'backup', aiSettings: () => '', esc: String, memoryOnly: false, corruptedMain: false, corruptRaw: null, recoveryNotice: '', lastErrorCode: null, legacyLLMKeyFound: false, hintMuted: {}, METHOD_CAT_LABELS: { screen: '资料筛选' } });
+  const ctx = vm.createContext({ developerUI: true, S: { mode: 'demo', name: '', wake: 960 }, L: { mode: 'off' }, PRODUCT_VERSION: 'test-version', serviceSummary: () => 'service unavailable', safeStorageGet: () => null, localStorage: { getItem: () => null }, BACKUP_KEY: 'backup', accountSettings: () => '', aiSettings: () => '', esc: String, memoryOnly: false, corruptedMain: false, corruptRaw: null, recoveryNotice: '', lastErrorCode: null, legacyLLMKeyFound: false, hintMuted: {}, METHOD_CAT_LABELS: { screen: '资料筛选' } });
   vm.runInContext(appFunction('pageSettings', 'fmtWhen').split('  var agreementState')[0], ctx);
   const view = ctx.pageSettings();
   assert.match(view, /test-version/);
   assert.match(view, /数据模式/);
-  assert.match(view, /账户可用性/);
+  assert.match(view, /账号已登录/);
   assert.match(view, /AI 机会提示/);
   assert.match(view, /当前没有关闭任何类型的机会推荐/);
   assert.match(view, /cohort-export/);
