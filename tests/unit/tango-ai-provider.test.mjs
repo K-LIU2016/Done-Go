@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mock, test } from 'node:test';
+import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { createAssistant } from '../../scripts/ai-assistant.mjs';
 
@@ -121,7 +121,7 @@ test('the environment maps xhigh to the selected model and omits credentials fro
   assert.equal(result.stdout.includes('synthetic-test-key'), false);
 });
 
-test('xhigh has a 180 second default budget, ordinary modes keep 25 seconds, and explicit short test timeouts win', async t => {
+test('xhigh has a 120 second default budget, ordinary modes keep 25 seconds, and explicit short test timeouts win', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const aborted = [];
   const pendingFetch = label => async (_url, { signal }) => new Promise((_resolve, reject) => {
@@ -135,7 +135,7 @@ test('xhigh has a 180 second default budget, ordinary modes keep 25 seconds, and
   assert.equal(await ordinary, 'TANGO_AI_TIMEOUT');
   assert.equal(await high, 'TANGO_AI_TIMEOUT');
   assert.equal(extendedCode, undefined);
-  t.mock.timers.tick(154999);
+  t.mock.timers.tick(94999);
   await Promise.resolve();
   assert.equal(extendedCode, undefined);
   t.mock.timers.tick(1);
@@ -189,6 +189,26 @@ test('streamChat rejects empty streams and falls back to one-shot Anthropic resp
   assert.deepEqual(out, ['一条回答']);
 });
 
+test('streamChat keeps a slow steady stream alive past the one-shot budget and aborts only when data stops', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const frame = text => new TextEncoder().encode('data: ' + JSON.stringify({ choices: [{ delta: { content: text } }] }) + '\n\n');
+  let push, close;
+  const body = new ReadableStream({ start(controller) { push = controller.enqueue.bind(controller); close = controller.close.bind(controller); } });
+  const app = createAssistant({ config, fetch: async () => new Response(body) });
+  push(frame('一'));
+  const iterator = app.streamChat({ prompt: 'hello', mode: 'chat', stream: true })[Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).value, '一');
+  push(frame('二'));
+  assert.equal((await iterator.next()).value, '二');
+  t.mock.timers.tick(24000);
+  push(frame('三'));
+  assert.equal((await iterator.next()).value, '三');
+  t.mock.timers.tick(24000);
+  push(new TextEncoder().encode('data: [DONE]\n\n'));
+  close();
+  assert.equal((await iterator.next()).done, true);
+});
+
 test('streamChat reports a timeout when the upstream stalls instead of aborting a healthy stream', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let push;
@@ -206,7 +226,7 @@ test('streamChat reports a timeout when the upstream stalls instead of aborting 
 });
 
 test('TANGO_AI_TIMEOUT_MS raises the upstream budget and invalid values keep the default', async t => {
-  mock.timers.enable({ apis: ['setTimeout'] });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const pendingFetch = async (_url, { signal }) => new Promise((_resolve, reject) => {
     signal.addEventListener('abort', () => reject(signal.reason), { once: true });
   });
@@ -214,35 +234,13 @@ test('TANGO_AI_TIMEOUT_MS raises the upstream budget and invalid values keep the
   const raised = createAssistant({ config, env: { TANGO_AI_TIMEOUT_MS: '40000' }, fetch: pendingFetch }).chat({ prompt: 'hello' }).catch(error => { raisedCode = error.code; return error.code; });
   const fallback = createAssistant({ config, env: { TANGO_AI_TIMEOUT_MS: 'soon' }, fetch: pendingFetch }).chat({ prompt: 'hello' }).catch(error => { fallbackCode = error.code; return error.code; });
   const invalidOption = createAssistant({ config, timeoutMs: 0, env: {}, fetch: pendingFetch }).chat({ prompt: 'hello' }).catch(error => { optionCode = error.code; return error.code; });
-  mock.timers.tick(25000);
-  await new Promise(resolve => setImmediate(resolve));
+  t.mock.timers.tick(25000);
+  await fallback; await invalidOption;
   assert.equal(raisedCode, undefined);
   assert.equal(fallbackCode, 'TANGO_AI_TIMEOUT');
   assert.equal(optionCode, 'TANGO_AI_TIMEOUT');
-  mock.timers.tick(15000);
-  await new Promise(resolve => setImmediate(resolve));
+  t.mock.timers.tick(15000);
+  await raised;
   assert.equal(raisedCode, 'TANGO_AI_TIMEOUT');
   await Promise.all([raised, fallback, invalidOption]);
-  mock.timers.reset();
-});
-
-test('streamChat keeps a slow steady stream alive past the one-shot budget and aborts only when data stops', async () => {
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const frame = text => new TextEncoder().encode('data: ' + JSON.stringify({ choices: [{ delta: { content: text } }] }) + '\n\n');
-  let push, close;
-  const body = new ReadableStream({ start(controller) { push = controller.enqueue.bind(controller); close = controller.close.bind(controller); } });
-  const app = createAssistant({ config, fetch: async () => new Response(body) });
-  push(frame('一'));
-  const iterator = app.streamChat({ prompt: 'hello', mode: 'chat', stream: true })[Symbol.asyncIterator]();
-  assert.equal((await iterator.next()).value, '一');
-  push(frame('二'));
-  assert.equal((await iterator.next()).value, '二');
-  mock.timers.tick(24000);
-  push(frame('三'));
-  assert.equal((await iterator.next()).value, '三');
-  mock.timers.tick(24000);
-  push(new TextEncoder().encode('data: [DONE]\n\n'));
-  close();
-  assert.equal((await iterator.next()).done, true);
-  mock.timers.reset();
 });

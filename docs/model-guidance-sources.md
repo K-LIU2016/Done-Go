@@ -12,6 +12,30 @@
 
 通过 agent-reach 的 Jina 网页读取路径核验以上页面。Claude Sonnet 4.6 官方页标为 Legacy 并建议迁移到 5.5，因此替换旧参考型号。型号排序是本产品根据工作流作出的推荐，不是三家公司之间的性能基准结论。API 能力不保证消费应用或用户当前账户提供同样的型号与功能；页面保留应用入口、官方说明和账户可用性提示。
 
+## 国产模型来源
+
+核验日期：2026-10-22。范围：`web/model-catalog-cn.js` 的国产模型目录（备选模型卡「资料核验日期」行的数据来源）。
+
+| 模型 | 已核验的能力 | 任务推荐依据 | 应用入口 | 官方说明 | 核验日期 |
+| --- | --- | --- | --- | --- | --- |
+| 字节跳动·豆包（doubao-seed-2.1） | 全模态理解与多档思考；Seed-Evolving 1024k 长上下文 | 编程与智能体任务、音视图文统一理解的长资料整理 | https://www.doubao.com/ | https://ai.volcengine.com/model | 2026-10-22 |
+| 深度求索·DeepSeek（deepseek-v4.1-flash） | 1M 上下文、思考与非思考双模式；视觉与联网抓取在 flash 档 | 代码诊断与深度推理、长文档分析 | https://chat.deepseek.com/ | https://api-docs.deepseek.com/quick_start/pricing | 2026-10-22 |
+| 阿里·通义千问（qwen3.8-max） | 1M 上下文旗舰，原生视觉理解、工具调用与结构化输出 | 复杂推理与工程级编程、长程自主开发 | https://www.qianwen.com/ | https://help.aliyun.com/zh/model-studio/qwen3-8-max | 2026-10-22 |
+| 月之暗面·Kimi（kimi-k3） | 1M 上下文旗舰、原生视觉理解、推理强度可调 | 长程编程与深度研究类知识工作 | https://www.kimi.com/ | https://platform.kimi.ai/docs | 2026-10-22 |
+| 腾讯·元宝（tencent-yuanbao） | 聊天、写作、搜索一体助手；底层腾讯混元支持快慢思考、多模态理解与生图 | 日常问答、写作与搜索辅助 | https://yuanbao.tencent.com/ | https://cloud.tencent.com/document/product/1729/104753 | 2026-10-22 |
+
+核验方法：2026-10-22 通过 WebFetch / webReader 实读各「官方说明」列页面取证（AI Round 1 cnEvidence 材料）：火山方舟模型页、DeepSeek API 定价文档、阿里云百炼 qwen3-8-max 模型页、Kimi 开放平台文档、腾讯云元宝产品文档；通义千问应用入口以 tongyi.com 301 跳转后的 www.qianwen.com/ 为准。字段口径与上节海外模型一致；型号排序与任务推荐是本产品根据工作流作出的推荐，不是五家厂商之间的性能基准结论。目录数据中五条均为 verified=true；`verified=false` 的条目在界面与数据层一律标注「未核验」，不借用任何日期（`web/model-catalog-cn.js` 的 `formatVerifiedDate` / `cardEntry`）。
+
+各条未核验项（如实保留，均未核验）：
+
+- 豆包：豆包 App 页功能文案（JS 渲染未读到，仅标题核验）；App 内型号与火山 API 型号对应；方舟「模型列表」文档正文（客户端渲染，型号数值以 AI Hub 实读为准）。
+- DeepSeek：网页版页面功能文案（JS 骨架仅返回标题；官方性由 www.deepseek.com 站内链接证实）。
+- 通义千问：百炼文档页「更新时间」字段为空（快照别名 2026-09-02 作旁证）。
+- Kimi：App 页详细功能描述（仅标题与菜单项可核验）。
+- 腾讯元宝：元宝 App 实际接入型号/上下文规格（官方未披露）；是否仍提供第三方模型选项（元宝↔混元归属由 hunyuan.tencent.com 产品列表证实）。
+
+共同未核验项：各消费应用账户内实际可用型号与官方 API 文档的一致性——与上节海外模型口径相同，API 能力不保证消费应用或用户当前账户提供同样的型号与功能。
+
 ## 估算假设
 
 当前版本不再把场景比例直接展示为“预计省 X–Y 分钟”。下面的比例保留为历史产品假设，供实验设计和回归分析使用；它们尚未经过用户实验，也不是厂商提供的省时数据。没有至少 2 条同类、去重、使用 AI 且已验收的个人记录时，界面显示“时间收益待实测 · 样本不足”，不会把假设写入已确认腾出时间，也不会自动更改计划。

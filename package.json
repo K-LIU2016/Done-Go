@@ -19,7 +19,7 @@
     "preview": "node scripts/serve-tango.mjs",
     "preview:react-history": "vite preview",
     "test:unit": "node scripts/test-unit.mjs",
-    "verify:web": "node --test tests/unit/tango-time.test.mjs tests/unit/tango-privacy.test.mjs tests/unit/tango-agreements.test.mjs tests/unit/tango-web-gaps.test.mjs tests/unit/tango-service.test.mjs tests/unit/tango-release.test.mjs tests/unit/tango-assistant.test.mjs tests/unit/tango-assistant-ui.test.mjs tests/unit/tango-ai-provider.test.mjs tests/unit/tango-assistant-config.test.mjs tests/unit/tango-assistant-routes.test.mjs tests/unit/tango-ai-stream.test.mjs tests/unit/tango-passphrase.test.mjs tests/unit/tango-email-entry.test.mjs tests/unit/tango-demo-entry.test.mjs tests/unit/tango-collaboration.test.mjs tests/unit/tango-collaboration-regression.test.mjs tests/unit/tango-collaboration-http.test.mjs tests/unit/tango-discovery.test.mjs tests/unit/tango-methods.test.mjs && node --check web/privacy.js && node --check web/agreements.js && node --check web/assistant-core.js && node --check web/assistant-ui.js && node --check scripts/serve-tango.mjs && node --check scripts/ai-assistant.mjs && node --check scripts/ai-discovery.mjs && node --check scripts/assistant-config.mjs",
+  "verify:web": "node --test tests/unit/tango-time.test.mjs tests/unit/tango-privacy.test.mjs tests/unit/tango-agreements.test.mjs tests/unit/tango-web-gaps.test.mjs tests/unit/tango-service.test.mjs tests/unit/tango-release.test.mjs tests/unit/tango-release-rollback.test.mjs tests/unit/tango-assistant.test.mjs tests/unit/tango-assistant-ui.test.mjs tests/unit/tango-ai-provider.test.mjs tests/unit/tango-ai-stream-bytes.test.mjs tests/unit/tango-ai-prompt-stream.test.mjs tests/unit/tango-ai-total-budget.test.mjs tests/unit/tango-ai-visitor-daily-limit.test.mjs tests/unit/tango-ai-contract.test.mjs tests/unit/tango-ai-server-modes.test.mjs tests/unit/tango-ai-server-guard.test.mjs tests/unit/tango-ai-parse.test.mjs tests/unit/tango-ai-prompt.test.mjs tests/unit/tango-model-catalog-cn.test.mjs tests/unit/tango-assistant-config.test.mjs tests/unit/tango-assistant-routes.test.mjs tests/unit/tango-discovery.test.mjs tests/unit/tango-methods.test.mjs && node --check web/privacy.js && node --check web/agreements.js && node --check web/assistant-core.js && node --check web/assistant-ui.js && node --check web/ai-parse.js && node --check web/ai-prompt.js && node --check web/model-catalog-cn.js && node --check scripts/serve-tango.mjs && node --check scripts/ai-assistant.mjs && node --check scripts/ai-discovery.mjs && node --check scripts/assistant-config.mjs",
     "verify:ui": "playwright test --config playwright.tango.config.ts",
     "verify:collaboration": "playwright test --config playwright.collaboration.config.ts",
     "verify:account": "playwright test --config playwright.account.config.ts",
@@ -30,7 +30,11 @@
     "test:e2e:react-history": "playwright test"
   },
   "dependencies": {
-    "nodemailer": "^10.0.9"
+    "lucide-react": "^1.45.0",
+    "nodemailer": "^10.0.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",
@@ -39,11 +43,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
-    "lucide-react": "^1.45.0",
     "oxlint": "^1.81.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.3",
     "typescript": "~6.0.2",
     "typescript-language-server": "^6.0.0",
     "vite": "^8.3.0"

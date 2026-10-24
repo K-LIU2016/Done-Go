@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { execFile as execFileCallback } from 'node:child_process';
+import { promisify } from 'node:util';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const files = ['web/index.html', 'web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/demo.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'scripts/production-readiness.mjs', 'server/urlguard.mjs', 'web/privacy.js', 'web/agreements.js', 'web/speech-capture.js', 'web/assistant-core.js', 'web/assistant-ui.js', 'web/assistant.css', 'scripts/serve-tango.mjs', 'scripts/tango-speech.mjs', 'scripts/tango-speech.ps1', 'scripts/ai-assistant.mjs', 'scripts/ai-discovery.mjs', 'scripts/assistant-config.mjs'];
+const execFile = promisify(execFileCallback);
+const files = ['web/index.html', 'web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/demo.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'scripts/production-readiness.mjs', 'server/urlguard.mjs', 'web/privacy.js', 'web/agreements.js', 'web/speech-capture.js', 'web/assistant-core.js', 'web/assistant-ui.js', 'web/assistant.css', 'scripts/serve-tango.mjs', 'scripts/tango-speech.mjs', 'scripts/tango-speech.ps1', 'scripts/ai-assistant.mjs', 'scripts/ai-discovery.mjs', 'scripts/assistant-config.mjs', 'web/model-catalog-cn.js', 'web/demo-onboarding.js', 'web/ai-parse.js', 'web/ai-prompt.js'];
 
 export async function buildRelease({ outputParent = join(root, 'dist-web') } = {}) {
   async function brandFiles(directory) {
@@ -20,7 +23,12 @@ export async function buildRelease({ outputParent = join(root, 'dist-web') } = {
   for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
     if (!/\bsrc=|application\/json/.test(match[1])) new vm.Script(match[2], { filename: 'web/index.html' });
   }
-  for (const [path, source] of sources.filter(([path]) => path.startsWith('web/') && path.endsWith('.js'))) new vm.Script(source.toString('utf8'), { filename: path });
+  // web/ai-parse.js is an ES module that index.html import()s at runtime; classic
+  // vm.Script rejects export statements, so module assets get the same
+  // node --check ESM syntax validation the verify:web chain runs instead.
+  const moduleAssets = ['web/ai-parse.js'];
+  for (const [path, source] of sources.filter(([path]) => path.startsWith('web/') && path.endsWith('.js') && !moduleAssets.includes(path))) new vm.Script(source.toString('utf8'), { filename: path });
+  for (const path of moduleAssets) await execFile(process.execPath, ['--check', join(root, path)]);
   await mkdir(outputParent, { recursive: true });
   const directory = await mkdtemp(join(outputParent, 'donego-2026.10.19-'));
   const manifest = { schema: 1, product: 'tango-donego', releaseDate: '2026.10.19', releaseId: html.match(/PRODUCT_VERSION\s*=\s*['"]([^'"]+)/)?.[1] || 'donego-web-2026.10.19', createdAt: new Date().toISOString(), scope: 'local-user-test', entry: 'web/index.html', files: {} };
