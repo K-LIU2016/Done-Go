@@ -16,7 +16,7 @@ export async function buildRelease({ outputParent = join(root, 'dist-web') } = {
     const nested = await Promise.all(entries.map(entry => entry.isDirectory() ? brandFiles(directory + '/' + entry.name) : entry.isFile() && entry.name.endsWith('.png') ? [directory + '/' + entry.name] : []));
     return nested.flat().sort();
   }
-  const assets = ['web/app-auth.js', 'web/app-auth.css', 'web/users-admin.js', 'web/users-admin.css', 'web/paper.css', 'web/appearance.css', 'web/appearance.js', 'web/locale-copy.js', ...await brandFiles('web/brand')];
+  const assets = ['web/app-auth.js', 'web/app-auth.css', 'web/users-admin.js', 'web/users-admin.css', 'web/paper.css', 'web/appearance.css', 'web/appearance.js', 'web/locale-copy.js', 'web/ai-relay.js', ...await brandFiles('web/brand')];
   const sources = await Promise.all([...files, ...assets].map(async path => [path, await readFile(join(root, path))]));
   const html = sources[0][1].toString('utf8');
   if (!html.includes('Done&amp;Go') || !html.includes('tango-time-core')) throw new Error('Done&Go entry is missing');

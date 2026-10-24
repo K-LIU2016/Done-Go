@@ -112,6 +112,36 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .status.warn { color: var(--warm); }
 .status:empty { display: none; }
 
+/* AI relay: one calm path from a daily event to a confirmed result. */
+.relay-shell { display: grid; gap: 16px; padding: 24px; border: 1px solid rgba(62, 90, 71, .18); border-radius: 30px; background: linear-gradient(145deg, #F9F7ED, #EAF0E7); color: #22302A; box-shadow: 0 18px 48px rgba(45, 70, 54, .08); }
+.relay-heading { display: grid; gap: 5px; }
+.relay-heading h1 { font-size: 34px; line-height: 1.15; }
+.relay-heading p { color: #5C6B61; }
+.relay-kicker, .relay-label { color: #4F8570; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+.relay-event-form { display: flex; gap: 8px; }
+.relay-event-form input { min-width: 0; flex: 1; min-height: 48px; border: 1px solid rgba(62, 90, 71, .2); border-radius: 16px; padding: 0 15px; background: rgba(255,255,255,.78); color: #22302A; }
+.relay-event-form .btn { border-radius: 16px; white-space: nowrap; }
+.relay-notice { color: #8A5A2B; font-size: 13px; }
+.relay-card { display: grid; gap: 12px; padding: 18px; border: 1px solid rgba(62, 90, 71, .16); border-radius: 22px; background: rgba(255,255,255,.82); }
+.relay-match { border-color: rgba(79, 133, 112, .4); }
+.relay-match-title, .relay-step, .relay-history-head { display: flex; align-items: center; gap: 12px; }
+.relay-match-title h2 { font-size: 22px; margin-top: 2px; }
+.relay-minutes { margin-left: auto; color: #4F8570; font-size: 13px; white-space: nowrap; }
+.relay-dot { width: 12px; height: 12px; flex: none; border-radius: 50%; background: #4F8570; box-shadow: 0 0 0 6px rgba(79,133,112,.13); }
+.relay-step > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #22302A; color: #EEF3EC; font-size: 13px; }
+.relay-step b { display: block; margin-top: 2px; font-size: 17px; font-weight: 500; }
+.relay-workspace textarea { width: 100%; min-height: 132px; resize: vertical; border: 1px solid rgba(62, 90, 71, .2); border-radius: 16px; padding: 12px 14px; background: #FCFBF6; color: #22302A; line-height: 1.65; }
+.relay-output { padding: 15px; border-radius: 16px; background: #F1F4E8; color: #22302A; line-height: 1.75; }
+.relay-learn { padding: 12px 14px; border-left: 3px solid #B07A36; background: #FBF5E9; }
+.relay-learn p { margin-top: 4px; color: #5C6B61; }
+.relay-saved { color: #4F8570; font-size: 13px; }
+.relay-history { display: grid; gap: 10px; padding-top: 4px; }
+.relay-history h2 { font-size: 17px; }
+.relay-history ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.relay-history li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(62, 90, 71, .13); }
+.relay-history-state { color: #4F8570; font-size: 12px; white-space: nowrap; }
+@media (max-width: 520px) { .relay-shell { padding: 18px; border-radius: 24px; } .relay-heading h1 { font-size: 29px; } .relay-event-form { display: grid; } .relay-event-form .btn { width: 100%; } .relay-minutes { align-self: flex-start; } .relay-match-title { align-items: flex-start; } }
+
 .drafts { width: 100%; display: grid; gap: 2px; }
 .draft { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .draft .t { min-width: 0; }
@@ -490,6 +520,7 @@ button:active, .btn:active { transform: scale(.98); }
 <script src="/agreements.js"></script>
 <script src="/assistant-core.js"></script>
 <script src="/assistant-ui.js"></script>
+<script src="/ai-relay.js"></script>
 <script src="/collaboration-ui.js"></script>
 <script src="/collaboration-personal.js"></script>
 <script id="tango-time-core">
@@ -1078,6 +1109,7 @@ window.TangoAppAuth.start(function (authUser) {
     if (assistantCfg && c.models && typeof c.models === 'object') assistantCfg.models = { heavy: typeof c.models.heavy === 'string' ? c.models.heavy : '', standard: typeof c.models.standard === 'string' ? c.models.standard : '', light: typeof c.models.light === 'string' ? c.models.light : '' };
     assistantConfigState = assistantCfg ? 'ready' : 'unavailable';
     if (companion) companion.connectionChanged();
+    if (aiRelay && route() === 'today' && document.getElementById('ai-relay-root')) aiRelay.connectionChanged();
     return assistantCfg;
   }
   var assistantP = (/^https?:$/.test(location.protocol) ? fetch('/api/assistant/config', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }) : Promise.resolve(null))
@@ -1111,7 +1143,7 @@ window.TangoAppAuth.start(function (authUser) {
     return aiPromptLib;
   }
   function serverTarget(mode) {
-    var tier = mode === 'test' ? 'light' : ['priorities', 'models', 'reflection'].indexOf(mode) >= 0 ? 'standard' : 'heavy';
+    var tier = mode === 'test' ? 'light' : ['priorities', 'models', 'reflection', 'relay'].indexOf(mode) >= 0 ? 'standard' : 'heavy';
     if (assistantCfg) return { url: '/api/assistant/chat', protocol: 'donego', model: assistantCfg.models && assistantCfg.models[tier] || assistantCfg.model, destination: assistantCfg.destination, reasoningEffort: tier === 'heavy' ? assistantCfg.reasoningEffort : undefined };
     if (!serverCfg) return null;
     var ep = serverCfg.endpoints[0];
@@ -1151,6 +1183,17 @@ window.TangoAppAuth.start(function (authUser) {
       }, function (e) { clearTimeout(timer); lastErrorCode = 'TANGO_MODEL_FAILED'; throw e; });
     });
   }
+  var aiRelay = window.TangoAIRelay ? window.TangoAIRelay.create({
+    storage: localStorage,
+    ready: function () { return !!serverTarget('relay'); },
+    request: function (prompt) {
+      return Promise.all([assistantP, serverP]).then(function () {
+        var target = serverTarget('relay');
+        if (!target) throw new Error('not configured');
+        return llmJSON(target, prompt, undefined, 'relay', false);
+      });
+    }
+  }) : null;
   function readSSE(response, onChunk, onActivity) {
     var reader = response.body.getReader(), decoder = new TextDecoder(), buffer = '', full = '', failure = null;
     function handle(frame) {
@@ -1482,7 +1525,7 @@ window.TangoAppAuth.start(function (authUser) {
   function pageToday() {
     var t = todayStr(), h = new Date().getHours(), list = entriesOn(t);
     var greet = h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
-    var html = '<header class="paper-date"><span class="paper-day">' + t.slice(8) + '</span><div><time class="label" data-local-date="' + t + '" data-date-full datetime="' + t + '">' + esc(fmtDate(t, true)) + '</time><p class="hello">' + greet + (S.name ? ' <span translate="no" data-user-content>' + esc(S.name) + '</span>' : '') + '</p></div></header>' +
+    var html = '<section id="ai-relay-root" aria-label="AI 接力"></section><header class="paper-date"><span class="paper-day">' + t.slice(8) + '</span><div><time class="label" data-local-date="' + t + '" data-date-full datetime="' + t + '">' + esc(fmtDate(t, true)) + '</time><p class="hello">' + greet + (S.name ? ' <span translate="no" data-user-content>' + esc(S.name) + '</span>' : '') + '</p></div></header>' +
       '<section class="voice" aria-label="记录"><button class="mic' + (capState.listening ? ' on' : '') + '" id="mic" data-act="mic" aria-label="语音记录" aria-pressed="' + capState.listening + '">' + MIC + '</button>' +
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" value="' + esc(capState.text) + '" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       (aiFeatures.parse && assistantCfg ? '<button type="button" id="aiTidyBtn" class="btn sm" data-act="ai-tidy" aria-pressed="' + aiTidyOn + '">AI 整理' + (aiTidyOn ? ' · 开' : '') + '</button>' : '') +
@@ -2773,6 +2816,7 @@ window.TangoAppAuth.start(function (authUser) {
     var fs = document.getElementById('footSet'); if (r === 'settings') fs.setAttribute('aria-current', 'page'); else fs.removeAttribute('aria-current');
     var fn = { today: pageToday, line: pageLine, review: pageReview, agreements: pageAgreements, users: function () { return usersAdmin.render(); }, settings: pageSettings, assistant: function () { return collaboration && collaboration.chatActive() ? collaboration.chatHTML() : companion.render(); } }[r];
     document.getElementById('view').innerHTML = '<div class="page' + (r === 'today' || r === 'review' ? ' split' : '') + '">' + (S.mode === 'demo' ? '<p class="demo-notice full" role="status">示例模式 · 以下为演示记录</p>' : '') + fn() + '</div>';
+    if (aiRelay) { var relayRoot = document.getElementById('ai-relay-root'); if (relayRoot) aiRelay.mount(relayRoot); else aiRelay.unmount(); }
     bubSetup();
     var nextSlots = document.querySelector('.picker .avs');
     if (nextSlots) {

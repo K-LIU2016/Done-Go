@@ -87,6 +87,22 @@ test('prompt mode routes to the standard tier and asks for a plain copyable prom
   assert.equal(payload.messages.at(-1).content, prompt);
 });
 
+test('relay mode routes to the standard tier with a bounded result contract', async () => {
+  let payload;
+  const app = createAssistant({ config, env: { TANGO_AI_MODEL_STANDARD: 'relay-fixture' }, fetch: async (_url, options) => {
+    payload = JSON.parse(options.body);
+    return openaiReply('{"result":"整理后的结果","learned":"先让 AI 起草","estimatedSavedMinutes":12}');
+  } });
+  const prompt = '【AI 接力】\n事件类型：会议整理\n用户材料：<material>会议内容</material>';
+  const result = await app.chat({ prompt, mode: 'relay' });
+  assert.equal(result.content[0].text, '{"result":"整理后的结果","learned":"先让 AI 起草","estimatedSavedMinutes":12}');
+  assert.equal(payload.model, 'relay-fixture');
+  assert.equal(payload.messages.at(-1).content, prompt);
+  assert.match(payload.messages[0].content, /当前任务：完成一次 AI 接力/);
+  assert.match(payload.messages[0].content, /estimatedSavedMinutes/);
+  assert.match(payload.messages[0].content, /不可信标签/);
+});
+
 test('every mode carries the unified injection defence in its system prompt', async () => {
   let system;
   const app = createAssistant({ config, env: {}, fetch: async (_url, options) => {
