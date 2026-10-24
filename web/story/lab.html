@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探戈 · 时光故事书 Lab</title>
+<!-- web/story/lab.html — SPEC §7 独立入口（T10示例与lab 线）：
+     示例数据（学生/老师）或同源本机真实数据 → stats.js 正式口径 →
+     narrative.js 文案 → contracts.createChapter → 全部页型（月章 10 页 +
+     年书 6 专属页）+ soundtrack 数据作曲 + /api/story/polish 润色代理。
+     本页自带外壳样式（原型 base CSS 逐值来自 design/story-recap/prototype.html，
+     T6 页型 renderSavedTimePage 等依赖 .pg/.inner/.k/.num 等原型类名），
+     不依赖 story.css（外壳线）与 player.js（播放器线）——它们接入正式 app。 -->
+<style>
+:root{
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --serif:"Songti SC","Noto Serif SC","STSong",serif;
+  --k-nec:#7C8A99; --k-create:#E8B04B; --k-connect:#E9826A; --k-explore:#6E8FD6; --k-restore:#5FA67F; --k-still:#B9A8D8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#141513;font-family:var(--font);-webkit-font-smoothing:antialiased;color:#e8e6e0}
+/* ===== 原型 base CSS（design/story-recap/prototype.html 逐值复制；T6 页型依赖） ===== */
+.pg{width:390px;height:844px;border-radius:36px;position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);color:#fff}
+.bars{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:4px;z-index:3}
+.bars i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden;cursor:pointer}
+.bars i.d{background:rgba(255,255,255,.95)}
+.bars i.c{position:relative}.bars i.c::after{content:"";position:absolute;inset:0;width:45%;background:#fff}
+.chrome{position:absolute;top:26px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;font-size:12px;opacity:.9;z-index:3}
+.chrome .mute{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:13px;color:#fff;border:0;cursor:pointer}
+.inner{position:absolute;inset:72px 26px 40px 26px;display:flex;flex-direction:column}
+.k{font-size:12.5px;letter-spacing:2px;opacity:.75}
+.serif{font-family:var(--serif)}
+h1.big{font-family:var(--serif);font-weight:900;font-size:40px;line-height:1.18;margin-top:12px}
+.lead{font-size:16px;line-height:1.75;opacity:.92;margin-top:14px}
+.num{font-family:"Avenir Next","Helvetica Neue",sans-serif;font-weight:700;font-size:96px;line-height:1;letter-spacing:-2px}
+.num small{font-size:22px;font-weight:600;margin-left:4px;letter-spacing:0}
+.foot{margin-top:auto;font-size:11.5px;opacity:.6;display:flex;justify-content:space-between}
+.hold{font-size:11.5px;opacity:.65;margin-top:8px}
+/* p5 freed */
+.p5{background:linear-gradient(180deg,#14303A 0%,#1F4A4F 60%,#2C5F57 100%)}
+.moon{position:absolute;right:30px;top:96px;width:70px;height:70px;border-radius:50%;box-shadow:-14px 8px 0 0 #FFF0C2;transform:rotate(-20deg)}
+.alloc{margin-top:22px;display:flex;flex-direction:column;gap:12px}
+.alloc div{display:flex;align-items:center;gap:12px}
+.alloc .ico{width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.12);display:grid;place-items:center;font-size:20px}
+.alloc .t{flex:1}
+.alloc .t b{display:block;font-size:15px}
+.alloc .t i{display:block;height:6px;border-radius:3px;background:#FFE7A6;margin-top:6px;font-style:normal}
+.alloc .h{font-family:"Avenir Next",sans-serif;font-weight:700;font-size:20px}
+/* p6 rhythm */
+.p6{background:#0F1424}
+.heat{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:24px}
+.heat i{aspect-ratio:1;border-radius:3px;background:#E8B04B}
+.hours{display:flex;justify-content:space-between;font-size:10.5px;opacity:.6;margin-top:6px}
+.arche{margin-top:22px;border-radius:20px;padding:16px;background:linear-gradient(135deg,#3B6A82,#24475A)}
+.arche small{font-size:11.5px;opacity:.8;letter-spacing:1px}
+.arche b{display:block;font-family:var(--serif);font-size:26px;margin-top:4px}
+/* p7 panels */
+.p7{background:#F4EFE4;color:#2a2620}
+.four{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.four div{border-radius:16px;padding:14px;height:160px;display:flex;flex-direction:column;justify-content:space-between;color:#fff}
+.four small{font-size:11px;opacity:.85;letter-spacing:1px}
+.four b{font-family:var(--serif);font-size:19px;line-height:1.35}
+.kw{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;align-items:baseline}
+.kw span{font-family:var(--serif);font-weight:900}
+/* p8 wish */
+.p8{background:linear-gradient(180deg,#22313A,#101820)}
+.wish{margin-top:22px;border:1.5px dashed rgba(255,255,255,.35);border-radius:18px;padding:16px;font-size:15px;line-height:1.7;min-height:120px;color:rgba(255,255,255,.9)}
+.wish em{display:block;font-style:normal;font-size:12px;opacity:.6;margin-bottom:6px}
+.wish textarea{width:100%;background:transparent;border:0;outline:0;color:#fff;font-size:15px;line-height:1.7;resize:none;font-family:var(--font)}
+.callback{margin-top:16px;background:rgba(255,255,255,.08);border-radius:16px;padding:14px;font-size:13.5px;line-height:1.7}
+.callback b{color:#FFD58A}
+.save{margin-top:auto;height:52px;border-radius:26px;background:#fff;color:#101820;font-weight:700;font-size:16px;border:0}
+/* p9 poster */
+.p9{background:radial-gradient(110% 70% at 80% 0%,#E9826A 0%,#B8401F 45%,#5A1E10 100%)}
+.pp{margin-top:6px;background:rgba(255,255,255,.1);border-radius:26px;padding:22px;backdrop-filter:blur(4px)}
+.pp .ttl{font-family:var(--serif);font-weight:900;font-size:30px;line-height:1.25}
+.pp .g{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.pp .g div{background:rgba(0,0,0,.18);border-radius:14px;padding:12px}
+.pp .g b{font-family:"Avenir Next",sans-serif;font-size:26px;display:block}
+.pp .g span{font-size:11.5px;opacity:.85}
+.pp .song{margin-top:14px;display:flex;align-items:center;gap:10px;font-size:12.5px;opacity:.95}
+.pp .song .wv{display:flex;gap:3px;align-items:center;height:22px}
+.pp .song .wv i{width:3px;background:#fff;border-radius:2px}
+.shareb{display:flex;gap:10px;margin-top:auto}
+.shareb button{flex:1;height:50px;border-radius:25px;border:0;font-weight:700;font-size:15px}
+.shareb .s1{background:#fff;color:#5A1E10}.shareb .s2{background:rgba(255,255,255,.18);color:#fff}
+/* ===== lab 外壳 ===== */
+.lab-top{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid #2a2b27;flex-wrap:wrap}
+.lab-top h1{font-size:17px;font-weight:700}
+.lab-top .sub{font-size:12.5px;color:#9a9a92}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.chip{font-size:11.5px;padding:3px 10px;border-radius:10px;background:#26271f;color:#c9c7bf}
+.chip.on{background:#3E5F3F;color:#d9f0d9}
+.chip.off{background:#3a2a22;color:#e8b9a6}
+.lab-controls{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;padding:14px 22px;border-bottom:1px solid #2a2b27}
+.lab-controls label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:#9a9a92}
+.lab-controls select,.lab-controls input{background:#22231e;color:#e8e6e0;border:1px solid #3a3b33;border-radius:9px;padding:7px 10px;font-size:13.5px;font-family:var(--font)}
+.lab-controls input[type=date]{color-scheme:dark}
+.seg{display:flex;border:1px solid #3a3b33;border-radius:10px;overflow:hidden}
+.seg button{background:transparent;color:#b9b7af;border:0;padding:7px 13px;font-size:13px;cursor:pointer;font-family:var(--font)}
+.seg button.on{background:#E95432;color:#fff;font-weight:700}
+.lab-btn{background:#E95432;color:#fff;border:0;border-radius:11px;padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.lab-btn.ghost{background:#2c2d26;color:#d9d7cf}
+#note{font-size:12.5px;color:#c9c7bf;padding:10px 22px 0;min-height:18px}
+.lab-main{display:flex;gap:26px;padding:18px 22px 40px;align-items:flex-start;flex-wrap:wrap}
+.lab-stage{position:relative;flex:0 0 auto}
+.lab-pagewrap{position:relative;width:390px;height:844px;border-radius:36px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.lab-pagewrap .st-page,.lab-pagewrap section.pg{position:absolute;inset:0}
+.lab-tap{position:absolute;top:120px;bottom:40px;width:34%;z-index:4;cursor:pointer}
+.lab-tap.left{left:0}.lab-tap.right{right:0}
+.lab-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.55);z-index:4;pointer-events:none}
+.lab-side{flex:1 1 320px;min-width:300px;display:flex;flex-direction:column;gap:14px}
+.lab-card{background:#1d1e1a;border:1px solid #2a2b27;border-radius:14px;padding:14px 16px}
+.lab-card h3{font-size:13px;color:#c9c7bf;margin-bottom:8px;font-weight:600}
+.lab-meta{font-size:13px;line-height:1.8;color:#e8e6e0}
+.lab-meta b{color:#FFD58A}
+.cap-row{display:flex;gap:8px;margin-top:8px;align-items:center}
+.cap-row .ck{flex:0 0 110px;font-size:11.5px;color:#9a9a92;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cap-row input{flex:1;background:#22231e;border:1px solid #3a3b33;color:#e8e6e0;border-radius:8px;padding:6px 9px;font-size:13px;font-family:var(--font)}
+.cap-row button{background:#3E5F3F;color:#d9f0d9;border:0;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+details{font-size:12.5px;color:#9a9a92}
+details summary{cursor:pointer;color:#c9c7bf}
+details pre{margin-top:8px;max-height:300px;overflow:auto;font-size:11px;line-height:1.5;color:#b9b7af;background:#14151399;padding:8px;border-radius:8px}
+.placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#9a9a92;background:#1c1d1a;font-size:14px}
+</style>
+</head>
+<body>
+<header class="lab-top">
+  <h1>📖 时光故事书 Lab</h1>
+  <span class="sub">SPEC §7 独立入口 · 示例数据一键生成周记 / 月章 / 年书 / 短章</span>
+  <div class="chips" id="chips"></div>
+</header>
+
+<section class="lab-controls">
+  <label>数据源
+    <select id="source">
+      <option value="student">示例 · 学生（安静的湖）</option>
+      <option value="teacher">示例 · 老师（清晨的备课桌）</option>
+      <option value="local">本机真实数据（同源）</option>
+    </select>
+  </label>
+  <label>章型
+    <span class="seg" id="typeSeg">
+      <button data-type="week" type="button">周记</button>
+      <button data-type="month" type="button" class="on">月章</button>
+      <button data-type="year" type="button">年书</button>
+      <button data-type="short" type="button">短章</button>
+    </span>
+  </label>
+  <label>期间（默认按章型自动）
+    <span style="display:flex;gap:6px;align-items:center">
+      <input type="date" id="from"> <span style="color:#5f5f57">→</span> <input type="date" id="to">
+    </span>
+  </label>
+  <label>章号 <input type="number" id="no" value="10" min="1" style="width:70px"></label>
+  <button class="lab-btn" id="gen" type="button">⚡ 生成并翻开</button>
+  <button class="lab-btn ghost" id="preview" type="button">原型对照章</button>
+  <button class="lab-btn ghost" id="stopAudio" type="button">■ 停止音乐</button>
+</section>
+<p id="note"></p>
+
+<main class="lab-main">
+  <div class="lab-stage">
+    <div class="lab-pagewrap" id="frame">
+      <div class="bars" id="bars"></div>
+      <div class="chrome">
+        <span id="chromeLabel">时光故事书</span>
+        <button class="mute" id="muteBtn" type="button" aria-label="静音">♪</button>
+      </div>
+      <div id="pageMount" style="position:absolute;inset:0"></div>
+      <div class="lab-tap left" id="tapL" title="上一页"></div>
+      <div class="lab-tap right" id="tapR" title="下一页"></div>
+      <div class="lab-hint">← → 翻页 · 空格下一页 · 点顶部进度条跳页</div>
+    </div>
+  </div>
+
+  <aside class="lab-side">
+    <div class="lab-card"><h3>本章</h3><div class="lab-meta" id="meta">尚未生成 — 选好人设与章型，点「生成并翻开」。</div></div>
+    <div class="lab-card"><h3>本页文案（可编辑 · SPEC §5）</h3><div id="capPanel"><span style="font-size:12px;color:#9a9a92">生成后这里会出现当前页的文案编辑与「润色」按钮（经 lab 服务端代理，失败自动保留模板）。</span></div></div>
+    <div class="lab-card"><h3>章节 JSON（契约形状）</h3>
+      <details><summary>展开查看 chapter（contracts.validateChapter 形状）</summary><pre id="json">—</pre></details>
+      <details><summary>展开查看原始输入（entries / relays / prevChapter）</summary><pre id="inputJson">—</pre></details>
+    </div>
+  </aside>
+</main>
+
+<script type="module">
+import { pageOrderFor, songInputFor, melodyPitches, createChapter, SHORT_CHAPTER_MIN_EVENTS } from './contracts.js';
+import { variantForEvents, dueChapterSpecs, localUtcOffset } from './scheduler.js';
+import { DEMO_PERSONAS, demoPeriods, buildDemoStatsInput, buildDemoChapter, previewChapter, readLocalStatsInput, aggregateStats } from './demo-data.js';
+import { createSoundtrack, planSong } from './soundtrack.js';
+
+// —— 可选模块：正式统计/文案优先；缺席时回退并如实标注（不伪造口径） ——
+async function tryImport(path) {
+  try { return { mod: await import(path), ok: true }; } catch (e) { return { mod: null, ok: false }; }
+}
+const statsMod = await tryImport('./stats.js');
+const narrativeMod = await tryImport('./narrative.js');
+const pageMods = {};
+for (const [key, path] of Object.entries({
+  cover: './pages/cover.js', numbers: './pages/count.js', timeColors: './pages/spectrum.js',
+  specialDay: './pages/day.js', lessons: './pages/learned.js', savedTime: './pages/freed.js',
+  rhythm: './pages/rhythm.js', panels: './pages/four.js', wish: './pages/wish.js', poster: './pages/poster-page.js',
+  yearSpectrum: './pages/year-spectrum.js', yearFirstLast: './pages/year-firstlast.js',
+  yearStreak: './pages/year-streak.js', yearGenres: './pages/year-genres.js',
+  yearKeywords: './pages/year-keywords.js', yearWall: './pages/year-wall.js',
+})) pageMods[key] = await tryImport(path);
+
+// T6 页型（render*Page(chapter, ctx) → HTMLElement）的适配表；其余走 T5 createPage。
+const RENDERERS = {
+  savedTime: (m) => m.renderSavedTimePage,
+  rhythm: (m) => m.renderRhythmPage,
+  panels: (m) => m.renderPanelsPage,
+  wish: (m) => m.renderWishPage,
+  poster: (m) => m.renderPosterPage,
+};
+
+const $ = (id) => document.getElementById(id);
+const noteEl = $('note');
+const state = { chapter: null, index: 0, ctrl: null, audio: null, input: null, reduceMotion: false };
+function note(text, isError) {
+  noteEl.textContent = text || '';
+  noteEl.style.color = isError ? '#e8956f' : '#c9c7bf';
+}
+function chipPanel() {
+  const chips = [
+    ['stats.js', statsMod.ok], ['narrative.js', narrativeMod.ok],
+    ...Object.keys(pageMods).filter((k) => k.startsWith('year')).slice(0, 1).map((k) => ['年书页型 ×6', pageMods[k].ok]),
+    ['页型 ×10', Object.keys(pageMods).filter((k) => !k.startsWith('year')).every((k) => pageMods[k].ok)],
+  ];
+  $('chips').innerHTML = chips.map(([name, ok]) =>
+    '<span class="chip ' + (ok ? 'on' : 'off') + '">' + (ok ? '✓ ' : '⏳ ') + name + '</span>').join('') +
+    '<span class="chip" id="proxyChip">· 润色代理检测中</span>';
+  fetch('/api/story/polish').then((r) => r.json()).then((info) => {
+    const el = $('proxyChip');
+    if (el) { el.textContent = info.configured ? '✓ 润色代理已配置' : '· 润色代理未配置（用模板文案）'; el.className = 'chip ' + (info.configured ? 'on' : 'off'); }
+  }).catch(() => {
+    const el = $('proxyChip');
+    if (el) { el.textContent = '· 润色代理不可达（直接打开文件时正常）'; el.className = 'chip off'; }
+  });
+}
+chipPanel();
+state.reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------------------------------------------------------------------------
+// 期间选择：示例人设 → demoPeriods；本机 → dueChapterSpecs（调度触发日历）
+// ---------------------------------------------------------------------------
+function currentType() {
+  const on = document.querySelector('#typeSeg .on');
+  return on ? on.dataset.type : 'month';
+}
+function localDuePeriods() {
+  const now = Date.now();
+  const specs = dueChapterSpecs(now, { utcOffsetMinutes: localUtcOffset(new Date()), chapters: [] }) || [];
+  const map = {};
+  for (const spec of specs) if (!map[spec.type]) map[spec.type] = spec.period;
+  const week = map.week || null;
+  if (week) map.short = { from: shiftD(week.from, -7), to: week.to }; // 上一个整周（更可能不足 5 件事）
+  return map;
+}
+function shiftD(ymd, n) {
+  const t = Date.parse(ymd + 'T00:00:00Z') + n * 86400000;
+  return new Date(t).toISOString().slice(0, 10);
+}
+function pickPeriod(type) {
+  const from = $('from').value, to = $('to').value;
+  if (from && to && from <= to) return { from, to };
+  const src = $('source').value;
+  if (src === 'local') {
+    const due = localDuePeriods();
+    if (due[type]) return due[type];
+    if (due.month) return due.month; // 触发日历没有的章型退到最近完整月
+    const t = new Date();
+    return { from: new Date(t.getFullYear(), t.getMonth() - 1, 2).toISOString().slice(0, 10), to: new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10) };
+  }
+  const presets = demoPeriods(src) || demoPeriods('student');
+  return (presets[type] || presets.month).period;
+}
+
+// ---------------------------------------------------------------------------
+// 生成：原始输入 → stats（正式口径优先）→ narrative 文案 → createChapter
+// ---------------------------------------------------------------------------
+const YEAR_ORDER = ['cover', 'numbers', 'timeColors', 'specialDay', 'lessons', 'savedTime', 'rhythm', 'panels', 'wish',
+  'yearSpectrum', 'yearFirstLast', 'yearStreak', 'yearGenres', 'yearKeywords', 'yearWall', 'poster'];
+
+async function generateChapter() {
+  const presetType = currentType();
+  const type = presetType === 'short' ? 'week' : presetType; // 短章 = 周/月章的数据不足变体（contracts §2）
+  const period = pickPeriod(presetType);
+  const no = Math.max(1, Math.floor(Number($('no').value) || 10));
+  let input = null;
+  let sourceNote = '';
+  if (src === 'local') {
+    let usages = [];
+    try {
+      const scenes = await (await fetch('./relay/scenes.zh.json')).json();
+      usages = (scenes.usages || []).map((u) => ({ id: u.id, title: u.title }));
+    } catch (e) { /* 用法列表拿不到也能生成 */ }
+    input = readLocalStatsInput(window.localStorage, { period, usages });
+    sourceNote = '本机真实数据（' + input.entries.length + ' 条账本 · ' + input.relays.length + ' 条接力）';
+  } else {
+    input = buildDemoStatsInput(src, { period });
+    sourceNote = '示例数据 · ' + (DEMO_PERSONAS.find((p) => p.id === src) || {}).label;
+  }
+  if (!input) { note('原始数据读取失败', true); return; }
+  state.input = input;
+  const events = input.entries.filter((e) => e.date >= period.from && e.date <= period.to).length;
+  const variant = variantForEvents(events) || 'full';
+  let stats = null;
+  let statsNote = '';
+  if (statsMod.ok && typeof statsMod.mod.computeStats === 'function') {
+    stats = statsMod.mod.computeStats(input);
+    if (stats) statsNote = 'stats.js 正式口径';
+  }
+  if (!stats) {
+    stats = aggregateStats(input);
+    statsNote = stats ? 'stats.js 不可用/返回空 → demo lab 口径聚合' : '';
+  }
+  if (!stats) { note('统计失败：期间 ' + period.from + ' → ' + period.to + ' 无法出 stats', true); return; }
+  const pages = type === 'year' ? YEAR_ORDER.map((t) => ({ type: t })) : undefined;
+  const captions = narrativeMod.ok && typeof narrativeMod.mod.captionsFor === 'function'
+    ? (narrativeMod.mod.captionsFor(stats, { type, variant, no, period, pages: pages ? pages.map((p) => p.type) : undefined }) || {})
+    : {};
+  const chapter = createChapter({ type, variant, no, period, stats, captions, pages }, { now: Date.now() });
+  if (!chapter) { note('章节未通过 contracts 校验（页型/统计形状问题）', true); return; }
+  const bits = [sourceNote, statsNote, '第 ' + chapter.no + ' 章 · ' + (variant === 'short' ? '短章（本期 ' + events + ' 件事 < ' + SHORT_CHAPTER_MIN_EVENTS + '）' : chapter.pages.length + ' 页')];
+  if (src === 'local' && !input.entries.length) bits.push('⚠ 本机账本为空或非同源 — 换示例人设看完整效果');
+  openChapter(chapter, bits.join(' · '));
+}
+
+// ---------------------------------------------------------------------------
+// 打开章节：翻页器 + 页型装配 + 数据作曲
+// ---------------------------------------------------------------------------
+function openChapter(chapter, noteText) {
+  if (state.audio) { state.audio.stop(); state.audio = null; }
+  state.chapter = chapter;
+  state.index = 0;
+  const n = chapter.pages.length;
+  $('bars').innerHTML = Array.from({ length: n }, () => '<i></i>').join('');
+  Array.from($('bars').children).forEach((el, i) => {
+    el.addEventListener('click', () => showPage(i));
+  });
+  $('json').textContent = JSON.stringify(chapter, null, 2);
+  $('inputJson').textContent = JSON.stringify({
+    period: state.input && state.input.period, entries: state.input ? state.input.entries.length : 0,
+    relays: state.input ? state.input.relays.length : 0,
+    prevChapterWish: state.input && state.input.prevChapter ? state.input.prevChapter.wish : null,
+  }, null, 2);
+  const typeNames = { week: '周记', month: '月章', year: '年书' };
+  $('meta').innerHTML =
+    '<b>第 ' + chapter.no + ' 章 · ' + typeNames[chapter.type] + (chapter.variant === 'short' ? ' · 短章' : '') + '</b><br>' +
+    chapter.period.from + ' → ' + chapter.period.to + '<br>' +
+    chapter.stats.totals.events + ' 件事 · ' + chapter.stats.totals.aiRelays + ' 次 AI 接力 · 确认省时 ' + Math.round(chapter.stats.savedTime.confirmedMinutes / 60 * 10) / 10 + ' 小时<br>' +
+    '作曲种子 ' + chapter.songSeed + ' · 段数 ' + chapter.pages.length + '（换页连续）';
+  note(noteText || '');
+  showPage(0);
+}
+
+function melodyForPoster() {
+  try {
+    const plan = planSong(songInputFor(state.chapter), state.chapter.pages.length);
+    const notes = [];
+    for (const seg of plan.segments) for (const nt of seg.notes) notes.push(nt);
+    return melodyPitches(notes) || [];
+  } catch (e) { return []; }
+}
+
+function showPage(i) {
+  const chapter = state.chapter;
+  if (!chapter) return;
+  const n = chapter.pages.length;
+  state.index = Math.max(0, Math.min(n - 1, i));
+  const page = chapter.pages[state.index];
+  if (state.ctrl && typeof state.ctrl.unmount === 'function') state.ctrl.unmount();
+  state.ctrl = null;
+  const mount = $('pageMount');
+  mount.innerHTML = '';
+  const entry = pageMods[page.type];
+  if (!entry || !entry.ok) {
+    const box = document.createElement('div');
+    box.className = 'placeholder';
+    box.innerHTML = '<span>⏳ 页型 ' + page.type + ' 模块未交付</span><span style="font-size:12px">对应实现线落地后此处自动点亮</span>';
+    mount.appendChild(box);
+  } else {
+    const mod = entry.mod;
+    const renderer = RENDERERS[page.type] ? RENDERERS[page.type](mod) : null;
+    if (typeof renderer === 'function') {
+      const ctx = { reducedMotion: state.reduceMotion };
+      if (page.type === 'poster') ctx.melodyPitches = melodyForPoster();
+      if (page.type === 'wish') ctx.onSaveWish = (wish) => {
+        state.chapter = { ...state.chapter, wish };
+        $('json').textContent = JSON.stringify(state.chapter, null, 2);
+        note('心愿已写进本章：' + wish.text + '（下一章开头会回应它）');
+      };
+      mount.appendChild(renderer(chapter, ctx));
+    } else {
+      const model = mod.pageModel(chapter, page.params || {});
+      const ctrl = mod.createPage({
+        model,
+        captions: chapter.captions,
+        reduceMotion: state.reduceMotion,
+        onOpen: startAudio,
+      });
+      ctrl.mount(mount);
+      state.ctrl = ctrl;
+    }
+  }
+  Array.from($('bars').children).forEach((el, idx) => {
+    el.className = idx < state.index ? 'd' : idx === state.index ? 'c' : '';
+  });
+  $('chromeLabel').textContent = chapter.period.from.slice(0, 4) + ' 年 ' + Number(chapter.period.from.slice(5, 7)) + ' 月 · 第 ' + (state.index + 1) + ' 页';
+  if (state.audio) state.audio.setPage(state.index);
+  renderCaptionPanel(page.type);
+}
+
+// ---------------------------------------------------------------------------
+// 配乐 — 轻点「翻开这一章」后淡入；换页只换段，不重启（SPEC §4）
+// ---------------------------------------------------------------------------
+function startAudio() {
+  if (!state.chapter) return;
+  if (!state.audio) {
+    state.audio = createSoundtrack({ input: songInputFor(state.chapter), pageCount: state.chapter.pages.length, storage: window.localStorage });
+  }
+  const result = state.audio.start(state.index);
+  updateMute();
+  if (!result || result.ok !== true) note('配乐未能启动（' + (result && result.reason) + '）— 页面仍可浏览', true);
+}
+$('muteBtn').addEventListener('click', () => {
+  if (!state.audio) { note('先「翻开这一章」启动配乐，再静音'); return; }
+  state.audio.setMuted(!state.audio.isMuted());
+  updateMute();
+});
+function updateMute() {
+  const muted = state.audio && state.audio.isMuted();
+  $('muteBtn').textContent = muted ? '∅' : '♪';
+  $('muteBtn').setAttribute('aria-label', muted ? '取消静音' : '静音');
+}
+$('stopAudio').addEventListener('click', () => {
+  if (state.audio) { state.audio.stop(); state.audio = null; note('音乐已停止'); }
+});
+
+// ---------------------------------------------------------------------------
+// 文案面板：当前页可编辑文案 + AI 润色（经 /api/story/polish，失败保留模板）
+// ---------------------------------------------------------------------------
+const POLISHABLE = [
+  { re: /^cover\.title$/, kind: 'title' },
+  { re: /^panels-\d+$/, kind: 'panel' },
+  { re: /specialDay|closing/, kind: 'closing' },
+];
+function polishKindOf(key) {
+  for (const rule of POLISHABLE) if (rule.re.test(key)) return rule.kind;
+  return null;
+}
+function captionKeysFor(pageType) {
+  const chapter = state.chapter;
+  if (!chapter) return [];
+  const entry = pageMods[pageType];
+  if (pageType === 'panels') {
+    return (chapter.stats.panels || []).map((row, idx) => ({ key: 'panels-' + idx, fallback: row.caption }));
+  }
+  if (entry && entry.ok && typeof entry.mod.captionDefaults === 'function') {
+    const model = typeof entry.mod.pageModel === 'function' ? entry.mod.pageModel(chapter, {}) : null;
+    const defaults = entry.mod.captionDefaults(model) || {};
+    return Object.keys(defaults).map((key) => ({ key, fallback: defaults[key] }));
+  }
+  return [];
+}
+function captionValue(key, fallback) {
+  const caps = (state.chapter && state.chapter.captions) || {};
+  return caps[key] != null ? caps[key] : fallback;
+}
+function statsContext() {
+  const s = state.chapter && state.chapter.stats;
+  if (!s) return '';
+  return '事件 ' + s.totals.events + ' · 接力 ' + s.totals.aiRelays + ' · 环比 ' + (s.totals.delta > 0 ? '+' : '') + (s.totals.delta == null ? '无' : s.totals.delta) +
+    ' · 确认省时 ' + s.savedTime.confirmedMinutes + ' 分钟 · 流派 ' + (s.rhythm.genre ? s.rhythm.genre.title : '待定');
+}
+function renderCaptionPanel(pageType) {
+  const panel = $('capPanel');
+  const rows = captionKeysFor(pageType);
+  if (!rows.length) { panel.innerHTML = '<span style="font-size:12px;color:#9a9a92">本页没有 captions 槽（模板直出或数据页）。</span>'; return; }
+  panel.innerHTML = '';
+  for (const row of rows) {
+    const kind = polishKindOf(row.key);
+    const line = document.createElement('div');
+    line.className = 'cap-row';
+    const keyEl = document.createElement('span');
+    keyEl.className = 'ck';
+    keyEl.textContent = row.key;
+    keyEl.title = row.key;
+    const input = document.createElement('input');
+    input.value = captionValue(row.key, row.fallback);
+    input.addEventListener('change', () => {
+      state.chapter.captions[row.key] = input.value;
+      showPage(state.index);
+    });
+    line.appendChild(keyEl);
+    line.appendChild(input);
+    if (kind) {
+      const polish = document.createElement('button');
+      polish.type = 'button';
+      polish.textContent = '✨ 润色';
+      polish.addEventListener('click', async () => {
+        polish.disabled = true;
+        polish.textContent = '润色中…';
+        try {
+          const res = await fetch('/api/story/polish', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ items: [{ kind, fallback: input.value, context: statsContext() }] }),
+          });
+          const data = await res.json();
+          if (res.ok && data.texts && data.texts[0]) {
+            input.value = data.texts[0];
+            state.chapter.captions[row.key] = data.texts[0];
+            showPage(state.index);
+            note('已润色（≤24 字，仍可继续编辑）');
+          } else {
+            note('润色不可用（' + (data.error || res.status) + '）— 保留模板文案', true);
+          }
+        } catch (e) {
+          note('润色代理不可达 — 保留模板文案（需经 scripts/story-lab.mjs 打开本页）', true);
+        }
+        polish.disabled = false;
+        polish.textContent = '✨ 润色';
+      });
+      line.appendChild(polish);
+    }
+    panel.appendChild(line);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 交互绑定
+// ---------------------------------------------------------------------------
+$('typeSeg').addEventListener('click', (event) => {
+  const btn = event.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('#typeSeg button').forEach((b) => b.classList.remove('on'));
+  btn.classList.add('on');
+});
+$('gen').addEventListener('click', generateChapter);
+$('preview').addEventListener('click', () => {
+  const src = $('source').value === 'teacher' ? 'teacher' : 'student';
+  const chapter = previewChapter(src);
+  if (!chapter) { note('原型对照章不可用', true); return; }
+  state.input = buildDemoStatsInput(src, {});
+  openChapter(chapter, '原型对照章 · design/story-recap/prototype.html 逐值钉死（仅学生人设；老师为十月聚合章）');
+});
+$('tapL').addEventListener('click', () => showPage(state.index - 1));
+$('tapR').addEventListener('click', () => showPage(state.index + 1));
+document.addEventListener('keydown', (event) => {
+  if (!state.chapter) return;
+  if (event.target && /input|textarea/i.test(event.target.tagName)) return;
+  if (event.key === 'ArrowLeft') showPage(state.index - 1);
+  else if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); showPage(state.index + 1); }
+});
+</script>
+</body>
+</html>
