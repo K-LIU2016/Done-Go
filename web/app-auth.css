@@ -27,7 +27,7 @@
 .auth-brand strong { display:block; font-size:clamp(27px,3.4vw,36px); line-height:1.15; letter-spacing:-.04em; }
 .auth-brand span { max-width:280px; font-size:14.5px; line-height:1.7; color:#684937; }
 .auth-panel { display:grid; align-content:center; gap:20px; padding:40px 44px 34px; background:#FFF; }
-.auth-head { display:grid; gap:6px; }
+.auth-head { display:grid; gap:6px; text-align:center; }
 .auth-head h1 { margin:0; font-size:clamp(25px,3vw,31px); line-height:1.2; letter-spacing:-.035em; }
 .auth-eyebrow { margin:0; font-size:13px; font-weight:700; color:var(--auth-primary); letter-spacing:.05em; }
 .auth-head .muted { margin:0; color:var(--auth-muted); font-size:14px; line-height:1.6; }
