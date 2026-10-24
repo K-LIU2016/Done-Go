@@ -15,13 +15,13 @@ function legacyStorageShim(){try{var raw=window.localStorage,id=raw.getItem('__t
 const shim='('+legacyStorageShim.toString()+')();';
 server.on('request',async(req,res)=>{try{
  const url=new URL(req.url,'http://127.0.0.1');
- if(req.url.startsWith('/api/auth/send-code'))currentTime+=61000; // Advance fixture time, preserve real rate enforcement.
+ if(req.url.startsWith('/api/auth/send-code')||req.url.startsWith('/api/auth/register'))currentTime+=61000; // Advance fixture time between independent auth flows, preserve real rate enforcement.
  if(url.pathname==='/__test/mailbox'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(mailbox.get(url.searchParams.get('email'))||{}));return;}
  if(url.pathname==='/__test/register'){
   let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw),email=body.username+'@fixture.test',origin='http://'+req.headers.host;
-  async function call(path,data){const response=await fetch(origin+'/api/auth/'+path,{method:'POST',headers:{origin,'x-tango-client':'tango-settings/1','Content-Type':'application/json'},body:JSON.stringify(data)});return {response,value:await response.json()};}
+ async function call(path,data){if(path==='register')currentTime+=61000;const response=await fetch(origin+'/api/auth/'+path,{method:'POST',headers:{origin,'x-tango-client':'tango-settings/1','Content-Type':'application/json'},body:JSON.stringify(data)});return {response,value:await response.json()};}
   if(demoMode){const started=await call('demo-start',{displayName:body.displayName||'Fixture guest'});res.setHeader('Content-Type','application/json');res.setHeader('Set-Cookie',started.response.headers.get('set-cookie'));res.end(JSON.stringify(started.value));return;}
-  await call('send-code',{email});const registered=await call('register',{email,code:mailbox.get(email)?.code,password:body.password,displayName:body.displayName});
+  await call('send-code',{email});const registered=await call('register',{email,code:mailbox.get(email)?.code,password:body.password,confirmPassword:body.confirmPassword??body.password,displayName:body.displayName});
   if(!registered.response.ok){res.writeHead(registered.response.status,{'Content-Type':'application/json'}).end(JSON.stringify(registered.value));return;}
   const logged=await call('login',{email,password:body.password});res.setHeader('Content-Type','application/json');res.setHeader('Set-Cookie',logged.response.headers.get('set-cookie'));res.end(JSON.stringify(logged.value));return;
  }

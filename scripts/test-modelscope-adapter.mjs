@@ -25,7 +25,10 @@ function probe(path, headers = clientHeader, method = "GET") {
 const status = await probe("/api/auth/status");
 assert.equal(status.status, 200, "platform-rewritten Host must reach authenticated bootstrap");
 assert.equal(status.body.enabled, true);
-assert.equal(status.body.registrationEnabled, false);
+assert.equal(status.body.registrationEnabled, true);
+assert.equal(status.body.codeLogin, false);
+assert.equal(status.body.passwordMinLength, 8);
+assert.equal(status.body.passwordMaxLength, 15);
 for (const path of ["/api/auth/me", "/api/admin/users", "/api/settings/llm"]) {
   const result = await probe(path, { ...clientHeader, origin: publicOrigin });
   assert.equal(result.status, 401, path);

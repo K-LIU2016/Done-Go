@@ -8,7 +8,6 @@ export function productionReadiness(env){
  if(!env.TANGO_PUBLIC_ORIGIN)missing.push('https-public-origin');
  if(env.NODE_ENV!=='production')missing.push('production-mode');
  if(!env.TANGO_AUTH_SECRET||Buffer.byteLength(env.TANGO_AUTH_SECRET)<32)missing.push('persistent-session-secret');
- if(!['resend','smtp'].includes(env.EMAIL_TRANSPORT))missing.push('real-email-transport');
  if(!env.TANGO_COLLAB_DB||env.TANGO_COLLAB_DB===':memory:')missing.push('persistent-database-path');
  if(config&&!config.secureCookie)missing.push('secure-session-cookie');
  return {configurationReady:missing.length===0,missing,liveEmailVerified:false,publicDeploymentVerified:false};

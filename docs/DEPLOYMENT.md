@@ -23,21 +23,20 @@ npm start        # 等价 npm run start:web，默认 http://localhost:5207，端
 npm run dev:auth # 本地预览启动器，默认 http://127.0.0.1:5221
 ```
 
-`npm start` 默认启用真实账号门禁：未登录只能看到注册/登录入口，业务 API、AI 与协作接口同样要求会话。真实注册需要邮件通道（Resend 或 SMTP），配置见 [邮箱入口交付记录](EMAIL-ENTRY-RELEASE-2026-10-21.md)。
+`npm start` 默认启用真实账号门禁：未登录只能看到注册/登录入口，业务 API、AI 与协作接口同样要求会话。注册和登录使用同一个账号输入框，支持邮箱或中国大陆手机号加 8–15 位密码，不需要验证码或邮件通道。
 
-`npm run dev:auth` 是体验优先的本地启动器：默认隐藏注册/登录并自动建立临时访客会话（等效 `TANGO_DEMO_MODE=1`），协作数据保存在内存数据库，服务重启即清空；验证码通道默认 console。需要真实账号联调时设置 `TANGO_REQUIRE_ACCOUNT=1`。该开关只影响本地启动器；`npm start` 与容器以 `TANGO_DEMO_MODE` 为准。
+`npm run dev:auth` 是本地内测启动器：默认启用真实账号注册/登录，账号与协作数据保存在 `.tango-donego/local-auth-dev/collaboration.sqlite`；设置 `TANGO_DEMO_MODE=1` 才会恢复临时访客预览。验证码发送通道默认 console，仅服务端历史验证码/重置接口，当前注册与登录表单不使用它。
 
 ## 环境变量
 
 | 变量 | 作用 |
 | --- | --- |
-| `TANGO_DEMO_MODE` | `1`：演示/访客模式，自动访客会话、注册隐藏、协作库使用内存数据库（重启清空）。未设置或 `0`：真实账号门禁。`npm start` 默认未设置，即真实账号门禁。 |
-| `TANGO_REQUIRE_ACCOUNT` | 仅 `npm run dev:auth` 启动器读取。`1`：关闭访客演示，恢复真实账号注册/登录；默认建立临时访客会话。 |
+| `TANGO_DEMO_MODE` | `1`：演示/访客模式，自动访客会话、注册隐藏、协作库使用内存数据库（重启清空）。未设置或 `0`：真实账号门禁。`npm start` 与 `npm run dev:auth` 默认真实账号门禁。 |
 | `TANGO_AUTH_SECRET` | 会话签名密钥，至少 32 字节并持久保存；生产就绪检查要求显式提供。 |
 | `TANGO_COLLAB_DB` | 账号/协作 SQLite 数据库路径。`npm start` 默认 `<项目>/.tango-donego/collaboration.sqlite`；`npm run dev:auth` 默认 `<项目>/.tango-donego/local-auth-dev/collaboration.sqlite`，接受绝对路径或 `:memory:`。生产必须指向持久目录。 |
 | `ADMIN_EMAILS` | 管理员白名单（逗号分隔），示例 `ADMIN_EMAILS=admin@example.com`。匹配邮箱在注册完成那一刻获得管理员角色，可访问 `#users` 用户管理控制台与全局模型配置；白名单不追溯既有账号。 |
 
-生产就绪检查 `npm run verify:production` 逐项要求：`TANGO_DEMO_MODE` 非 `1`、有效的邮箱与会话配置、`TANGO_PUBLIC_ORIGIN`（实际 HTTPS 域名）、`NODE_ENV=production`、`TANGO_AUTH_SECRET`（至少 32 字节）、真实邮件通道（`EMAIL_TRANSPORT=resend` 或 `smtp`）、`TANGO_COLLAB_DB` 持久路径（非 `:memory:`）以及安全会话 Cookie。任何一项缺失即 `configurationReady=false`。
+生产就绪检查 `npm run verify:production` 逐项要求：`TANGO_DEMO_MODE` 非 `1`、有效会话配置、`TANGO_PUBLIC_ORIGIN`（实际 HTTPS 域名）、`NODE_ENV=production`、`TANGO_AUTH_SECRET`（至少 32 字节）、`TANGO_COLLAB_DB` 持久路径（非 `:memory:`）以及安全会话 Cookie。邮箱通道仅在使用历史验证码或重置接口时另行配置；任何一项缺失即 `configurationReady=false`。
 
 ## Docker 示例
 
@@ -48,12 +47,12 @@ docker build -t tango-donego-local .
 docker run --rm -p 127.0.0.1:5207:5207 tango-donego-local
 ```
 
-注意：该示例没有配置邮件通道，而 `TANGO_DEMO_MODE=0` 启用真实账号门禁，因此容器处于登录锁定状态——页面可以打开，注册/登录必须另行提供真实邮件配置和持久化数据库（将 `TANGO_COLLAB_DB` 指向挂载卷）。容器构建与运行在当前环境未实测，验证状态为 UNKNOWN。
+注意：该示例启用真实账号门禁，但没有提供持久化数据库；需要将 `TANGO_COLLAB_DB` 指向挂载卷。账号注册/登录不需要邮件通道。容器构建与运行在当前环境未实测，验证状态为 UNKNOWN。
 
 ## 通用生产部署要点
 
 - 目标主机安装 Node >= 22.22；`npm ci --omit=dev --ignore-scripts` 后先运行 `npm run verify:production`，通过后再 `npm start`。
-- 生产模式需显式提供 `NODE_ENV=production`、`TANGO_PUBLIC_ORIGIN`、`TANGO_AUTH_SECRET`、`TANGO_COLLAB_DB` 与真实邮件通道；密钥只保存在部署环境，不写入仓库、前端构建或日志。
+- 生产模式需显式提供 `NODE_ENV=production`、`TANGO_PUBLIC_ORIGIN`、`TANGO_AUTH_SECRET` 与 `TANGO_COLLAB_DB`；密钥只保存在部署环境，不写入仓库、前端构建或日志。
 - 公网发布所需的反向代理、TLS、进程守护、持久存储、备份恢复与压力测试需在目标环境另行验收。
 
 ## 历史部署资料（2026-09，Mac + Cloudflare Tunnel，仅供追溯）

@@ -462,7 +462,7 @@ export function createAppServer({
           // that accounts are off instead of reading a guard error as an
           // outage. Every account mutation stays rejected.
           if (url === "/api/auth/status" && (method === "GET" || method === "HEAD")) {
-            sendJson(res, 200, { enabled: false, emailDelivery: "unavailable", registrationEnabled: false, passwordMinLength: 12 });
+            sendJson(res, 200, { enabled: false, emailDelivery: "unavailable", registrationEnabled: false, passwordMinLength: 8, passwordMaxLength: 15 });
           } else {
             sendJson(res, 403, { error: "auth_disabled" });
           }
