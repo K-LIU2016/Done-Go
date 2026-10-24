@@ -28,6 +28,10 @@ test('a Done&Go release contains the actual web app and verifiable files without
   expected.push('scripts/production-readiness.mjs');
   expected.push('web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'server/urlguard.mjs');
   expected.push('web/model-catalog-cn.js', 'web/demo-onboarding.js', 'web/ai-relay.js', 'web/ai-parse.js', 'web/ai-prompt.js');
+  // relay v2（集成线）：boot.js 是 index.html 的运行时入口，其余 web/relay/*
+  // 经它 dynamic import / fetch（scenes.zh.json 为场景库数据），metrics.mjs 由
+  // serve-tango.mjs import——发布缺任何一个，打包后的 serve-tango 或前端即断。
+  expected.push('web/relay/boot.js', 'web/relay/shell.js', 'web/relay/home.js', 'web/relay/flow.js', 'web/relay/passport.js', 'web/relay/discover.js', 'web/relay/matcher.js', 'web/relay/store.js', 'web/relay/i18n.js', 'web/relay/contracts.js', 'web/relay/baton.js', 'web/relay/external-apps.js', 'web/relay/scenes.zh.json', 'web/relay/relay.css', 'scripts/metrics.mjs');
   assert.deepEqual(Object.keys(manifest.files).sort(), expected.slice().sort());
   for (const path of expected) {
     const bytes = await readFile(join(release.directory, path));

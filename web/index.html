@@ -485,9 +485,28 @@ button:active, .btn:active { transform: scale(.98); }
 @media (min-width: 1100px) { .daynav .nb { display: inline; } }
 @media (max-width: 420px) { .app { padding-inline: 16px; } .draft { grid-template-columns: minmax(0, 1fr) auto; } .draft .pdot { grid-column: 1; justify-self: start; } .draft .kind { grid-column: 2; grid-row: 1; } .draft .x { grid-column: 2; grid-row: 2; } .draft .times { flex-wrap: wrap; } .metric-row .big small { font-size: 13px; } .metric-row .saved-value { font-size: 28px; } }
 @media (prefers-reduced-motion: reduce) { .mic.on::after { animation: none; } }
+/* relay v2 集成：relay 路由激活时旧应用整体让位（boot.js 按路由校正该类；
+   头部内联预隐藏先用同一规则加上，防旧界面闪现）。只藏 body 直属旧容器
+   .app/#tabs/#layer——relay 外壳自己的内容列也叫 .app（在 #relay-root 内，
+   原型同名类），不能误伤。 */
+html.relay-on body > .app, html.relay-on #tabs, html.relay-on #layer { display: none !important; }
+#relay-root { display: block; }
 </style>
 <link rel="stylesheet" href="/paper.css">
 <link rel="stylesheet" href="/appearance.css">
+<link rel="stylesheet" href="/relay/relay.css">
+<script>
+/* relay v2 集成（集成线）：首屏预隐藏旧界面防闪。规则与 web/relay/shell.js
+   resolveRoute 的 relay 家族一致（'' 与 today → #/start）；boot.js 加载后按
+   真实路由校正；4 秒内 boot 未就绪则移除类，降级回旧界面。 */
+(function () {
+  var h = (location.hash || '').replace(/^#/, '').split('?')[0].replace(/^\/+/, '');
+  if (h === '' || ['today', 'start', 'relay', 'me', 'discover', 'more'].indexOf(h) >= 0) {
+    document.documentElement.classList.add('relay-on');
+    setTimeout(function () { if (!window.TangoRelayV2) document.documentElement.classList.remove('relay-on'); }, 4000);
+  }
+})();
+</script>
 
 <div class="forest" aria-hidden="true">
   <svg class="tree-bg" viewBox="0 0 300 420"><g class="sway">
@@ -756,6 +775,10 @@ window.TangoMethods = (function () {
 <script>
 window.TangoAppAuth.start(function (authUser) {
   'use strict';
+  // relay v2 集成（D9/D5）：登录成功即做访客记录提升（L9 promoteGuestStore，
+  // 幂等），再让 relay 换账号作用域重渲染。boot.js 模块求值时同步挂
+  // window.TangoRelayV2（先于任何异步登录回调，无竞态）；未加载则跳过。
+  try { if (window.TangoRelayV2 && window.TangoRelayV2.onLogin) window.TangoRelayV2.onLogin(authUser); } catch (e) {}
   // Deliberate developer-harness opt-in only. No public setting, URL or storage toggle.
   var localStorage = window.TangoAccountStorage;
   var usersAdmin = window.TangoUsersAdmin.create({user:authUser,route:route,refresh:render});
@@ -2804,7 +2827,11 @@ window.TangoAppAuth.start(function (authUser) {
   }
 
   // ---------- router ----------
-  function route() { var h = (location.hash || '').replace('#', '').split('?')[0]; return ['today', 'line', 'review', 'agreements', 'settings', 'assistant', 'users'].indexOf(h) >= 0 ? h : 'today'; }
+  // relay v2 集成：#/lab/<page> 下旧页面原样渲染（D2 旧功能收进实验室）；
+  // relay 家族路由（''/today/start/relay/me/discover/more → #/start 家族）由
+  // web/relay/boot.js 的外壳接管，这里只判 relayOwned() 供 onboard 门禁。
+  function relayOwned() { var h = (location.hash || '').replace(/^#/, '').split('?')[0].replace(/^\/+/, ''); return h === '' || ['today', 'start', 'relay', 'me', 'discover', 'more'].indexOf(h) >= 0; }
+  function route() { var h = (location.hash || '').replace('#', '').split('?')[0]; if (h.indexOf('/lab/') === 0) h = h.slice(5); return ['today', 'line', 'review', 'agreements', 'settings', 'assistant', 'users'].indexOf(h) >= 0 ? h : 'today'; }
   function render() {
     showRecoveryNotice();
     var slots = document.querySelector('.picker .avs'), slotScroll = slots ? slots.scrollTop : 0;
@@ -3631,9 +3658,12 @@ window.TangoAppAuth.start(function (authUser) {
   document.addEventListener('click', function (event) { var source = event.target.closest('[data-co-source]'); if (source) { event.preventDefault(); collaboration.source(source.getAttribute('data-co-source'), source.getAttribute('data-co-account')); } });
   render();
   applyLang();
-  collaboration.start().finally(function () { if (!S.mode && !collaborationPersonal.account() && route() !== 'agreements') onboard(); });
+  collaboration.start().finally(function () { if (!S.mode && !collaborationPersonal.account() && route() !== 'agreements' && !relayOwned()) onboard(); });
 });
 </script>
+<!-- relay v2 集成：挂载器（module = defer，不阻塞旧应用解析；其余 relay 模块
+     全部在 boot.js 内按路由懒加载，首屏关键路径仅 boot.js + shell.js ≤60KB） -->
+<script type="module" src="/relay/boot.js"></script>
 <!-- TANGO:BODY-END -->
 </body>
 </html>
