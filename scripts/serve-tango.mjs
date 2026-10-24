@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { isIP } from 'node:net';
 import { readFile } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 import { resolve, sep, join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { speechCapabilities, transcribeSpeech, MAX_AUDIO_BYTES } from './tango-speech.mjs';
@@ -209,7 +210,9 @@ export function createTangoServer(options = {}) {
     if (!target.startsWith(root.endsWith(sep) ? root : root + sep)) { res.writeHead(403).end(); return; }
     const body = await readFile(target);
     const extension = target.slice(target.lastIndexOf('.'));
-    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': body.length, 'Connection': 'close' }).end(body);
+    const acceptsGzip = /(?:^|,)\s*gzip(?:\s*;|,|$)/i.test(String(req.headers['accept-encoding'] || ''));
+    const payload = acceptsGzip ? gzipSync(body) : body;
+    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': payload.length, 'Connection': 'close', ...(acceptsGzip ? { 'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding' } : {}) }).end(payload);
   } catch {
     if (apiRequest) send(503, { error: 'service-unavailable' });
     else if (!res.destroyed) res.writeHead(404).end();
