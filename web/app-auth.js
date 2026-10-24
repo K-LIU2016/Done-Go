@@ -15,6 +15,15 @@ var rows=[
 ['登录','Sign in','Войти','เข้าสู่ระบบ','تسجيل الدخول','로그인'],
 ['注册','Sign up','Регистрация','สมัครสมาชิก','إنشاء حساب','가입'],
 ['登录探戈','Sign in to Done&Go','Войти в Done&Go','เข้าสู่ Done&Go','تسجيل الدخول إلى Done&Go','Done&Go 로그인'],
+['验证邮箱后，用邮箱和密码登录即可开始。','Verify your email, then sign in with your email and password.','Подтвердите почту и войдите с паролем.','ยืนยันอีเมลแล้วเข้าสู่ระบบด้วยอีเมลและรหัสผ่าน','أكّد بريدك ثم سجّل الدخول بالبريد وكلمة المرور.','이메일 인증 후 이메일과 비밀번호로 로그인하세요.'],
+['发送验证码','Send code','Отправить код','ส่งรหัส','إرسال الرمز','인증 코드 보내기'],
+['验证并注册','Verify and sign up','Подтвердить и зарегистрироваться','ยืนยันและสมัคร','تأكيد وإنشاء الحساب','인증 후 가입'],
+['请输入邮箱、验证码和密码完成注册。','Enter your email, verification code and password to create an account.','Введите почту, код подтверждения и пароль для создания аккаунта.','กรอกอีเมล รหัสยืนยัน และรหัสผ่านเพื่อสร้างบัญชี','أدخل البريد والرمز وكلمة المرور لإنشاء الحساب.','이메일, 인증 코드와 비밀번호를 입력해 계정을 만드세요.'],
+['已有账号，去登录','Already registered? Sign in','Уже есть аккаунт? Войти','มีบัญชีแล้ว เข้าสู่ระบบ','لديك حساب؟ سجّل الدخول','이미 계정이 있나요? 로그인'],
+['还没有账号，去注册','Create an account','Создать аккаунт','สร้างบัญชี','إنشاء حساب جديد','계정 만들기'],
+['忘记密码','Forgot password','Забыли пароль','ลืมรหัสผ่าน','نسيت كلمة المرور','비밀번호 찾기'],
+['重设密码','Reset password','Сбросить пароль','ตั้งรหัสผ่านใหม่','إعادة تعيين كلمة المرور','비밀번호 재설정'],
+['返回登录','Back to sign in','Назад ко входу','กลับไปเข้าสู่ระบบ','العودة لتسجيل الدخول','로그인으로 돌아가기'],
 ['注册账号','Create an account','Создать аккаунт','สร้างบัญชี','إنشاء حساب','계정 만들기'],
 ['设置账号和密码即可创建。','Choose an account and password to create it.','Укажите аккаунт и пароль для создания.','ตั้งบัญชีและรหัสผ่านเพื่อสร้างบัญชี','اختر حسابًا وكلمة مرور لإنشائه.','계정과 비밀번호를 설정해 만드세요.'],
 ['请输入手机号和密码登录。','Enter your phone number and password.','Введите телефон и пароль.','กรอกหมายเลขโทรศัพท์และรหัสผ่าน','أدخل رقم الهاتف وكلمة المرور.','전화번호와 비밀번호를 입력하세요.'],
@@ -48,6 +57,23 @@ var rows=[
 ['账号不存在，请先注册。','Account not found. Please sign up.','Аккаунт не найден. Зарегистрируйтесь.','ไม่พบบัญชี โปรดสมัครสมาชิก','الحساب غير موجود. أنشئ حسابًا.','계정이 없습니다. 가입하세요.'],
 ['请检查账号和密码。','Check your account and password.','Проверьте аккаунт и пароль.','ตรวจสอบบัญชีและรหัสผ่าน','تحقق من الحساب وكلمة المرور.','계정과 비밀번호를 확인하세요.'],
 ['尝试过于频繁，请稍后再试。','Too many attempts. Try again later.','Слишком много попыток. Повторите позже.','ลองบ่อยเกินไป โปรดลองภายหลัง','محاولات كثيرة. حاول لاحقًا.','시도 횟수가 많습니다. 잠시 후 다시 시도하세요.'],
+['暂时无法发送邮件，请联系服务提供者。','Email delivery is unavailable. Contact the service provider.','Почта недоступна. Обратитесь к поставщику сервиса.','ยังส่งอีเมลไม่ได้ โปรดติดต่อผู้ให้บริการ','إرسال البريد غير متاح. تواصل مع مزود الخدمة.','이메일을 보낼 수 없습니다. 서비스 제공자에게 문의하세요.'],
+['连接暂时不可用，输入已保留。','Connection unavailable. Your input is kept.','Нет соединения. Введённое сохранено.','เชื่อมต่อไม่ได้ ข้อมูลที่กรอกยังอยู่','الاتصال غير متاح. احتُفظ بمدخلاتك.','연결할 수 없습니다. 입력은 유지됩니다.'],
+['请使用已验证邮箱登录。','Sign in with a verified email.','Войдите с подтверждённой почтой.','เข้าสู่ระบบด้วยอีเมลที่ยืนยันแล้ว','سجّل الدخول ببريد مؤكّد.','인증된 이메일로 로그인하세요.'],
+['退出登录','Sign out','Выйти','ออกจากระบบ','تسجيل الخروج','로그아웃'],
+['账户设置','Account settings','Настройки аккаунта','การตั้งค่าบัญชี','إعدادات الحساب','계정 설정'],
+['账号与安全','Account and security','Аккаунт и безопасность','บัญชีและความปลอดภัย','الحساب والأمان','계정 및 보안'],
+['已验证邮箱','Verified email','Подтверждённая почта','อีเมลที่ยืนยันแล้ว','بريد إلكتروني مؤكد','인증된 이메일'],
+['管理员','Administrator','Администратор','ผู้ดูแลระบบ','مسؤول','관리자'],
+['普通用户','Member','Участник','สมาชิก','عضو','일반 사용자'],
+['保存账号设置','Save account settings','Сохранить настройки аккаунта','บันทึกการตั้งค่าบัญชี','حفظ إعدادات الحساب','계정 설정 저장'],
+['修改密码','Change password','Изменить пароль','เปลี่ยนรหัสผ่าน','تغيير كلمة المرور','비밀번호 변경'],
+['原密码','Current password','Текущий пароль','รหัสผ่านปัจจุบัน','كلمة المرور الحالية','현재 비밀번호'],
+['新密码','New password','Новый пароль','รหัสผ่านใหม่','كلمة المرور الجديدة','새 비밀번호'],
+['更新密码','Update password','Обновить пароль','อัปเดตรหัสผ่าน','تحديث كلمة المرور','비밀번호 업데이트'],
+['账号设置已保存','Account settings saved','Настройки аккаунта сохранены','บันทึกการตั้งค่าบัญชีแล้ว','تم حفظ إعدادات الحساب','계정 설정이 저장되었습니다'],
+['密码已更新','Password updated','Пароль обновлён','อัปเดตรหัสผ่านแล้ว','تم تحديث كلمة المرور','비밀번호가 업데이트되었습니다'],
+['原密码不正确。','Current password is incorrect.','Текущий пароль неверен.','รหัสผ่านปัจจุบันไม่ถูกต้อง','كلمة المرور الحالية غير صحيحة.','현재 비밀번호가 올바르지 않습니다.'],
 ['连接暂时不可用，输入已保留。','Connection unavailable. Your input is kept.','Нет соединения. Введённое сохранено.','เชื่อมต่อไม่ได้ ข้อมูลที่กรอกยังอยู่','الاتصال غير متاح. احتُفظ بمدخلاتك.','연결할 수 없습니다. 입력은 유지됩니다.']
 ];
 var langs=['zh','en','ru','th','ar','ko'],s={mode:'login',data:{},busy:false,ready:false,message:'',status:null,user:null},boot,started=false,booted=false,initialUser=null;
@@ -69,7 +95,7 @@ function paint(){syncShellCopy();if(!document.documentElement.classList.contains
  var body=accountField();if(register)body+=field('password','密码','password','new-password')+field('passwordConfirm','确认密码','password','new-password')+field('displayName','称呼','text','nickname',{required:false});else body+=field('password','密码','password','current-password');
  var submitLabel=register?'注册':'登录';box.innerHTML='<section class="auth-frame auth-account"><div class="auth-brand" aria-hidden="true"><img src="/brand/robot-logo.png" alt=""><strong>'+text('探戈 Done&Go')+'</strong><span>'+text('登录后继续你的时间计划。')+'</span></div><div class="auth-panel"><header class="auth-head"><p class="auth-eyebrow">'+text('欢迎来到探戈')+'</p><h1>'+text(title)+'</h1><p class="muted">'+text(subtitle)+'</p></header><form id="app-auth-form" novalidate>'+body+(s.message?'<p class="auth-notice" role="status">'+text(s.message)+'</p>':'')+'<button type="submit" class="btn primary auth-submit"'+(s.busy?' disabled':'')+'>'+text(s.busy?'处理中…':submitLabel)+'</button>'+authNav+'</form></div></section>';}
 function remember(){var form=document.getElementById('app-auth-form')||document.getElementById('app-demo-form');if(form)for(var el of form.elements)if(el.name)s.data[el.name]=el.value;}
-function header(){var button=document.getElementById('app-auth-logout');if(!button){button=document.createElement('button');button.id='app-auth-logout';button.className='btn sm';button.dataset.auth='logout';document.querySelector('.top-actions').prepend(button);}if(s.user.role==='admin'){var adminButton=document.getElementById('app-users-link');if(!adminButton){adminButton=document.createElement('a');adminButton.id='app-users-link';adminButton.className='btn sm';adminButton.href='#users';button.before(adminButton);}adminButton.textContent=t('用户管理');}button.hidden=!!(s.status?.demoMode&&s.status.autoStart);button.textContent=t(s.user.demo?'退出体验':'退出登录');button.title=s.user.demo?t('演示模式'):(s.user.email||s.user.phone||s.user.username||'');if(s.user.demo&&!document.getElementById('app-demo-badge')){var badge=document.createElement('span');badge.id='app-demo-badge';badge.className='small muted';button.before(badge);}var badge=document.getElementById('app-demo-badge');if(badge)badge.textContent=t('演示模式');}
+function header(){var button=document.getElementById('app-auth-logout');if(!button){button=document.createElement('button');button.id='app-auth-logout';button.className='btn sm';button.dataset.auth='logout';document.querySelector('.top-actions').prepend(button);}var accountLink=document.getElementById('app-account-link');if(!accountLink&&!s.user.demo){accountLink=document.createElement('a');accountLink.id='app-account-link';accountLink.className='btn sm';accountLink.href='#settings';button.before(accountLink);}if(accountLink)accountLink.textContent=t('账户设置');if(s.user.role==='admin'){var adminButton=document.getElementById('app-users-link');if(!adminButton){adminButton=document.createElement('a');adminButton.id='app-users-link';adminButton.className='btn sm';adminButton.href='#users';button.before(adminButton);}adminButton.textContent=t('用户管理');}button.hidden=!!(s.status?.demoMode&&s.status.autoStart);button.textContent=t(s.user.demo?'退出体验':'退出登录');button.title=s.user.demo?t('演示模式'):(s.user.email||s.user.phone||s.user.username||'');if(s.user.demo&&!document.getElementById('app-demo-badge')){var badge=document.createElement('span');badge.id='app-demo-badge';badge.className='small muted';button.before(badge);}var badge=document.getElementById('app-demo-badge');if(badge)badge.textContent=t('演示模式');}
 function launch(user){if(!user?.emailVerified&&!user?.phoneVerified&&!(s.status?.demoMode&&user?.demo===true)){s.message='请登录。';s.mode='login';s.ready=true;paint();return;}if(booted&&initialUser!==user.id){location.reload();return;}s.user=user;document.documentElement.classList.remove('auth-locked');document.getElementById('app-auth').innerHTML='';document.getElementById('view').inert=false;header();if(!booted){booted=true;initialUser=user.id;root.TangoAccountStorage=scope(user);root.TangoCurrentUser=user;boot(user);}}
 function lock(){if(s.status?.demoMode&&s.status.autoStart){location.reload();return;}s.user=null;s.mode='login';s.ready=true;s.data.password='';s.message='请登录。';document.documentElement.classList.add('auth-locked');document.getElementById('view').inert=true;paint();}
 async function logout(){try{await api('logout',{});try{localStorage.setItem('tango-donego.auth-change',String(Date.now()));}catch{}location.reload();}catch(error){s.message=message(error);lock();}}

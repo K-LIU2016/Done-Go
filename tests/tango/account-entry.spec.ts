@@ -22,7 +22,6 @@ test('administrators list, disable, enable and confirm-delete users; ordinary me
   const self=page.locator('.admin-user');await expect(self).toHaveCount(1);await expect(self.locator('[data-users-action="delete"]')).toBeDisabled();
  }finally{await memberContext.close();}
 });
-
 async function prepare(page:Page){await page.route('https://**',route=>route.abort());await page.addInitScript(()=>{if(!localStorage.getItem('tango-donego.web.v1'))localStorage.setItem('tango-donego.web.v1',JSON.stringify({v:1,pv:5,mode:'real',entries:[{id:'unclaimed',title:'PRIVATE LEGACY RECORD',date:'2026-10-21',start:'09:00',end:'09:30',kind:'necessary'}],drafts:[],trials:[],methods:[],methodUses:[]}));});}
 
 async function signUp(page:Page,account:string){
@@ -45,6 +44,13 @@ test('entry registers with an email through the single account field and agreeme
  await page.locator('.picker .tile-av:not([disabled])').last().click();await page.locator('[data-act="pick-save"]').click();await expect(page.locator('.bubble.pb')).toHaveCount(1);
  await page.locator('#app-auth-logout').click();await expect(page.locator('#app-auth-form')).toBeVisible();await expect(page.locator('.tabs')).toBeHidden();
  await page.screenshot({path:info.outputPath('account-entry.png'),fullPage:true});
+});
+test('signed-in settings connect account identity, app data and logout',async({page})=>{
+ await prepare(page);await page.goto('/#today');await signUp(page,'settings'+Math.random().toString(36).slice(2,10)+'@fixture.test');await page.goto('/#settings');
+ await expect(page.locator('#app-account-link')).toHaveText('账户设置');await expect(page.locator('#account-settings')).toContainText('真实账号已登录');await expect(page.locator('#account-email')).toHaveValue(/@fixture\.test$/);
+ await page.locator('#account-display-name').fill('Updated settings member');await page.locator('#account-profile-form button[type=submit]').click();await expect(page.locator('.toast')).toContainText('账号设置已保存');await expect(page.locator('#account-display-name')).toHaveValue('Updated settings member');
+ await page.locator('#account-old-password').fill(password);await page.locator('#account-new-password').fill('NewPass456');await page.locator('#account-password-form button[type=submit]').click();await expect(page.locator('.toast')).toContainText('密码已更新');
+ await page.locator('#account-settings [data-auth="logout"]').click();await expect(page.locator('#app-auth-form')).toBeVisible();await expect(page.locator('.tabs')).toBeHidden();expect((await page.context().request.get('/api/auth/me',{headers:{'x-tango-client':'tango-settings/1'}})).status()).toBe(401);
 });
 
 test('entry registers and signs in with a phone number through the same single account field',async({page})=>{
