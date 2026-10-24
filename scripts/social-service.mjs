@@ -40,9 +40,9 @@
 //   findCircleByInvite(code) / getCircle(id) / circleMemberCount(id) /
 //   joinCircle(id, account) / leaveCircle(id, account) / isCircleMember(id, account) /
 //   circleOwner(id) / removeCircleMember(id, member) /
-//   circleHome(id, week) -> { wall, chain, freedTo, rankView }
+//   circleHome(id, week, viewer) -> { wall, chain, freedTo, rankView }
 //   block(a, b) / unblock(a, b) / listBlocks(a) / blockedBetween(a, b)
-//   report(entry) / recordQuestFeedback(entry)
+//   report(entry) / questFeedback(questId, account, type) / getQuestProgress(questId, owner)
 //   purgeAccount(account) -> void                      // D2 级联彻底删除
 
 import { randomUUID } from 'node:crypto';
@@ -370,7 +370,7 @@ export function createSocialService(options = {}) {
     need(pair, 'PAIR_NOT_FOUND', 404);
     need(pair.a === actor.id || pair.b === actor.id, 'FORBIDDEN', 403);
     need(pair.freezesUsed < PAIR_FREEZES_PER_WEEK, 'PAIR_FROZEN_ALREADY', 409); // 每周 1 次冻结
-    store.freezePair(pair.id);
+    store.freezePair(pair.id, { week: currentWeek() });
     return { pair: store.getPair(pair.id) };
   }, { optIn: true });
 
@@ -436,7 +436,7 @@ export function createSocialService(options = {}) {
     need(circle, 'CIRCLE_NOT_FOUND', 404);
     need(store.isCircleMember(circle.id, actor.id), 'NOT_CIRCLE_MEMBER', 403);
     const week = weekParam(ctx.query);
-    const home = store.circleHome(circle.id, week) || {};
+    const home = store.circleHome(circle.id, week, actor.id) || {};
     // D5：排名只按传棒/毕业、汇总只允许占比 —— 出口再校验，污染即拒。
     const rank = home.rankView ? validateCircleRankView(home.rankView) : null;
     need(!home.rankView || rank, 'SOCIAL_DATA_INVALID', 500);
@@ -455,7 +455,7 @@ export function createSocialService(options = {}) {
   on('GET', /^\/api\/social\/quests$/, 'read', (actor, _body, ctx) => {
     const week = weekParam(ctx.query);
     const quests = questPlan(week).map(quest => {
-      const progress = validateQuestProgress(store.getQuestProgress(quest.id, quest.scope, actor.id) ||
+      const progress = validateQuestProgress(store.getQuestProgress(quest.id, actor.id) ||
         { questId: quest.id, scope: quest.scope, owner: actor.id, progress: 0, done: false });
       need(progress, 'SOCIAL_DATA_INVALID', 500);
       return { quest, progress };
@@ -468,7 +468,7 @@ export function createSocialService(options = {}) {
     need(questId, 'QUEST_NOT_FOUND', 404);
     need(exactKeys(body, ['type']), 'INVALID_INPUT', 400);
     need(QUEST_FEEDBACK_TYPES.includes(body.type), 'INVALID_INPUT', 400); // 「太多了」是保护指标（PRD §8）
-    store.recordQuestFeedback({ account: actor.id, questId, type: body.type, at: new Date(now()).toISOString() });
+    store.questFeedback(questId, actor.id, body.type);
     return { ok: true };
   }, { optIn: true });
 

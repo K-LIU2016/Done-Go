@@ -132,7 +132,7 @@ function mkStore() {
     report(entry) { reports.push(entry); },
     questFeedbackLog: [],
     getQuestProgress() { return null; },
-    recordQuestFeedback(entry) { this.questFeedbackLog.push(entry); },
+    questFeedback(questId, account, type) { this.questFeedbackLog.push({ questId, account, type }); },
     purgeAccount(account) {
       purged.push(account);
       state.delete(account);
@@ -793,4 +793,59 @@ test('non-JSON content type -> 415; broken JSON -> 400; oversized body -> 413', 
   const big = await call(service, { method: 'POST', path: '/api/social/opt-in', rawBody: Buffer.from('x'.repeat(129 * 1024)), account: 'me' });
   assert.equal(big.status, 413);
   assert.equal(big.body.error, 'BODY_TOO_LARGE');
+});
+
+// ---------------------------------------------------------------------------
+// 15) 真实 store 集成（S1 social-store.mjs + S4 service，内存 SQLite）——
+// 证明两条线的接口签名真实兼容，不只是 stub 对 stub。
+// ---------------------------------------------------------------------------
+
+test('integration: real social-store wires into the service end to end', async () => {
+  const { createSocialStore } = await import('../../scripts/social-store.mjs');
+  if (!createService) {
+    const mod = await import('../../scripts/social-service.mjs');
+    createService = mod.createSocialService;
+  }
+  const store = createSocialStore({ databaseFile: ':memory:' });
+  try {
+    const service = createService({
+      store,
+      auth: mkAuth(),
+      now: () => Date.parse('2026-10-21T08:00:00Z'),
+      currentWeek: () => WEEK,
+      rateLimits: { write: 60, read: 60, preview: 60, windowMs: 60000 },
+    });
+    const opt = await call(service, { method: 'POST', path: '/api/social/opt-in', body: { enabled: true, minor: false }, account: 'u1' });
+    assert.equal(opt.status, 200);
+    assert.equal(opt.body.optIn, true);
+    assert.ok(opt.body.alias && isAvatarColor(opt.body.avatarColor));
+    const upload = await call(service, { method: 'POST', path: '/api/social/profile', body: mkFeatures(), account: 'u1' });
+    assert.equal(upload.status, 200);
+    assert.equal(store.getProfile('u1', WEEK).graduations, 3);
+    const dirty = mkFeatures(); dirty.title = '秘密';
+    assert.equal((await call(service, { method: 'POST', path: '/api/social/profile', body: dirty, account: 'u1' })).status, 400);
+    const circle = await call(service, { method: 'POST', path: '/api/social/circles', body: { name: '课题组' }, account: 'u1' });
+    assert.equal(circle.status, 200);
+    await optedIn(service, 'u2');
+    const joined = await call(service, { method: 'POST', path: '/api/social/circles/join', body: { inviteCode: circle.body.circle.inviteCode }, account: 'u2' });
+    assert.equal(joined.status, 200);
+    assert.equal(store.circleMemberCount(circle.body.circle.id), 2);
+    const sent = await call(service, { method: 'POST', path: '/api/social/baton', body: { targetKind: 'link', targetId: null, card: CARD }, account: 'u1' });
+    assert.equal(sent.status, 200);
+    const opened = await call(service, { path: '/api/social/baton/' + sent.body.id });
+    assert.equal(opened.status, 200);
+    assert.deepEqual(Object.keys(opened.body.card).sort(), ['promptTemplate', 'scenarioTitle', 'usageId']);
+    const shared = await call(service, { method: 'POST', path: '/api/social/shared-event', body: { kind: 'usage-learned' }, account: 'u1' });
+    assert.equal(shared.status, 200);
+    const cheer = await call(service, { method: 'POST', path: '/api/social/kudos', body: { from: 'u2', to: 'u1', eventKind: 'usage-learned', sharedEventId: shared.body.id }, account: 'u2' });
+    assert.equal(cheer.status, 200);
+    assert.equal((await call(service, { path: '/api/social/kudos', account: 'u1' })).body.kudos.length, 1);
+    const gone = await call(service, { method: 'POST', path: '/api/social/delete-me', body: {}, account: 'u1' });
+    assert.equal(gone.status, 200);
+    assert.equal(store.getState('u1'), null);
+    assert.equal(store.getProfile('u1', WEEK), null);
+    assert.equal(store.isCircleMember(circle.body.circle.id, 'u1'), false);
+  } finally {
+    store.close();
+  }
 });
