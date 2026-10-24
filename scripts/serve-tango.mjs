@@ -9,6 +9,7 @@ import { createDiscovery } from './ai-discovery.mjs';
 import { applyDotEnv, loadAssistantConfig, saveAssistantMetadata } from './assistant-config.mjs';
 import { createCollaborationService } from './collaboration-service.mjs';
 import { createMetrics, metricsDay, validMetricsDay, METRICS_BODY_MAX_BYTES } from './metrics.mjs';
+import { EXTERNAL_APPS, externalAppIds } from '../web/relay/external-apps.js';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
@@ -86,8 +87,9 @@ export function createTangoServer(options = {}) {
  const aiGuard = options.aiGuard || createAIGuard();
  // SPEC §5.5 / D10: count-only funnel counters; the production main() below
  // injects a persistent instance (.tango-donego/metrics/<day>.json), anything
- // else gets the memory-only default so tests never touch the disk.
- const metrics = options.metrics || createMetrics();
+ // else gets the memory-only default so tests never touch the disk. Both
+ // tighten baton_copy/graduated to the §5.2 external app ids.
+ const metrics = options.metrics || createMetrics({ apps: externalAppIds(EXTERNAL_APPS) });
  const server = createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
@@ -271,6 +273,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const configuredDatabase=process.env.AUTH_DATABASE_PATH||process.env.TANGO_AUTH_DB||process.env.TANGO_COLLAB_DB;
   if(configuredDatabase&&configuredDatabase!==':memory:'&&!isAbsolute(configuredDatabase))throw new Error('AUTH_DATABASE_PATH must be absolute');
   const collaboration = await createCollaborationService({ databaseFile: configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite'), assistant: delegate, demoMode, authOptions: demoMode ? { autoStart: true } : {} });
-  const metrics = createMetrics({ dir: join(projectRoot, '.tango-donego', 'metrics') });
+  const metrics = createMetrics({ dir: join(projectRoot, '.tango-donego', 'metrics'), apps: externalAppIds(EXTERNAL_APPS) });
   createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration, metrics }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
 }

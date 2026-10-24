@@ -244,6 +244,28 @@ test('metrics persist per-day JSON atomically and resume across restarts', async
   assert.deepEqual((await second.snapshot(next)).events, { relay_ok: 1 });
 });
 
+test('metrics tighten baton_copy/graduated to the known external app ids when supplied', async () => {
+  const metrics = createMetrics({ apps: ['doubao', 'deepseek', 'chatgpt'] });
+  assert.equal(await metrics.record({ event: 'baton_copy:doubao' }), 'baton_copy:doubao');
+  assert.equal(await metrics.record({ event: 'graduated:chatgpt' }), 'graduated:chatgpt');
+  // id-shaped but unknown: rejected once the real app list is supplied …
+  assert.equal(await metrics.record({ event: 'baton_copy:not-an-app' }), null);
+  // … while the apps-less fallback keeps the contracts APP_ID_RE gate.
+  const fallback = createMetrics();
+  assert.equal(await metrics.record({ event: 'baton_copy:not-an-app' }), null);
+  assert.equal(await fallback.record({ event: 'baton_copy:not-an-app' }), 'baton_copy:not-an-app');
+});
+
+test('the default server metrics tighten app events to web/relay/external-apps.js ids', async t => {
+  const server = createTangoServer({ assistant: noAssistant, discovery: noDiscovery });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port, origin = 'http://127.0.0.1:' + port;
+  const headers = { Origin: origin, 'Content-Type': 'application/json' };
+  assert.equal((await call(port, '/api/metrics', { method: 'POST', headers, body: '{"event":"baton_copy:doubao"}' })).status, 204);
+  assert.equal((await call(port, '/api/metrics', { method: 'POST', headers, body: '{"event":"baton_copy:definitely-not-a-listed-app"}' })).status, 400);
+});
+
 test('metrics day helpers validate calendar days and bound the POST body', () => {
   assert.equal(validMetricsDay('2026-10-24'), true);
   assert.equal(validMetricsDay('2026-02-29'), false); // 2026 is not a leap year
