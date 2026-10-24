@@ -51,17 +51,17 @@ test('parse mode never injects reasoning effort even when the heavy tier is conf
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'reasoning_effort'), false);
 });
 
-test('parse mode carries a 6 second default budget so the tidy flow falls back inside the A1 envelope', async t => {
+test('parse mode carries an 8 second total budget (D21) so the tidy flow falls back inside the A1 envelope', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const pending = (_url, { signal }) => new Promise((_resolve, reject) => { signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }); });
   let chatCode;
   const app = createAssistant({ config, fetch: pending });
   const parse = app.chat({ prompt: '晚上10点复盘会', mode: 'parse' }).catch(error => error.code);
   const chat = app.chat({ prompt: '晚上10点复盘会', mode: 'chat' }).catch(error => { chatCode = error.code; return error.code; });
-  await t.mock.timers.tick(6000);
+  await t.mock.timers.tick(8000);
   assert.equal(await parse, 'TANGO_AI_TIMEOUT');
   assert.equal(chatCode, undefined); // ordinary chat keeps the 25s default
-  t.mock.timers.tick(19000);
+  t.mock.timers.tick(17000);
   assert.equal(await chat, 'TANGO_AI_TIMEOUT');
 });
 

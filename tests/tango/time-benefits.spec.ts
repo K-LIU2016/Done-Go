@@ -223,13 +223,16 @@ test('time tree alone preserves task times and opens task details from leaves', 
   await expect(page.locator('.tree .leaf')).toHaveCount(1);
   await page.screenshot({ path: test.info().outputPath('time-tree.png'), fullPage: true });
 });
-test('typing a task keeps a brand-colored save button beside its draft in both themes', async ({ page }, info) => {
+test('typing a task keeps a readable theme-colored save button beside its draft in both themes', async ({ page }, info) => {
   await open(page, { entries: [] });
   await page.screenshot({ path: test.info().outputPath('empty-today.png'), fullPage: true });
   await page.locator('#cap-text').fill('下午两点到三点在市中心开一个关于脑机接口的会，最重要');
   await page.locator('#capGo').click();
   await expect(page.locator('.draft')).toHaveCount(1);
-  for (const theme of ['standard', 'designer']) {
+  for (const { theme, background, color } of [
+    { theme: 'standard', background: 'rgb(233, 84, 50)', color: 'rgb(21, 23, 17)' },
+    { theme: 'designer', background: 'rgb(244, 241, 221)', color: 'rgb(40, 59, 46)' },
+  ]) {
     await page.locator('#appearance-select').selectOption(theme);
     for (const width of info.project.name === 'mobile' ? [390, 360] : [1440, 768]) {
       await page.setViewportSize({ width, height: 1000 });
@@ -239,7 +242,24 @@ test('typing a task keeps a brand-colored save button beside its draft in both t
       expect(button!.x).toBeGreaterThanOrEqual(draft!.x + draft!.width);
       expect(button!.y).toBeGreaterThanOrEqual(draft!.y);
       expect(button!.y + button!.height).toBeLessThanOrEqual(draft!.y + draft!.height);
-      await expect(save).toHaveCSS('background-color', 'rgb(233, 84, 50)');
+      expect(button!.height).toBeGreaterThanOrEqual(44);
+      await expect(save).toHaveAccessibleName('记下');
+      await expect(save).toHaveCSS('background-color', background);
+      await expect(save).toHaveCSS('color', color);
+      const contrast = await save.evaluate(element => {
+        const luminance = (value: string) => (value.match(/[\d.]+/g) || []).slice(0, 3)
+          .map(Number)
+          .map(component => {
+            const normalized = component / 255;
+            return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+          })
+          .reduce((sum, component, index) => sum + component * [0.2126, 0.7152, 0.0722][index], 0);
+        const style = getComputedStyle(element);
+        const foreground = luminance(style.color);
+        const background = luminance(style.backgroundColor);
+        return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+      });
+      expect(contrast, theme + ' draft save text contrast').toBeGreaterThanOrEqual(4.5);
       expect(await save.evaluate(element => { const range = document.createRange(); range.selectNodeContents(element); return range.getClientRects().length; })).toBe(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       await page.screenshot({ path: info.outputPath('draft-save-' + theme + '-' + width + '.png'), fullPage: true });
@@ -269,16 +289,18 @@ test('review forecast keeps completion-time snapshots and never rewrites them fr
   const readTrial = (taskId: string, date: string, after: number) => ({ taskId, date, before: 60, after, usedAI: true, category: 'read', confirmed: true, quality: 'accepted', dataMode: 'real' });
   await open(page, {
     entries: [
-      completed('snap-a', '2026-10-14', '读论文一', { before: 60, low: 10, high: 20, source: 'history' }),
-      completed('snap-b', '2026-10-13', '读论文二', { before: 60, low: 10, high: 20, source: 'history' }),
+      completed('snap-a', '2026-10-14', '读论文一', { before: 60, low: 10, high: 20, source: 'history', dataMode: 'real' }),
+      completed('snap-b', '2026-10-13', '读论文二', { before: 60, low: 10, high: 20, source: 'history', dataMode: 'real' }),
       completed('missing', '2026-10-12', '读论文三'),
-      completed('mismatch', '2026-10-11', '读论文四', { before: 90, low: 10, high: 20, source: 'history' }),
+      completed('mismatch', '2026-10-11', '读论文四', { before: 90, low: 10, high: 20, source: 'history', dataMode: 'real' }),
     ],
     trials: [readTrial('later-1', '2026-10-10', 5), readTrial('later-2', '2026-10-09', 10)],
   });
   await page.goto('/#review');
   const estimated = page.locator('[data-metric="review-estimated"]');
   await expect(estimated).toContainText('20–40 min');
+  await expect(page.locator('[data-metric="review-estimated-before"]')).toHaveText('120');
+  await expect(page.locator('[data-metric="review-estimated-after"]')).toHaveText('80–100');
   await expect(page.locator('.estimated-tile')).toContainText('2 项有参考');
   await expect(page.locator('.estimated-tile')).toContainText('2 项样本不足');
   await expect(estimated).not.toContainText('50–55 min');

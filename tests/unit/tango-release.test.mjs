@@ -27,6 +27,7 @@ test('a Done&Go release contains the actual web app and verifiable files without
   expected.push('server/auth/demo.mjs');
   expected.push('scripts/production-readiness.mjs');
   expected.push('web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'server/urlguard.mjs');
+  expected.push('web/model-catalog-cn.js', 'web/demo-onboarding.js', 'web/ai-parse.js', 'web/ai-prompt.js');
   assert.deepEqual(Object.keys(manifest.files).sort(), expected.slice().sort());
   for (const path of expected) {
     const bytes = await readFile(join(release.directory, path));
@@ -52,4 +53,18 @@ test('a Done&Go release contains the actual web app and verifiable files without
   const next = await buildRelease({ outputParent: output });
   assert.notEqual(next.directory, release.directory);
   assert.equal(await readFile(join(release.directory, 'web/index.html'), 'utf8'), html);
+});
+
+test('the release packages every web asset index.html references at runtime', async () => {
+  const { buildRelease } = await import('../../scripts/build-web.mjs');
+  const output = await mkdtemp(join(tmpdir(), 'tango-release-assets-'));
+  const release = await buildRelease({ outputParent: output });
+  const manifest = JSON.parse(await readFile(join(release.directory, 'manifest.json'), 'utf8'));
+  const html = await readFile(join(release.directory, 'web/index.html'), 'utf8');
+  const referenced = new Set();
+  for (const match of html.matchAll(/<script[^>]+src="\/([^"]+\.js)"/g)) referenced.add(match[1]);
+  for (const match of html.matchAll(/(?:import\('|\.src = ')\/([^']+\.js)'/g)) referenced.add(match[1]);
+  assert.ok(referenced.size >= 14, 'expected index.html to reference at least 14 scripts, found ' + referenced.size);
+  const missing = [...referenced].filter(name => !manifest.files['web/' + name]);
+  assert.deepEqual(missing, []);
 });

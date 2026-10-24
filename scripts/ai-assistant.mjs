@@ -10,10 +10,15 @@ const systemFor = mode => (MODE_SYSTEMS[mode] ? ASSISTANT_SYSTEM + '\n\n' + MODE
 const TIER_ENV = { heavy: 'TANGO_AI_MODEL_HEAVY', standard: 'TANGO_AI_MODEL_STANDARD', light: 'TANGO_AI_MODEL_LIGHT' };
 const STREAM_TOTAL_MS = 300000;
 const STREAM_TOTAL_MAX_MS = 600000;
-// AI tidy (parse) is an interactive diff flow with a rule-result fallback and a
-// seconds-scale p95 envelope, so its default upstream budget is 6s; TANGO_AI_TIMEOUT_MS
-// or an explicit timeoutMs still overrides it.
-const PARSE_BUDGET_MS = 6000;
+// D21: parse and prompt budgets are TOTAL-duration caps counted from the start
+// of the request, not idle budgets — a reasoning model can stream reasoning
+// deltas for tens of seconds while rearming any idle timer, so only a wall
+// clock over the whole request keeps the seconds-scale envelopes (parse tidy
+// flow falls back to its rule result, prompt keeps its current error
+// semantics). The idle rearm watchdog stays in place below the total cap;
+// TANGO_AI_TIMEOUT_MS or an explicit timeoutMs still overrides both modes.
+const PARSE_BUDGET_MS = 8000;
+const PROMPT_BUDGET_MS = 20000;
 // Reasoning-tier models can stream hundreds of KB of reasoning_content deltas
 // and per-chunk metadata while the visible content stays short, so the raw SSE
 // byte guard is a lenient bounded fallback (default 4 MiB, TANGO_AI_STREAM_MAX_BYTES
@@ -36,6 +41,7 @@ function budgetMs(options, config, tier, env, mode) {
   const fromEnv = Number(env.TANGO_AI_TIMEOUT_MS);
   if (Number.isInteger(fromEnv) && fromEnv >= 1000 && fromEnv <= STREAM_TOTAL_MAX_MS) return fromEnv;
   if (mode === 'parse') return PARSE_BUDGET_MS;
+  if (mode === 'prompt') return PROMPT_BUDGET_MS;
   return config.reasoningEffort === 'xhigh' && tier === 'heavy' ? 120000 : 25000;
 }
 
@@ -164,14 +170,12 @@ export function createAssistant(options = {}) {
       if (signal?.aborted) abort.abort();
       const idleMs = budgetMs(options, config, tier, env, mode);
       const rawBytes = streamRawBytes(options, env);
-      const deadline = Date.now() + Math.min(Math.max(idleMs, STREAM_TOTAL_MS), STREAM_TOTAL_MAX_MS);
-      let timer;
-      let rejectAbort;
-      const aborted = new Promise((_resolve, reject) => {
-        rejectAbort = () => reject(assistantError(timedOut ? 'TANGO_AI_TIMEOUT' : 'TANGO_AI_ABORTED', timedOut ? 504 : 499));
-      });
-      abort.signal.addEventListener('abort', rejectAbort, { once: true });
-      let stopReader = () => {};
+      // D21: parse/prompt budgets are total-duration caps counted from request
+      // start, so their deadline IS the budget; every other mode keeps the 300s
+      // total floor (raised to the idle budget when longer, capped at 600s).
+      const cappedMode = mode === 'parse' || mode === 'prompt';
+      const deadline = Date.now() + (cappedMode ? idleMs : Math.min(Math.max(idleMs, STREAM_TOTAL_MS), STREAM_TOTAL_MAX_MS));
+      let timer; let stopReader = () => {};
       const rearm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; abort.abort(); }, idleMs); };
       const pastDeadline = () => { if (Date.now() < deadline) return false; timedOut = true; abort.abort(); return true; };
       rearm();
@@ -181,10 +185,7 @@ export function createAssistant(options = {}) {
         const messages = [{ role: 'user', content: input.prompt }];
         const payload = anthropic ? { model: modelFor(tier), max_tokens: 3000, system: systemFor(mode), messages } : { model: modelFor(tier), max_tokens: 3000, stream: true, messages: [{ role: 'system', content: systemFor(mode) }, ...messages] };
         if (!anthropic && config.reasoningEffort !== undefined && tier === 'heavy') payload.reasoning_effort = config.reasoningEffort;
-        const response = await Promise.race([
-          send(config.url, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), redirect: 'error', signal: abort.signal }),
-          aborted
-        ]);
+        const response = await send(config.url, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), redirect: 'error', signal: abort.signal });
         if (!response.ok) { await response.body?.cancel().catch(() => {}); throw assistantError('TANGO_AI_UPSTREAM_FAILED'); }
         if (pastDeadline()) throw assistantError('TANGO_AI_TIMEOUT', 504);
         rearm();
@@ -198,51 +199,71 @@ export function createAssistant(options = {}) {
         const reader = response.body.getReader(); const decoder = new TextDecoder();
         stopReader = () => { reader.cancel().catch(() => {}); };
         abort.signal.addEventListener('abort', stopReader, { once: true });
-        let bytes = 0, buffer = '', total = '', bodyDone = false, sawDone = false;
-        const event = line => {
-          if (!line.startsWith('data:')) return null;
-          const data = line.slice(5).trim();
-          if (!data) return null;
-          if (data === '[DONE]') return { done: true };
-          let parsed; try { parsed = JSON.parse(data); } catch { throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
-          const delta = parsed.choices?.[0]?.delta;
-          if (typeof delta?.content === 'string') return delta.content ? { text: delta.content } : null;
-          if (Array.isArray(delta?.content)) {
-            const text = delta.content.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text).join('');
-            return text ? { text } : null;
+        let bytes = 0, buffer = '', sawDone = false, total = '', dataLines = [];
+        const event = data => {
+          const value = data.trim();
+          if (!value) return null;
+          if (value === '[DONE]') return { done: true };
+          let parsed; try { parsed = JSON.parse(value); } catch { throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
+          const delta = parsed.choices?.[0]?.delta?.content;
+          return typeof delta === 'string' ? { text: delta } : null;
+        };
+        const finishEvent = () => {
+          if (!dataLines.length) return null;
+          const item = event(dataLines.join('\n'));
+          dataLines = [];
+          return item;
+        };
+        const consume = final => {
+          const items = [];
+          const consumeLine = line => {
+            if (!line) { const item = finishEvent(); if (item) items.push(item); return; }
+            if (!line.startsWith('data:')) return;
+            let data = line.slice(5);
+            if (data.startsWith(' ')) data = data.slice(1);
+            dataLines.push(data);
+          };
+          for (;;) {
+            let index = -1;
+            for (let i = 0; i < buffer.length; i += 1) if (buffer[i] === '\n' || buffer[i] === '\r') { index = i; break; }
+            if (index < 0) break;
+            if (!final && buffer[index] === '\r' && index + 1 === buffer.length) break;
+            const width = buffer[index] === '\r' && buffer[index + 1] === '\n' ? 2 : 1;
+            consumeLine(buffer.slice(0, index));
+            buffer = buffer.slice(index + width);
           }
-          return null;
+          if (final && buffer) { consumeLine(buffer); buffer = ''; }
+          if (final) { const item = finishEvent(); if (item) items.push(item); }
+          return items;
         };
         const emit = item => { total += item.text; if (total.length > 24000) throw assistantError('TANGO_AI_RESPONSE_INVALID'); return item.text.split(config.key).join('[redacted]'); };
         try {
           for (;;) {
-            const { done, value } = await Promise.race([reader.read(), aborted]);
-            if (done) { bodyDone = true; break; }
+            const { done, value } = await reader.read();
+            if (done) break;
             if (pastDeadline()) throw assistantError('TANGO_AI_TIMEOUT', 504);
             rearm();
             bytes += value.byteLength;
             if (bytes > rawBytes) throw assistantError('TANGO_AI_RESPONSE_TOO_LARGE');
             buffer += decoder.decode(value, { stream: true });
-            let index;
-            while ((index = buffer.indexOf('\n')) >= 0) {
-              const line = buffer.slice(0, index).replace(/\r$/, ''); buffer = buffer.slice(index + 1);
-              const item = event(line);
-              if (item?.done) { sawDone = true; continue; }
-              if (item?.text) yield emit(item);
+            for (const item of consume(false)) {
+              if (item.done) sawDone = true;
+              if (item.text) yield emit(item);
             }
           }
           buffer += decoder.decode();
-          const tail = event(buffer.trim());
-          if (tail?.text) yield emit(tail);
-          if (tail?.done) sawDone = true;
+          for (const item of consume(true)) {
+            if (item.done) sawDone = true;
+            if (item.text) yield emit(item);
+          }
           if (!sawDone || !total.trim()) throw assistantError('TANGO_AI_RESPONSE_INVALID');
-        } finally { if (!bodyDone) reader.cancel().catch(() => {}); }
+        } finally { await reader.cancel().catch(() => {}); }
       } catch (error) {
         if (timedOut) throw assistantError('TANGO_AI_TIMEOUT', 504);
         if (error.code?.startsWith('TANGO_AI_')) throw error;
         if (signal?.aborted || abort.signal.aborted) throw assistantError('TANGO_AI_ABORTED', 499);
         throw assistantError('TANGO_AI_UPSTREAM_FAILED');
-      } finally { clearTimeout(timer); abort.signal.removeEventListener('abort', rejectAbort); abort.signal.removeEventListener('abort', stopReader); signal?.removeEventListener('abort', onAbort); active--; }
+      } finally { clearTimeout(timer); abort.signal.removeEventListener('abort', stopReader); signal?.removeEventListener('abort', onAbort); active--; }
     }
   };
 }

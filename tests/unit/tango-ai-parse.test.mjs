@@ -156,3 +156,29 @@ test('allowedDates keeps today plus exactly the mentioned dates', () => {
   assert.deepEqual(allowedDates('周三晚上8点健身', null, NOW), [TODAY, '2026-10-28']);
   assert.ok(allowedDates('晚上10点', [ruleItem()], NOW).includes(TODAY));
 });
+
+// 裁决 8: a field whose AI value is empty/missing can never be adopted
+// (suggestAdopt false), so it must not surface as a「10:00 →（空）」diff row.
+test('AI-empty fields produce no diff row; non-empty diffs and rule data are kept', () => {
+  const rule = ruleItem(); // start 10:00, end 11:00
+  const parsed = { date: TODAY, start: '22:00', end: '', title: '给妈妈打电话', kind: 'connect', prio: 3 };
+  const diff = diffMerge([rule], parsed);
+  const byKey = Object.fromEntries(diff.fields.map((f) => [f.key, f]));
+  // The AI-cleared end is NOT a diff row: nothing to render, nothing to adopt.
+  assert.equal(byKey.end.aiValue, '');
+  assert.equal(byKey.end.differs, false);
+  assert.equal(byKey.end.suggestAdopt, false);
+  // Non-empty AI diffs still render and stay adoptable.
+  assert.equal(byKey.start.differs, true);
+  assert.equal(byKey.start.suggestAdopt, true);
+  assert.equal(diff.hasDiff, true);
+  // Conservative: the rule item and the AI item itself are untouched.
+  assert.deepEqual(diff.ruleItem, rule);
+  assert.deepEqual(diff.adopt, parsed);
+
+  // When the ONLY "diff" is AI-empty fields, there is no sheet to show at all.
+  const onlyEmpty = diffMerge([rule], { date: TODAY, start: '10:00', end: '', title: '给妈妈打电话', kind: 'connect', prio: 3 });
+  assert.equal(onlyEmpty.hasDiff, false);
+  assert.ok(onlyEmpty.fields.every((f) => f.differs === false && f.suggestAdopt === false));
+  assert.deepEqual(onlyEmpty.ruleItem, rule);
+});

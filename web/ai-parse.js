@@ -157,6 +157,9 @@ export function validateAndExtract(rawLlmText, rawInput, ruleResult, now) {
 // anything that is not the validateAndExtract output) renders the fallback
 // view: fallback true, adopt null, no field suggests adoption — the UI cannot
 // present a fake AI success from this structure.
+// Ruling 8: a field whose AI value is empty/missing can never be adopted
+// (suggestAdopt false), so it is not a diff row at all — the sheet must never
+// show a「10:00 →（空）」line that adoption could not apply anyway.
 export function diffMerge(ruleResult, aiParsed) {
   var item = firstRuleItem(ruleResult);
   var rule = item
@@ -167,7 +170,7 @@ export function diffMerge(ruleResult, aiParsed) {
     : null;
   var fields = FIELD_KEYS.map(function (key) {
     var ruleValue = rule ? rule[key] : null, aiValue = ai ? ai[key] : null;
-    var differs = !!ai && ruleValue !== aiValue;
+    var differs = !!ai && ruleValue !== aiValue && aiValue !== '' && aiValue != null;
     return { key: key, ruleValue: ruleValue, aiValue: aiValue, differs: differs, suggestAdopt: differs && aiValue !== '' && aiValue != null };
   });
   return {

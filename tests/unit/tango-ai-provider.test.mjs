@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mock, test } from 'node:test';
+import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { createAssistant } from '../../scripts/ai-assistant.mjs';
 
@@ -189,6 +189,26 @@ test('streamChat rejects empty streams and falls back to one-shot Anthropic resp
   assert.deepEqual(out, ['一条回答']);
 });
 
+test('streamChat keeps a slow steady stream alive past the one-shot budget and aborts only when data stops', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const frame = text => new TextEncoder().encode('data: ' + JSON.stringify({ choices: [{ delta: { content: text } }] }) + '\n\n');
+  let push, close;
+  const body = new ReadableStream({ start(controller) { push = controller.enqueue.bind(controller); close = controller.close.bind(controller); } });
+  const app = createAssistant({ config, fetch: async () => new Response(body) });
+  push(frame('一'));
+  const iterator = app.streamChat({ prompt: 'hello', mode: 'chat', stream: true })[Symbol.asyncIterator]();
+  assert.equal((await iterator.next()).value, '一');
+  push(frame('二'));
+  assert.equal((await iterator.next()).value, '二');
+  t.mock.timers.tick(24000);
+  push(frame('三'));
+  assert.equal((await iterator.next()).value, '三');
+  t.mock.timers.tick(24000);
+  push(new TextEncoder().encode('data: [DONE]\n\n'));
+  close();
+  assert.equal((await iterator.next()).done, true);
+});
+
 test('streamChat reports a timeout when the upstream stalls instead of aborting a healthy stream', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let push;
@@ -223,26 +243,4 @@ test('TANGO_AI_TIMEOUT_MS raises the upstream budget and invalid values keep the
   await raised;
   assert.equal(raisedCode, 'TANGO_AI_TIMEOUT');
   await Promise.all([raised, fallback, invalidOption]);
-  t.mock.timers.reset();
-});
-
-test('streamChat keeps a slow steady stream alive past the one-shot budget and aborts only when data stops', async t => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const frame = text => new TextEncoder().encode('data: ' + JSON.stringify({ choices: [{ delta: { content: text } }] }) + '\n\n');
-  let push, close;
-  const body = new ReadableStream({ start(controller) { push = controller.enqueue.bind(controller); close = controller.close.bind(controller); } });
-  const app = createAssistant({ config, fetch: async () => new Response(body) });
-  push(frame('一'));
-  const iterator = app.streamChat({ prompt: 'hello', mode: 'chat', stream: true })[Symbol.asyncIterator]();
-  assert.equal((await iterator.next()).value, '一');
-  push(frame('二'));
-  assert.equal((await iterator.next()).value, '二');
-  t.mock.timers.tick(24000);
-  push(frame('三'));
-  assert.equal((await iterator.next()).value, '三');
-  t.mock.timers.tick(24000);
-  push(new TextEncoder().encode('data: [DONE]\n\n'));
-  close();
-  assert.equal((await iterator.next()).done, true);
-  t.mock.timers.reset();
 });

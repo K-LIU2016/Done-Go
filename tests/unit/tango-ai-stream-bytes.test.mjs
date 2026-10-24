@@ -21,6 +21,20 @@ test('long reasoning deltas before a short answer stream through instead of trip
   assert.equal(await collect(app), '一二三四五六七八九十');
 });
 
+test('stream parser accepts CR-only multi-line data events before a short answer', async () => {
+  const payload = [
+    'data: {"choices":[\r',
+    'data: {"delta":{"content":"一"}}\r',
+    'data: ]}\r',
+    '\r',
+    'data: [DONE]\r',
+    '\r'
+  ].join('');
+  const stream = new ReadableStream({ start(controller) { controller.enqueue(encoder.encode(payload)); controller.close(); } });
+  const app = createAssistant({ config, env: {}, fetch: async () => new Response(stream) });
+  assert.equal(await collect(app), '一');
+});
+
 test('raw SSE bytes beyond the configured cap still fail with TANGO_AI_RESPONSE_TOO_LARGE', async () => {
   const frames = [];
   for (let i = 0; i < 16; i += 1) frames.push(reasoning(1024));
