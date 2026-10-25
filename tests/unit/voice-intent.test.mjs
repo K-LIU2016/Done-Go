@@ -163,6 +163,16 @@ test('edit：第二件优先级改成1 → priority=1 且给出引用原词的�
   assert.ok(r.value.items[1].priorityReason.includes('1'));
 });
 
+test('edit：调低一点/降低一点/调高一点 → 「一点」不是档位，不得反向改成 1（宁缺勿改，交 LLM）', () => {
+  const items = [validItem(), validItem({ title: '交报告', kind: 'necessary', priority: 4, priorityReason: '有明确截止日' })];
+  for (const t of ['第二件优先级调低一点', '第二件的优先级降低一点', '第二件优先级调高一点']) {
+    const r = applyRuleEdit(ask(t, NOW_A, items));
+    assert.equal(r.ok, true, t);
+    assert.equal(r.value.items[1].priority, 4, t); // 原值不动：绝不把「调低」反向成最优先 1
+    assert.ok(!String(r.value.items[1].priorityReason || '').includes('档'), t);
+  }
+});
+
 test('edit：目标不存在（把游泳改到八点）→ 原样返回不编造', () => {
   const items = [validItem({ title: '跑步' })];
   const r = applyRuleEdit(ask('把游泳改到八点', NOW_A, items));
