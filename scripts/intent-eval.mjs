@@ -59,7 +59,8 @@ async function runCase(c) {
   if (MODE === 'llm') r = await analyzeIntent(input, {});
   else r = Array.isArray(c.edit) ? applyRuleEdit(input) : ruleDraft(input);
   const ms = performance.now() - t0;
-  return { got: r.ok ? r.value : null, error: r.ok ? null : `${r.code || r.field}: ${r.message || ''}`, ms };
+  // analyzeIntent 的契约输出在 .final（{draft, final, llm}）；规则引擎（ruleDraft/applyRuleEdit）才是 .value
+  return { got: r.ok ? (MODE === 'llm' ? r.final : r.value) : null, error: r.ok ? null : `${r.code || r.field}: ${r.message || ''}`, ms };
 }
 
 function score(c, got) {
@@ -174,4 +175,11 @@ if (JSON_OUT) {
       console.log(`      exp : ${JSON.stringify(c.expect)}`);
     }
   }
+}
+
+// 引擎报错（analyzeIntent/ruleDraft ok:false）＝评测器或接线损坏：必须非零退出，绝不静默给全 0% 的“通过”
+const errored = results.filter((r) => r.error);
+if (errored.length) {
+  console.error(`\n✗ ${errored.length}/${results.length} 条引擎报错，评测结果无效（--verbose 看明细）`);
+  process.exit(1);
 }
