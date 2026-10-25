@@ -1,37 +1,29 @@
-// web/relay/boot.js — AI 接力 v2 集成挂载器（集成线名下，index.html 唯一入口）。
-//
-// 职责（对应任务 1)/3)：把 L1–L10 交付的 web/relay/* 模块接进主界面：
+// web/relay/boot.js — AI 接力 v2 集成挂载器（index.html 唯一入口）。
+// 把 L1–L10 的 web/relay/* 模块接进主界面：
 //   · 外壳路由：createRelayShell（L1）接管 #relay-root；relay 路由激活时旧应用
-//     （.app / #tabs / #layer）由 html.relay-on 隐藏（index.html 头部内联预隐藏
-//     防闪，本模块加载后按 resolveRoute 校正）；#/lab/* 与 legacy 路由时外壳
-//     让位，旧应用照常渲染（D2 旧功能不删，index.html route() 剥 /lab/ 前缀）。
-//   · 访客放行（D5）：#relay-root 在 #view 之外，app-auth 的 inert/登录门不影
-//     响 relay；访客记录经 store.js pickStorage 落本机裸键；登录提示走
-//     flow 的 LOGIN_NUDGE → #settings → 旧应用登录门。
-//   · 首屏预算（SPEC §6 ≤60KB）：关键路径仅 boot.js + shell.js（约 45KB）；
-//     home/flow/passport/discover/matcher/store/i18n/baton/contracts/
-//     external-apps 全部按路由 dynamic import 懒加载；场景库 scenes.zh.json
-//     是数据（非 JS），按需 fetch。
-//   · #/relay 交接参数约定（L1 pending，集成线裁决，与 L2 默认 handoff 一致）：
-//     #/relay?event=<原话>；场景卡 #/relay?usage=<id>&event=<场景标题>；
-//     无 event 且无 usage → location.replace('#/start')。
-//   · 漏斗计数（§5.5）：home/flow 的 metric 回调统一 POST /api/metrics
-//     {event:<name>}（只计数，D10）。
-//   · 记录落盘（§5.4）：flow 的 record 副作用经 nextRecordAction 路由到
-//     store 的 add/setRating/graduate/replaceResult（一次 #/relay 访问一行）。
-//   · 访客→账号提升（§4④，L9 机制）：index.html 的 TangoAppAuth 启动回调调
-//     window.TangoRelayV2.onLogin → promoteGuestStore 幂等合并 + 换库重渲染。
-//     TangoRelayV2 在模块求值时同步挂上，先于任何异步登录回调（消除竞态）。
-//   · 接力棒双实现裁决（L3 pending）：采用 flow.js 内置三处 baton（结果页/
-//     失败页/20 秒慢速，reducer 驱动含漏斗与记录钩子）；baton.js 独立挂载版
-//     保留为库（随 release 发布，供后续独立挂载场景）。
-//
-// 纯函数（parseRelayQuery / relayHandoffUrl / nextRecordAction /
-// discoverViewHtml / flowStringsFor / passportStringsFor）不触 DOM，
-// node --test 直接可测（tests/unit/rv2-integration.test.mjs）；自动启动仅在
-// 浏览器环境执行。本模块【零静态 import】，保证关键路径只有本文件。
-// EVENT_MAX=600 / MATERIAL_MAX=8000 是 web/relay/contracts.js 同名常量的镜像
-//（contracts.js 23KB 不进关键路径；改契约时同步这里）。
+//     （.app/#tabs/#layer）由 html.relay-on 隐藏（头部内联预隐藏防闪，加载后按
+//     resolveRoute 校正）；#/lab/* 与 legacy 路由时外壳让位（D2，index.html
+//     route() 剥 /lab/ 前缀）。
+//   · 访客放行（D5）：#relay-root 在 #view 之外不受登录门影响；访客记录经
+//     store.js pickStorage 落本机裸键；登录提示 flow LOGIN_NUDGE → #settings。
+//   · 首屏预算（SPEC §6 ≤60KB）：关键路径仅 boot.js + shell.js；home/flow/
+//     passport/discover/matcher/store/i18n/baton/contracts/external-apps 全部
+//     按路由 dynamic import；scenes.zh.json 是数据（非 JS），按需 fetch。
+//   · 交接参数（与 L2 默认 handoff 一致）：#/relay?event=<原话>；场景卡
+//     #/relay?usage=<id>&event=<标题>；两者皆无 → replace('#/start')。
+//   · 漏斗（§5.5）：metric 回调统一 POST /api/metrics {event}（D10 只计数）。
+//   · 落盘（§5.4）：record 副作用经 nextRecordAction 路由到 store 的
+//     add/setRating/graduate/replaceResult（一次 #/relay 访问一行）。
+//   · 访客→账号提升（§4④，L9）：TangoAppAuth 回调调 TangoRelayV2.onLogin →
+//     promoteGuestStore 幂等合并 + 换库重渲染；TangoRelayV2 模块求值时同步挂
+//     （先于异步登录回调，无竞态）。
+//   · 接力棒（L3 裁决）：用 flow.js 内置三处 baton（结果/失败/20s 慢速）；
+//     baton.js 独立挂载版保留为库。
+// 纯函数（parseRelayQuery/relayHandoffUrl/nextRecordAction/discoverViewHtml/
+// flowStringsFor/passportStringsFor）不触 DOM，node --test 可测
+// （rv2-integration.test.mjs）；自动启动仅浏览器执行。本模块【零静态 import】。
+// EVENT_MAX=600/MATERIAL_MAX=8000 镜像 contracts.js 同名常量（23KB 不进关键
+// 路径；改契约时同步）。
 
 // ---------------------------------------------------------------------------
 // 纯函数层

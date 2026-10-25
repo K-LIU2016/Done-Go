@@ -1,28 +1,20 @@
-// web/relay/shell.js — AI 接力 v2 外壳与路由（L1 线）。
-//
-// SPEC design/relay-v2/SPEC.md §2（信息架构与路由表）、§3（设计 token，具体值
-// 在 web/relay/relay.css）、§4⑦（更多页）、§6（无障碍 / RTL / reduced-motion）。
-// 视觉标准 = design/relay-v2/prototype.html（.top / .tabbar / s-more）。
-//
-// 本文件分三层，全部可直接被 `node --test` 导入（无隐式 DOM 触点）：
-//   1. 纯路由函数：parseHash / resolveRoute / activeTab —— 旧 hash 全部重定向
-//      （SPEC §2：'' 与 '#today' → '#/start'；'#line'/'#review'/'#agreements' →
-//      '#/lab/*'；'#settings'/'#users'/'#assistant' 沿用 legacy 不重定向）。
-//   2. 纯渲染函数：renderIconSprite / renderTopBar / renderTabBar /
-//      renderMorePage —— 返回 HTML 字符串。markup 用原型类名（.top/.tabbar/
-//      .list/.it/.lab…），样式与 token 全部在 web/relay/relay.css 的 .rv2
-//      作用域内（其它 relay 线——如 home.js——按同一约定发原型类名 markup，
-//      由本线的 relay.css 统一上样式）；用户数据一律过 esc()。
-//   3. createRelayShell(options)：依赖注入（doc/win/mount/storage）的挂载器，
-//      集成线（index.html）调用；hashchange 调度、重定向用 location.replace
-//      （不留历史记录，返回键不落进死胡同）、lab/legacy 路由时隐藏 relay 外壳。
-//
-// 外观：五种主题与 web/appearance.js 同名同存储键（tango-donego.appearance.v1，
-// html[data-appearance]），relay.css 在 html[data-appearance=X] .rv2 下重定义
-// SPEC §3 同名 token；designer 深色主题文本对比度 ≥ 4.5:1（单测校验）。
-//
-// 文案：zh/en 双语表内置（SPEC §6 先做 zh 和 en）；集中式 i18n 表落在
-// web/relay/i18n.js（另线名下文件），集成线可通过 options.copy 注入覆盖。
+// web/relay/shell.js — AI 接力 v2 外壳与路由（L1）。
+// SPEC §2（路由表）、§3（token 在 relay.css）、§4⑦（更多页）、§6（无障碍/
+// RTL/reduced-motion）；视觉标准 = design/relay-v2/prototype.html。
+// 三层，均可 node --test 直接导入（无隐式 DOM 触点）：
+//   1. 纯路由：parseHash/resolveRoute/activeTab —— 旧 hash 重定向（'' 与
+//      '#today' → '#/start'；'#line'/'#review'/'#agreements' → '#/lab/*'；
+//      '#settings'/'#users'/'#assistant' 沿用 legacy 不重定向）。
+//   2. 纯渲染：renderIconSprite/renderTopBar/renderTabBar/renderMorePage 返回
+//      HTML 字符串；markup 用原型类名（.top/.tabbar/.list/.it/.lab…），样式全
+//      在 relay.css 的 .rv2 作用域（其它 relay 线按同一约定）；数据一律 esc()。
+//   3. createRelayShell(options)：DI（doc/win/mount/storage）挂载器；
+//      hashchange 调度、重定向 location.replace（不留历史），lab/legacy 路由
+//      时隐藏 relay 外壳。
+// 外观：与 web/appearance.js 同键同语义（tango-donego.appearance.v1，html[data-
+// appearance]），relay.css 在 html[data-appearance=X] .rv2 下重定义 §3 token；
+// designer 深色对比度 ≥ 4.5:1（单测校验）。文案 zh/en 内置（§6），集中式表在
+// web/relay/i18n.js，options.copy 可注入覆盖。
 
 // ---------------------------------------------------------------------------
 // 路由（SPEC §2 表）
