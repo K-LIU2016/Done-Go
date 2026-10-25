@@ -48,7 +48,7 @@ html,body{background:#2a2b27;font-family:var(--font);-webkit-font-smoothing:anti
 .home .mic{width:44px;height:44px;border-radius:12px;background:var(--brand-soft);display:grid;place-items:center;color:var(--brand);font-size:20px;border:0;cursor:pointer;font-family:inherit}
 .scrim{position:absolute;inset:0;background:rgba(37,39,34,.38)}
 /* bottom sheet */
-.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:28px 28px 0 0;padding:14px 22px 26px;box-shadow:0 -10px 40px rgba(0,0,0,.12);min-height:520px;display:flex;flex-direction:column;max-height:100%;overflow-y:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:28px 28px 0 0;padding:14px 22px 104px;/*底 padding 清出 72px tabbar：否则「说完了/全部加入」被 tabbar 盖住点不到（VI 验收发现 2026-10-25）*/box-shadow:0 -10px 40px rgba(0,0,0,.12);min-height:520px;display:flex;flex-direction:column;max-height:100%;overflow-y:auto}
 .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
 .sh-top{display:flex;align-items:center;gap:10px}
 .live{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--brand);font-weight:600}
@@ -393,6 +393,7 @@ function wsConnect() {
     ws.addEventListener('close', () => {
       S.wsReady = false;
       if (S.phase === 'listening' && !S.wsFatal && !S.wsEnded && !retried) { retried = true; open(); return; } // 传输断开重连一次（SPEC §3）；end 是正常收尾，不重连
+      if (S.phase === 'listening' && S.wsFatal) return; // 网关致命错（如 asr-unavailable）：留在 ① 屏展示文字降级 UI（SPEC §2.2「打字也行」）——空转写转理解会把 sheet 关掉，降级提示闪现即失（VI 验收发现，2026-10-25）
       if (S.phase === 'listening') toUnderstanding();
     });
     ws.addEventListener('error', () => { /* close 会跟进来 */ });
