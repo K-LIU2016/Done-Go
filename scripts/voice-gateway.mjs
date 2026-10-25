@@ -119,7 +119,7 @@ const noLog = () => {};
 //                      ws://127.0.0.1:10195）
 //   asrConfig          config 帧覆盖（默认 FUNASR_CONFIG_DEFAULTS）
 //   asrConnectTimeoutMs 上游连接超时（默认 3000）
-//   finalDrainMs       stop 后等待尾句 final 的窗口（默认 2500）
+//   finalDrainMs       stop 后等待尾句 final 的兜底窗口（默认 6000；收到 is_final 立即结束）
 //   limits             {sessionMaxMs, dailyBudgetMs, maxConcurrent} 覆盖
 //   now / log          注入时钟与日志（测试用）
 // 鉴权与 Origin 默认 fail closed：不注入就一律 unauthorized。
@@ -130,7 +130,7 @@ export function createVoiceGateway(options = {}) {
   const asrUrl = options.asrUrl || env.TANGO_VOICE_ASR_URL || env.FUNASR_URL || 'ws://127.0.0.1:10195';
   const asrConfig = { ...FUNASR_CONFIG_DEFAULTS, ...(options.asrConfig || {}) };
   const asrConnectTimeoutMs = options.asrConnectTimeoutMs ?? 3000;
-  const finalDrainMs = options.finalDrainMs ?? 2500;
+  const finalDrainMs = options.finalDrainMs ?? 6000; // 兜底：收不到 is_final 时最多等 6s
   const now = options.now || Date.now;
   const log = options.log || noLog;
   const authenticate = typeof options.authenticate === 'function' ? options.authenticate : () => { throw new Error('VOICE_AUTH_NOT_CONFIGURED'); };
@@ -252,6 +252,12 @@ export function createVoiceGateway(options = {}) {
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
       for (const frame of translator.push(msg)) send(frame);
+      // 收尾期拿到 FunASR 的 is_final（离线定稿）就立刻结束，不再靠计时窗口碰运气（thinkpad 定稿解码 ~2s）
+      if (phase === 'draining' && msg.is_final === true) {
+        if (drainTimer) { clearTimeout(drainTimer); drainTimer = null; }
+        send({ type: 'end' });
+        finish(1000);
+      }
     }
     function onUpstreamGone() {
       if (phase === 'ended') return;

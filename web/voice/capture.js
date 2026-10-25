@@ -217,20 +217,31 @@ export function createVoiceCapture({
     if (!gum || !AC || !workletURL) {
       throw new VoiceCaptureError(classifyMicError(null, { hasMediaDevices: Boolean(gum) }));
     }
+    // Safari 与严格的自动播放策略：AudioContext 必须在点击的同步调用栈里创建并 resume，
+    // 等 getUserMedia 授权回来再建会被挂起，音频图不跑、一帧不出（前端只会显示「没听到声音」）。
+    try {
+      ctx = new AC();
+      const resumed = ctx.resume && ctx.resume();
+      if (resumed && typeof resumed.catch === 'function') resumed.catch(() => {});
+    } catch {
+      ctx = null;
+    }
     let media;
     try {
       media = await gum({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
     } catch (err) {
+      teardown();
       throw new VoiceCaptureError(classifyMicError(err, { hasMediaDevices: true }));
     }
     stream = media;
     try {
       const NodeCtor = globalThis.AudioWorkletNode;
       if (!NodeCtor) throw new Error('AudioWorkletNode unsupported');
-      ctx = new AC();
+      if (!ctx) ctx = new AC();
       await ctx.audioWorklet.addModule(workletURL);
+      if (ctx.state === 'suspended' && ctx.resume) await ctx.resume();
       workletNode = new NodeCtor(ctx, PCM_WORKLET_NAME, {
         numberOfInputs: 1,
         numberOfOutputs: 1,
