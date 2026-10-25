@@ -26,6 +26,7 @@ test('a Done&Go release contains the actual web app and verifiable files without
   expected.push('web/users-admin.js','web/users-admin.css');
   expected.push('server/auth/demo.mjs');
   expected.push('scripts/production-readiness.mjs');
+  expected.push('scripts/version-switch.mjs');
   expected.push('web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'server/urlguard.mjs');
   expected.push('web/model-catalog-cn.js', 'web/demo-onboarding.js', 'web/ai-parse.js', 'web/ai-prompt.js');
   assert.deepEqual(Object.keys(manifest.files).sort(), expected.slice().sort());
