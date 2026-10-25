@@ -46,7 +46,7 @@
 import {
   KIND_MIX_KEYS, RHYTHM_KEYS, FREED_TO_KEYS, RATINGS,
   FEATURES_USAGES_MAX, WEEKLY_COUNT_MAX, FREED_MINUTES_MAX,
-  isIsoWeek, isUsageId, validateFeaturesUpload,
+  STYLES, isIsoWeek, isUsageId, validateFeaturesUpload, validateStyleCard,
 } from './contracts.js';
 
 export var FEATURES_CLIENT_VERSION = 1;
@@ -331,4 +331,112 @@ export function featuresUploadPayload(computed) {
 export function featuresUploadBody(computed) {
   var payload = featuresUploadPayload(computed);
   return payload == null ? null : JSON.stringify(payload);
+}
+
+// ---------------------------------------------------------------------------
+// 客户端流派卡（同频正式页不依赖 lab/style-card）。
+// 判定只消费已上传的聚合画像；证据仅由占比、计数和用法 id 生成，
+// 不接触事项标题、材料或具体时间。与服务端 S2 的默认阈值保持一致。
+// ---------------------------------------------------------------------------
+var STYLE_THRESHOLDS = {
+  morning: { day: 0.5, organize: 2 },
+  night: { late: 0.45, create: 0.3 },
+  relay: { relays: 8, graduations: 2 },
+  slow: { life: 0.6 },
+  academic: { read: 0.5, readUsages: 2 },
+  parallel: { entropy: 0.85, usages: 5 },
+};
+
+var USAGE_CATEGORY_HINTS = {
+  'meeting-notes': '整理', 'notes-condense': '整理', 'wrong-questions': '整理',
+  'refs-format': '整理', 'grade-analysis': '整理', 'data-summary': '整理',
+  'paper-read': '读', 'survey-read': '读', 'long-doc': '读', 'doc-read': '读',
+  'code-debug': '读', 'contract-check': '读', 'tool-learn': '读', 'policy-read': '读',
+};
+
+function entropyOf(map) {
+  var entropy = 0;
+  for (var i = 0; i < KIND_MIX_KEYS.length; i += 1) {
+    var value = Number(map[KIND_MIX_KEYS[i]]);
+    if (value > 0) entropy -= value * Math.log2(value);
+  }
+  return entropy / Math.log2(KIND_MIX_KEYS.length);
+}
+
+function styleEvidence(styleId, f, context) {
+  var usageCount = f.usages.length;
+  if (styleId === 'morning-sorter') return [
+    '清晨和上午开始的事占了' + Math.round(context.dayShare * 100) + '%',
+    '整理类用法用了' + context.organize + '个',
+    '本周共用了' + usageCount + '种 AI 用法',
+  ];
+  if (styleId === 'night-creator') return [
+    '晚上和夜里开始的事占了' + Math.round(context.lateShare * 100) + '%',
+    '创作类的事占了' + Math.round(f.kindMix.create * 100) + '%',
+    '本周 AI 接力' + f.relays + '次、毕业' + f.graduations + '次',
+  ];
+  if (styleId === 'relay-ace') return [
+    '本周接力' + f.relays + '次',
+    '毕业' + f.graduations + '次',
+    '本周共用了' + usageCount + '种 AI 用法',
+  ];
+  if (styleId === 'slow-liver') return [
+    '空出来的时间' + Math.round(context.lifeShare * 100) + '%给了家人、休息或运动',
+    '本人确认的空出时间' + Math.round(f.freedMinutesConfirmed / 60 * 10) / 10 + '小时',
+    '本周共用了' + usageCount + '种 AI 用法',
+  ];
+  if (styleId === 'academic-climber') return [
+    '读论文、文献类用法占了' + Math.round(context.readShare * 100) + '%',
+    '这周用了' + context.read + '个读类用法',
+    '本周共用了' + usageCount + '种 AI 用法',
+  ];
+  return [
+    '六类事情分布很平均（均匀度' + context.entropy.toFixed(2) + '）',
+    '本周用了' + usageCount + '种不同的 AI 用法',
+    '最少的一类也占了' + Math.round(context.minKind * 100) + '%',
+  ];
+}
+
+export function styleCardFromFeatures(features, usageCategories) {
+  var checked = validateFeaturesUpload(features);
+  if (!checked.ok) return null;
+  var f = checked.value;
+  var categories = usageCategories && typeof usageCategories === 'object' ? usageCategories : {};
+  var organize = 0;
+  var read = 0;
+  for (var i = 0; i < f.usages.length; i += 1) {
+    var category = categories[f.usages[i]] || USAGE_CATEGORY_HINTS[f.usages[i]];
+    if (category === '整理') organize += 1;
+    if (category === '读') read += 1;
+  }
+  var dayShare = f.rhythm.dawn + f.rhythm.morning;
+  var lateShare = f.rhythm.evening + f.rhythm.night;
+  var lifeShare = f.freedTo.family + f.freedTo.rest + f.freedTo.exercise;
+  var readShare = f.usages.length ? read / f.usages.length : 0;
+  var entropy = entropyOf(f.kindMix);
+  var minKind = KIND_MIX_KEYS.reduce(function (min, key) { return Math.min(min, f.kindMix[key]); }, 1);
+  var rules = [
+    ['morning-sorter', dayShare >= STYLE_THRESHOLDS.morning.day && organize >= STYLE_THRESHOLDS.morning.organize, dayShare],
+    ['night-creator', lateShare >= STYLE_THRESHOLDS.night.late && f.kindMix.create >= STYLE_THRESHOLDS.night.create, lateShare],
+    ['relay-ace', f.relays >= STYLE_THRESHOLDS.relay.relays && f.graduations >= STYLE_THRESHOLDS.relay.graduations, Math.min(1, f.relays / STYLE_THRESHOLDS.relay.relays) * 0.5 + Math.min(1, f.graduations / STYLE_THRESHOLDS.relay.graduations) * 0.5],
+    ['slow-liver', lifeShare >= STYLE_THRESHOLDS.slow.life, lifeShare],
+    ['academic-climber', readShare >= STYLE_THRESHOLDS.academic.read && read >= STYLE_THRESHOLDS.academic.readUsages, readShare],
+    ['parallel-runner', entropy >= STYLE_THRESHOLDS.parallel.entropy && f.usages.length >= STYLE_THRESHOLDS.parallel.usages, entropy],
+  ];
+  var winner = rules[0];
+  var strong = false;
+  for (var r = 0; r < rules.length; r += 1) {
+    if (rules[r][1]) { winner = rules[r]; strong = true; break; }
+    if (rules[r][2] > winner[2]) winner = rules[r];
+  }
+  var context = { dayShare: dayShare, lateShare: lateShare, lifeShare: lifeShare, readShare: readShare, organize: organize, read: read, entropy: entropy, minKind: minKind };
+  var evidence = styleEvidence(winner[0], f, context);
+  if (!strong) evidence[0] = '本周流派特征还不明显，最接近这一派';
+  if (evidence.length > 3) evidence = evidence.slice(0, 3);
+  var card = validateStyleCard({ style: winner[0], week: f.week, evidence: evidence });
+  var meta = STYLES.filter(function (style) { return style.id === winner[0]; })[0];
+  return card && meta && {
+    week: card.week, styleId: card.style, label: meta.label, motto: meta.motto,
+    color: meta.color, evidence: card.evidence,
+  };
 }
