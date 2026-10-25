@@ -24,7 +24,7 @@ import {
   normalizeIntentOutput,
 } from '../web/voice/contracts.js';
 
-export const INTENT_LLM_TIMEOUT_MS = 6000; // SPEC §2.3：LLM 总时长 6 秒，超时保留规则结果
+export const INTENT_LLM_TIMEOUT_MS = 12000; // 原 SPEC 6 秒；10-25 thinkpad 实测精修 5.8–6.1s，6s 预算约一半超时退回规则稿，放宽到 12s，超时仍保留规则结果
 export const INTENT_LLM_MAX_ACTIVE = 2;
 const MAX_TITLE_CHARS = 20;
 
