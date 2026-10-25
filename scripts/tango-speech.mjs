@@ -51,7 +51,7 @@ function funasrTranscribe(pcm, signal) {
       try { ws.close(); } catch { /* already closed */ }
       if (error) reject(error); else resolve(value);
     };
-    const timer = setTimeout(() => finish(speechError('recognition-timeout', 504)), 20000);
+    const timer = setTimeout(() => finish(speechError('recognition-timeout', 504)), 45000);
     signal?.addEventListener('abort', () => finish(speechError('recognition-aborted', 499)), { once: true });
     ws.onopen = () => {
       ws.send(JSON.stringify({ mode: 'offline', chunk_size: [5, 10, 5], wav_name: 'tango-' + randomBytes(6).toString('hex'), wav_format: 'pcm', audio_fs: 16000, itn: true, is_speaking: true }));
