@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, writeFile, unlink, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,11 +19,55 @@ async function speechCommand(args, signal) {
   return JSON.parse(stdout.trim());
 }
 
+// 非 Windows（thinkpad 生产）走本机 FunASR：TANGO_SPEECH_FUNASR_URL=ws://127.0.0.1:10195，offline 模式一次定稿。
+const funasrUrl = () => process.env.TANGO_SPEECH_FUNASR_URL || '';
+
 export function speechCapabilities() {
   if (!capabilities) capabilities = process.platform === 'win32'
     ? speechCommand(['-Mode', 'capabilities']).catch(() => ({ available: false, languages: [] }))
-    : Promise.resolve({ available: false, languages: [] });
+    : Promise.resolve(funasrUrl() ? { available: true, languages: ['zh-CN', 'en-US'] } : { available: false, languages: [] });
   return capabilities;
+}
+
+export function pcmFromWave(audio) {
+  for (let offset = 12; offset + 8 <= audio.length;) {
+    const kind = audio.toString('ascii', offset, offset + 4), size = audio.readUInt32LE(offset + 4), start = offset + 8;
+    if (kind === 'data') return audio.subarray(start, start + size);
+    offset = start + size + (size % 2);
+  }
+  return Buffer.alloc(0);
+}
+
+function speechError(message, status) { return Object.assign(new Error(message), { status }); }
+
+function funasrTranscribe(pcm, signal) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(funasrUrl());
+    ws.binaryType = 'arraybuffer';
+    let text = '', done = false;
+    const finish = (error, value) => {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      try { ws.close(); } catch { /* already closed */ }
+      if (error) reject(error); else resolve(value);
+    };
+    const timer = setTimeout(() => finish(speechError('recognition-timeout', 504)), 20000);
+    signal?.addEventListener('abort', () => finish(speechError('recognition-aborted', 499)), { once: true });
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ mode: 'offline', chunk_size: [5, 10, 5], wav_name: 'tango-' + randomBytes(6).toString('hex'), wav_format: 'pcm', audio_fs: 16000, itn: true, is_speaking: true }));
+      for (let offset = 0; offset < pcm.length; offset += 9600) ws.send(pcm.subarray(offset, offset + 9600));
+      ws.send(JSON.stringify({ is_speaking: false }));
+    };
+    ws.onmessage = event => {
+      let message;
+      try { message = JSON.parse(typeof event.data === 'string' ? event.data : Buffer.from(event.data).toString('utf8')); } catch { return; }
+      // 长句会分几段 2pass-offline 返回，累积定稿段，is_final 才结束（不拼 online 增量）
+      if (String(message.mode || '').endsWith('offline') && typeof message.text === 'string') text += message.text;
+      if (message.is_final === true) finish(null, text);
+    };
+    ws.onerror = () => finish(speechError('recognition-failed', 503));
+    ws.onclose = () => finish(null, text);
+  });
 }
 
 export function validSpeechWave(audio) {
@@ -45,6 +90,7 @@ export async function transcribeSpeech(audio, language, signal) {
   if (!validSpeechWave(audio)) throw Object.assign(new Error('invalid-audio'), { status: 400 });
   const config = await speechCapabilities();
   if (!config.available || !config.languages.includes(language)) throw Object.assign(new Error('language-unavailable'), { status: 503 });
+  if (process.platform !== 'win32') return { text: (await funasrTranscribe(pcmFromWave(audio), signal)).slice(0, 600) };
   if (active) throw Object.assign(new Error('speech-busy'), { status: 429 });
   active = true;
   let directory;
