@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily Done-Go funasr restart at 04:10 (SPEC voice-intent §2.1)
+
+[Timer]
+OnCalendar=*-*-* 04:10:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

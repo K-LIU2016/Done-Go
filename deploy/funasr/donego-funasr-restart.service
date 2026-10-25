@@ -1,0 +1,9 @@
+[Unit]
+Description=Restart Done-Go funasr container (FunASR online 0.1.x long-connection memory leak mitigation, SPEC voice-intent §2.1)
+
+[Service]
+Type=oneshot
+# user@1000's supplementary groups predate the docker group install; sg switches
+# group like salon9-funasr-restart.service does (same host, same pattern).
+# Path assumes the production checkout after merge; -p pins the compose project.
+ExecStart=/usr/bin/sg docker -c 'docker compose -f /home/jc/projects/Done-Go/deploy/funasr/compose.yml -p donego-asr restart funasr'

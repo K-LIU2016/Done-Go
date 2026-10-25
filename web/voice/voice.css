@@ -1,0 +1,106 @@
+/* web/voice/voice.css — Done-Go 语音 UI 样式（V3 转写视图本期内落地；token 块供整个 voice 模块复用）
+   唯一标准：design/voice-intent/SPEC.md §4 语音 token + §3 transcript-view 要求；
+   原型：design/voice-intent/prototype.html ①屏（.tx / .f / .f.just / .p / .ch / .caret）；
+   共享 token 沿用 design/relay-v2/SPEC.md §3（relay.css 若已加载则同名变量互不覆盖）。
+   结构约定见 web/voice/transcript-view.js 头注：.vt-transcript > .vt-final(.vt-just) + .vt-partial > .vt-ch(.vt-in) + .vt-caret */
+
+:root {
+  /* SPEC §4 语音 token（值与原文逐项一致，勿改） */
+  --vt-size: 22px;
+  --vt-line: 1.62;
+  --vt-track: .3px;
+  --vt-weight-final: 500;
+  --vt-weight-partial: 400;
+  --vt-final: #252722;
+  --vt-partial: #A3A59B;
+  --vt-caret: #E95432;
+  /* SPEC §4 优先级色（p1 最优先 … p5 不急；intent 卡片/首页色条复用） */
+  --p1: #C2412D; --p1-bg: #FCE8E3;
+  --p2: #C7701F; --p2-bg: #FDF0E1;
+  --p3: #5E6158; --p3-bg: #EFEEE8;
+  --p4: #4C7A93; --p4-bg: #E6EFF4;
+  --p5: #3E7B5B; --p5-bg: #E5F1EA;
+}
+
+/* ===== 转写排版（原型 .tx；SPEC §4：系统中文无衬线 + palt + text-wrap:pretty，标点不落行首） ===== */
+.vt-transcript {
+  margin: 18px 0 0;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+  font-size: var(--vt-size);
+  line-height: var(--vt-line);
+  letter-spacing: var(--vt-track);
+  min-height: 220px;
+  font-feature-settings: "palt";
+  text-wrap: pretty;
+  color: var(--vt-final);
+}
+
+/* 已确认句（原型 .f）：黑字、定稿字重。增量渲染下这些节点跨帧原样保留，动画只在定稿那一帧 */
+.vt-transcript .vt-final {
+  color: var(--vt-final);
+  font-weight: var(--vt-weight-final);
+}
+.vt-transcript .vt-final.vt-just {
+  animation: vt-settle .32s ease-out; /* SPEC §3：final 灰转黑 settle 320ms */
+}
+@keyframes vt-settle {
+  from { color: var(--vt-partial); font-weight: var(--vt-weight-partial); }
+  to   { color: var(--vt-final);   font-weight: var(--vt-weight-final); }
+}
+
+/* 尾部灰字句（原型 .p）：实时 online 转写 */
+.vt-transcript .vt-partial {
+  color: var(--vt-partial);
+  font-weight: var(--vt-weight-partial);
+}
+
+/* 逐字（原型 .ch；display:inline-block 才能 transform 浮现）。
+   vt-in 只加在新出现的字上 —— 已渲染的字不再动，杜绝整段闪烁重排 */
+.vt-transcript .vt-ch { display: inline-block; }
+.vt-transcript .vt-ch.vt-in { animation: vt-rise .18s ease-out both; }
+@keyframes vt-rise {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 尾字呼吸（原型 .p .ch:last-child 的 breathe 1.2s）：灰字尾巴的「正在听」体感 */
+.vt-transcript .vt-partial .vt-ch:last-child {
+  animation: vt-breathe 1.2s ease-in-out .2s infinite;
+}
+.vt-transcript .vt-partial .vt-ch.vt-in:last-child {
+  animation: vt-rise .18s ease-out both, vt-breathe 1.2s ease-in-out .2s infinite;
+}
+@keyframes vt-breathe { 50% { opacity: .45; } }
+
+/* 光标（原型 .caret）：橙红色呼吸闪烁，跟随尾部 */
+.vt-caret {
+  display: inline-block;
+  width: 2.5px;
+  height: 1.05em;
+  background: var(--vt-caret);
+  border-radius: 2px;
+  vertical-align: -.16em;
+  margin-left: 2px;
+  animation: vt-blink 1s steps(1) infinite;
+}
+@keyframes vt-blink { 50% { opacity: 0; } }
+.vt-transcript.vt-done .vt-caret { display: none; } /* 说完：光标退场（JS 亦会移除节点，双保险） */
+
+/* ===== prefers-reduced-motion 降级（SPEC §3；与 transcript-view.js 的 noMotion 分支互为兜底） ===== */
+@media (prefers-reduced-motion: reduce) {
+  .vt-transcript .vt-ch.vt-in,
+  .vt-transcript .vt-partial .vt-ch:last-child,
+  .vt-transcript .vt-partial .vt-ch.vt-in:last-child,
+  .vt-transcript .vt-final.vt-just,
+  .vt-caret {
+    animation: none; /* 静态呈现：黑/灰/光标全部直出，不加任何运动 */
+  }
+}
+/* JS 分支兜底：createTranscriptView({reducedMotion:true}) 打的 vt-motion-off 类 */
+.vt-transcript.vt-motion-off .vt-ch.vt-in,
+.vt-transcript.vt-motion-off .vt-partial .vt-ch:last-child,
+.vt-transcript.vt-motion-off .vt-partial .vt-ch.vt-in:last-child,
+.vt-transcript.vt-motion-off .vt-final.vt-just,
+.vt-transcript.vt-motion-off .vt-caret {
+  animation: none;
+}
