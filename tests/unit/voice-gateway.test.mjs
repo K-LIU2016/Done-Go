@@ -267,7 +267,7 @@ test("stop → 上游收 {is_speaking:false}，尾句 final 后下发 end 并正
 
 test("stop 后晚到/连发的 offline final 不丢：is_final 帧到达即收尾 end（不等满兜底窗）", async t => {
   const upstream = await startFakeUpstream(t);
-  const { url } = await startGateway(t, upstream); // 默认 finalDrainMs=5000（实测还会按音频时长伸缩）
+  const { url } = await startGateway(t, upstream); // 默认 finalDrainMs=8000（兜底窗还会按音频时长 1:1 伸缩）
   const client = dial(url);
   client.json({ type: "start", sampleRate: VOICE_SAMPLE_RATE });
   const peer = await upstream.waitPeer();
