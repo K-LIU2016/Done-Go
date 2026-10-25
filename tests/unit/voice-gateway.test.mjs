@@ -200,7 +200,7 @@ test("未注入鉴权时默认拒绝（fail closed）", async t => {
 
 // ———— 协议装配：start → config → PCM 透传 → partial/final → stop → end ——
 
-test("start 触发 FunASR config 帧装配（2pass/[0,5,5]/chunk_interval 10/is_speaking）", async t => {
+test("start 触发 FunASR config 帧装配（2pass/[5,10,5]/chunk_interval 10/is_speaking）", async t => {
   const upstream = await startFakeUpstream(t);
   const { url } = await startGateway(t, upstream);
   const client = dial(url);
@@ -208,7 +208,7 @@ test("start 触发 FunASR config 帧装配（2pass/[0,5,5]/chunk_interval 10/is_
   const peer = await upstream.waitPeer();
   const config = peer.texts[0];
   assert.equal(config.mode, "2pass");
-  assert.deepEqual(config.chunk_size, [0, 5, 5]);
+  assert.deepEqual(config.chunk_size, [5, 10, 5]);
   assert.equal(config.chunk_interval, 10);
   assert.equal(config.is_speaking, true);
   assert.equal(typeof config.wav_name, "string");

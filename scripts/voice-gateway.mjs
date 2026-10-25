@@ -33,10 +33,11 @@ export const DEFAULT_VOICE_LIMITS = Object.freeze({
   maxConcurrent: 3,
 });
 
-// FunASR config 帧默认值（Salon9 同款；[0,5,5]=300ms 粒度，压首字延迟）。
+// FunASR config 帧默认值。[5,10,5]=600ms 粒度（FunASR 推荐值）：10-25 thinkpad 实测，[0,5,5] 的实时字
+// 几乎每个音节成双（"九个底底之前…论论"），[5,10,5] 不再重复、可读得多，首字只慢约 0.2s（0.94→1.13s）。
 export const FUNASR_CONFIG_DEFAULTS = Object.freeze({
   mode: '2pass',
-  chunkSize: [0, 5, 5],
+  chunkSize: [5, 10, 5],
   chunkInterval: 10,
   encoderChunkLookBack: 4,
   decoderChunkLookBack: 1,
