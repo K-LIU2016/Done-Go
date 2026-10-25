@@ -73,8 +73,16 @@ export function rollValue(target, t) {
   return Math.round(target * easeOutCubic(t));
 }
 
-function deltaText(delta, prev) {
-  if (prev == null || delta == null) return '这是你的第一章。';
+var TYPE_FIRST_NAMES = { week: '第一份周记', month: '第一个月章', year: '第一本年书' };
+
+// 「这是你的第一章。」只在章号确实是 1 时成立。prevEvents==null 只说明该章型
+// 缺上一章数据（如第一个月章、年书）——它们不是全书第一章，不再误称。
+function deltaText(delta, prev, chapter) {
+  if (prev == null || delta == null) {
+    if (chapter && chapter.no === 1) return '这是你的第一章。';
+    var firstOfType = chapter ? (TYPE_FIRST_NAMES[chapter.type] || '这一种章的第一章') : '这一章';
+    return '这是' + firstOfType + '，还没有上一期可以比较。';
+  }
   if (delta > 0) return '比' + prev + '多了 ' + delta + ' 件。';
   if (delta < 0) return '比' + prev + '少了 ' + (-delta) + ' 件。';
   return '与' + prev + '持平。';
@@ -100,7 +108,11 @@ export function pageModel(chapter, params) {
   var relayLine = totals.aiRelays > 0
     ? '其中 <b class="st-gold"> ' + totals.aiRelays + ' 件</b>交给了 AI 接力。'
     : '每一件都是你自己做完的。';
-  var dText = deltaText(totals.delta, totals.prevEvents == null ? null : prevLabel(chapter.type, period));
+  var dText = deltaText(
+    totals.delta,
+    totals.prevEvents == null ? null : prevLabel(chapter.type, period),
+    { no: chapter.no, type: chapter.type }
+  );
   return {
     events: totals.events,
     aiRelays: totals.aiRelays,

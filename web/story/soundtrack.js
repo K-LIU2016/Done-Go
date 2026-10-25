@@ -360,17 +360,34 @@ function writeMuted(storage, muted) {
   }
 }
 
-function makeImpulse(ctx, seconds, decayPower, rng) {
+// 混响冲激响应生成分片进行：两条 IR（2.6s + 4.2s × 48kHz × 2ch ≈ 65 万次
+// rng+pow）同步算完会在「翻开」手势里把主线程阻塞 ~250ms（实测 longtask），
+// 正落在封面开启的仪式时刻。改为每片 IR_CHUNK_SAMPLES 个样本让出主线程；
+// ConvolverNode.buffer 为 null 时输出无声，混响在几十到几百毫秒内淡入
+// （封面本来就有 2.5 秒淡入，听感无差）。种子树不变 → 同种子同 IR（逐片
+// 只改调度，不改数值顺序）。
+export var IR_CHUNK_SAMPLES = 24000;
+
+function fillImpulseAsync(ctx, convolver, seconds, decayPower, rng, timers) {
   var len = Math.max(1, Math.floor(ctx.sampleRate * seconds));
   var ir = ctx.createBuffer(2, len, ctx.sampleRate);
-  for (var c = 0; c < 2; c += 1) {
-    var data = ir.getChannelData(c);
-    for (var i = 0; i < len; i += 1) {
-      var noise = rng() * 2 - 1;
-      data[i] = noise * Math.pow(1 - i / len, decayPower);
+  var left = ir.getChannelData(0);
+  var right = ir.getChannelData(1);
+  var pos = 0;
+  function chunk() {
+    var end = Math.min(len, pos + IR_CHUNK_SAMPLES);
+    for (; pos < end; pos += 1) {
+      var decay = Math.pow(1 - pos / len, decayPower);
+      left[pos] = (rng() * 2 - 1) * decay;
+      right[pos] = (rng() * 2 - 1) * decay;
+    }
+    if (pos < len) {
+      timers.push(setTimeout(chunk, 0));
+    } else if (convolver) {
+      convolver.buffer = ir; // 全片填完才挂上：中途无半成品 IR
     }
   }
-  return ir;
+  chunk();
 }
 
 export function createSoundtrack(options) {
@@ -496,45 +513,78 @@ export function createSoundtrack(options) {
     }
   }
 
+  var irTimers = [];
+
   function buildGraph(AC) {
     ctx = new AC();
     master = ctx.createGain();
     master.gain.value = 0;
     master.connect(ctx.destination);
-    // 混响冲激响应也走种子树：整首完全可复现
+    // 混响冲激响应也走种子树：整首完全可复现；生成按片让出主线程（见
+    // fillImpulseAsync 头注——同步生成曾把「翻开」手势阻塞 258ms）。
     verb = ctx.createConvolver();
-    verb.buffer = makeImpulse(ctx, SOUNDTRACK.REVERB_SECONDS, SOUNDTRACK.REVERB_DECAY,
-      createRng(mixBar(plan.seed, IR_BAR_OFFSET, 2)));
+    fillImpulseAsync(ctx, verb, SOUNDTRACK.REVERB_SECONDS, SOUNDTRACK.REVERB_DECAY,
+      createRng(mixBar(plan.seed, IR_BAR_OFFSET, 2)), irTimers);
     var wet = ctx.createGain();
     wet.gain.value = SOUNDTRACK.REVERB_WET;
     verb.connect(wet);
     wet.connect(master);
     longVerb = ctx.createConvolver();
-    longVerb.buffer = makeImpulse(ctx, SOUNDTRACK.LONG_REVERB_SECONDS, SOUNDTRACK.LONG_REVERB_DECAY,
-      createRng(mixBar(plan.seed, IR_BAR_OFFSET, 3)));
+    fillImpulseAsync(ctx, longVerb, SOUNDTRACK.LONG_REVERB_SECONDS, SOUNDTRACK.LONG_REVERB_DECAY,
+      createRng(mixBar(plan.seed, IR_BAR_OFFSET, 3)), irTimers);
     var longWet = ctx.createGain();
-    longWet.gain.value = SOUNDTRACK.LONG_REVERB_WET;
+    wet.gain.value = SOUNDTRACK.LONG_REVERB_WET;
     longVerb.connect(longWet);
     longWet.connect(master);
+  }
+
+  function clearIrTimers() {
+    for (var i = 0; i < irTimers.length; i += 1) clearTimeout(irTimers[i]);
+    irTimers.length = 0;
+  }
+
+  function resolveAudioCtor() {
+    return opts.audioApi
+      || (typeof AudioContext !== 'undefined' && AudioContext)
+      || (typeof webkitAudioContext !== 'undefined' && webkitAudioContext)
+      || null;
   }
 
   var session = {
     plan: plan,
 
+    // 预建图（可选）：AudioContext 构造本身有 ~100–200ms 的同步成本，若放在
+    // 「翻开」手势里会卡住封面开启（实测 longtask）。宿主可在章节打开后的
+    // 空闲时机调用 prepare()：此刻只建 ctx/master/混响（ctx 处于 suspended、
+    // 不出声；IR 按片填充），真正的 start()（用户手势）只做 resume + 排音。
+    prepare: function () {
+      if (closed || started || ctx) return { ok: ctx ? true : false, reason: ctx ? null : 'unavailable' };
+      if (!plan) return { ok: false, reason: 'bad-input' };
+      var AC = resolveAudioCtor();
+      if (!AC) return { ok: false, reason: 'no-web-audio' };
+      try {
+        buildGraph(AC);
+      } catch (e) {
+        ctx = null; master = null; verb = null; longVerb = null;
+        return { ok: false, reason: 'audio-init' };
+      }
+      return { ok: true };
+    },
+
     // 必须在用户手势里调用（SPEC §4 移动端 Safari 要在用户手势里 resume）。
     start: function (pageIndex) {
       if (closed) return { ok: false, reason: 'stopped' };
       if (!plan) return { ok: false, reason: 'bad-input' };
-      var AC = opts.audioApi
-        || (typeof AudioContext !== 'undefined' && AudioContext)
-        || (typeof webkitAudioContext !== 'undefined' && webkitAudioContext);
-      if (!AC) return { ok: false, reason: 'no-web-audio' }; // 播放器降级 CC0/静音
       if (!started) {
-        try {
-          buildGraph(AC);
-        } catch (e) {
-          ctx = null; master = null; verb = null; longVerb = null;
-          return { ok: false, reason: 'audio-init' };
+        if (!ctx) {
+          var AC = resolveAudioCtor();
+          if (!AC) return { ok: false, reason: 'no-web-audio' }; // 播放器降级 CC0/静音
+          try {
+            buildGraph(AC);
+          } catch (e) {
+            ctx = null; master = null; verb = null; longVerb = null;
+            return { ok: false, reason: 'audio-init' };
+          }
         }
         started = true;
         resumeQuietly();
@@ -595,8 +645,38 @@ export function createSoundtrack(options) {
       resumeQuietly();
     },
 
+    // 奖章「每枚一声叮，和配乐同调」（SPEC §3 ④）：index 参与选音高（调式
+    // 音阶内轮转），音色/包络与毕业钟琴一致（正弦 + 快起慢衰 + 长混响）。
+    // 未启动（用户还没在封面手势里 start 过）时静默跳过，不自动起音频——
+    // 浏览器自动播放限制下凭空出声反而违规。
+    ding: function (index) {
+      if (!ctx || !started || closed || !master) return { ok: false, reason: 'not-started' };
+      resumeQuietly();
+      var scale = plan.params.scale;
+      var step = Math.abs(Math.floor(Number(index) || 0)) % scale.length;
+      var note = {
+        midi: SONG.ROOT_MIDI + 24 + scale[step],
+        dur: plan.params.beat * SOUNDTRACK.CHIME_RELEASE_BEATS,
+      };
+      var at = ctx.currentTime + 0.003;
+      var osc = ctx.createOscillator();
+      var g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = hz(note.midi);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(SOUNDTRACK.CHIME_GAIN, at + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0003, at + note.dur);
+      osc.connect(g);
+      g.connect(master);
+      if (longVerb) g.connect(longVerb);
+      osc.start(at);
+      osc.stop(at + note.dur + 0.05);
+      return { ok: true, midi: note.midi };
+    },
+
     stop: function () {
       if (timer) { clearInterval(timer); timer = null; }
+      clearIrTimers();
       var ctxToClose = ctx;
       if (!closed && ctxToClose && master) {
         closed = true;
@@ -624,4 +704,47 @@ export function createSoundtrack(options) {
 function firstPage(pageIndex) {
   var i = pageSegmentIndex(pageIndex);
   return i == null ? 0 : i;
+}
+
+// ---------------------------------------------------------------------------
+// player 适配器 — player.js 的音频契约是 {start(input), setSegment(i),
+// setMuted(b), stop()}，会话层是 {start(pageIndex), setPage, ...}。本工厂把
+// 两侧接上：start(input) 才惰性建会话（页数在工厂参数给定——player 的
+// start(input) 不携带 pageCount，song input 里也没有），换页 setSegment →
+// setPage（SPEC §4 换页只换段不重启），destroy stop。之前两侧名不符、全仓
+// 无胶水：二期若把裸会话直接当 options.audio 传入，setSegment 会经 typeof
+// 守卫静默 no-op，音乐永远停在段 0。
+// ---------------------------------------------------------------------------
+export function createAudioAdapter(options) {
+  var opts = options || {};
+  var pageCount = Math.max(1, Math.floor(Number(opts.pageCount) || 1));
+  var session = opts.session || null; // 可注入（单测/预览）；缺省在 start 惰性创建
+  return {
+    start: function (input) {
+      if (!session) session = createSoundtrack({
+        input: input,
+        pageCount: pageCount,
+        storage: opts.storage,
+        audioApi: opts.audioApi,
+      });
+      return session.start(0);
+    },
+    setSegment: function (i) {
+      if (session) session.setPage(i);
+    },
+    setMuted: function (value) {
+      if (session) session.setMuted(value);
+    },
+    isMuted: function () {
+      return session ? session.isMuted() : false;
+    },
+    unlock: function () {
+      if (session) session.unlock();
+    },
+    stop: function () {
+      if (session) session.stop();
+      session = null;
+    },
+    session: function () { return session; },
+  };
 }

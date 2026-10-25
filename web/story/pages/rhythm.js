@@ -237,16 +237,25 @@ export function goldenHourTitle(hour) {
   return daypart(hour) + ' ' + h12 + ' 点，是你的黄金时间';
 }
 
+// captions 槽：rhythm.title（narrative 线模板/AI 润色的落点；缺省走本页文案）。
+export function captionDefaults(model) {
+  return { 'rhythm.title': (model && model.title) || '' };
+}
+
 export function buildRhythmModel(chapter) {
   var stats = chapter && chapter.stats;
   var rhythm = (stats && stats.rhythm) || {};
+  var captions = (chapter && chapter.captions) || {};
   var hourly = Array.isArray(rhythm.hourly) ? rhythm.hourly : [];
   var genreStored = rhythm.genre || null;
   var genreKnown = genreStored ? genreById(genreStored.id) : null;
+  var defaultTitle = goldenHourTitle(rhythm.goldenHour == null ? null : rhythm.goldenHour);
   return {
     pageType: PAGE_TYPE,
     kicker: '你最常在什么时候做事',
-    title: goldenHourTitle(rhythm.goldenHour == null ? null : rhythm.goldenHour),
+    title: typeof captions['rhythm.title'] === 'string' && captions['rhythm.title']
+      ? captions['rhythm.title']
+      : defaultTitle,
     opacities: heatOpacities(hourly) || new Array(24).fill(HEAT_MIN),
     hourTicks: ['0 点', '6', '12', '18', '23'], // 原型 p6 标尺
     genreHeading: monthNameOf(chapter) + '你的时间流派',
@@ -258,7 +267,10 @@ export function buildRhythmModel(chapter) {
           color: genreKnown ? genreKnown.color : '#3B6A82',
         }
       : null,
-    genrePendingNote: '本期数据还不足以判定流派',
+    // 如实口径（与 definitions.js rhythm.genre 一一对应）：流派规则与同频分支
+    // 共用，同频线尚未定稿落地——是「算法未接入」，不是「数据不足」，不得
+    // 把没接的算法说成本期数据不够。
+    genrePendingNote: '流派规则与同频分支共用，同频线定稿前不判定',
     footNote: '按事项开始时间',
   };
 }

@@ -339,7 +339,12 @@ test('count: delta copy variants — first chapter / flat / fewer', () => {
   const mk = (s) => countView(countModel(createChapter({
     type: 'month', no: 2, period: { from: '2026-10-01', to: '2026-10-31' }, stats: s,
   }, {}), {}), null);
-  assert.ok(mk(first).includes('这是你的第一章。'));
+  // no=2 且无上一章数据：不是全书第一章，不得自称「第一章」（no=1 才是）
+  assert.ok(mk(first).includes('这是第一个月章，还没有上一期可以比较。'));
+  const trueFirst = countView(countModel(createChapter({
+    type: 'month', no: 1, period: { from: '2026-10-01', to: '2026-10-31' }, stats: first,
+  }, {}), {}), null);
+  assert.ok(trueFirst.includes('这是你的第一章。'));
   assert.ok(mk(flat).includes('与九月持平。'));
   assert.ok(mk(fewer).includes('比九月少了 5 件。'));
 });
@@ -499,9 +504,11 @@ test('day: module shape', () => {
 test('day: skyAt pins the daylight palette endpoints', () => {
   assert.equal(skyAt('03:00'), '#232B52');
   assert.equal(skyAt('06:00'), '#F6C9A0');
-  assert.equal(skyAt('08:30'), '#EFE9D8');
+  // 08:30 = 原型 .p3 的 0% 起始色 #F6C9A0（黎明带延伸至此；旧表把它落进上午带）
+  assert.equal(skyAt('08:30'), '#F6C9A0');
   assert.equal(skyAt('12:00'), '#E9E4CF');
   assert.equal(skyAt('16:00'), '#BCD3D6');
+  assert.equal(skyAt('17:54'), '#9FC0C6'); // 原型 70% 色标时刻
   assert.equal(skyAt('18:30'), '#E9B98F');
   assert.equal(skyAt('23:00'), '#3E4C86');
 });
@@ -580,8 +587,9 @@ test('day: topDay null renders the empty state', () => {
 test('day: page background is the data-driven sky gradient', () => {
   const v = dayView(dayModel(octoberChapter(), {}), null);
   assert.ok(v.includes('background:linear-gradient(180deg,'), 'inline sky gradient');
-  assert.ok(v.includes('#EFE9D8'), '08:30 stop');
-  assert.ok(v.includes('#3E4C86'), '22:10 stop');
+  // 08:30–22:10 一天逐值复现 prototype.html:59 的四色标（含中段暖沙/青蓝）
+  assert.ok(v.includes('linear-gradient(180deg,#F6C9A0 0%,#E9E4CF 35%,#9FC0C6 70%,#3E4C86 100%)'),
+    'prototype p3 gradient, got: ' + (v.match(/background:[^;"]+/) || [''])[0]);
 });
 
 test('day: day.warm caption overrides the closer', () => {

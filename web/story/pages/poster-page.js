@@ -18,9 +18,9 @@
 // METRICS registry 解析；缺省四键复刻原型 p9（86 件事 / 23 次 AI 接力 /
 // 4 个新用法 / 深夜创作派）。resolve 返回 null → 该格显示「—」，不编造。
 //
-// 标题：captions['chapter-title']（跨页约定：cover 页同标题；key 约定由本线
-// 导出 POSTER_TITLE_KEYS，第二期接线时与 cover 页/AI 润色线对齐）或规则模板
-// 默认标题（SPEC §5 模板优先）。
+// 标题：captions['poster.title']（narrative 线模板与 AI 润色的落点，与 cover
+// 同章同题；旧键 'chapter-title'/'poster-title' 保留兼容）或规则模板默认标题
+// （SPEC §5 模板优先）。
 //
 // 二维码：SPEC §3 ⑨ 列「二维码」但未定义内容口径——本页渲染 qr 占位容器
 // （data-qr），内容由接入方注入；【二维码内容待 CTO 裁决】（见证据文件）。
@@ -37,7 +37,7 @@ export var DEFAULT_METRIC_KEYS = [
   'rhythm.genre',
 ];
 
-export var POSTER_TITLE_KEYS = ['chapter-title', 'poster-title'];
+export var POSTER_TITLE_KEYS = ['poster.title', 'chapter-title', 'poster-title'];
 
 // metric registry：键 = 契约 metricKeys 白名单形状；resolve(stats) →
 // {value, label} | null。value 一律字符串（canvas 导出同口径）。
@@ -95,14 +95,21 @@ export var METRICS = {
   },
 };
 
+// 期间称呼：月章用月名；周记/年书不得冒用月份名（周可跨月、年书跨多月）。
+export function posterPeriodName(period, type) {
+  if (type === 'week') return '这一周';
+  if (type === 'year') return '这一年';
+  return monthNameOf({ period: period });
+}
+
 // 规则模板默认标题（SPEC §5 模板优先；原型 p9「十月，我把 6 小时还给了自己」）。
-export function defaultPosterTitle(stats, period) {
-  var month = monthNameOf({ period: period });
+export function defaultPosterTitle(stats, period, type) {
+  var name = posterPeriodName(period, type);
   var confirmed = stats.savedTime && stats.savedTime.confirmedMinutes;
   if (confirmed >= 60) {
-    return month + '，我把 ' + formatHours(confirmed) + ' 小时还给了自己';
+    return name + '，我把 ' + formatHours(confirmed) + ' 小时还给了自己';
   }
-  return month + '，你记下了 ' + stats.totals.events + ' 件事';
+  return name + '，你记下了 ' + stats.totals.events + ' 件事';
 }
 
 // 波形高度：midi 序列 → 6..20px（原型 p9 波形条高度区间），线性归一；
@@ -140,6 +147,11 @@ function metricKeysOf(chapter) {
   return DEFAULT_METRIC_KEYS;
 }
 
+// captions 槽：poster.title（narrative 模板/AI 润色的落点；与 cover 同章同题）。
+export function captionDefaults(model) {
+  return { 'poster.title': (model && model.title) || '' };
+}
+
 export function buildPosterModel(chapter, opts) {
   opts = opts || {};
   var stats = chapter && chapter.stats;
@@ -148,7 +160,7 @@ export function buildPosterModel(chapter, opts) {
   for (var t = 0; t < POSTER_TITLE_KEYS.length && !title; t += 1) {
     if (captions[POSTER_TITLE_KEYS[t]]) title = captions[POSTER_TITLE_KEYS[t]];
   }
-  if (!title) title = defaultPosterTitle(stats, chapter.period);
+  if (!title) title = defaultPosterTitle(stats, chapter.period, chapter && chapter.type);
 
   var metrics = metricKeysOf(chapter).map(function (key) {
     var metric = METRICS[key];
@@ -157,13 +169,13 @@ export function buildPosterModel(chapter, opts) {
     return hit ? hit : { value: '—', label: metric.label };
   });
 
-  var month = monthNameOf(chapter);
+  var periodName = posterPeriodName(chapter && chapter.period, chapter && chapter.type);
   return {
     pageType: PAGE_TYPE,
     heading: '探戈 Done&Go · 第 ' + (chapter && chapter.no) + ' 章',
     title: title,
     metrics: metrics,
-    songLabel: '♪ ' + month + ' · 时间之歌（由我的数据生成）',
+    songLabel: '♪ ' + periodName + ' · 时间之歌（由我的数据生成）',
     waveHeights: waveformHeights(opts.melodyPitches || null),
     saveLabel: '保存海报',
     shareLabel: '分享这一章',

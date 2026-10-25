@@ -600,6 +600,86 @@ function sanitizeWishEcho(value) {
   return { text: text, reply: reply, matched: value.matched, facts: facts };
 }
 
+// ---------------------------------------------------------------------------
+// 年度扩展块 — stats.year（SPEC §2 年书专属内容的最小扩展形状；页面层形状
+// 见 pages/year-common.js 头注「拟扩展年度数据形状」）。全部可选：
+//   months: 1..12 行 { m, events, kindMinutes 恒 6 行 KINDS 序, genre|null }
+//   first / last: { date, time, title, kind, ai } | null
+//   streak: { days, from, to, relays } | null   // 连续每天 ≥1 次 AI 接力
+// streak 真值守卫：days === daysBetween(from,to)+1 且 relays ≥ days。
+// 无 year（周/月章）→ null；有但非法 → 整个 stats 拒绝（不静默截断）。
+// ---------------------------------------------------------------------------
+function sanitizeYearMonthRow(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (!isInt(value.m, 1, 12)) return null;
+  if (!isInt(value.events, 0, 1e7)) return null;
+  var km = sanitizeKindMinutes(value.kindMinutes);
+  if (!km) return null;
+  var genre = null;
+  if (value.genre != null) {
+    genre = sanitizeRhythm({ hourly: new Array(24).fill(0), goldenHour: null, genre: value.genre });
+    if (!genre || !genre.genre) return null;
+    genre = genre.genre;
+  }
+  return { m: value.m, events: value.events, kindMinutes: km, genre: genre };
+}
+
+function sanitizeYearFirstLast(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  var date = String(value.date == null ? '' : value.date);
+  if (!YMD_RE.test(date) || Number.isNaN(Date.parse(date))) return null;
+  var time = String(value.time == null ? '' : value.time);
+  if (!HM_RE.test(time)) return null;
+  var title = String(value.title == null ? '' : value.title).trim().slice(0, ENTRY_TITLE_MAX);
+  if (!title) return null;
+  var kind = String(value.kind == null ? '' : value.kind);
+  if (KINDS.indexOf(kind) < 0) return null;
+  return { date: date, time: time, title: title, kind: kind, ai: value.ai === true };
+}
+
+function sanitizeYearStreak(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (!isInt(value.days, 1, 366)) return null;
+  var from = String(value.from == null ? '' : value.from);
+  var to = String(value.to == null ? '' : value.to);
+  if (!YMD_RE.test(from) || !YMD_RE.test(to)) return null;
+  var spanDays = Math.round((Date.parse(to) - Date.parse(from)) / 86400000);
+  if (spanDays < 0 || spanDays + 1 !== value.days) return null; // 天数 = 日期差 + 1
+  if (!isInt(value.relays, value.days, 1e7)) return null;       // 每天至少一次 → 总数 ≥ 天数
+  return { days: value.days, from: from, to: to, relays: value.relays };
+}
+
+export function sanitizeYearStats(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  var out = { months: null, first: null, last: null, streak: null };
+  if (value.months != null) {
+    if (!Array.isArray(value.months) || value.months.length < 1 || value.months.length > 12) return null;
+    var seen = {};
+    var rows = [];
+    for (var i = 0; i < value.months.length; i += 1) {
+      var row = sanitizeYearMonthRow(value.months[i]);
+      if (!row || seen[row.m]) return null;
+      seen[row.m] = true;
+      rows.push(row);
+    }
+    rows.sort(function (a, b) { return a.m - b.m; });
+    out.months = rows;
+  }
+  if (value.first != null) {
+    out.first = sanitizeYearFirstLast(value.first);
+    if (!out.first) return null;
+  }
+  if (value.last != null) {
+    out.last = sanitizeYearFirstLast(value.last);
+    if (!out.last) return null;
+  }
+  if (value.streak != null) {
+    out.streak = sanitizeYearStreak(value.streak);
+    if (!out.streak) return null;
+  }
+  return out;
+}
+
 function sanitizeSongStats(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   if (!isNum(value.busyness, 0, 1)) return null;  // SPEC §4: 0–1 分位
@@ -651,6 +731,11 @@ export function validateStats(value) {
   if (wishEcho === null && value.wishEcho != null) return null;
   var song = sanitizeSongStats(value.song);
   if (!song) return null;
+  var year = null;
+  if (value.year != null) {
+    year = sanitizeYearStats(value.year);
+    if (!year) return null; // 年度块有但非法 → 拒绝，不静默剥掉（SPEC §2 年书内容）
+  }
   return {
     totals: totals,
     kindMinutes: kindMinutes,
@@ -662,6 +747,7 @@ export function validateStats(value) {
     keywords: keywords,
     wishEcho: wishEcho,
     song: song,
+    year: year,
   };
 }
 

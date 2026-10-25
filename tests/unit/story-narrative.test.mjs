@@ -232,20 +232,24 @@ test('B7 rhythm 分支：黄金时段/清晨/零数据', () => {
 
 test('C1 十月原型 fixture：关键锚点逐字对齐原型文案', () => {
   const captions = captionsFor(fullStats(), META);
-  for (const key of ['cover.title', 'numbers.kicker', 'numbers.lead', 'timeColors.title',
-    'specialDay.kicker', 'specialDay.title', 'specialDay.lead', 'lessons.title', 'lessons.first',
-    'savedTime.kicker', 'savedTime.lead', 'rhythm.title', 'wish.prompt', 'poster.kicker', 'poster.title']) {
+  // 键名与页面槽位一一对应（pages/* 的 captionDefaults）：numbers→count.lead、
+  // timeColors→spectrum.title、specialDay→day.warm、lessons→learned.first、
+  // savedTime→freed.lead；kicker 为固定文案键。
+  for (const key of ['cover.title', 'numbers.kicker', 'count.lead',
+    'specialDay.kicker', 'day.warm', 'lessons.kicker', 'learned.first',
+    'savedTime.kicker', 'freed.lead', 'rhythm.title', 'wish.prompt', 'poster.kicker', 'poster.title']) {
     assert.equal(typeof captions[key], 'string', `缺 ${key}`);
     assert.ok(captions[key].length > 0, `${key} 为空`);
   }
+  if (captions['spectrum.title']) assert.ok(captions['spectrum.title'].length > 0);
   assert.equal(captions['cover.title'], '十月，你把 6 小时还给了自己');
   assert.equal(captions['poster.title'], '十月，我把 6 小时还给了自己');
   assert.equal(captions['rhythm.title'], '晚上 10 点，是你的黄金时间');
-  assert.equal(captions['timeColors.title'], '金色的创造，夹着橘色的相聚');
-  assert.ok(captions['numbers.lead'].includes('多了 9 件'), captions['numbers.lead']);
-  assert.ok(captions['specialDay.lead'].includes('「给妈妈打电话」'), captions['specialDay.lead']);
-  assert.ok(captions['lessons.first'].includes('10 月 12 日'), captions['lessons.first']);
-  assert.ok(captions['lessons.first'].includes('deepseek'), captions['lessons.first']);
+  assert.equal(captions['spectrum.title'], '金色的创造，夹着橘色的相聚');
+  assert.ok(captions['count.lead'].includes('多了 9 件'), captions['count.lead']);
+  assert.ok(captions['day.warm'].includes('「给妈妈打电话」'), captions['day.warm']);
+  assert.ok(captions['learned.first'].includes('10 月 12 日'), captions['learned.first']);
+  assert.ok(captions['learned.first'].includes('deepseek'), captions['learned.first']);
 });
 
 test('C2 确定性：同一 stats 两次生成完全一致', () => {
@@ -269,7 +273,7 @@ test('C4 零数据：每页都有诚实文案，不硬编（SPEC §1 求真）',
     const lint = lintCopy(captions[key]);
     assert.ok(lint.ok, `${key} 红线: ${lint.reasons.join(',')}`);
   }
-  assert.ok(captions['savedTime.lead'].includes('还没有'), captions['savedTime.lead']);
+  assert.ok(captions['freed.lead'].includes('还没有'), captions['freed.lead']);
 });
 
 test('C5 短章文案用 SPEC §2 的原句', () => {

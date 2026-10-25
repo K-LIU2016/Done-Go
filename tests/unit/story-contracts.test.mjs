@@ -98,6 +98,7 @@ const STATS = {
     busyness: 0.62, mood: 0.7, dominantKind: 'create',
     weeklyCounts: [14, 22, 28, 22], graduations: [0, 1, 2, 1],
   },
+  year: null, // 年度扩展块（contracts.sanitizeYearStats）：周/月章为 null
 };
 
 const RELAY_RECORD = {

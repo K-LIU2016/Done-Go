@@ -17,6 +17,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { gzipSync } from 'node:zlib';
 import { createAssistant } from './ai-assistant.mjs';
 import { applyDotEnv, loadAssistantConfig } from './assistant-config.mjs';
 
@@ -32,7 +33,17 @@ export const POLISH_KINDS = ['title', 'panel', 'closing']; // SPEC §5：只润�
 export const POLISH_TEXT_MAX = 24;    // SPEC §5：每条 ≤ 24 字
 export const POLISH_FALLBACK_MAX = 60; // 基线即 contracts.CAPTION_MAX
 export const POLISH_CONTEXT_MAX = 200; // 统计数字行（只有数字与类别，无原文）
-export const POLISH_BANNED = ['留白']; // JC 红线词，出现即整批拒绝
+// JC 红线词表与 narrative.js lintCopy 对齐（服务端先拦一道；客户端还会再过
+// narrative.acceptedPolishText 的全套检查——两层过滤，代理返回绝不直进章节）。
+export const POLISH_BANNED = [
+  '留白',
+  // 鸡汤（narrative CHICKEN_SOUP_WORDS）
+  '未来可期', '遇见更好的自己', '成为更好的自己', '相信自己', '你是最棒的',
+  '越努力越幸运', '岁月静好', '静待花开', '破茧成蝶', '诗和远方', '正能量',
+  '逆风翻盘', '向阳而生', '不负韶华', '自律给我自由', '治愈自己', '请相信',
+  // 夸大（EXAGGERATION_WORDS）
+  '海量', '无数', '惊天', '逆天', '爆表', '无人能及', '史上最', '世界上最',
+];
 export const POLISH_BODY_MAX_BYTES = 16 * 1024;
 
 const KIND_LABELS = { title: '标题', panel: '四格旁白', closing: '结语' };
@@ -63,7 +74,9 @@ export function buildPolishPrompt(items) {
     '1. 只输出润色后的句子，一行一句，共 ' + items.length + ' 行，不加编号、引号或解释；',
     '2. 每句不超过 ' + POLISH_TEXT_MAX + ' 个字；',
     '3. 只使用各句「基线」和「本期数据」里出现的事实与数字，不新增、不夸大、不与他人比较；',
-    '4. 不写空泛感叹和说教；中文书面语，句长交错。',
+    '4. 不写空泛感叹和说教（不用「未来可期」「遇见更好的自己」一类句式），不说教（不用「你要」「你应该」开头）；',
+    '5. 统计只呈现事实：不排名、不与任何人比较、不出现「留白」一词；',
+    '6. 中文书面语，句长交错。',
     '',
   ];
   items.forEach((item, index) => {
@@ -136,7 +149,15 @@ const MIME = {
   '.md': 'text/markdown; charset=utf-8',
 };
 
-async function serveStatic(res, webRoot, pathname) {
+const GZIP_EXTENSIONS = new Set(['.js', '.mjs', '.html', '.css', '.json']);
+
+// gzip：SPEC §8 首屏预算按传输字节计；无压缩时 lab 的 JS 链裸传超预算数倍。
+function acceptsGzip(req) {
+  const enc = req && req.headers && req.headers['accept-encoding'];
+  return typeof enc === 'string' && enc.toLowerCase().indexOf('gzip') >= 0;
+}
+
+async function serveStatic(res, webRoot, pathname, req) {
   const cleanPath = pathname.replace(/\/+$/, '') || '/story/lab.html';
   const target = resolve(webRoot, '.' + decodeURIComponent(cleanPath));
   if (target !== webRoot && !target.startsWith(webRoot + sep)) {
@@ -144,15 +165,26 @@ async function serveStatic(res, webRoot, pathname) {
     res.end('forbidden');
     return;
   }
-  if (!MIME[extname(target)]) {
+  const ext = extname(target);
+  if (!MIME[ext]) {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('not found');
     return;
   }
   try {
     const bytes = await readFile(target);
-    res.writeHead(200, { 'content-type': MIME[extname(target)], 'cache-control': 'no-store' });
-    res.end(bytes);
+    const headers = { 'content-type': MIME[ext], 'cache-control': 'no-store' };
+    if (GZIP_EXTENSIONS.has(ext) && acceptsGzip(req) && bytes.length >= 1024) {
+      const gz = gzipSync(bytes);
+      headers['content-encoding'] = 'gzip';
+      headers['content-length'] = gz.length;
+      res.writeHead(200, headers);
+      res.end(gz);
+    } else {
+      headers['content-length'] = bytes.length;
+      res.writeHead(200, headers);
+      res.end(bytes);
+    }
   } catch {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('not found');
@@ -236,7 +268,7 @@ export function createStoryLabServer(options = {}) {
       res.end();
       return;
     }
-    serveStatic(res, webRoot, pathname).catch(() => {
+    serveStatic(res, webRoot, pathname, req).catch(() => {
       if (!res.headersSent) {
         res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
         res.end('internal');

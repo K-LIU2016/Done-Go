@@ -20,6 +20,10 @@
 // 所有选择函数确定性：同一 (stats, meta) 永远产出同一文案。
 
 import { pageOrderFor, isQuantifiableWish } from './contracts.js';
+// 心愿分类单一来源：pages/wish.js 的 WISH_KEYWORDS/classifyWishText 是保存路径
+//（wish 页「存进下一章」）在用的活表；本模块此前自持一份分叉词表（如
+//「十二点前」「早点休息」只在死表里），两套口径会继续漂移——统一复用活表。
+import { classifyWishText } from './pages/wish.js';
 
 // ---------------------------------------------------------------------------
 // 类别词表 — 原型 ② 六色光谱的 legend 用词。
@@ -140,7 +144,9 @@ function metaInfo(meta) {
   }
   var monthName = period ? MONTH_CHARS[period.month - 1] + '月' : null;
   var periodWord = type === 'week' ? '这一周' : type === 'year' ? '这一年' : '这个月';
-  var periodLabel = monthName || periodWord;
+  // 周记/年书不得冒用月份名：周可跨月（08-31..09-06 不是「八月」），年书跨
+  // 多月更不该取首月（07-27..10-24 不是「七月」）。只有月章才用月名。
+  var periodLabel = type === 'month' ? (monthName || periodWord) : periodWord;
   var unitWord = type === 'week' ? '周' : type === 'year' ? '年' : '月';
   var typeName = variant === 'short' ? '短章' : TYPE_NAMES[type];
   return {
@@ -281,18 +287,25 @@ var TEMPLATES = {
       },
       captions: function (stats) {
         var totals = statsOf(stats).totals || {};
-        return { 'numbers.lead': '这一章的 ' + (totals.events || 0) + ' 件事，都是你亲手记下的。' };
+        return { 'count.lead': '这一章的 ' + (totals.events || 0) + ' 件事，都是你亲手记下的。' };
       },
     },
     {
+      // 「第一章」只在章号确实是 1 时才能说（prevEvents==null 只说明该章型
+      // 缺上一章数据：第一个月章/年书自称「第一章」会与书内章号矛盾）。
       id: 'first',
       when: function (stats) {
         var totals = statsOf(stats).totals || {};
         return totals.prevEvents == null || totals.delta == null;
       },
-      captions: function (stats) {
+      captions: function (stats, meta) {
         var totals = statsOf(stats).totals || {};
-        return { 'numbers.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。这是有记录的第一章。' };
+        var info = metaInfo(meta);
+        if (info.no === 1) {
+          return { 'count.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。这是有记录的第一章。' };
+        }
+        var firstOfType = info.type === 'week' ? '第一份周记' : info.type === 'year' ? '第一本年书' : '第一个月章';
+        return { 'count.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。这是' + firstOfType + '，还没有上一期可以比较。' };
       },
     },
     {
@@ -303,7 +316,7 @@ var TEMPLATES = {
       },
       captions: function (stats) {
         var totals = statsOf(stats).totals || {};
-        return { 'numbers.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。比上一章多了 ' + totals.delta + ' 件。' };
+        return { 'count.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。比上一章多了 ' + totals.delta + ' 件。' };
       },
     },
     {
@@ -314,7 +327,7 @@ var TEMPLATES = {
       },
       captions: function (stats) {
         var totals = statsOf(stats).totals || {};
-        return { 'numbers.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。比上一章少了 ' + (-totals.delta) + ' 件。' };
+        return { 'count.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。比上一章少了 ' + (-totals.delta) + ' 件。' };
       },
     },
     {
@@ -322,8 +335,11 @@ var TEMPLATES = {
       when: null,
       captions: function (stats) {
         var totals = statsOf(stats).totals || {};
+        if (totals.delta == null) {
+          return { 'count.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。还没有上一期可以比较。' };
+        }
         var tail = totals.delta === 0 ? '和上一章一样多。' : '和上一章差不多。';
-        return { 'numbers.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。' + tail };
+        return { 'count.lead': '其中 ' + (totals.aiRelays || 0) + ' 件交给了 AI 接力。' + tail };
       },
     },
   ],
@@ -332,7 +348,7 @@ var TEMPLATES = {
       id: 'no-color',
       when: function (stats) { return topKinds(stats).totalMinutes <= 0; },
       captions: function (stats, meta) {
-        return { 'timeColors.title': metaInfo(meta).periodWord + '还没有上颜色' };
+        return { 'spectrum.title': metaInfo(meta).periodWord + '还没有上颜色' };
       },
     },
     {
@@ -343,7 +359,7 @@ var TEMPLATES = {
       },
       captions: function (stats, meta) {
         var lead = topKinds(stats).lead;
-        return { 'timeColors.title': metaInfo(meta).periodLabel + '，主要是' + KIND_COLOR_WORDS[lead.kind] + '的' + KIND_NAMES[lead.kind] };
+        return { 'spectrum.title': metaInfo(meta).periodLabel + '，主要是' + KIND_COLOR_WORDS[lead.kind] + '的' + KIND_NAMES[lead.kind] };
       },
     },
     {
@@ -355,7 +371,7 @@ var TEMPLATES = {
       captions: function (stats) {
         var ranks = twoToneKinds(stats);
         return {
-          'timeColors.title': KIND_COLOR_WORDS[ranks.lead.kind] + '的' + KIND_NAMES[ranks.lead.kind]
+          'spectrum.title': KIND_COLOR_WORDS[ranks.lead.kind] + '的' + KIND_NAMES[ranks.lead.kind]
             + '，夹着' + KIND_COLOR_WORDS[ranks.pair.kind] + '的' + KIND_NAMES[ranks.pair.kind],
         };
       },
@@ -367,7 +383,7 @@ var TEMPLATES = {
         return !!(lead && lead.share < 0.3);
       },
       captions: function (stats, meta) {
-        return { 'timeColors.title': metaInfo(meta).periodWord + '的颜色相当平均' };
+        return { 'spectrum.title': metaInfo(meta).periodWord + '的颜色相当平均' };
       },
     },
     {
@@ -375,17 +391,18 @@ var TEMPLATES = {
       when: null,
       captions: function (stats) {
         var lead = topKinds(stats).lead;
-        if (!lead) return { 'timeColors.title': '还没有上颜色的一章' };
-        return { 'timeColors.title': KIND_COLOR_WORDS[lead.kind] + '的' + KIND_NAMES[lead.kind] + '排在最前' };
+        if (!lead) return { 'spectrum.title': '还没有上颜色的一章' };
+        return { 'spectrum.title': KIND_COLOR_WORDS[lead.kind] + '的' + KIND_NAMES[lead.kind] + '排在最前' };
       },
     },
   ],
   specialDay: [
     {
+      // day.warm 是 day.js 消费的结语槽；无 topDay 时页面渲染自带空态，不产键。
       id: 'no-day',
       when: function (stats) { return !statsOf(stats).topDay; },
       captions: function () {
-        return { 'specialDay.title': '还没有最特别的一天', 'specialDay.lead': '事项还太少，先不挑。' };
+        return {};
       },
     },
     {
@@ -397,10 +414,7 @@ var TEMPLATES = {
       captions: function (stats) {
         var day = statsOf(stats).topDay;
         var warm = day.timeline[day.warmIndex];
-        return {
-          'specialDay.title': '那天你做了 ' + (day.events || day.timeline.length) + ' 件事',
-          'specialDay.lead': '最忙的一天，你还是记下了「' + warm.title + '」。',
-        };
+        return { 'day.warm': '最忙的一天，你还是记下了「' + warm.title + '」。' };
       },
     },
     {
@@ -409,8 +423,7 @@ var TEMPLATES = {
       captions: function (stats) {
         var day = statsOf(stats).topDay;
         return {
-          'specialDay.title': '从' + formatHour(hmHour(day.timeline[0].time)) + '到' + formatHour(hmHour(day.timeline[day.timeline.length - 1].time)) + '的一天',
-          'specialDay.lead': (day.events || day.timeline.length) + ' 件事，从早排到晚。',
+          'day.warm': '那一天，从 ' + day.timeline[0].time + ' 到 ' + day.timeline[day.timeline.length - 1].time + '，你一件一件把它们做完了。',
         };
       },
     },
@@ -422,7 +435,7 @@ var TEMPLATES = {
       },
       captions: function (stats) {
         var day = statsOf(stats).topDay;
-        return { 'specialDay.title': '事情最多的一天', 'specialDay.lead': (day.events || 0) + ' 件事，排在同一天。' };
+        return { 'day.warm': (day.events || 0) + ' 件事，排在同一天。' };
       },
     },
     {
@@ -431,27 +444,24 @@ var TEMPLATES = {
       captions: function (stats) {
         var day = statsOf(stats).topDay || { events: 0, timeline: [] };
         var first = Array.isArray(day.timeline) && day.timeline[0] ? formatHour(hmHour(day.timeline[0].time)) : '';
-        return {
-          'specialDay.title': '那天你做了 ' + (day.events || 0) + ' 件事',
-          'specialDay.lead': first ? '从' + first + '开始，都记下了。' : '都记下了。',
-        };
+        return { 'day.warm': first ? '从' + first + '开始，一件一件都记下了。' : '都记下了。' };
       },
     },
   ],
   lessons: [
     {
+      // learned.first 是 learned.js 消费的槽；firstGraduation 由 stats 线保证
+      // 只在「该应用生平第一次毕业落在本期」时非空（红线：第一次不通胀）。
       id: 'first-graduation',
       when: function (stats) {
         var lessons = statsOf(stats).lessons;
         return !!(lessons && lessons.firstGraduation);
       },
-      captions: function (stats, meta) {
+      captions: function (stats) {
         var lessons = statsOf(stats).lessons || {};
         var grad = lessons.firstGraduation || {};
-        var count = (lessons.learned || []).length;
         return {
-          'lessons.title': count > 0 ? count + ' 个 AI 用法' : '第一次自己毕业',
-          'lessons.first': dateCN(grad.date) + formatHourText(grad.time) + '，你第一次在 ' + String(grad.app || 'AI 工具') + ' 里自己毕业。那是你自己接住的第一棒。',
+          'learned.first': dateCN(grad.date) + formatHourText(grad.time) + '，你第一次在 ' + String(grad.app || 'AI 工具') + ' 里自己毕业。那是你自己接住的第一棒。',
         };
       },
     },
@@ -464,14 +474,10 @@ var TEMPLATES = {
         for (var i = 0; i < learned.length; i += 1) if ((learned[i].count || 0) > max) max = learned[i].count;
         return max >= 5;
       },
-      captions: function (stats) {
-        var learned = (statsOf(stats).lessons || {}).learned || [];
-        var top = learned[0];
-        for (var i = 1; i < learned.length; i += 1) if ((learned[i].count || 0) > (top.count || 0)) top = learned[i];
-        return {
-          'lessons.title': String(top.title) + '，用得最多',
-          'lessons.first': '还没有第一次毕业的记录。',
-        };
+      captions: function () {
+        // learned.js 的 learned.first 槽只在 firstGraduation 存在时渲染；
+        // 无毕业时页面走奖章区，不产无处显示的文案。
+        return {};
       },
     },
     {
@@ -480,16 +486,15 @@ var TEMPLATES = {
         var learned = (statsOf(stats).lessons || {}).learned;
         return Array.isArray(learned) && learned.length >= 1;
       },
-      captions: function (stats) {
-        var count = ((statsOf(stats).lessons || {}).learned || []).length;
-        return { 'lessons.title': count + ' 个用法在手里', 'lessons.first': '还没有第一次毕业的记录。' };
+      captions: function () {
+        return {};
       },
     },
     {
       id: 'none-yet',
       when: null,
       captions: function () {
-        return { 'lessons.title': '还没有新的用法', 'lessons.first': '下一章，可以试一个新的。' };
+        return {};
       },
     },
   ],
@@ -501,7 +506,7 @@ var TEMPLATES = {
         return !!(saved && saved.confirmedMinutes >= 60 && Array.isArray(saved.allocations) && saved.allocations.length > 0);
       },
       captions: function () {
-        return { 'savedTime.lead': '你把它们，给了这些：' };
+        return { 'freed.lead': '你把它们，给了这些：' };
       },
     },
     {
@@ -513,7 +518,7 @@ var TEMPLATES = {
       },
       captions: function (stats) {
         var saved = statsOf(stats).savedTime || {};
-        return { 'savedTime.lead': '这 ' + (saved.confirmedMinutes || 0) + ' 分钟，也都记下了去向。' };
+        return { 'freed.lead': '这 ' + (saved.confirmedMinutes || 0) + ' 分钟，也都记下了去向。' };
       },
     },
     {
@@ -524,7 +529,7 @@ var TEMPLATES = {
       },
       captions: function (stats) {
         var saved = statsOf(stats).savedTime || {};
-        return { 'savedTime.lead': '省下的 ' + formatMinutes(saved.confirmedMinutes || 0) + '，还没有写下去向。' };
+        return { 'freed.lead': '省下的 ' + formatMinutes(saved.confirmedMinutes || 0) + '，还没有写下去向。' };
       },
     },
     {
@@ -533,9 +538,9 @@ var TEMPLATES = {
       captions: function (stats, meta) {
         var saved = statsOf(stats).savedTime || {};
         if (!saved.confirmedMinutes) {
-          return { 'savedTime.lead': metaInfo(meta).periodWord + '还没有确认省下的时间。' };
+          return { 'freed.lead': metaInfo(meta).periodWord + '还没有确认省下的时间。' };
         }
-        return { 'savedTime.lead': '省下的 ' + formatMinutes(saved.confirmedMinutes) + '，还没有写下去向。' };
+        return { 'freed.lead': '省下的 ' + formatMinutes(saved.confirmedMinutes) + '，还没有写下去向。' };
       },
     },
   ],
@@ -729,6 +734,22 @@ export function captionsFor(stats, meta) {
         out[ek] = extra[ek];
       }
     }
+    if (page === 'panels') {
+      // four.js 的旁白槽 = panels-<i>（PANEL_CAPTION_KEY + 序号）。仅在契约
+      // panels 就是周分桶（周记之外的月章形态）时，用本周数据选变体模板；
+      // 单桶/月桶（短章与年书）沿用 stats 的事实性旁白，不硬套「第 N 周」。
+      var rows = statsOf(stats).panels;
+      if (Array.isArray(rows) && rows.length >= 2
+          && rows.length === (((statsOf(stats).song || {}).weeklyCounts || []).length)) {
+        var isWeekBuckets = rows.every(function (row) { return /^第 \d+ 周$/.test(String(row.label || '')); });
+        if (isWeekBuckets) {
+          var built = buildPanels(statsOf(stats).song.weeklyCounts, statsOf(stats).song.graduations);
+          for (var pi = 0; pi < built.length && pi < 12; pi += 1) {
+            out['panels-' + pi] = built[pi].caption;
+          }
+        }
+      }
+    }
   }
   return out;
 }
@@ -778,24 +799,12 @@ export function buildPanels(weeklyCounts, graduations) {
 // 心愿 — 分类词典 + 回应规则（SPEC §3 ⑧ / contracts WISH_CATEGORIES）。
 // 词典顺序即优先级（sleep > exercise > learning > company），首个命中定类。
 // ---------------------------------------------------------------------------
-export var WISH_KEYWORDS = {
-  sleep: ['早睡', '早点睡', '晚睡', '熬夜', '睡前', '十二点前', '12 点前', '12点前', '睡眠', '早点休息'],
-  exercise: ['跑步', '晨跑', '运动', '锻炼', '健身', '游泳', '骑行', '散步', '瑜伽', '打球'],
-  learning: ['学习', '读书', '阅读', '论文', '英语', '单词', '课程', '复习', '预习', '学会', '考证', '练习', '写码', '代码'],
-  company: ['陪伴', '陪陪', '陪', '家人', '妈妈', '爸爸', '父母', '孩子', '打电话', '朋友', '见面', '聊天', '视频'],
-};
+// 分类词典 = pages/wish.js WISH_KEYWORDS（单一来源，见文件头 import 注释）。
+export var WISH_KEYWORDS_REF = 'pages/wish.js#WISH_KEYWORDS';
 
+// 兼容导出：语义与保存路径 classifyWishText 完全一致（同一张表）。
 export function classifyWish(text) {
-  var value = typeof text === 'string' ? text : String(text == null ? '' : text);
-  if (!value.trim()) return 'other';
-  var order = ['sleep', 'exercise', 'learning', 'company'];
-  for (var i = 0; i < order.length; i += 1) {
-    var words = WISH_KEYWORDS[order[i]];
-    for (var w = 0; w < words.length; w += 1) {
-      if (value.indexOf(words[w]) >= 0) return order[i];
-    }
-  }
-  return 'other';
+  return classifyWishText(text);
 }
 
 function wishCloser(category) {
@@ -982,9 +991,12 @@ export function extractKeywords(titles, options) {
 // POLISH_KEYS 不含 specialDay.lead：其模板嵌入了温暖事项的标题（页面要展示
 // 原文），按「输入只有统计数字」红线，这一句永不送出设备，只走模板。
 // ---------------------------------------------------------------------------
+// 润色白名单 = 页面实际显示的键（全部对齐 pages/* 的 caption 槽，润色后必有
+// 显示位置）。day.warm 不在列：其文案嵌入用户自己写的事项标题，按「输入只有
+// 统计数字」红线永不送出设备。
 export var POLISH_KEYS = [
-  'cover.title', 'poster.title', 'timeColors.title', 'specialDay.title',
-  'lessons.title', 'lessons.first', 'rhythm.title',
+  'cover.title', 'poster.title', 'spectrum.title', 'learned.first',
+  'freed.lead', 'rhythm.title',
 ];
 export var POLISH_TEXT_MAX = 24; // SPEC §5：每条 ≤ 24 字
 
@@ -1030,7 +1042,9 @@ export function buildPolishRequest(captions, panels, stats, meta) {
   return { mode: 'story', facts: buildPolishFacts(stats, meta), items: requestItems };
 }
 
-function acceptedPolishText(text) {
+// 导出给 lab（✨润色 按钮的服务端返回在客户端再过一遍全套红线过滤；
+// 服务端只拦长度与「留白」，narrative 的 lintCopy 才是完整口径）。
+export function acceptedPolishText(text) {
   if (typeof text !== 'string') return null;
   var value = text.trim();
   if (!value) return null;

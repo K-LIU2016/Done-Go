@@ -124,7 +124,7 @@ export function pageView(model, captions) {
         model.longest.months + ' 个月</p>';
     }
   } else {
-    body += '<p class="st-yg-note">逐月的流派，要等月度章节积累起来。</p>';
+    body += '<p class="st-yg-note">逐月的流派判定与同频分支共用，同频线定稿前先看年度卡。</p>';
   }
 
   var card;
@@ -137,7 +137,7 @@ export function pageView(model, captions) {
       '<p>' + esc(model.yearGenre.tagline) + '</p></div>';
   } else {
     card = '<div class="st-yg-card"><small>' + esc(model.year) + ' 年你的时间流派</small>' +
-      '<b>流派待定</b><p>这一年的数据还不足以判定流派。</p></div>';
+      '<b>流派待定</b><p>流派规则与同频分支共用，同频线定稿前不判定。</p></div>';
   }
   body += card;
 

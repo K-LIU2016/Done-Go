@@ -56,6 +56,18 @@ export var METRIC_DEFINITIONS = {
     method: '本期事项条目数最多的一天；并列时取更早的一天。时间线按开始时间排序，超过 24 条时取最早开始的 24 条。',
     samples: '当天 M 条事项',
   },
+  'topDay.events': {
+    title: '最忙一天的事数',
+    source: '账本事项（同最特别的一天）',
+    method: '本期事项条目数最多那一天的事数。并列时取更早的一天。',
+    samples: '当天 M 条事项',
+  },
+  'topDay.timeline': {
+    title: '当天时间线',
+    source: '账本事项',
+    method: '最忙一天的事项按开始时间排序展示；超过 24 条时取最早开始的 24 条并注明「等 N 件事」。事项名是你自己写下的原文。',
+    samples: '当天 M 条事项',
+  },
   'topDay.warmIndex': {
     title: '温暖的事',
     source: '账本事项',
@@ -68,16 +80,28 @@ export var METRIC_DEFINITIONS = {
     method: '新学会=该用法第一次成功接力（失败的尝试不算）落在本期，按记录时刻的本地日期判断；使用次数=本期该用法的成功接力次数。名称取用法目录，目录里没有时显示用法 ID。最多列 12 个，按次数排序。',
     samples: '本期成功接力 R 条',
   },
+  'lessons.learned': {
+    title: '新学会的用法',
+    source: '接力记录 + 用法目录',
+    method: '本期新学会的用法列表：每个用法第一次成功接力（失败尝试不算）落在本期才算新学会。奖章按本期使用次数排序，只用过 1 次的置灰。',
+    samples: '本期成功接力 R 条',
+  },
   'lessons.firstGraduation': {
     title: '第一次毕业',
-    source: '接力记录（graduated=true 且带毕业应用）',
-    method: '本期内最早一条带毕业应用的记录，给出本地日期、时刻和应用。毕业记录没写应用的无法展示应用，不计入。本期没有毕业时为空。',
-    samples: '本期毕业记录中的第 1 条',
+    source: '接力记录（graduated=true 且带毕业应用，含期间外全部历史）',
+    method: '每个应用生平第一条毕业记录；只有当这个「生平第一次」恰好落在本期时才展示日期、时刻与应用。同一应用更早的毕业已在上期说过，本期不再重复自称「第一次」。',
+    samples: '全部历史里每个应用的第 1 条毕业',
   },
   savedTime: {
     title: '省下的时间',
     source: '账本静驻（stillness）事项的预留与使用确认',
     method: '只统计本人确认过的：预留状态为「已用/部分用」且确认分钟是 0 到预留时长之间的整数才计入；未确认、已让渡、确认分钟超出预留时长的一律不计。合计=所有确认分钟之和。',
+    samples: '本期静驻 S 条，其中本人确认 C 条',
+  },
+  'savedTime.confirmedMinutes': {
+    title: '确认省时合计',
+    source: '账本静驻（stillness）事项的确认',
+    method: '只统计本人确认过的分钟数（「已用/部分用」且确认分钟在 0 到预留时长之间）；未确认、已让渡或确认超限的一律不计。页面主数字 = 合计小时。',
     samples: '本期静驻 S 条，其中本人确认 C 条',
   },
   'savedTime.allocations': {
@@ -170,10 +194,92 @@ export var METRIC_DEFINITIONS = {
     method: '本期事项少于 5 件时只生成 3 页短章，写明「这个月记得不多，下一章一起写满一点」，不硬凑成完整篇幅。',
     samples: '本期 N 件，阈值 5 件',
   },
+  year: {
+    title: '年度专属数据',
+    source: '账本事项（+ 事项上的 AI 标记）',
+    method: '年书专属的三个统计：逐月时间光谱（每月事项数与六类分钟占比）、年度第一件/最后一件事、最长连续接力段。子项各有口径，见下。',
+    samples: '期间切成 K 个月',
+  },
+  'keywords.top': {
+    title: '关键词榜',
+    source: '账本事项的标题（同关键词）',
+    method: '同「关键词」口径（朴素分词 + 去停用 + 去包含重复），年书页取 Top 10，月章四格页取 Top 6。',
+    samples: '本期 N 个不同标题',
+  },
+  'year.months': {
+    title: '逐月时间光谱',
+    source: '账本事项（按章节期间逐日历月分桶）',
+    method: '期间覆盖的每个日历月一行：该月事项数与六类计划时长占比；跨 13 个月时多出的月份并入第 12 格。色带高度 = 该类分钟 ÷ 该月全部分钟。',
+    samples: '期间切成 K 个月',
+  },
+  'year.first': {
+    title: '年度第一件事',
+    source: '账本事项',
+    method: '期间内按日期 + 开始时间最早的一条事项，展示日期、开始时刻、事项名与类别（含是否交给 AI）。',
+    samples: '期间第 1 条事项',
+  },
+  'year.last': {
+    title: '年度最后一件事',
+    source: '账本事项',
+    method: '期间内按日期 + 结束时间最晚的一条事项（并列取开始更晚的），展示口径同第一件事。',
+    samples: '期间最后 1 条事项',
+  },
+  'year.streak': {
+    title: '最长连续接力',
+    source: '账本事项上的 AI 标记（entry.ai.used）',
+    method: '连续每天至少 1 件交给 AI 的事项的最长一段；天数 = 起止日期差 + 1，累计次数 = 段内 AI 事项总数。没有连着两天以上的段时不展示（页面如实说明「没有连成串」）。',
+    samples: '段内 D 天 / R 次 AI 事项',
+  },
+  'year.streak.days': {
+    title: '连续天数',
+    source: '同「最长连续接力」',
+    method: '最长一段连续日的天数（起止日期差 + 1 的真值守卫，见「最长连续接力」）。',
+    samples: '段内 D 天',
+  },
+  'year.genres': {
+    title: '年度流派变化',
+    source: '逐月流派（拟扩展形状 stats.year.months[].genre）',
+    method: '逐月流派与同频分支共用规则；同频线尚未定稿落地，当前逐月如实为空、只展示年度卡，不用近似规则顶替。',
+    samples: '暂无（待同频算法接入）',
+  },
+  'poster.title': {
+    title: '海报标题',
+    source: '本章统计 + 文案模板（可编辑 captions）',
+    method: '与封面同章同题：模板按「有确认省时 → 省时句」「生平第一次毕业 → 第一棒句」等条件选取，可编辑、可 AI 润色（润色输入只有统计数字）。',
+    samples: '本章 1 句标题',
+  },
+  'poster.metric': {
+    title: '海报数字格',
+    source: '本章统计（契约 metricKeys 白名单键）',
+    method: '海报页 4 个数字由契约 params.metricKeys 指定（默认：事项总数 / AI 接力数 / 新用法数 / 流派）；每个数字长按可见它自己的口径。流派在同频线定稿前为空格「—」。',
+    samples: '本章 4 个数字',
+  },
 };
+
+// 前缀别名：页面发出的派生键（kindMinutes.create / savedTime.allocations.restore /
+// rhythm.hourly.8 / panels.2 / keywords.论文 / wishEcho.fact.早睡天数 …）回落到
+// 对应块口径——口径卡与数据一一对应（SPEC §1.3），绝不因键名变体显示「暂无」。
+var PREFIX_ALIASES = [
+  { prefix: 'kindMinutes.', key: 'kindMinutes' },
+  { prefix: 'savedTime.allocations.', key: 'savedTime.allocations' },
+  { prefix: 'rhythm.hourly.', key: 'rhythm.hourly' },
+  { prefix: 'panels.', key: 'panels' },
+  { prefix: 'keywords.', key: 'keywords' },
+  { prefix: 'wishEcho.fact.', key: 'wishEcho' },
+  { prefix: 'year.spectrum.', key: 'year.months' },
+];
 
 export function definitionFor(key) {
   var d = METRIC_DEFINITIONS[key];
+  if (!d) {
+    var name = String(key == null ? '' : key);
+    for (var i = 0; i < PREFIX_ALIASES.length; i += 1) {
+      if (name.indexOf(PREFIX_ALIASES[i].prefix) === 0) {
+        d = METRIC_DEFINITIONS[PREFIX_ALIASES[i].key];
+        break;
+      }
+    }
+  }
   if (!d) return null;
   return { title: d.title, source: d.source, method: d.method, samples: d.samples };
 }

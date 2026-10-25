@@ -48,8 +48,14 @@ export function formatHoursShort(minutes) {
   return (minutes / 60).toFixed(1) + 'h';
 }
 
+// captions 槽：freed.lead（narrative 线模板/AI 润色的落点；缺省走本页事实文案）。
+export function captionDefaults(model) {
+  return { 'freed.lead': (model && model.lead) || EMPTY_NOTE };
+}
+
 export function buildSavedTimeModel(chapter) {
   var saved = (chapter && chapter.stats && chapter.stats.savedTime) || null;
+  var captions = (chapter && chapter.captions) || {};
   var confirmed =
     saved && typeof saved.confirmedMinutes === 'number' ? saved.confirmedMinutes : 0;
   var allocations = (saved && Array.isArray(saved.allocations) ? saved.allocations : [])
@@ -82,11 +88,14 @@ export function buildSavedTimeModel(chapter) {
         allocations.findIndex(function (r) { return r.use === b.kind; });
     });
 
+  var defaultLead = confirmed > 0 ? '你把它们，给了这些：' : EMPTY_NOTE;
   return {
     pageType: PAGE_TYPE,
     hasConfirmed: confirmed > 0,
     hoursLabel: formatHours(confirmed),
-    lead: confirmed > 0 ? '你把它们，给了这些：' : EMPTY_NOTE,
+    lead: typeof captions['freed.lead'] === 'string' && captions['freed.lead']
+      ? captions['freed.lead']
+      : defaultLead,
     emptyNote: EMPTY_NOTE,
     rows: confirmed > 0 ? rows : [],
     footnote: '只算你确认过的时间 · 长按看口径',
@@ -148,13 +157,15 @@ export function renderSavedTimePage(chapter, ctx) {
     line.appendChild(el('span', 'h', row.hours));
     alloc.appendChild(line);
 
-    // 条形逐条长出：stagger 120ms/条（鼓点密度由 soundtrack 决定，此处取固定
-    // 步进；换页连续、不重启音乐由 player 保证）。
+    // 条形逐条长出（SPEC §3 ⑤「随鼓点」）：默认 120ms/条兜底；宿主（player/
+    // lab）经 ctx.barStaggerMs 传入本章配乐的每拍时长（plan.params.beat），
+    // 音乐在播时逐条严格踩拍，无音乐时用固定步进。
+    var staggerMs = typeof ctx.barStaggerMs === 'number' && ctx.barStaggerMs > 0 ? ctx.barStaggerMs : 120;
     if (bar.animate && !ctx.reducedMotion) {
       bar.style.width = '0%';
       bar.animate(
         [{ width: '0%' }, { width: row.pct + '%' }],
-        { duration: 480, delay: index * 120, fill: 'forwards', easing: 'ease-out' }
+        { duration: 480, delay: index * staggerMs, fill: 'forwards', easing: 'ease-out' }
       ).onfinish = function () { bar.style.width = row.pct + '%'; };
     }
   });

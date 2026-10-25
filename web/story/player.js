@@ -27,6 +27,8 @@
 // - soundtrack.js（另线）经 options.audio 适配器接入：
 //   {start(input), setSegment(i), setMuted(b), stop()} —— 全部可选、
 //   typeof 防御；换页只调 setSegment（SPEC §4 不重启），destroy 才 stop。
+//   soundtrack.createAudioAdapter({pageCount}) 提供该形状的现成胶水
+//   （setSegment → session.setPage），别把裸会话直接当 options.audio 传。
 // - pages/*.js（另线）经 options.renderPage(page, index, ctx) 注入，返回
 //   该页 HTML（建议含原型 .inner 骨架）；缺省时回退页型名占位。
 //   页面交互元素用 button/a/input 等原生标签即自动豁免翻页点按；
@@ -54,8 +56,9 @@ export var LONG_PRESS_MS = 500;          // 长按阈值（Apple HIG 惯例）
 export var TAP_SLOP_PX = 10;             // 位移超过该值视为滑动（滚动），不是点按
 export var TICK_MS = 100;                // 进度填充节拍
 
-// 原型浅色页（p3 最特别的一天 / p7 四格）：文字与进度条要换深色
-export var LIGHT_PAGES = ['specialDay', 'panels'];
+// 原型浅色页（p3 最特别的一天 / p7 四格 / 年度关键词页 #F4EFE4 底）：
+// 文字与进度条要换深色
+export var LIGHT_PAGES = ['specialDay', 'panels', 'yearKeywords'];
 
 // 读屏页名（SPEC §2/§3 表；叙事红线用词审查通过）
 export var PAGE_TYPE_LABELS = {
@@ -186,22 +189,97 @@ export function esc(value) {
 }
 
 // 口径卡模型：三要素 = 数据源 / 计算方式 / 样本数（SPEC §3 用词）。
-// 无口径 → available:false，渲染层明说「暂无口径说明」，绝不编数字。
-export function metricCardModel(definition) {
+// definition 兼容两种形状：definitions.js 的 {title, source, method, samples}
+// （正式）与本文件历史测试的 {label, source, method, sample}（单数）。
+// sampleValue（可选数字）= 本章真实样本数（metricSample 算出）；缺省回落到
+// 定义文本里的 samples 说明（含 N/M 占位符时如实展示文字，不编数字）。
+export function metricCardModel(definition, sampleValue) {
   if (!definition || typeof definition !== 'object') return { available: false, rows: [] };
-  var sample = definition.sample;
-  var sampleText = typeof sample === 'number' && Number.isFinite(sample)
-    ? String(sample)
-    : (sample == null ? '' : String(sample));
+  var label = definition.label != null ? definition.label : definition.title;
+  var sample = definition.sample != null ? definition.sample : definition.samples;
+  var sampleText = typeof sampleValue === 'number' && Number.isFinite(sampleValue)
+    ? String(sampleValue)
+    : typeof sample === 'number' && Number.isFinite(sample)
+      ? String(sample)
+      : (sample == null ? '' : String(sample));
   return {
     available: true,
     rows: [
-      { k: '指标', v: String(definition.label == null ? '' : definition.label) },
+      { k: '指标', v: String(label == null ? '' : label) },
       { k: '数据源', v: String(definition.source == null ? '' : definition.source) },
       { k: '计算方式', v: String(definition.method == null ? '' : definition.method) },
       { k: '样本数', v: sampleText },
     ],
   };
+}
+
+// 本章真实样本数（SPEC §3 卡内样本数为真实数字）：能从 chapter.stats 直接
+// 算出的键给真值（如 totals.events = 本期 N 条事项），其余键返回 null——
+// 渲染层回落到 definitions 的文字说明，绝不硬造。
+export function metricSample(chapter, key) {
+  var stats = chapter && chapter.stats;
+  if (!stats) return null;
+  var totals = stats.totals || {};
+  if (key === 'totals.events') return typeof totals.events === 'number' ? totals.events : null;
+  if (key === 'totals.aiRelays') return typeof totals.aiRelays === 'number' ? totals.aiRelays : null;
+  if (key === 'totals.prevEvents') return typeof totals.prevEvents === 'number' ? totals.prevEvents : null;
+  if (key === 'totals.delta') return typeof totals.delta === 'number' ? totals.delta : null;
+  if (key === 'totals' ) return typeof totals.events === 'number' ? totals.events : null;
+  if (key === 'lessons.learned') {
+    var learned = stats.lessons && Array.isArray(stats.lessons.learned) ? stats.lessons.learned : null;
+    return learned ? learned.length : null;
+  }
+  if (key === 'lessons') {
+    var learned2 = stats.lessons && Array.isArray(stats.lessons.learned) ? stats.lessons.learned : null;
+    return learned2 ? learned2.length : null;
+  }
+  if (key === 'topDay.events') {
+    return stats.topDay && typeof stats.topDay.events === 'number' ? stats.topDay.events : null;
+  }
+  if (key === 'topDay.timeline') {
+    return stats.topDay && Array.isArray(stats.topDay.timeline) ? stats.topDay.timeline.length : null;
+  }
+  if (key === 'topDay') {
+    return stats.topDay && typeof stats.topDay.events === 'number' ? stats.topDay.events : null;
+  }
+  if (key === 'savedTime.confirmedMinutes' || key === 'savedTime') {
+    return stats.savedTime && typeof stats.savedTime.confirmedMinutes === 'number'
+      ? stats.savedTime.confirmedMinutes : null;
+  }
+  if (key === 'keywords' || key === 'keywords.top') {
+    return Array.isArray(stats.keywords) ? stats.keywords.length : null;
+  }
+  if (key === 'panels') return Array.isArray(stats.panels) ? stats.panels.length : null;
+  if (key === 'rhythm.hourly') {
+    return Array.isArray(stats.rhythm && stats.rhythm.hourly)
+      ? stats.rhythm.hourly.reduce(function (a, b) { return a + b; }, 0) : null;
+  }
+  if (key.indexOf('rhythm.hourly.') === 0) {
+    var h = Number(key.slice('rhythm.hourly.'.length));
+    return Array.isArray(stats.rhythm && stats.rhythm.hourly) && Number.isFinite(h) && stats.rhythm.hourly[h] != null
+      ? stats.rhythm.hourly[h] : null;
+  }
+  if (key.indexOf('kindMinutes.') === 0) {
+    var kind = key.slice('kindMinutes.'.length);
+    var rows = Array.isArray(stats.kindMinutes) ? stats.kindMinutes : [];
+    for (var i = 0; i < rows.length; i += 1) if (rows[i].kind === kind) return rows[i].minutes;
+    return null;
+  }
+  if (key === 'song.weeklyCounts') {
+    return stats.song && Array.isArray(stats.song.weeklyCounts) ? stats.song.weeklyCounts.length : null;
+  }
+  if (key === 'song.graduations') {
+    var grads = stats.song && Array.isArray(stats.song.graduations) ? stats.song.graduations : null;
+    return grads ? grads.reduce(function (a, b) { return a + b; }, 0) : null;
+  }
+  if (key === 'year.months') {
+    return stats.year && Array.isArray(stats.year.months) ? stats.year.months.length : null;
+  }
+  if (key === 'year.streak.days') {
+    return stats.year && stats.year.streak && typeof stats.year.streak.days === 'number'
+      ? stats.year.streak.days : null;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -237,8 +315,8 @@ export function renderChrome(ctx) {
     + '</div>';
 }
 
-export function renderMetricCard(definition) {
-  var model = metricCardModel(definition);
+export function renderMetricCard(definition, sampleValue) {
+  var model = metricCardModel(definition, sampleValue);
   var inner;
   if (!model.available) {
     inner = '<p class="st-metric-empty">暂无口径说明</p>';
@@ -509,7 +587,7 @@ export function createStoryPlayer(options) {
     state.metricKey = key;
     var def = null;
     try { def = getDefinition(key); } catch (e) { def = null; }
-    metricCard.innerHTML = renderMetricCard(def);
+    metricCard.innerHTML = renderMetricCard(def, metricSample(chapter, key));
     metricCard.removeAttribute('hidden');
     announce('口径说明：' + key);
   }

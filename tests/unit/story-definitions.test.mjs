@@ -38,9 +38,24 @@ var EXPECTED_KEYS = [
   'song.weeklyCounts',
   'song.graduations',
   'variant',
+  // 页面 data-metric 发出的派生键（SPEC §1.3「每个数字都可以长按查看口径」）
+  'lessons.learned',
+  'topDay.events',
+  'topDay.timeline',
+  'savedTime.confirmedMinutes',
+  'keywords.top',
+  'year',
+  'year.months',
+  'year.first',
+  'year.last',
+  'year.streak',
+  'year.streak.days',
+  'year.genres',
+  'poster.title',
+  'poster.metric',
 ];
 
-test('口径卡与数据一一对应：键集合恰好等于 stats 块 + song 子字段 + variant', () => {
+test('口径卡与数据一一对应：键集合 = stats 块 + song 子字段 + variant + 页面发出的数字键', () => {
   assert.deepEqual(definitionKeys().sort(), EXPECTED_KEYS.slice().sort());
 });
 

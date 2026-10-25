@@ -331,7 +331,7 @@ function computeLessons(localRelays, period, usages) {
   for (var u = 0; u < usages.length; u++) catalog[usages[u].id] = usages[u].title;
   var firstSeen = {}; // usageId → 首次成功接力的本地日期
   var periodCount = {};
-  for (var i = 0; i < localRelays.length; i++) {
+  for (var i = 0; i < localRelays.length; i += 1) {
     var r = localRelays[i];
     if (r.record.failed != null) continue; // 失败尝试不算使用
     var usageId = r.record.usageId;
@@ -352,18 +352,31 @@ function computeLessons(localRelays, period, usages) {
     return b.count - a.count || (a.usageId < b.usageId ? -1 : a.usageId > b.usageId ? 1 : 0);
   });
   learned = learned.slice(0, 12); // 契约 learned ≤ 12
-  var firstGraduation = null;
-  for (var g = 0; g < localRelays.length; g++) {
+  // 「第一次毕业」红线口径：只认每个应用生平第一次毕业（localRelays 含期间外
+  // 全部历史），且该第一次必须落在本期内才上报——否则本期不再自称「第一次」
+  // （旧口径取期内最早一条毕业，导致 9 月周章与 10 月月章对同一应用各自宣称
+  // 「第一次」，跨章自相矛盾）。
+  var firstByApp = {}; // app → 生平第一条带应用的毕业（时间升序扫描先到先得）
+  for (var g = 0; g < localRelays.length; g += 1) {
     var rec = localRelays[g].record; // 已按时间升序
     if (rec.graduated !== true) continue;
     if (!rec.graduatedApp) continue; // 契约要求 app id；无应用的毕业不计（口径见 definitions）
-    if (!inPeriod(localRelays[g].local.date, period)) continue;
-    firstGraduation = {
-      date: localRelays[g].local.date,
-      time: localRelays[g].local.time,
-      app: rec.graduatedApp,
-    };
-    break;
+    if (firstByApp[rec.graduatedApp] == null) {
+      firstByApp[rec.graduatedApp] = {
+        date: localRelays[g].local.date,
+        time: localRelays[g].local.time,
+        app: rec.graduatedApp,
+      };
+    }
+  }
+  var firstGraduation = null;
+  for (var app in firstByApp) {
+    if (!inPeriod(firstByApp[app].date, period)) continue;
+    if (firstGraduation == null
+        || firstByApp[app].date < firstGraduation.date
+        || (firstByApp[app].date === firstGraduation.date && firstByApp[app].time < firstGraduation.time)) {
+      firstGraduation = firstByApp[app];
+    }
   }
   return { learned: learned, firstGraduation: firstGraduation };
 }
@@ -664,6 +677,124 @@ function computeWishEcho(prevChapter, entries, localRelays, usages, period) {
 }
 
 // ---------------------------------------------------------------------------
+// 年度扩展块 — computeYear(period, periodEntries) → stats.year（SPEC §2 年书
+// 专属：12 个月光谱长卷 / 年度第一次和最后一次 / 年度最长连续接力）。
+// 导出供 demo 回退引擎复用（同一份年度口径，两引擎不分叉）。
+// 形状与守卫 = contracts.sanitizeYearStats（页面层拟扩展形状的最小实现）：
+//   months: 期间覆盖的每个日历月一行（>12 个月时第 13+ 并入第 12 格，
+//           与 computePanels 的年章分桶同规则；kindMinutes 恒 6 行 KINDS 序）
+//   first / last: 期间首件事 / 末件事（按日期 + 开始时间排序；last 按日期 +
+//           结束时间，并列取更晚开始）
+//   streak: 连续每天 ≥1 次 AI 接力（事项 ai.used，与年书页 footnote
+//           「接力 = 交给 AI 的事项」同口径）的最长一段；无两天连续 → null。
+//   genre 恒 null：同频流派线未定稿（computeRhythm 同注，待 CTO 裁决）。
+// ---------------------------------------------------------------------------
+function monthRowsOf(period) {
+  var yms = [];
+  var cur = { y: Number(period.from.slice(0, 4)), m: Number(period.from.slice(5, 7)) };
+  var last = { y: Number(period.to.slice(0, 4)), m: Number(period.to.slice(5, 7)) };
+  while (cur.y * 12 + cur.m <= last.y * 12 + last.m && yms.length < 12) {
+    yms.push({ y: cur.y, m: cur.m });
+    cur.m += 1;
+    if (cur.m > 12) {
+      cur.m = 1;
+      cur.y += 1;
+    }
+  }
+  return yms; // >12 个月的多出部分并入最后一格（kindMinutes/events 累加同格）
+}
+
+export function computeYear(period, periodEntries) {
+  var yms = monthRowsOf(period);
+  var byMonth = {};
+  var lastBucketKey = null;
+  for (var b = 0; b < yms.length; b += 1) {
+    var bucketKey = yms[b].y * 12 + yms[b].m;
+    byMonth[bucketKey] = { m: yms[b].m, entries: [] };
+    lastBucketKey = bucketKey;
+  }
+  for (var i = 0; i < periodEntries.length; i += 1) {
+    var e = periodEntries[i];
+    var key = Number(e.date.slice(0, 4)) * 12 + Number(e.date.slice(5, 7));
+    if (byMonth[key]) byMonth[key].entries.push(e);
+    else if (lastBucketKey != null && key > lastBucketKey) byMonth[lastBucketKey].entries.push(e); // 周年书第 13+ 月并入第 12 格（与 computePanels 同规则，不静默丢）
+  }
+  var months = [];
+  var monthKeys = Object.keys(byMonth).sort(function (a, b) { return a - b; });
+  for (var mk = 0; mk < monthKeys.length; mk += 1) {
+    var bucket = byMonth[monthKeys[mk]];
+    var bucketMinutes = computeKindMinutes(bucket.entries);
+    if (!bucketMinutes) return { months: null, first: null, last: null, streak: null }; // 超存储上限：诚实留空
+    months.push({ m: bucket.m, events: bucket.entries.length, kindMinutes: bucketMinutes, genre: null });
+  }
+
+  var first = null;
+  var last = null;
+  for (var f = 0; f < periodEntries.length; f += 1) {
+    var entry = periodEntries[f];
+    if (first == null
+        || entry.date < first.date
+        || (entry.date === first.date && entry.start < first.start)) {
+      first = entry;
+    }
+    if (last == null
+        || entry.date > last.date
+        || (entry.date === last.date && entry.end >= last.end)) {
+      last = entry;
+    }
+  }
+  var firstOut = null;
+  var lastOut = null;
+  if (first) {
+    firstOut = {
+      date: first.date, time: first.start, title: first.title, kind: first.kind,
+      ai: !!(first.ai && first.ai.used === true),
+    };
+  }
+  if (last) {
+    lastOut = {
+      date: last.date, time: last.start, title: last.title, kind: last.kind,
+      ai: !!(last.ai && last.ai.used === true),
+    };
+  }
+
+  // 最长连续接力段：按天聚合 ai.used 事项，扫最长连续日；relays = 段内
+  // ai.used 事项数（守卫 relays ≥ days 由构造保证：每天至少 1 条）。
+  var streak = null;
+  var aiDays = {};
+  for (var a = 0; a < periodEntries.length; a += 1) {
+    var en = periodEntries[a];
+    if (en.ai && en.ai.used === true) {
+      if (!aiDays[en.date]) aiDays[en.date] = 0;
+      aiDays[en.date] += 1;
+    }
+  }
+  var dayList = Object.keys(aiDays).sort();
+  var runFrom = null;
+  var runTo = null;
+  var runLen = 0;
+  for (var d = 0; d < dayList.length; d += 1) {
+    if (runTo != null && diffDays(runTo, dayList[d]) === 1) {
+      runTo = dayList[d];
+      runLen += 1;
+    } else {
+      runFrom = dayList[d];
+      runTo = dayList[d];
+      runLen = 1;
+    }
+    if (runLen >= 2 && (!streak || runLen > streak.days)) { // 单日不算「连成串」：年书页走 scattered 空态如实说明
+      var relaysInRun = 0;
+      for (var rd = runFrom; rd <= runTo; ) {
+        relaysInRun += aiDays[rd] || 0;
+        rd = addDays(rd, 1);
+      }
+      streak = { days: runLen, from: runFrom, to: runTo, relays: relaysInRun };
+    }
+  }
+  return { months: months, first: firstOut, last: lastOut, streak: streak };
+}
+
+// ---------------------------------------------------------------------------
 // 主入口：computeStats(rawInput, options) → 契约校验过的 stats 或 null
 // ---------------------------------------------------------------------------
 export function computeStats(rawInput, options) {
@@ -703,6 +834,7 @@ export function computeStats(rawInput, options) {
       weeklyCounts: weekly.weeklyCounts,
       graduations: weekly.graduations,
     },
+    year: computeYear(period, periodEntries),
   };
   return validateStats(stats); // 输出一定是契约形状；不合法宁可 null 不硬凑
 }

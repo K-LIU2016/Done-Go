@@ -553,7 +553,7 @@ test('genres: 契约现状（无逐月）→ 年度卡仍在 + 事实性说明',
   assert.equal(model.hasMonths, false);
   var view = genres.pageView(model, {});
   assert.equal((view.match(/class="st-yg-chip/g) || []).length, 0);
-  assert.ok(view.indexOf('逐月的流派，要等月度章节积累起来。') >= 0);
+  assert.ok(view.indexOf('逐月的流派判定与同频分支共用，同频线定稿前先看年度卡。') >= 0);
   assert.ok(view.indexOf('深夜创作派') >= 0);
 });
 

@@ -50,8 +50,9 @@ export function nextPeriodName(period, type) {
   return names[next];
 }
 
-// 第一章（没有上一章心愿可回应）的引导：事实性，不鸡汤。
-export var FIRST_CHAPTER_NOTE = '这是第一章。写下心愿，下一章会用数据回应它。';
+// 没有上一章心愿可回应时的引导：事实性，不鸡汤。不自称「第一章」——
+// echo 为空也可能是上一章没写心愿，是否第一章并不由此可知（求真红线）。
+export var FIRST_CHAPTER_NOTE = '上一章没有留下心愿。这一章写一句，下一章会用数据回应它。';
 
 export function buildWishModel(chapter) {
   var stats = chapter && chapter.stats;

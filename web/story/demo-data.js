@@ -13,8 +13,11 @@
 // 2. lab 口径轻量聚合 aggregateStats + buildDemoChapter —— 仅 lab/预览/
 //    prevChapter 组装用；正式统计口径是 web/story/stats.js（统计线，D2）。
 //    stats.js 交付后 lab.html 会优先 import 它，本函数只作回退，两边字段都
-//    通过 contracts.validateStats。流派判定复用 pages/rhythm.js 的
-//    classifyGenre（SPEC §3 ⑥ 与同频分支共用，规则可解释），绝不自定流派。
+//    通过 contracts.validateStats。两引擎同一口径（红线：不得分叉）：
+//    流派恒 null（同频线未定稿，stats.computeRhythm 同注——旧版回退引擎真算
+//    流派，同一 lab 里正式路径「流派待定」而回退路径出流派卡，自相矛盾）；
+//    年度扩展块直接复用 stats.computeYear；「第一次毕业」同 per-app 生平
+//    第一次口径。
 // 3. 同源真实数据 readLocalStatsInput —— lab 与正式 app 同源时直接读
 //    localStorage：旧账本 tango-donego.web.v1 的 entries、接力
 //    tango-donego.relay.v2 的 records、上一章 tango-donego.story.v1。
@@ -28,7 +31,7 @@ import {
   STORY_STORE_KEY, sanitizeStoreText, WISH_CATEGORIES,
 } from './contracts.js';
 import { variantForEvents } from './scheduler.js';
-import { assembleGenreInput, classifyGenre } from './pages/rhythm.js';
+import { computeYear } from './stats.js';
 
 // ---------------------------------------------------------------------------
 // 日历助手（纯字符串运算；scheduler 的 shiftYmd 未导出，这里自带最小集）
@@ -590,15 +593,29 @@ export function aggregateStats(input) {
   var learned = learnedIds.map(function (id) {
     return { usageId: id, title: usageTitles[id] || id, count: usageCounts[id] };
   });
-  var firstGrad = null;
-  for (var r2 = 0; r2 < relaysP.length; r2 += 1) {
-    if (relaysP[r2].graduated === true) {
-      firstGrad = {
-        date: relaysP[r2].at.slice(0, 10),
-        time: relaysP[r2].at.slice(11, 16),
-        app: relaysP[r2].graduatedApp || 'ai',
+  // 「第一次毕业」per-app 生平第一次（扫全部历史 relays，不只本期），且该
+  // 第一次落在本期才上报——与 stats.computeLessons 同口径，不同期不再各自
+  // 自称「第一次」（红线：统计只呈现事实）。
+  var firstByApp = {};
+  for (var r2 = 0; r2 < clean.relays.length; r2 += 1) {
+    var rec2 = clean.relays[r2];
+    if (rec2.graduated !== true || !rec2.graduatedApp) continue;
+    var gDate = rec2.at.slice(0, 10);
+    if (firstByApp[rec2.graduatedApp] == null || gDate < firstByApp[rec2.graduatedApp].date) {
+      firstByApp[rec2.graduatedApp] = {
+        date: gDate,
+        time: rec2.at.slice(11, 16),
+        app: rec2.graduatedApp,
       };
-      break;
+    }
+  }
+  var firstGrad = null;
+  for (var app in firstByApp) {
+    if (firstByApp[app].date < period.from || firstByApp[app].date > period.to) continue;
+    if (firstGrad == null
+        || firstByApp[app].date < firstGrad.date
+        || (firstByApp[app].date === firstGrad.date && firstByApp[app].time < firstGrad.time)) {
+      firstGrad = firstByApp[app];
     }
   }
 
@@ -632,14 +649,12 @@ export function aggregateStats(input) {
     totals: totals, kindMinutes: kindMinutes, topDay: topDay,
     lessons: { learned: learned, firstGraduation: firstGrad },
     savedTime: { confirmedMinutes: confirmed, allocations: allocations },
+    // 流派恒 null：同频线未定稿（stats.computeRhythm 同注）。旧版这里真算
+    // classifyGenre，导致回退路径与正式路径对同一数据给出不同流派口径。
     rhythm: { hourly: hourly, goldenHour: goldenHour, genre: null },
     panels: [], keywords: [], wishEcho: null, song: song,
+    year: computeYear(period, inP),
   };
-  var genreInput = assembleGenreInput({ stats: draftStats });
-  var genre = genreInput ? classifyGenre(genreInput) : null;
-  draftStats.rhythm.genre = genre
-    ? { id: genre.id, title: genre.title, tagline: genre.tagline }
-    : null;
 
   // panels / keywords —— 事实性模板（不鸡汤、不夸大；润色归 narrative/代理）
   draftStats.panels = panelsFor(inP, period, weekly);

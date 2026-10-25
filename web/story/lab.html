@@ -122,6 +122,25 @@ details{font-size:12.5px;color:#9a9a92}
 details summary{cursor:pointer;color:#c9c7bf}
 details pre{margin-top:8px;max-height:300px;overflow:auto;font-size:11px;line-height:1.5;color:#b9b7af;background:#14151399;padding:8px;border-radius:8px}
 .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#9a9a92;background:#1c1d1a;font-size:14px}
+/* 浅色页（p3 天光 / p7 四格 / 年度关键词页 #F4EFE4 底）：外壳进度条与顶栏换深色
+   （原型 p7 内联 bars 值 #2a2620 / rgba(0,0,0,.2)；与 player.js LIGHT_PAGES 同步） */
+.lab-pagewrap.lab-light .bars i{background:rgba(0,0,0,.2)}
+.lab-pagewrap.lab-light .bars i.d{background:#2a2620}
+.lab-pagewrap.lab-light .bars i.c::after{background:#2a2620}
+.lab-pagewrap.lab-light .chrome{color:rgba(42,38,32,.9)}
+.lab-pagewrap.lab-light .mute{background:rgba(0,0,0,.12);color:#2a2620}
+.lab-pagewrap.lab-light .lab-hint{color:rgba(42,38,32,.55)}
+/* 口径卡（SPEC §1.3：长按数字看口径；definitions.js 供给文本） */
+.st-metric-host{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:rgba(20,21,19,.55)}
+.st-metric-host[hidden]{display:none}
+.st-metric-card{width:300px;max-height:70%;overflow:auto;background:#1d1e1a;border:1px solid #3a3b33;border-radius:16px;padding:16px;color:#e8e6e0}
+.st-metric-card h4{font-size:14px;margin-bottom:10px;color:#FFD58A}
+.st-metric-card dl{margin:0;font-size:12.5px;line-height:1.7}
+.st-metric-card dl>div{margin-bottom:8px}
+.st-metric-card dt{color:#9a9a92;font-size:11px;letter-spacing:1px}
+.st-metric-card dd{margin:2px 0 0}
+.st-metric-close{margin-top:6px;background:#3E5F3F;color:#d9f0d9;border:0;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+.st-metric-empty{font-size:13px;color:#9a9a92}
 </style>
 </head>
 <body>
@@ -170,7 +189,8 @@ details pre{margin-top:8px;max-height:300px;overflow:auto;font-size:11px;line-he
       <div id="pageMount" style="position:absolute;inset:0"></div>
       <div class="lab-tap left" id="tapL" title="上一页"></div>
       <div class="lab-tap right" id="tapR" title="下一页"></div>
-      <div class="lab-hint">← → 翻页 · 空格下一页 · 点顶部进度条跳页</div>
+      <div class="lab-hint">← → 翻页 · 空格下一页 · 点顶部进度条跳页 · 长按数字看口径</div>
+      <div class="st-metric-host" id="metricHost" hidden></div>
     </div>
   </div>
 
@@ -185,51 +205,42 @@ details pre{margin-top:8px;max-height:300px;overflow:auto;font-size:11px;line-he
 </main>
 
 <script type="module">
-import { pageOrderFor, songInputFor, melodyPitches, createChapter, SHORT_CHAPTER_MIN_EVENTS } from './contracts.js';
-import { variantForEvents, dueChapterSpecs, localUtcOffset } from './scheduler.js';
-import { DEMO_PERSONAS, demoPeriods, buildDemoStatsInput, buildDemoChapter, previewChapter, readLocalStatsInput, aggregateStats } from './demo-data.js';
-import { createSoundtrack, planSong } from './soundtrack.js';
-
-// —— 可选模块：正式统计/文案优先；缺席时回退并如实标注（不伪造口径） ——
-async function tryImport(path) {
-  try { return { mod: await import(path), ok: true }; } catch (e) { return { mod: null, ok: false }; }
+// lab 的模块全部按需加载（SPEC §8 首屏 JS ≤80KB：打开页面只交付本文件的内联
+// 脚本；contracts/stats/narrative/demo-data/soundtrack/16 个页型模块都在
+// 首次用到时 import）。tryImport 失败如实降级并标注，不伪造口径。
+const MOD_CACHE = {};
+function tryImport(path) {
+  if (!MOD_CACHE[path]) {
+    MOD_CACHE[path] = import(path).then((mod) => ({ mod, ok: true })).catch(() => ({ mod: null, ok: false }));
+  }
+  return MOD_CACHE[path];
 }
-const statsMod = await tryImport('./stats.js');
-const narrativeMod = await tryImport('./narrative.js');
-const pageMods = {};
-for (const [key, path] of Object.entries({
+const PAGE_MOD_PATHS = {
   cover: './pages/cover.js', numbers: './pages/count.js', timeColors: './pages/spectrum.js',
   specialDay: './pages/day.js', lessons: './pages/learned.js', savedTime: './pages/freed.js',
   rhythm: './pages/rhythm.js', panels: './pages/four.js', wish: './pages/wish.js', poster: './pages/poster-page.js',
   yearSpectrum: './pages/year-spectrum.js', yearFirstLast: './pages/year-firstlast.js',
   yearStreak: './pages/year-streak.js', yearGenres: './pages/year-genres.js',
   yearKeywords: './pages/year-keywords.js', yearWall: './pages/year-wall.js',
-})) pageMods[key] = await tryImport(path);
-
-// T6 页型（render*Page(chapter, ctx) → HTMLElement）的适配表；其余走 T5 createPage。
-const RENDERERS = {
-  savedTime: (m) => m.renderSavedTimePage,
-  rhythm: (m) => m.renderRhythmPage,
-  panels: (m) => m.renderPanelsPage,
-  wish: (m) => m.renderWishPage,
-  poster: (m) => m.renderPosterPage,
 };
+// T6 页型的 model 构建器（captionDefaults 需要 view-model；与 RENDERERS 对齐）
+const MODEL_BUILDERS = {
+  savedTime: 'buildSavedTimeModel', rhythm: 'buildRhythmModel', panels: 'buildPanelsModel',
+  wish: 'buildWishModel', poster: 'buildPosterModel',
+};
+// 浅色页（与 player.js LIGHT_PAGES 同步维护；year-keywords 页底 #F4EFE4）
+const LIGHT_PAGES = ['specialDay', 'panels', 'yearKeywords'];
 
 const $ = (id) => document.getElementById(id);
 const noteEl = $('note');
-const state = { chapter: null, index: 0, ctrl: null, audio: null, input: null, reduceMotion: false };
+const state = { chapter: null, index: 0, ctrl: null, audio: null, input: null, reduceMotion: false, contracts: null, soundtrack: null, narrative: null };
 function note(text, isError) {
   noteEl.textContent = text || '';
   noteEl.style.color = isError ? '#e8956f' : '#c9c7bf';
 }
 function chipPanel() {
-  const chips = [
-    ['stats.js', statsMod.ok], ['narrative.js', narrativeMod.ok],
-    ...Object.keys(pageMods).filter((k) => k.startsWith('year')).slice(0, 1).map((k) => ['年书页型 ×6', pageMods[k].ok]),
-    ['页型 ×10', Object.keys(pageMods).filter((k) => !k.startsWith('year')).every((k) => pageMods[k].ok)],
-  ];
-  $('chips').innerHTML = chips.map(([name, ok]) =>
-    '<span class="chip ' + (ok ? 'on' : 'off') + '">' + (ok ? '✓ ' : '⏳ ') + name + '</span>').join('') +
+  $('chips').innerHTML =
+    '<span class="chip on">⚡ 按需加载 · 首屏 0 个 JS 模块（SPEC §8）</span>' +
     '<span class="chip" id="proxyChip">· 润色代理检测中</span>';
   fetch('/api/story/polish').then((r) => r.json()).then((info) => {
     const el = $('proxyChip');
@@ -249,9 +260,10 @@ function currentType() {
   const on = document.querySelector('#typeSeg .on');
   return on ? on.dataset.type : 'month';
 }
-function localDuePeriods() {
+function localDuePeriods(scheduler) {
+  if (!scheduler) return {};
   const now = Date.now();
-  const specs = dueChapterSpecs(now, { utcOffsetMinutes: localUtcOffset(new Date()), chapters: [] }) || [];
+  const specs = scheduler.dueChapterSpecs(now, { utcOffsetMinutes: scheduler.localUtcOffset(new Date()), chapters: [] }) || [];
   const map = {};
   for (const spec of specs) if (!map[spec.type]) map[spec.type] = spec.period;
   const week = map.week || null;
@@ -262,18 +274,21 @@ function shiftD(ymd, n) {
   const t = Date.parse(ymd + 'T00:00:00Z') + n * 86400000;
   return new Date(t).toISOString().slice(0, 10);
 }
-function pickPeriod(type) {
+async function pickPeriod(type) {
   const from = $('from').value, to = $('to').value;
   if (from && to && from <= to) return { from, to };
   const src = $('source').value;
+  const { demoPeriods } = await tryImport('./demo-data.js').then((r) => r.mod || {});
   if (src === 'local') {
-    const due = localDuePeriods();
+    const scheduler = await tryImport('./scheduler.js').then((r) => r.mod || {});
+    const due = localDuePeriods(scheduler);
     if (due[type]) return due[type];
     if (due.month) return due.month; // 触发日历没有的章型退到最近完整月
     const t = new Date();
     return { from: new Date(t.getFullYear(), t.getMonth() - 1, 2).toISOString().slice(0, 10), to: new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10) };
   }
-  const presets = demoPeriods(src) || demoPeriods('student');
+  const presets = (demoPeriods && (demoPeriods(src) || demoPeriods('student'))) || null;
+  if (!presets) return null;
   return (presets[type] || presets.month).period;
 }
 
@@ -284,9 +299,11 @@ const YEAR_ORDER = ['cover', 'numbers', 'timeColors', 'specialDay', 'lessons', '
   'yearSpectrum', 'yearFirstLast', 'yearStreak', 'yearGenres', 'yearKeywords', 'yearWall', 'poster'];
 
 async function generateChapter() {
+  const src = $('source').value; // 数据源（student/teacher/local）——此前从未定义，直接引用抛 ReferenceError
   const presetType = currentType();
   const type = presetType === 'short' ? 'week' : presetType; // 短章 = 周/月章的数据不足变体（contracts §2）
-  const period = pickPeriod(presetType);
+  const period = await pickPeriod(presetType);
+  if (!period) { note('期间无法确定', true); return; }
   const no = Math.max(1, Math.floor(Number($('no').value) || 10));
   let input = null;
   let sourceNote = '';
@@ -296,36 +313,65 @@ async function generateChapter() {
       const scenes = await (await fetch('./relay/scenes.zh.json')).json();
       usages = (scenes.usages || []).map((u) => ({ id: u.id, title: u.title }));
     } catch (e) { /* 用法列表拿不到也能生成 */ }
+    const { readLocalStatsInput } = await tryImport('./demo-data.js').then((r) => r.mod || {});
     input = readLocalStatsInput(window.localStorage, { period, usages });
     sourceNote = '本机真实数据（' + input.entries.length + ' 条账本 · ' + input.relays.length + ' 条接力）';
   } else {
+    const { buildDemoStatsInput, DEMO_PERSONAS } = await tryImport('./demo-data.js').then((r) => r.mod || {});
+    if (typeof buildDemoStatsInput !== 'function') { note('demo-data 模块加载失败', true); return; }
     input = buildDemoStatsInput(src, { period });
-    sourceNote = '示例数据 · ' + (DEMO_PERSONAS.find((p) => p.id === src) || {}).label;
+    sourceNote = '示例数据 · ' + ((DEMO_PERSONAS || []).find((p) => p.id === src) || {}).label;
   }
   if (!input) { note('原始数据读取失败', true); return; }
   state.input = input;
   const events = input.entries.filter((e) => e.date >= period.from && e.date <= period.to).length;
-  const variant = variantForEvents(events) || 'full';
+  const contractsMod = await tryImport('./contracts.js').then((r) => r.mod);
+  const schedulerMod = await tryImport('./scheduler.js').then((r) => r.mod);
+  if (!contractsMod || !schedulerMod) { note('contracts/scheduler 模块加载失败', true); return; }
+  state.contracts = contractsMod;
+  const variant = schedulerMod.variantForEvents(events) || 'full';
   let stats = null;
   let statsNote = '';
-  if (statsMod.ok && typeof statsMod.mod.computeStats === 'function') {
-    stats = statsMod.mod.computeStats(input);
+  const statsR = await tryImport('./stats.js');
+  if (statsR.ok && typeof statsR.mod.computeStats === 'function') {
+    stats = statsR.mod.computeStats(input);
     if (stats) statsNote = 'stats.js 正式口径';
   }
   if (!stats) {
-    stats = aggregateStats(input);
+    const demoMod = await tryImport('./demo-data.js').then((r) => r.mod || {});
+    stats = demoMod && demoMod.aggregateStats ? demoMod.aggregateStats(input) : null;
     statsNote = stats ? 'stats.js 不可用/返回空 → demo lab 口径聚合' : '';
   }
   if (!stats) { note('统计失败：期间 ' + period.from + ' → ' + period.to + ' 无法出 stats', true); return; }
   const pages = type === 'year' ? YEAR_ORDER.map((t) => ({ type: t })) : undefined;
-  const captions = narrativeMod.ok && typeof narrativeMod.mod.captionsFor === 'function'
-    ? (narrativeMod.mod.captionsFor(stats, { type, variant, no, period, pages: pages ? pages.map((p) => p.type) : undefined }) || {})
+  const narrativeR = await tryImport('./narrative.js');
+  state.narrative = narrativeR.ok ? narrativeR.mod : null;
+  const captions = narrativeR.ok && typeof narrativeR.mod.captionsFor === 'function'
+    ? (narrativeR.mod.captionsFor(stats, { type, variant, no, period, pages: pages ? pages.map((p) => p.type) : undefined }) || {})
     : {};
-  const chapter = createChapter({ type, variant, no, period, stats, captions, pages }, { now: Date.now() });
+  const chapter = contractsMod.createChapter({ type, variant, no, period, stats, captions, pages }, { now: Date.now() });
   if (!chapter) { note('章节未通过 contracts 校验（页型/统计形状问题）', true); return; }
-  const bits = [sourceNote, statsNote, '第 ' + chapter.no + ' 章 · ' + (variant === 'short' ? '短章（本期 ' + events + ' 件事 < ' + SHORT_CHAPTER_MIN_EVENTS + '）' : chapter.pages.length + ' 页')];
+  const bits = [sourceNote, statsNote, '第 ' + chapter.no + ' 章 · ' + (variant === 'short' ? '短章（本期 ' + events + ' 件事 < ' + contractsMod.SHORT_CHAPTER_MIN_EVENTS + '）' : chapter.pages.length + ' 页')];
   if (src === 'local' && !input.entries.length) bits.push('⚠ 本机账本为空或非同源 — 换示例人设看完整效果');
   openChapter(chapter, bits.join(' · '));
+  // 空闲时预取配乐：模块加载 + AudioContext/混响/IR 预建（session.prepare）。
+  // 「翻开」手势里只剩 resume + 排音 —— AudioContext 构造的 ~100–200ms 同步
+  // 成本不再卡封面开启（IR 本身已按片生成，见 soundtrack.fillImpulseAsync）。
+  const chapterForAudio = chapter;
+  const prepareAudio = async () => {
+    try {
+      const c = state.contracts || (await tryImport('./contracts.js').then((r) => r.mod));
+      const st = state.soundtrack || (await tryImport('./soundtrack.js').then((r) => r.mod));
+      if (!c || !st) return;
+      state.contracts = c; state.soundtrack = st;
+      if (state.audio || state.chapter !== chapterForAudio) return; // 已换章/已启动
+      const session = st.createSoundtrack({ input: c.songInputFor(chapterForAudio), pageCount: chapterForAudio.pages.length, storage: window.localStorage });
+      if (typeof session.prepare === 'function') session.prepare();
+      if (state.chapter === chapterForAudio && !state.audio) state.audio = session;
+    } catch (e) { /* 预建失败不影响阅读；startAudio 会现建 */ }
+  };
+  if ('requestIdleCallback' in window) requestIdleCallback(prepareAudio);
+  else setTimeout(prepareAudio, 800);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,21 +397,31 @@ function openChapter(chapter, noteText) {
     '<b>第 ' + chapter.no + ' 章 · ' + typeNames[chapter.type] + (chapter.variant === 'short' ? ' · 短章' : '') + '</b><br>' +
     chapter.period.from + ' → ' + chapter.period.to + '<br>' +
     chapter.stats.totals.events + ' 件事 · ' + chapter.stats.totals.aiRelays + ' 次 AI 接力 · 确认省时 ' + Math.round(chapter.stats.savedTime.confirmedMinutes / 60 * 10) / 10 + ' 小时<br>' +
-    '作曲种子 ' + chapter.songSeed + ' · 段数 ' + chapter.pages.length + '（换页连续）';
+    '年度块 ' + (chapter.stats.year && chapter.stats.year.months ? chapter.stats.year.months.length + ' 个月' : '—') +
+    ' · 作曲种子 ' + chapter.songSeed + ' · 段数 ' + chapter.pages.length + '（换页连续）';
   note(noteText || '');
   showPage(0);
 }
 
 function melodyForPoster() {
   try {
-    const plan = planSong(songInputFor(state.chapter), state.chapter.pages.length);
+    const c = state.contracts;
+    if (!c) return [];
+    const plan = c.planSong(c.songInputFor(state.chapter), state.chapter.pages.length);
     const notes = [];
     for (const seg of plan.segments) for (const nt of seg.notes) notes.push(nt);
-    return melodyPitches(notes) || [];
+    return c.melodyPitches(notes) || [];
   } catch (e) { return []; }
 }
 
-function showPage(i) {
+// 页型模块按需加载（首次渲染某页型时才 import，之后走缓存）
+function loadPageMod(type) {
+  const path = PAGE_MOD_PATHS[type];
+  if (!path) return Promise.resolve({ mod: null, ok: false });
+  return tryImport(path);
+}
+
+async function showPage(i) {
   const chapter = state.chapter;
   if (!chapter) return;
   const n = chapter.pages.length;
@@ -375,7 +431,8 @@ function showPage(i) {
   state.ctrl = null;
   const mount = $('pageMount');
   mount.innerHTML = '';
-  const entry = pageMods[page.type];
+  const entry = await loadPageMod(page.type);
+  if (!state.chapter || state.index !== chapter.pages.indexOf(page)) return; // 翻页竞态：丢弃过期渲染
   if (!entry || !entry.ok) {
     const box = document.createElement('div');
     box.className = 'placeholder';
@@ -383,47 +440,74 @@ function showPage(i) {
     mount.appendChild(box);
   } else {
     const mod = entry.mod;
-    const renderer = RENDERERS[page.type] ? RENDERERS[page.type](mod) : null;
+    const renderer = mod.renderSavedTimePage || mod.renderRhythmPage || mod.renderPanelsPage || mod.renderWishPage || mod.renderPosterPage || null;
     if (typeof renderer === 'function') {
       const ctx = { reducedMotion: state.reduceMotion };
       if (page.type === 'poster') ctx.melodyPitches = melodyForPoster();
+      if (page.type === 'savedTime' && state.audio && state.audio.plan) {
+        ctx.barStaggerMs = state.audio.plan.params.beat * 1000; // 条形长出踩配乐拍点（SPEC §3 ⑤）
+      }
       if (page.type === 'wish') ctx.onSaveWish = (wish) => {
         state.chapter = { ...state.chapter, wish };
         $('json').textContent = JSON.stringify(state.chapter, null, 2);
         note('心愿已写进本章：' + wish.text + '（下一章开头会回应它）');
       };
       mount.appendChild(renderer(chapter, ctx));
-    } else {
+    } else if (typeof mod.createPage === 'function') {
       const model = mod.pageModel(chapter, page.params || {});
       const ctrl = mod.createPage({
         model,
         captions: chapter.captions,
         reduceMotion: state.reduceMotion,
         onOpen: startAudio,
+        onMedalFall: playMedalDing, // 奖章每枚一声叮（SPEC §3 ④；音频未启动时静默）
       });
       ctrl.mount(mount);
       state.ctrl = ctrl;
+    } else {
+      const box = document.createElement('div');
+      box.className = 'placeholder';
+      box.innerHTML = '<span>⏳ 页型 ' + page.type + ' 缺少渲染接口</span>';
+      mount.appendChild(box);
     }
   }
   Array.from($('bars').children).forEach((el, idx) => {
     el.className = idx < state.index ? 'd' : idx === state.index ? 'c' : '';
   });
-  $('chromeLabel').textContent = chapter.period.from.slice(0, 4) + ' 年 ' + Number(chapter.period.from.slice(5, 7)) + ' 月 · 第 ' + (state.index + 1) + ' 页';
+  // 顶栏期间称呼按章型：月章「2026 年 10 月」；周记「2026.10.12」；年书「2026 年」
+  // （周/年不再截取首月月名——与 narrative periodLabel 同一失真口径）。
+  var chromeWhen = chapter.type === 'week'
+    ? chapter.period.from.slice(0, 4) + '.' + chapter.period.from.slice(5, 7) + '.' + chapter.period.from.slice(8, 10)
+    : chapter.type === 'year'
+      ? chapter.period.from.slice(0, 4) + ' 年'
+      : chapter.period.from.slice(0, 4) + ' 年 ' + Number(chapter.period.from.slice(5, 7)) + ' 月';
+  $('chromeLabel').textContent = chromeWhen + ' · 第 ' + (state.index + 1) + ' 页';
+  // 浅色页外壳：进度条/顶栏换深色（原型 p7 内联值；与 player LIGHT_PAGES 同步）
+  $('frame').classList.toggle('lab-light', LIGHT_PAGES.indexOf(page.type) >= 0);
   if (state.audio) state.audio.setPage(state.index);
   renderCaptionPanel(page.type);
 }
 
 // ---------------------------------------------------------------------------
 // 配乐 — 轻点「翻开这一章」后淡入；换页只换段，不重启（SPEC §4）
+// 模块按需加载；奖章叮声走同一会话（与配乐同调，SPEC §3 ④）。
 // ---------------------------------------------------------------------------
-function startAudio() {
+async function startAudio() {
   if (!state.chapter) return;
   if (!state.audio) {
-    state.audio = createSoundtrack({ input: songInputFor(state.chapter), pageCount: state.chapter.pages.length, storage: window.localStorage });
+    const c = state.contracts || (await tryImport('./contracts.js').then((r) => r.mod));
+    const st = state.soundtrack || (await tryImport('./soundtrack.js').then((r) => r.mod));
+    if (!c || !st) { note('配乐模块加载失败 — 页面仍可浏览', true); return; }
+    state.contracts = c; state.soundtrack = st;
+    state.audio = st.createSoundtrack({ input: c.songInputFor(state.chapter), pageCount: state.chapter.pages.length, storage: window.localStorage });
+    if (typeof state.audio.prepare === 'function') state.audio.prepare(); // 空闲预建没赶上：手势里兜底（少见路径）
   }
   const result = state.audio.start(state.index);
   updateMute();
   if (!result || result.ok !== true) note('配乐未能启动（' + (result && result.reason) + '）— 页面仍可浏览', true);
+}
+function playMedalDing(index) {
+  if (state.audio && typeof state.audio.ding === 'function') state.audio.ding(state.index, index);
 }
 $('muteBtn').addEventListener('click', () => {
   if (!state.audio) { note('先「翻开这一章」启动配乐，再静音'); return; }
@@ -438,28 +522,143 @@ function updateMute() {
 $('stopAudio').addEventListener('click', () => {
   if (state.audio) { state.audio.stop(); state.audio = null; note('音乐已停止'); }
 });
+// iOS 中断恢复：来电/Siri 挂起 AudioContext 后，回到页面或任何后续手势都
+// unlock()（soundtrack 提供该接口；此前全仓零调用，中断后要等翻页才出声）。
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.audio && typeof state.audio.unlock === 'function') state.audio.unlock();
+});
+document.addEventListener('pointerdown', () => {
+  if (state.audio && typeof state.audio.unlock === 'function') state.audio.unlock();
+}, true);
 
 // ---------------------------------------------------------------------------
-// 文案面板：当前页可编辑文案 + AI 润色（经 /api/story/polish，失败保留模板）
+// 口径卡（SPEC §1.3 求真红线：每个数字都可以长按查看口径）——definitions.js
+// 供给文本，player.metricSample 同口径的真实样本数通道由本页内置实现。
+// ---------------------------------------------------------------------------
+const METRIC_LABEL_ROWS = [
+  ['指标', (d) => d.title], ['数据源', (d) => d.source],
+  ['计算方式', (d) => d.method], ['样本数', (d) => d.samples],
+];
+let definitionsMod = null;
+let metricPress = null;
+function closeMetricCard() {
+  const host = $('metricHost');
+  host.hidden = true;
+  host.innerHTML = '';
+  metricPress = null;
+}
+async function openMetricCard(key) {
+  if (!definitionsMod) definitionsMod = await tryImport('./definitions.js').then((r) => r.mod);
+  const host = $('metricHost');
+  host.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'st-metric-card';
+  if (!definitionsMod) {
+    card.innerHTML = '<p class="st-metric-empty">口径模块加载失败</p>';
+  } else {
+    const def = definitionsMod.definitionFor(key);
+    if (!def) {
+      card.innerHTML = '<h4>' + key + '</h4><p class="st-metric-empty">暂无口径说明</p>';
+    } else {
+      const sample = metricSampleOf(state.chapter, key);
+      const rows = METRIC_LABEL_ROWS
+        .map(([k, get]) => [k, k === '样本数' && sample != null ? String(sample) : String(get(def) || '')])
+        .filter(([, v]) => v);
+      card.innerHTML = '<h4>' + key + '</h4>' +
+        '<dl>' + rows.map(([k, v]) => '<div><dt>' + k + '</dt><dd></dd></div>').join('') + '</dl>';
+      const dds = card.querySelectorAll('dd');
+      rows.forEach(([, v], idx) => { dds[idx].textContent = v; });
+    }
+  }
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'st-metric-close';
+  close.textContent = '关闭';
+  close.addEventListener('click', closeMetricCard);
+  card.appendChild(close);
+  host.appendChild(card);
+  host.hidden = false;
+}
+// 与 player.metricSample 同口径：能从 chapter.stats 直接算出的键给真实数字，
+// 其余回落 definitions 的文字说明（含 N/M 占位时如实展示文字，不编数字）。
+function metricSampleOf(chapter, key) {
+  const stats = chapter && chapter.stats;
+  if (!stats) return null;
+  const t = stats.totals || {};
+  if (key === 'totals.events') return t.events != null ? t.events : null;
+  if (key === 'totals.aiRelays') return t.aiRelays != null ? t.aiRelays : null;
+  if (key === 'totals.prevEvents') return t.prevEvents != null ? t.prevEvents : null;
+  if (key === 'totals.delta') return t.delta != null ? t.delta : null;
+  if (key === 'lessons.learned' || key === 'lessons') return stats.lessons && stats.lessons.learned ? stats.lessons.learned.length : null;
+  if (key === 'topDay.events' || key === 'topDay') return stats.topDay ? stats.topDay.events : null;
+  if (key === 'topDay.timeline') return stats.topDay ? stats.topDay.timeline.length : null;
+  if (key === 'savedTime.confirmedMinutes' || key === 'savedTime') return stats.savedTime ? stats.savedTime.confirmedMinutes : null;
+  if (key === 'keywords' || key === 'keywords.top') return Array.isArray(stats.keywords) ? stats.keywords.length : null;
+  if (key === 'panels' || /^panels\.\d+$/.test(key)) return Array.isArray(stats.panels) ? stats.panels.length : null;
+  if (key === 'year.months') return stats.year && stats.year.months ? stats.year.months.length : null;
+  if (key === 'year.streak.days') return stats.year && stats.year.streak ? stats.year.streak.days : null;
+  if (key.indexOf('kindMinutes.') === 0) {
+    const rows = stats.kindMinutes || [];
+    for (const row of rows) if (row.kind === key.slice(12)) return row.minutes;
+    return null;
+  }
+  if (key.indexOf('rhythm.hourly.') === 0) {
+    const h = Number(key.slice(14));
+    return stats.rhythm && stats.rhythm.hourly && Number.isFinite(h) ? (stats.rhythm.hourly[h] != null ? stats.rhythm.hourly[h] : null) : null;
+  }
+  return null;
+}
+const METRIC_PRESS_MS = 500;
+$('pageMount').addEventListener('pointerdown', (event) => {
+  const target = event.target && event.target.closest ? event.target.closest('[data-metric]') : null;
+  if (!target) return;
+  const key = target.getAttribute('data-metric');
+  const t0 = Date.now();
+  metricPress = { key, t0, x: event.clientX, y: event.clientY };
+  const up = (ev) => {
+    window.removeEventListener('pointerup', up, true);
+    if (!metricPress) return;
+    const moved = Math.abs(ev.clientX - metricPress.x) > 10 || Math.abs(ev.clientY - metricPress.y) > 10;
+    const held = Date.now() - metricPress.t0;
+    const k = metricPress.key;
+    metricPress = null;
+    if (!moved && held >= METRIC_PRESS_MS && k) openMetricCard(k);
+  };
+  window.addEventListener('pointerup', up, true);
+});
+$('metricHost').addEventListener('click', (event) => {
+  if (event.target === $('metricHost')) closeMetricCard();
+});
+
+// ---------------------------------------------------------------------------
+// 文案面板：当前页可编辑文案 + AI 润色（经 /api/story/polish，失败保留模板）。
+// 服务端返回在客户端再过 narrative.acceptedPolishText 全套红线过滤（≤24 字 +
+// lintCopy 禁鸡汤/夸大/与他人比较/「留白」）；不过滤直接写 captions 会绕开
+// narrative 线的红线（服务端只拦长度与「留白」）。
 // ---------------------------------------------------------------------------
 const POLISHABLE = [
-  { re: /^cover\.title$/, kind: 'title' },
+  { re: /^(cover|poster|spectrum|rhythm)\.title$/, kind: 'title' },
   { re: /^panels-\d+$/, kind: 'panel' },
-  { re: /specialDay|closing/, kind: 'closing' },
+  { re: /^(freed\.lead|learned\.first)$/, kind: 'closing' },
 ];
 function polishKindOf(key) {
   for (const rule of POLISHABLE) if (rule.re.test(key)) return rule.kind;
   return null;
 }
-function captionKeysFor(pageType) {
+async function captionKeysFor(pageType) {
   const chapter = state.chapter;
   if (!chapter) return [];
-  const entry = pageMods[pageType];
+  const entry = await loadPageMod(pageType);
   if (pageType === 'panels') {
     return (chapter.stats.panels || []).map((row, idx) => ({ key: 'panels-' + idx, fallback: row.caption }));
   }
   if (entry && entry.ok && typeof entry.mod.captionDefaults === 'function') {
-    const model = typeof entry.mod.pageModel === 'function' ? entry.mod.pageModel(chapter, {}) : null;
+    let model = null;
+    if (typeof entry.mod.pageModel === 'function') {
+      model = entry.mod.pageModel(chapter, {});
+    } else if (MODEL_BUILDERS[pageType] && typeof entry.mod[MODEL_BUILDERS[pageType]] === 'function') {
+      model = entry.mod[MODEL_BUILDERS[pageType]](chapter); // T6 页型：model 构建器
+    }
     const defaults = entry.mod.captionDefaults(model) || {};
     return Object.keys(defaults).map((key) => ({ key, fallback: defaults[key] }));
   }
@@ -473,11 +672,12 @@ function statsContext() {
   const s = state.chapter && state.chapter.stats;
   if (!s) return '';
   return '事件 ' + s.totals.events + ' · 接力 ' + s.totals.aiRelays + ' · 环比 ' + (s.totals.delta > 0 ? '+' : '') + (s.totals.delta == null ? '无' : s.totals.delta) +
-    ' · 确认省时 ' + s.savedTime.confirmedMinutes + ' 分钟 · 流派 ' + (s.rhythm.genre ? s.rhythm.genre.title : '待定');
+    ' · 确认省时 ' + s.savedTime.confirmedMinutes + ' 分钟 · 流派 ' + (s.rhythm.genre ? s.rhythm.genre.title : '待定（同频线未定稿）');
 }
-function renderCaptionPanel(pageType) {
+async function renderCaptionPanel(pageType) {
   const panel = $('capPanel');
-  const rows = captionKeysFor(pageType);
+  const rows = await captionKeysFor(pageType);
+  if (!state.chapter) return;
   if (!rows.length) { panel.innerHTML = '<span style="font-size:12px;color:#9a9a92">本页没有 captions 槽（模板直出或数据页）。</span>'; return; }
   panel.innerHTML = '';
   for (const row of rows) {
@@ -511,10 +711,18 @@ function renderCaptionPanel(pageType) {
           });
           const data = await res.json();
           if (res.ok && data.texts && data.texts[0]) {
-            input.value = data.texts[0];
-            state.chapter.captions[row.key] = data.texts[0];
-            showPage(state.index);
-            note('已润色（≤24 字，仍可继续编辑）');
+            const narrative = state.narrative || (await tryImport('./narrative.js').then((r) => r.mod));
+            const accepted = narrative && typeof narrative.acceptedPolishText === 'function'
+              ? narrative.acceptedPolishText(data.texts[0])
+              : null;
+            if (accepted) {
+              input.value = accepted;
+              state.chapter.captions[row.key] = accepted;
+              showPage(state.index);
+              note('已润色（≤24 字、过红线检查，仍可继续编辑）');
+            } else {
+              note('润色结果未过红线检查（超 24 字或鸡汤/夸大/比较句）— 保留模板文案', true);
+            }
           } else {
             note('润色不可用（' + (data.error || res.status) + '）— 保留模板文案', true);
           }
@@ -540,10 +748,12 @@ $('typeSeg').addEventListener('click', (event) => {
   btn.classList.add('on');
 });
 $('gen').addEventListener('click', generateChapter);
-$('preview').addEventListener('click', () => {
+$('preview').addEventListener('click', async () => {
   const src = $('source').value === 'teacher' ? 'teacher' : 'student';
-  const chapter = previewChapter(src);
+  const { previewChapter, buildDemoStatsInput } = await tryImport('./demo-data.js').then((r) => r.mod || {});
+  const chapter = typeof previewChapter === 'function' ? previewChapter(src) : null;
   if (!chapter) { note('原型对照章不可用', true); return; }
+  state.contracts = state.contracts || (await tryImport('./contracts.js').then((r) => r.mod));
   state.input = buildDemoStatsInput(src, {});
   openChapter(chapter, '原型对照章 · design/story-recap/prototype.html 逐值钉死（仅学生人设；老师为十月聚合章）');
 });
@@ -552,6 +762,7 @@ $('tapR').addEventListener('click', () => showPage(state.index + 1));
 document.addEventListener('keydown', (event) => {
   if (!state.chapter) return;
   if (event.target && /input|textarea/i.test(event.target.tagName)) return;
+  if (event.key === 'Escape') { closeMetricCard(); return; }
   if (event.key === 'ArrowLeft') showPage(state.index - 1);
   else if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); showPage(state.index + 1); }
 });

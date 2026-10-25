@@ -11,9 +11,13 @@
 //
 // 四格底色锁定原型 p7 循环：explore 蓝 / create 金 / connect 橘 / restore 绿
 // （>4 格时循环取色；月章恰为四周四格）。
-// 关键词字号：weight 相对最大词线性映射 17..38px（原型六词 38/30/26/22/20/17
-// 与 weight 比 1/.62/.43/.24/.14/0 完全吻合）；第二大词用原型红 #B8401F 点缀，
-// 最小词 opacity .7（对齐原型可见效果）。
+// 关键词字号：weight 相对「本组最大/最小词」归一后线性映射 17..38px。原型六词
+// 38/30/26/22/20/17 对应归一权重 1/.62/.43/.24/.14/0——注意分母必须扣掉本组
+// 最小词：真实词频（不同标题数）恒 ≥1，若按 weight/max 线性映射，最小词永远
+// 落不到 17px 地板，阶梯会被压平（层级比 1.46 vs 原型 2.24）。三参数版
+// keywordFontSize(weight, maxWeight, minWeight)；两参数兼容旧调用（min=0）。
+// 点缀：第 2 词用原型红 #B8401F、第 4 词用原型绿 #5FA67F，最小词 opacity .7
+// （原型 .kw 六词逐值）。
 
 import { monthNameOf } from './rhythm.js';
 
@@ -26,12 +30,16 @@ export var PANEL_CAPTION_KEY = 'panels';
 export var KEYWORD_MIN_PX = 17;
 export var KEYWORD_MAX_PX = 38;
 export var KEYWORD_SECOND_COLOR = '#B8401F';
+export var KEYWORD_FOURTH_COLOR = '#5FA67F';
 
-// weight → 字号（px，整数）：最大词 38，零权重 17，中间线性。
-export function keywordFontSize(weight, maxWeight) {
+// weight → 字号（px，整数）：本组最大词 38、最小词 17，中间线性（min-max 归一）。
+export function keywordFontSize(weight, maxWeight, minWeight) {
   var max = maxWeight > 0 ? maxWeight : 1;
-  var w = typeof weight === 'number' && weight > 0 ? weight : 0;
-  var ratio = Math.min(1, w / max);
+  var min = typeof minWeight === 'number' && minWeight > 0 && minWeight < max ? minWeight : 0;
+  var w = typeof weight === 'number' && weight > 0 ? weight : min;
+  var ratio = (w - min) / (max - min);
+  if (!Number.isFinite(ratio)) ratio = 1; // max == min：全部按最大字号
+  ratio = Math.min(1, Math.max(0, ratio));
   return Math.round(KEYWORD_MIN_PX + (KEYWORD_MAX_PX - KEYWORD_MIN_PX) * ratio);
 }
 
@@ -51,15 +59,20 @@ export function buildPanelsModel(chapter) {
   );
   var rawWords = stats && Array.isArray(stats.keywords) ? stats.keywords : [];
   var maxWeight = 0;
+  var minWeight = Infinity;
   for (var i = 0; i < rawWords.length; i += 1) {
     if (rawWords[i].weight > maxWeight) maxWeight = rawWords[i].weight;
+    if (rawWords[i].weight < minWeight) minWeight = rawWords[i].weight;
   }
+  if (!rawWords.length) minWeight = 0;
   var last = rawWords.length - 1;
   var keywords = rawWords.map(function (row, index) {
     return {
       word: row.word,
-      size: keywordFontSize(row.weight, maxWeight),
-      color: index === 1 && rawWords.length > 1 ? KEYWORD_SECOND_COLOR : null,
+      size: keywordFontSize(row.weight, maxWeight, minWeight),
+      color: index === 1 && rawWords.length > 1 ? KEYWORD_SECOND_COLOR
+        : index === 3 && rawWords.length > 3 ? KEYWORD_FOURTH_COLOR
+        : null,
       dim: index === last && rawWords.length > 1,
     };
   });

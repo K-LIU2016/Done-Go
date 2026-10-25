@@ -391,8 +391,8 @@ test('mute/autoAdvance 按钮读屏标签随状态切换', () => {
   assert.equal(autoAdvanceButtonLabel(false), '开启自动前进');
 });
 
-test('LIGHT_PAGES: 恰为原型两个浅色页（specialDay/panels）', () => {
-  assert.deepEqual([...LIGHT_PAGES].sort(), ['panels', 'specialDay']);
+test('LIGHT_PAGES: 原型两个浅色页 + 年度关键词页（#F4EFE4 浅底）', () => {
+  assert.deepEqual([...LIGHT_PAGES].sort(), ['panels', 'specialDay', 'yearKeywords']);
   const known = PAGE_TYPES.concat(YEAR_PAGE_TYPES);
   for (const p of LIGHT_PAGES) assert.ok(known.includes(p), p + ' 是合法页型');
 });

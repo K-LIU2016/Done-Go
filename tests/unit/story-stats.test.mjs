@@ -188,6 +188,27 @@ test('十月主夹具：全部指标一次钉死且通过 validateStats', () => 
       weeklyCounts: [0, 3, 4, 3, 1],
       graduations: [1, 1, 0, 0, 0],
     },
+    year: {
+      // 十月单月：events 与 totals 一致；kindMinutes 与主块同值（share 同 6 位舍入）
+      months: [
+        {
+          m: 10,
+          events: 11,
+          kindMinutes: [
+            { kind: 'necessary', minutes: 60, share: 0.071429 },
+            { kind: 'create', minutes: 240, share: 0.285714 },
+            { kind: 'connect', minutes: 210, share: 0.25 },
+            { kind: 'explore', minutes: 90, share: 0.107143 },
+            { kind: 'restore', minutes: 0, share: 0 },
+            { kind: 'stillness', minutes: 240, share: 0.285714 },
+          ],
+          genre: null, // 同频流派线未定稿（待 CTO 裁决），不硬判
+        },
+      ],
+      first: { date: '2026-10-05', time: '08:30', title: '读懂一篇论文', kind: 'explore', ai: true },
+      last: { date: '2026-10-26', time: '20:00', title: '静驻', kind: 'stillness', ai: false },
+      streak: null, // AI 日 = 10-05/10-12/10-18，无连续两天 → null
+    },
   });
 });
 
