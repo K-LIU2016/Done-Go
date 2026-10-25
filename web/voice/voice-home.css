@@ -1,0 +1,9 @@
+/* Home voice sheet styles. Kept beside voice-home.js so the orchestration is reusable. */
+.relay-voice-content{font-family:var(--font,"PingFang SC","Noto Sans SC",system-ui,sans-serif);color:var(--ink);display:flex;flex-direction:column;min-height:420px}
+.relay-voice-top{display:flex;align-items:center;justify-content:space-between;color:var(--brand);font-size:14px}
+.relay-voice-top span{color:var(--ink3);font-variant-numeric:tabular-nums;font-size:13px}
+.relay-voice-content .vt-transcript{min-height:220px}
+.relay-voice-wave{height:56px;display:flex;align-items:center;justify-content:center;gap:4px;margin-top:auto}
+.relay-voice-bar{display:block;width:4px;height:8px;border-radius:2px;background:var(--brand);transition:height .09s ease-out}
+.relay-voice-hint{text-align:center;color:var(--ink3);font-size:12.5px;margin-top:8px}
+.relay-voice-error{min-height:20px;margin-top:8px;color:var(--err,#B4432F);font-size:12.5px;text-align:center}

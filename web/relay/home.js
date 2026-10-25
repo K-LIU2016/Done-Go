@@ -45,6 +45,8 @@
 
 import { PERSONAS, EVENT_MAX } from './contracts.js';
 import { renderHomeSlots } from './slots.js';
+import { mountNextUp } from './next-up.js';
+import { createVoiceHomeSession, voiceHomeAvailable } from '../voice/voice-home.js';
 
 export var RELAY_PERSONA_KEY = 'tango-donego.relay.v2.persona';
 export var DEFAULT_PERSONA = 'student'; // SPEC §4① 首次默认"学生"
@@ -83,6 +85,68 @@ function esc(value) {
   return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
   });
+}
+
+var VOICE_STORE_KEY = 'tango-donego.web.v1';
+var VOICE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+var VOICE_TIME_RE = /^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/;
+var VOICE_KINDS = { necessary: true, create: true, connect: true, explore: true, restore: true, stillness: true };
+
+function localDateString(date) {
+  var d = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function voiceMinutes(value) {
+  if (value === '24:00') return 1440;
+  if (!VOICE_TIME_RE.test(value)) return null;
+  var parts = value.split(':').map(Number);
+  return parts[0] * 60 + parts[1];
+}
+
+function voiceEndAfter(start, durationMin) {
+  var begin = voiceMinutes(start);
+  var duration = Number(durationMin);
+  if (begin == null || !Number.isInteger(duration) || duration <= 0 || begin + duration > 1440) return '';
+  var end = begin + duration;
+  return String(Math.floor(end / 60)).padStart(2, '0') + ':' + String(end % 60).padStart(2, '0');
+}
+
+export function persistVoiceItems(storage, items, now) {
+  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') return { ok: false, added: 0, error: 'storage-unavailable' };
+  try {
+    var raw = storage.getItem(VOICE_STORE_KEY);
+    var state = raw ? JSON.parse(raw) : { v: 1, pv: 5, mode: 'real', name: '', wake: 960, entries: [], drafts: [], trials: [], fw: {} };
+    if (!state || typeof state !== 'object' || Array.isArray(state) || !Array.isArray(state.entries) || !Array.isArray(state.drafts)) return { ok: false, added: 0, error: 'storage-invalid' };
+    var baseDate = localDateString(now);
+    var stamp = Date.now().toString(36);
+    var entries = [];
+    var drafts = [];
+    (Array.isArray(items) ? items : []).forEach(function (item, index) {
+      if (!item || typeof item !== 'object') return;
+      var title = String(item.title == null ? '' : item.title).trim().slice(0, 200);
+      if (!title) return;
+      var kind = VOICE_KINDS[item.kind] ? item.kind : 'necessary';
+      var date = VOICE_DATE_RE.test(String(item.date || '')) ? String(item.date) : (VOICE_DATE_RE.test(String(item.deadline || '')) ? String(item.deadline) : baseDate);
+      var start = VOICE_TIME_RE.test(String(item.start || '')) ? String(item.start) : '';
+      var end = VOICE_TIME_RE.test(String(item.end || '')) ? String(item.end) : '';
+      if (start && !end) end = voiceEndAfter(start, item.durationMin);
+      var priority = Number(item.priority);
+      if (!Number.isInteger(priority) || priority < 1 || priority > 5) priority = 3;
+      var id = 'voice-' + stamp + '-' + index;
+      var common = { id: id, date: date, title: title, kind: kind, prio: priority, intent: String(item.source || '').slice(0, 2000) };
+      var begin = voiceMinutes(start);
+      var finish = voiceMinutes(end);
+      if (begin != null && finish != null && finish > begin) entries.push({ ...common, start: start, end: end });
+      else drafts.push({ ...common, start: '', end: '' });
+    });
+    state.entries = state.entries.concat(entries);
+    state.drafts = state.drafts.concat(drafts);
+    storage.setItem(VOICE_STORE_KEY, JSON.stringify(state));
+    return { ok: true, added: entries.length + drafts.length, entries: entries.length, drafts: drafts.length };
+  } catch (error) {
+    return { ok: false, added: 0, error: error && error.message ? String(error.message) : 'storage-write-failed' };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -253,13 +317,14 @@ export function createHome(options) {
     persona: loadPersona(storage),
     usages: Array.isArray(options.usages) ? options.usages : [],
     records: Array.isArray(options.records) ? options.records : [],
-    mic: speechAvailable(root),
+    mic: speechAvailable(root) || voiceHomeAvailable(root),
     micBusy: false,
     micNote: '',
   };
   var target = null;
   var refs = {};
   var micSession = 0;
+  var voiceSession = null;
 
   function snapshot() {
     return {
@@ -276,6 +341,7 @@ export function createHome(options) {
     refs.input = target.querySelector('#relay-home-input');
     refs.go = target.querySelector('#relay-home-go');
     refs.mic = target.querySelector('#relay-home-mic');
+    refs.next = target.querySelector('#relay-home-next');
   }
 
   function render() {
@@ -286,6 +352,7 @@ export function createHome(options) {
     } catch (e) { /* stub environments have no document */ }
     target.innerHTML = homeView(snapshot(), copy);
     refreshRefs();
+    if (refs.next) mountNextUp(refs.next, storage, { tasks: options.nextTasks });
     if (refs.input && state.event) refs.input.value = state.event;
     if (refs.input && refocus) refs.input.focus();
   }
@@ -370,8 +437,33 @@ export function createHome(options) {
     render();
   }
 
+  function openVoiceHome() {
+    if (!root.document || !root.location || !root.location.host) return false;
+    if (!voiceHomeAvailable(root)) return false;
+    if (voiceSession && voiceSession.isOpen) return;
+    state.micBusy = true;
+    state.micNote = copy.preparing;
+    render();
+    try {
+      voiceSession = createVoiceHomeSession({
+        root: root,
+        doc: root.document,
+        fetchImpl: fetchImpl(),
+        onComplete: function (items) {
+          var result = persistVoiceItems(storage, items, new Date());
+          state.micBusy = false;
+          state.micNote = result.ok && result.added ? '已加入 ' + result.added + ' 件事' : (result.ok ? copy.heardNothing : '保存失败 · 事项仍在语音卡中');
+          render();
+        },
+        onDismiss: function () { voiceSession = null; state.micBusy = false; render(); },
+      });
+    } catch (error) { voiceSession = null; return false; }
+    return true;
+  }
+
   function onMicTap() {
     if (!state.mic || state.micBusy) return;
+    if (openVoiceHome()) return;
     var session = ++micSession;
     state.micBusy = true;
     state.micNote = copy.preparing;
@@ -470,6 +562,8 @@ export function createHome(options) {
     },
     unmount: function () {
       micSession += 1; // 进行中的语音流程随卸载作废
+      try { voiceSession?.close('route-change'); } catch (e) { /* clean up best effort */ }
+      voiceSession = null;
       target = null;
       refs = {};
     },
