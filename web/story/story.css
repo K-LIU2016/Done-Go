@@ -1,0 +1,184 @@
+/* web/story/story.css — 时光故事书播放器外壳（T4 线名下，story 各线共用）。
+   SPEC design/story-recap/SPEC.md §3（页内交互 chrome）、§8（390/1280 两档，
+   桌面居中手机比例卡片+背景模糊）。视觉标准 = design/story-recap/
+   prototype.html：markup 类名沿用原型（.bars/.chrome/.mute/.inner/.k/
+   .serif/h1.big/.lead/.num/.foot/.hold），player.js 按同一约定发 markup，
+   pages/*.js 的页内容 markup 也落在 .st-play 作用域内。
+
+   token 对齐 relay-v2 SPEC §3（design/relay-v2/SPEC.md）：同名 CSS 变量、
+   同值挂 .st-play 作用域（故事舞台深色，与 relay 浅色 app 隔离，互不渗透）：
+   --brand/--gold/--r-lg/--r-md/--r-sm/--tap/--shadow/--t-* 与 relay 定稿一致；
+   --k-* 六类时间色 = 原型 :root（--k-create 与 relay --gold 同值 #E8B04B）。
+
+   背景分工（T4 钉死，见 player.js 文件头）：每页舞台渐变 = 原型 p0–p9，
+   落在 .st-play[data-page-type=X] 的 --page-bg（桌面 .st-backdrop 模糊需要）；
+   年度页型无原型，用中性深色兜底，视觉定稿归 pages 线。浅色页
+   （specialDay p3 / panels p7）由 player 置 data-page-theme=light，
+   文字与进度条换深色（原型 p3 #1f2a2a / p7 #2a2620）。
+
+   降级：prefers-reduced-motion（系统查询 + JS 标记 data-reduced-motion 双保险）
+   只停动效，绝不动音乐（SPEC §4）。所有选择器都在 .st-play 之下。 */
+
+/* ===== tokens：relay-v2 §3 同名同值 + 故事舞台自有 token ===== */
+.st-play{
+  --brand:#E95432; --brand-ink:#FFFFFF; --gold:#E8B04B; --gold-soft:#FBF1DC;
+  --ok:#2F7D57; --warn:#B7791F; --err:#B4432F;
+  --r-lg:20px; --r-md:14px; --r-sm:10px;
+  --shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);
+  --tap:48px;
+  --t-hero:28px; --t-h2:20px; --t-body:16px; --t-sm:14px; --t-xs:12px;
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --serif:"Songti SC","Noto Serif SC","STSong",serif;
+  --num-font:"Avenir Next","Helvetica Neue",sans-serif;
+  /* 六类时间色（原型 :root，与 contracts.KINDS 同 id） */
+  --k-nec:#7C8A99; --k-create:#E8B04B; --k-connect:#E9826A; --k-explore:#6E8FD6;
+  --k-restore:#5FA67F; --k-still:#B9A8D8;
+  /* 舞台默认（深色页） */
+  --page-bg:linear-gradient(180deg,#1A1D26,#101318);
+  --page-ink:#FFFFFF;
+  --chrome-ink:rgba(255,255,255,.9);
+  --chip-bg:rgba(255,255,255,.18);
+  --bar-done:rgba(255,255,255,.95);
+  --bar-todo:rgba(255,255,255,.3);
+  --bar-fill:#FFFFFF;
+}
+
+/* ===== 每页舞台渐变（= 原型 p0–p9，逐页一条规则） ===== */
+.st-play[data-page-type=cover]{--page-bg:linear-gradient(160deg,#2C3E35 0%,#1E2B25 100%)}
+.st-play[data-page-type=numbers]{--page-bg:radial-gradient(120% 80% at 20% 0%,#3A5A8C 0%,#1D2D4B 60%,#141E33 100%)}
+.st-play[data-page-type=timeColors]{--page-bg:#18171D}
+.st-play[data-page-type=specialDay]{--page-bg:linear-gradient(180deg,#F6C9A0 0%,#E9E4CF 35%,#9FC0C6 70%,#3E4C86 100%)}
+.st-play[data-page-type=lessons]{--page-bg:radial-gradient(100% 70% at 50% 0%,#5A3E1E 0%,#2A1F14 70%)}
+.st-play[data-page-type=savedTime]{--page-bg:linear-gradient(180deg,#14303A 0%,#1F4A4F 60%,#2C5F57 100%)}
+.st-play[data-page-type=rhythm]{--page-bg:#0F1424}
+.st-play[data-page-type=panels]{--page-bg:#F4EFE4}
+.st-play[data-page-type=wish]{--page-bg:linear-gradient(180deg,#22313A,#101820)}
+.st-play[data-page-type=poster]{--page-bg:radial-gradient(110% 70% at 80% 0%,#E9826A 0%,#B8401F 45%,#5A1E10 100%)}
+/* 年度页型（无原型）：中性深色兜底，视觉定稿归 pages 线 */
+.st-play[data-page-type=yearSpectrum]{--page-bg:linear-gradient(180deg,#191C2A,#0F1119)}
+.st-play[data-page-type=yearFirstLast]{--page-bg:linear-gradient(180deg,#231D18,#12100D)}
+.st-play[data-page-type=yearStreak]{--page-bg:linear-gradient(180deg,#12242A,#0D161A)}
+.st-play[data-page-type=yearGenres]{--page-bg:linear-gradient(180deg,#1D1A24,#100E14)}
+.st-play[data-page-type=yearKeywords]{--page-bg:linear-gradient(180deg,#20221B,#111309)}
+.st-play[data-page-type=yearWall]{--page-bg:linear-gradient(180deg,#1A1D26,#101318)}
+
+/* 浅色页（p3 最特别的一天 / p7 四格）：文字与部件换深色（原型值） */
+.st-play[data-page-theme=light]{
+  --page-ink:#2a2620;
+  --chrome-ink:rgba(42,38,32,.9);
+  --chip-bg:rgba(0,0,0,.12);
+  --bar-done:#2a2620;
+  --bar-todo:rgba(0,0,0,.2);
+  --bar-fill:#2a2620;
+}
+
+/* ===== 基础：移动优先全屏舞台，桌面居中 390 卡片 ===== */
+.st-play,.st-play *{box-sizing:border-box;margin:0;padding:0}
+.st-play{
+  position:fixed;inset:0;z-index:80;
+  font-family:var(--font);-webkit-font-smoothing:antialiased;
+  background:#101116;
+}
+.st-play [hidden]{display:none!important}
+.st-play .st-backdrop{position:absolute;inset:-40px;background:var(--page-bg);z-index:0;pointer-events:none}
+.st-play .st-card{
+  position:relative;z-index:1;width:100%;height:100vh;height:100dvh;
+  overflow:hidden;background:var(--page-bg);color:var(--page-ink);
+  font-size:var(--t-body);touch-action:pan-y;
+}
+/* 桌面（≥900px）：手机比例卡片居中 + 背景模糊放大（SPEC §8 / 原型 .pg） */
+@media (min-width:900px){
+  .st-play{display:flex;align-items:center;justify-content:center}
+  .st-play .st-backdrop{filter:blur(48px) saturate(1.15) brightness(.9);transform:scale(1.25)}
+  .st-play .st-card{width:390px;height:844px;max-height:calc(100vh - 48px);border-radius:36px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+}
+
+/* ===== 进度条（原型 .bars：段高 3px、隙 4px、当前段由 --fill 驱动） ===== */
+.st-play .bars{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:4px;z-index:3}
+.st-play .bars i{flex:1;height:3px;border-radius:2px;background:var(--bar-todo);overflow:hidden;position:relative}
+.st-play .bars i.d{background:var(--bar-done)}
+.st-play .bars i.c::after{content:"";position:absolute;inset:0;width:var(--fill,0%);background:var(--bar-fill);border-radius:inherit}
+.st-play[data-page-theme=light] .bars i{background:rgba(0,0,0,.2)}
+.st-play[data-page-theme=light] .bars i.d{background:#2a2620}
+.st-play[data-page-theme=light] .bars i.c::after{background:#2a2620}
+
+/* ===== 顶栏 chrome（原型 .chrome；30px 视觉圆钮外扩 9px = 48px 命中区） ===== */
+.st-play .chrome{position:absolute;top:26px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;font-size:var(--t-xs);color:var(--chrome-ink);z-index:3}
+.st-play .st-label{letter-spacing:.5px;opacity:.9}
+.st-play .st-tools{display:flex;gap:8px}
+.st-play .mute,.st-play .auto{
+  position:relative;width:30px;height:30px;border-radius:50%;border:0;
+  background:var(--chip-bg);color:inherit;font-size:13px;line-height:1;
+  display:grid;place-items:center;cursor:pointer;
+}
+.st-play .mute::after,.st-play .auto::after{content:"";position:absolute;inset:-9px} /* 30+9×2 = 48px (--tap) */
+.st-play .auto[aria-pressed="false"]{opacity:.45}
+.st-play .mute:focus-visible,.st-play .auto:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* ===== 舞台与页骨架（.st-page 翻页进场只用 transform/opacity，60fps） ===== */
+.st-play .st-stage{position:absolute;inset:0;z-index:2;cursor:pointer}
+.st-play .st-page{position:absolute;inset:0;animation:st-page-in .42s cubic-bezier(.2,.7,.3,1) both}
+@keyframes st-page-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+/* 页内容骨架（原型 .inner/.k/.serif/h1.big/.lead/.num/.foot/.hold，pages 线共用） */
+.st-play .inner{position:absolute;inset:72px 26px 40px;display:flex;flex-direction:column}
+.st-play[data-page-type=cover] .inner{inset:60px 26px 40px}
+.st-play .k{font-size:12.5px;letter-spacing:2px;opacity:.75}
+.st-play .serif{font-family:var(--serif)}
+.st-play h1.big{font-family:var(--serif);font-weight:900;font-size:40px;line-height:1.18;margin-top:12px}
+.st-play .lead{font-size:var(--t-body);line-height:1.75;opacity:.92;margin-top:14px}
+.st-play .num{font-family:var(--num-font);font-weight:700;font-size:96px;line-height:1;letter-spacing:-2px}
+.st-play .num small{font-size:22px;font-weight:600;margin-left:4px;letter-spacing:0}
+.st-play .foot{margin-top:auto;font-size:11.5px;opacity:.6;display:flex;justify-content:space-between}
+.st-play .hold{font-size:11.5px;opacity:.65;margin-top:8px}
+/* 封面书本轻浮动（SPEC §3 ⓪）：pages 线在封面元素上加 st-float 即得 */
+.st-play .st-float{animation:st-float 5s ease-in-out infinite}
+@keyframes st-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+/* 可长按出卡的数字（pages 线标 data-metric 即得） */
+.st-play [data-metric]{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+
+/* ===== 底部「轻点继续」与暂停胶囊 ===== */
+.st-play .st-hint{position:absolute;right:20px;bottom:14px;font-size:11.5px;opacity:.6;z-index:3;pointer-events:none}
+.st-play .st-paused-pill{
+  position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:4;
+  padding:10px 18px;border-radius:999px;font-size:13px;
+  background:rgba(0,0,0,.55);color:#fff;pointer-events:none;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+}
+.st-play.st-paused .st-page{animation-play-state:paused}
+.st-play.st-paused .st-float{animation-play-state:paused}
+
+/* ===== 口径卡（长按数字弹出：数据源/计算方式/样本数，SPEC §3） ===== */
+.st-play .st-metric-host{position:absolute;inset:0;z-index:6;display:flex;align-items:flex-end;padding:0 16px 24px;pointer-events:none}
+.st-play .st-metric-host:not([hidden]){pointer-events:auto}
+.st-play .st-metric{
+  width:100%;background:rgba(22,23,28,.92);color:#fff;border-radius:var(--r-lg);
+  padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.4);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  animation:st-metric-in .28s cubic-bezier(.2,.7,.3,1) both;position:relative;
+}
+@keyframes st-metric-in{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.st-play .st-metric-close{
+  position:absolute;top:10px;right:12px;border:0;background:transparent;color:rgba(255,255,255,.7);
+  font-size:var(--t-xs);cursor:pointer;padding:6px 8px;border-radius:var(--r-sm);
+}
+.st-play .st-metric-close:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.st-play .st-metric-rows dt{font-size:11px;opacity:.6;margin-top:10px}
+.st-play .st-metric-rows dd{font-size:var(--t-sm);line-height:1.6;margin-top:2px}
+.st-play .st-metric-empty{font-size:var(--t-sm);opacity:.85;padding:6px 0 2px}
+
+/* ===== 读屏专用（视觉隐藏，aria-live 播报） ===== */
+.st-play .st-live{
+  position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);
+  white-space:nowrap;pointer-events:none;
+}
+
+/* ===== 降级：prefers-reduced-motion 停动效（系统查询 + JS 标记双保险）。
+   只停动画/过渡，音乐与翻页逻辑不受影响（SPEC §4）。 ===== */
+@media (prefers-reduced-motion: reduce){
+  .st-play .st-page,.st-play .st-float,.st-play .st-metric{animation:none}
+  .st-play *{transition:none!important}
+}
+.st-play[data-reduced-motion] .st-page,
+.st-play[data-reduced-motion] .st-float,
+.st-play[data-reduced-motion] .st-metric{animation:none}
+.st-play[data-reduced-motion] *{transition:none!important}

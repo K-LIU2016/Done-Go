@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探戈 · 时光故事书 Lab</title>
+<!-- web/story/lab.html — SPEC §7 独立入口（T10示例与lab 线）：
+     示例数据（学生/老师）或同源本机真实数据 → stats.js 正式口径 →
+     narrative.js 文案 → contracts.createChapter → 全部页型（月章 10 页 +
+     年书 6 专属页）+ soundtrack 数据作曲 + /api/story/polish 润色代理。
+     本页自带外壳样式（原型 base CSS 逐值来自 design/story-recap/prototype.html，
+     T6 页型 renderSavedTimePage 等依赖 .pg/.inner/.k/.num 等原型类名），
+     不依赖 story.css（外壳线）与 player.js（播放器线）——它们接入正式 app。 -->
+<style>
+:root{
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --serif:"Songti SC","Noto Serif SC","STSong",serif;
+  --k-nec:#7C8A99; --k-create:#E8B04B; --k-connect:#E9826A; --k-explore:#6E8FD6; --k-restore:#5FA67F; --k-still:#B9A8D8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#141513;font-family:var(--font);-webkit-font-smoothing:antialiased;color:#e8e6e0}
+/* ===== 原型 base CSS（design/story-recap/prototype.html 逐值复制；T6 页型依赖） ===== */
+.pg{width:390px;height:844px;border-radius:36px;position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);color:#fff}
+.bars{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:4px;z-index:3}
+.bars i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden;cursor:pointer}
+.bars i.d{background:rgba(255,255,255,.95)}
+.bars i.c{position:relative}.bars i.c::after{content:"";position:absolute;inset:0;width:45%;background:#fff}
+.chrome{position:absolute;top:26px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;font-size:12px;opacity:.9;z-index:3}
+.chrome .mute{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:13px;color:#fff;border:0;cursor:pointer}
+.inner{position:absolute;inset:72px 26px 40px 26px;display:flex;flex-direction:column}
+.k{font-size:12.5px;letter-spacing:2px;opacity:.75}
+.serif{font-family:var(--serif)}
+h1.big{font-family:var(--serif);font-weight:900;font-size:40px;line-height:1.18;margin-top:12px}
+.lead{font-size:16px;line-height:1.75;opacity:.92;margin-top:14px}
+.num{font-family:"Avenir Next","Helvetica Neue",sans-serif;font-weight:700;font-size:96px;line-height:1;letter-spacing:-2px}
+.num small{font-size:22px;font-weight:600;margin-left:4px;letter-spacing:0}
+.foot{margin-top:auto;font-size:11.5px;opacity:.6;display:flex;justify-content:space-between}
+.hold{font-size:11.5px;opacity:.65;margin-top:8px}
+/* p5 freed */
+.p5{background:linear-gradient(180deg,#14303A 0%,#1F4A4F 60%,#2C5F57 100%)}
+.moon{position:absolute;right:30px;top:96px;width:70px;height:70px;border-radius:50%;box-shadow:-14px 8px 0 0 #FFF0C2;transform:rotate(-20deg)}
+.alloc{margin-top:22px;display:flex;flex-direction:column;gap:12px}
+.alloc div{display:flex;align-items:center;gap:12px}
+.alloc .ico{width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.12);display:grid;place-items:center;font-size:20px}
+.alloc .t{flex:1}
+.alloc .t b{display:block;font-size:15px}
+.alloc .t i{display:block;height:6px;border-radius:3px;background:#FFE7A6;margin-top:6px;font-style:normal}
+.alloc .h{font-family:"Avenir Next",sans-serif;font-weight:700;font-size:20px}
+/* p6 rhythm */
+.p6{background:#0F1424}
+.heat{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:24px}
+.heat i{aspect-ratio:1;border-radius:3px;background:#E8B04B}
+.hours{display:flex;justify-content:space-between;font-size:10.5px;opacity:.6;margin-top:6px}
+.arche{margin-top:22px;border-radius:20px;padding:16px;background:linear-gradient(135deg,#3B6A82,#24475A)}
+.arche small{font-size:11.5px;opacity:.8;letter-spacing:1px}
+.arche b{display:block;font-family:var(--serif);font-size:26px;margin-top:4px}
+/* p7 panels */
+.p7{background:#F4EFE4;color:#2a2620}
+.four{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.four div{border-radius:16px;padding:14px;height:160px;display:flex;flex-direction:column;justify-content:space-between;color:#fff}
+.four small{font-size:11px;opacity:.85;letter-spacing:1px}
+.four b{font-family:var(--serif);font-size:19px;line-height:1.35}
+.kw{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;align-items:baseline}
+.kw span{font-family:var(--serif);font-weight:900}
+/* p8 wish */
+.p8{background:linear-gradient(180deg,#22313A,#101820)}
+.wish{margin-top:22px;border:1.5px dashed rgba(255,255,255,.35);border-radius:18px;padding:16px;font-size:15px;line-height:1.7;min-height:120px;color:rgba(255,255,255,.9)}
+.wish em{display:block;font-style:normal;font-size:12px;opacity:.6;margin-bottom:6px}
+.wish textarea{width:100%;background:transparent;border:0;outline:0;color:#fff;font-size:15px;line-height:1.7;resize:none;font-family:var(--font)}
+.callback{margin-top:16px;background:rgba(255,255,255,.08);border-radius:16px;padding:14px;font-size:13.5px;line-height:1.7}
+.callback b{color:#FFD58A}
+.save{margin-top:auto;height:52px;border-radius:26px;background:#fff;color:#101820;font-weight:700;font-size:16px;border:0}
+/* p9 poster */
+.p9{background:radial-gradient(110% 70% at 80% 0%,#E9826A 0%,#B8401F 45%,#5A1E10 100%)}
+.pp{margin-top:6px;background:rgba(255,255,255,.1);border-radius:26px;padding:22px;backdrop-filter:blur(4px)}
+.pp .ttl{font-family:var(--serif);font-weight:900;font-size:30px;line-height:1.25}
+.pp .g{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.pp .g div{background:rgba(0,0,0,.18);border-radius:14px;padding:12px}
+.pp .g b{font-family:"Avenir Next",sans-serif;font-size:26px;display:block}
+.pp .g span{font-size:11.5px;opacity:.85}
+.pp .song{margin-top:14px;display:flex;align-items:center;gap:10px;font-size:12.5px;opacity:.95}
+.pp .song .wv{display:flex;gap:3px;align-items:center;height:22px}
+.pp .song .wv i{width:3px;background:#fff;border-radius:2px}
+.shareb{display:flex;gap:10px;margin-top:auto}
+.shareb button{flex:1;height:50px;border-radius:25px;border:0;font-weight:700;font-size:15px}
+.shareb .s1{background:#fff;color:#5A1E10}.shareb .s2{background:rgba(255,255,255,.18);color:#fff}
+/* ===== lab 外壳 ===== */
+.lab-top{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid #2a2b27;flex-wrap:wrap}
+.lab-top h1{font-size:17px;font-weight:700}
+.lab-top .sub{font-size:12.5px;color:#9a9a92}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.chip{font-size:11.5px;padding:3px 10px;border-radius:10px;background:#26271f;color:#c9c7bf}
+.chip.on{background:#3E5F3F;color:#d9f0d9}
+.chip.off{background:#3a2a22;color:#e8b9a6}
+.lab-controls{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;padding:14px 22px;border-bottom:1px solid #2a2b27}
+.lab-controls label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:#9a9a92}
+.lab-controls select,.lab-controls input{background:#22231e;color:#e8e6e0;border:1px solid #3a3b33;border-radius:9px;padding:7px 10px;font-size:13.5px;font-family:var(--font)}
+.lab-controls input[type=date]{color-scheme:dark}
+.seg{display:flex;border:1px solid #3a3b33;border-radius:10px;overflow:hidden}
+.seg button{background:transparent;color:#b9b7af;border:0;padding:7px 13px;font-size:13px;cursor:pointer;font-family:var(--font)}
+.seg button.on{background:#E95432;color:#fff;font-weight:700}
+.lab-btn{background:#E95432;color:#fff;border:0;border-radius:11px;padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.lab-btn.ghost{background:#2c2d26;color:#d9d7cf}
+#note{font-size:12.5px;color:#c9c7bf;padding:10px 22px 0;min-height:18px}
+.lab-main{display:flex;gap:26px;padding:18px 22px 40px;align-items:flex-start;flex-wrap:wrap}
+.lab-stage{position:relative;flex:0 0 auto}
+.lab-pagewrap{position:relative;width:390px;height:844px;border-radius:36px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.lab-pagewrap .st-page,.lab-pagewrap section.pg{position:absolute;inset:0}
+.lab-tap{position:absolute;top:120px;bottom:40px;width:34%;z-index:4;cursor:pointer}
+.lab-tap.left{left:0}.lab-tap.right{right:0}
+.lab-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.55);z-index:4;pointer-events:none}
+.lab-side{flex:1 1 320px;min-width:300px;display:flex;flex-direction:column;gap:14px}
+.lab-card{background:#1d1e1a;border:1px solid #2a2b27;border-radius:14px;padding:14px 16px}
+.lab-card h3{font-size:13px;color:#c9c7bf;margin-bottom:8px;font-weight:600}
+.lab-meta{font-size:13px;line-height:1.8;color:#e8e6e0}
+.lab-meta b{color:#FFD58A}
+.cap-row{display:flex;gap:8px;margin-top:8px;align-items:center}
+.cap-row .ck{flex:0 0 110px;font-size:11.5px;color:#9a9a92;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cap-row input{flex:1;background:#22231e;border:1px solid #3a3b33;color:#e8e6e0;border-radius:8px;padding:6px 9px;font-size:13px;font-family:var(--font)}
+.cap-row button{background:#3E5F3F;color:#d9f0d9;border:0;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+details{font-size:12.5px;color:#9a9a92}
+details summary{cursor:pointer;color:#c9c7bf}
+details pre{margin-top:8px;max-height:300px;overflow:auto;font-size:11px;line-height:1.5;color:#b9b7af;background:#14151399;padding:8px;border-radius:8px}
+.placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#9a9a92;background:#1c1d1a;font-size:14px}
+/* 浅色页（p3 天光 / p7 四格 / 年度关键词页 #F4EFE4 底）：外壳进度条与顶栏换深色
+   （原型 p7 内联 bars 值 #2a2620 / rgba(0,0,0,.2)；与 player.js LIGHT_PAGES 同步） */
+.lab-pagewrap.lab-light .bars i{background:rgba(0,0,0,.2)}
+.lab-pagewrap.lab-light .bars i.d{background:#2a2620}
+.lab-pagewrap.lab-light .bars i.c::after{background:#2a2620}
+.lab-pagewrap.lab-light .chrome{color:rgba(42,38,32,.9)}
+.lab-pagewrap.lab-light .mute{background:rgba(0,0,0,.12);color:#2a2620}
+.lab-pagewrap.lab-light .lab-hint{color:rgba(42,38,32,.55)}
+/* 口径卡（SPEC §1.3：长按数字看口径；definitions.js 供给文本） */
+.st-metric-host{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:rgba(20,21,19,.55)}
+.st-metric-host[hidden]{display:none}
+.st-metric-card{width:300px;max-height:70%;overflow:auto;background:#1d1e1a;border:1px solid #3a3b33;border-radius:16px;padding:16px;color:#e8e6e0}
+.st-metric-card h4{font-size:14px;margin-bottom:10px;color:#FFD58A}
+.st-metric-card dl{margin:0;font-size:12.5px;line-height:1.7}
+.st-metric-card dl>div{margin-bottom:8px}
+.st-metric-card dt{color:#9a9a92;font-size:11px;letter-spacing:1px}
+.st-metric-card dd{margin:2px 0 0}
+.st-metric-close{margin-top:6px;background:#3E5F3F;color:#d9f0d9;border:0;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+.st-metric-empty{font-size:13px;color:#9a9a92}
+</style>
+</head>
+<body>
+<header class="lab-top">
+  <h1>📖 时光故事书 Lab</h1>
+  <span class="sub">SPEC §7 独立入口 · 示例数据一键生成周记 / 月章 / 年书 / 短章</span>
+  <div class="chips" id="chips"></div>
+</header>
+
+<section class="lab-controls">
+  <label>数据源
+    <select id="source">
+      <option value="student">示例 · 学生（安静的湖）</option>
+      <option value="teacher">示例 · 老师（清晨的备课桌）</option>
+      <option value="local">本机真实数据（同源）</option>
+    </select>
+  </label>
+  <label>章型
+    <span class="seg" id="typeSeg">
+      <button data-type="week" type="button">周记</button>
+      <button data-type="month" type="button" class="on">月章</button>
+      <button data-type="year" type="button">年书</button>
+      <button data-type="short" type="button">短章</button>
+    </span>
+  </label>
+  <label>期间（默认按章型自动）
+    <span style="display:flex;gap:6px;align-items:center">
+      <input type="date" id="from"> <span style="color:#5f5f57">→</span> <input type="date" id="to">
+    </span>
+  </label>
+  <label>章号 <input type="number" id="no" value="10" min="1" style="width:70px"></label>
+  <button class="lab-btn" id="gen" type="button">⚡ 生成并翻开</button>
+  <button class="lab-btn ghost" id="preview" type="button">原型对照章</button>
+  <button class="lab-btn ghost" id="stopAudio" type="button">■ 停止音乐</button>
+</section>
+<p id="note"></p>
+
+<main class="lab-main">
+  <div class="lab-stage">
+    <div class="lab-pagewrap" id="frame">
+      <div class="bars" id="bars"></div>
+      <div class="chrome">
+        <span id="chromeLabel">时光故事书</span>
+        <button class="mute" id="muteBtn" type="button" aria-label="静音">♪</button>
+      </div>
+      <div id="pageMount" style="position:absolute;inset:0"></div>
+      <div class="lab-tap left" id="tapL" title="上一页"></div>
+      <div class="lab-tap right" id="tapR" title="下一页"></div>
+      <div class="lab-hint">← → 翻页 · 空格下一页 · 点顶部进度条跳页 · 长按数字看口径</div>
+      <div class="st-metric-host" id="metricHost" hidden></div>
+    </div>
+  </div>
+
+  <aside class="lab-side">
+    <div class="lab-card"><h3>本章</h3><div class="lab-meta" id="meta">尚未生成 — 选好人设与章型，点「生成并翻开」。</div></div>
+    <div class="lab-card"><h3>本页文案（可编辑 · SPEC §5）</h3><div id="capPanel"><span style="font-size:12px;color:#9a9a92">生成后这里会出现当前页的文案编辑与「润色」按钮（经 lab 服务端代理，失败自动保留模板）。</span></div></div>
+    <div class="lab-card"><h3>章节 JSON（契约形状）</h3>
+      <details><summary>展开查看 chapter（contracts.validateChapter 形状）</summary><pre id="json">—</pre></details>
+      <details><summary>展开查看原始输入（entries / relays / prevChapter）</summary><pre id="inputJson">—</pre></details>
+    </div>
+  </aside>
+</main>
+
+<script type="module">
+// lab 的模块全部按需加载（SPEC §8 首屏 JS ≤80KB：打开页面只交付本文件的内联
+// 脚本；contracts/stats/narrative/demo-data/soundtrack/16 个页型模块都在
+// 首次用到时 import）。tryImport 失败如实降级并标注，不伪造口径。
+const MOD_CACHE = {};
+function tryImport(path) {
+  if (!MOD_CACHE[path]) {
+    MOD_CACHE[path] = import(path).then((mod) => ({ mod, ok: true })).catch(() => ({ mod: null, ok: false }));
+  }
+  return MOD_CACHE[path];
+}
+const PAGE_MOD_PATHS = {
+  cover: './pages/cover.js', numbers: './pages/count.js', timeColors: './pages/spectrum.js',
+  specialDay: './pages/day.js', lessons: './pages/learned.js', savedTime: './pages/freed.js',
+  rhythm: './pages/rhythm.js', panels: './pages/four.js', wish: './pages/wish.js', poster: './pages/poster-page.js',
+  yearSpectrum: './pages/year-spectrum.js', yearFirstLast: './pages/year-firstlast.js',
+  yearStreak: './pages/year-streak.js', yearGenres: './pages/year-genres.js',
+  yearKeywords: './pages/year-keywords.js', yearWall: './pages/year-wall.js',
+};
+// T6 页型的 model 构建器（captionDefaults 需要 view-model；与 RENDERERS 对齐）
+const MODEL_BUILDERS = {
+  savedTime: 'buildSavedTimeModel', rhythm: 'buildRhythmModel', panels: 'buildPanelsModel',
+  wish: 'buildWishModel', poster: 'buildPosterModel',
+};
+// 浅色页（与 player.js LIGHT_PAGES 同步维护；year-keywords 页底 #F4EFE4）
+const LIGHT_PAGES = ['specialDay', 'panels', 'yearKeywords'];
+
+const $ = (id) => document.getElementById(id);
+const noteEl = $('note');
+const state = { chapter: null, index: 0, ctrl: null, audio: null, input: null, reduceMotion: false, contracts: null, soundtrack: null, narrative: null };
+function note(text, isError) {
+  noteEl.textContent = text || '';
+  noteEl.style.color = isError ? '#e8956f' : '#c9c7bf';
+}
+function chipPanel() {
+  $('chips').innerHTML =
+    '<span class="chip on">⚡ 按需加载 · 首屏 0 个 JS 模块（SPEC §8）</span>' +
+    '<span class="chip" id="proxyChip">· 润色代理检测中</span>';
+  fetch('/api/story/polish').then((r) => r.json()).then((info) => {
+    const el = $('proxyChip');
+    if (el) { el.textContent = info.configured ? '✓ 润色代理已配置' : '· 润色代理未配置（用模板文案）'; el.className = 'chip ' + (info.configured ? 'on' : 'off'); }
+  }).catch(() => {
+    const el = $('proxyChip');
+    if (el) { el.textContent = '· 润色代理不可达（直接打开文件时正常）'; el.className = 'chip off'; }
+  });
+}
+chipPanel();
+state.reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------------------------------------------------------------------------
+// 期间选择：示例人设 → demoPeriods；本机 → dueChapterSpecs（调度触发日历）
+// ---------------------------------------------------------------------------
+function currentType() {
+  const on = document.querySelector('#typeSeg .on');
+  return on ? on.dataset.type : 'month';
+}
+function localDuePeriods(scheduler) {
+  if (!scheduler) return {};
+  const now = Date.now();
+  const specs = scheduler.dueChapterSpecs(now, { utcOffsetMinutes: scheduler.localUtcOffset(new Date()), chapters: [] }) || [];
+  const map = {};
+  for (const spec of specs) if (!map[spec.type]) map[spec.type] = spec.period;
+  const week = map.week || null;
+  if (week) map.short = { from: shiftD(week.from, -7), to: week.to }; // 上一个整周（更可能不足 5 件事）
+  return map;
+}
+function shiftD(ymd, n) {
+  const t = Date.parse(ymd + 'T00:00:00Z') + n * 86400000;
+  return new Date(t).toISOString().slice(0, 10);
+}
+async function pickPeriod(type) {
+  const from = $('from').value, to = $('to').value;
+  if (from && to && from <= to) return { from, to };
+  const src = $('source').value;
+  const { demoPeriods } = await tryImport('./demo-data.js').then((r) => r.mod || {});
+  if (src === 'local') {
+    const scheduler = await tryImport('./scheduler.js').then((r) => r.mod || {});
+    const due = localDuePeriods(scheduler);
+    if (due[type]) return due[type];
+    if (due.month) return due.month; // 触发日历没有的章型退到最近完整月
+    const t = new Date();
+    return { from: new Date(t.getFullYear(), t.getMonth() - 1, 2).toISOString().slice(0, 10), to: new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10) };
+  }
+  const presets = (demoPeriods && (demoPeriods(src) || demoPeriods('student'))) || null;
+  if (!presets) return null;
+  return (presets[type] || presets.month).period;
+}
+
+// ---------------------------------------------------------------------------
+// 生成：原始输入 → stats（正式口径优先）→ narrative 文案 → createChapter
+// ---------------------------------------------------------------------------
+const YEAR_ORDER = ['cover', 'numbers', 'timeColors', 'specialDay', 'lessons', 'savedTime', 'rhythm', 'panels', 'wish',
+  'yearSpectrum', 'yearFirstLast', 'yearStreak', 'yearGenres', 'yearKeywords', 'yearWall', 'poster'];
+
+async function generateChapter() {
+  const src = $('source').value; // 数据源（student/teacher/local）——此前从未定义，直接引用抛 ReferenceError
+  const presetType = currentType();
+  const type = presetType === 'short' ? 'week' : presetType; // 短章 = 周/月章的数据不足变体（contracts §2）
+  const period = await pickPeriod(presetType);
+  if (!period) { note('期间无法确定', true); return; }
+  const no = Math.max(1, Math.floor(Number($('no').value) || 10));
+  let input = null;
+  let sourceNote = '';
+  if (src === 'local') {
+    let usages = [];
+    try {
+      const scenes = await (await fetch('./relay/scenes.zh.json')).json();
+      usages = (scenes.usages || []).map((u) => ({ id: u.id, title: u.title }));
+    } catch (e) { /* 用法列表拿不到也能生成 */ }
+    const { readLocalStatsInput } = await tryImport('./demo-data.js').then((r) => r.mod || {});
+    input = readLocalStatsInput(window.localStorage, { period, usages });
+    sourceNote = '本机真实数据（' + input.entries.length + ' 条账本 · ' + input.relays.length + ' 条接力）';
+  } else {
+    const { buildDemoStatsInput, DEMO_PERSONAS } = await tryImport('./demo-data.js').then((r) => r.mod || {});
+    if (typeof buildDemoStatsInput !== 'function') { note('demo-data 模块加载失败', true); return; }
+    input = buildDemoStatsInput(src, { period });
+    sourceNote = '示例数据 · ' + ((DEMO_PERSONAS || []).find((p) => p.id === src) || {}).label;
+  }
+  if (!input) { note('原始数据读取失败', true); return; }
+  state.input = input;
+  const events = input.entries.filter((e) => e.date >= period.from && e.date <= period.to).length;
+  const contractsMod = await tryImport('./contracts.js').then((r) => r.mod);
+  const schedulerMod = await tryImport('./scheduler.js').then((r) => r.mod);
+  if (!contractsMod || !schedulerMod) { note('contracts/scheduler 模块加载失败', true); return; }
+  state.contracts = contractsMod;
+  const variant = schedulerMod.variantForEvents(events) || 'full';
+  let stats = null;
+  let statsNote = '';
+  const statsR = await tryImport('./stats.js');
+  if (statsR.ok && typeof statsR.mod.computeStats === 'function') {
+    stats = statsR.mod.computeStats(input);
+    if (stats) statsNote = 'stats.js 正式口径';
+  }
+  if (!stats) {
+    const demoMod = await tryImport('./demo-data.js').then((r) => r.mod || {});
+    stats = demoMod && demoMod.aggregateStats ? demoMod.aggregateStats(input) : null;
+    statsNote = stats ? 'stats.js 不可用/返回空 → demo lab 口径聚合' : '';
+  }
+  if (!stats) { note('统计失败：期间 ' + period.from + ' → ' + period.to + ' 无法出 stats', true); return; }
+  const pages = type === 'year' ? YEAR_ORDER.map((t) => ({ type: t })) : undefined;
+  const narrativeR = await tryImport('./narrative.js');
+  state.narrative = narrativeR.ok ? narrativeR.mod : null;
+  const captions = narrativeR.ok && typeof narrativeR.mod.captionsFor === 'function'
+    ? (narrativeR.mod.captionsFor(stats, { type, variant, no, period, pages: pages ? pages.map((p) => p.type) : undefined }) || {})
+    : {};
+  const chapter = contractsMod.createChapter({ type, variant, no, period, stats, captions, pages }, { now: Date.now() });
+  if (!chapter) { note('章节未通过 contracts 校验（页型/统计形状问题）', true); return; }
+  const bits = [sourceNote, statsNote, '第 ' + chapter.no + ' 章 · ' + (variant === 'short' ? '短章（本期 ' + events + ' 件事 < ' + contractsMod.SHORT_CHAPTER_MIN_EVENTS + '）' : chapter.pages.length + ' 页')];
+  if (src === 'local' && !input.entries.length) bits.push('⚠ 本机账本为空或非同源 — 换示例人设看完整效果');
+  openChapter(chapter, bits.join(' · '));
+  // 空闲时预取配乐：模块加载 + AudioContext/混响/IR 预建（session.prepare）。
+  // 「翻开」手势里只剩 resume + 排音 —— AudioContext 构造的 ~100–200ms 同步
+  // 成本不再卡封面开启（IR 本身已按片生成，见 soundtrack.fillImpulseAsync）。
+  const chapterForAudio = chapter;
+  const prepareAudio = async () => {
+    try {
+      const c = state.contracts || (await tryImport('./contracts.js').then((r) => r.mod));
+      const st = state.soundtrack || (await tryImport('./soundtrack.js').then((r) => r.mod));
+      if (!c || !st) return;
+      state.contracts = c; state.soundtrack = st;
+      if (state.audio || state.chapter !== chapterForAudio) return; // 已换章/已启动
+      const session = st.createSoundtrack({ input: c.songInputFor(chapterForAudio), pageCount: chapterForAudio.pages.length, storage: window.localStorage });
+      if (typeof session.prepare === 'function') session.prepare();
+      if (state.chapter === chapterForAudio && !state.audio) state.audio = session;
+    } catch (e) { /* 预建失败不影响阅读；startAudio 会现建 */ }
+  };
+  if ('requestIdleCallback' in window) requestIdleCallback(prepareAudio);
+  else setTimeout(prepareAudio, 800);
+}
+
+// ---------------------------------------------------------------------------
+// 打开章节：翻页器 + 页型装配 + 数据作曲
+// ---------------------------------------------------------------------------
+function openChapter(chapter, noteText) {
+  if (state.audio) { state.audio.stop(); state.audio = null; }
+  state.chapter = chapter;
+  state.index = 0;
+  const n = chapter.pages.length;
+  $('bars').innerHTML = Array.from({ length: n }, () => '<i></i>').join('');
+  Array.from($('bars').children).forEach((el, i) => {
+    el.addEventListener('click', () => showPage(i));
+  });
+  $('json').textContent = JSON.stringify(chapter, null, 2);
+  $('inputJson').textContent = JSON.stringify({
+    period: state.input && state.input.period, entries: state.input ? state.input.entries.length : 0,
+    relays: state.input ? state.input.relays.length : 0,
+    prevChapterWish: state.input && state.input.prevChapter ? state.input.prevChapter.wish : null,
+  }, null, 2);
+  const typeNames = { week: '周记', month: '月章', year: '年书' };
+  $('meta').innerHTML =
+    '<b>第 ' + chapter.no + ' 章 · ' + typeNames[chapter.type] + (chapter.variant === 'short' ? ' · 短章' : '') + '</b><br>' +
+    chapter.period.from + ' → ' + chapter.period.to + '<br>' +
+    chapter.stats.totals.events + ' 件事 · ' + chapter.stats.totals.aiRelays + ' 次 AI 接力 · 确认省时 ' + Math.round(chapter.stats.savedTime.confirmedMinutes / 60 * 10) / 10 + ' 小时<br>' +
+    '年度块 ' + (chapter.stats.year && chapter.stats.year.months ? chapter.stats.year.months.length + ' 个月' : '—') +
+    ' · 作曲种子 ' + chapter.songSeed + ' · 段数 ' + chapter.pages.length + '（换页连续）';
+  note(noteText || '');
+  showPage(0);
+}
+
+function melodyForPoster() {
+  try {
+    const c = state.contracts;
+    if (!c) return [];
+    const plan = c.planSong(c.songInputFor(state.chapter), state.chapter.pages.length);
+    const notes = [];
+    for (const seg of plan.segments) for (const nt of seg.notes) notes.push(nt);
+    return c.melodyPitches(notes) || [];
+  } catch (e) { return []; }
+}
+
+// 页型模块按需加载（首次渲染某页型时才 import，之后走缓存）
+function loadPageMod(type) {
+  const path = PAGE_MOD_PATHS[type];
+  if (!path) return Promise.resolve({ mod: null, ok: false });
+  return tryImport(path);
+}
+
+async function showPage(i) {
+  const chapter = state.chapter;
+  if (!chapter) return;
+  const n = chapter.pages.length;
+  state.index = Math.max(0, Math.min(n - 1, i));
+  const page = chapter.pages[state.index];
+  if (state.ctrl && typeof state.ctrl.unmount === 'function') state.ctrl.unmount();
+  state.ctrl = null;
+  const mount = $('pageMount');
+  mount.innerHTML = '';
+  const entry = await loadPageMod(page.type);
+  if (!state.chapter || state.index !== chapter.pages.indexOf(page)) return; // 翻页竞态：丢弃过期渲染
+  if (!entry || !entry.ok) {
+    const box = document.createElement('div');
+    box.className = 'placeholder';
+    box.innerHTML = '<span>⏳ 页型 ' + page.type + ' 模块未交付</span><span style="font-size:12px">对应实现线落地后此处自动点亮</span>';
+    mount.appendChild(box);
+  } else {
+    const mod = entry.mod;
+    const renderer = mod.renderSavedTimePage || mod.renderRhythmPage || mod.renderPanelsPage || mod.renderWishPage || mod.renderPosterPage || null;
+    if (typeof renderer === 'function') {
+      const ctx = { reducedMotion: state.reduceMotion };
+      if (page.type === 'poster') ctx.melodyPitches = melodyForPoster();
+      if (page.type === 'savedTime' && state.audio && state.audio.plan) {
+        ctx.barStaggerMs = state.audio.plan.params.beat * 1000; // 条形长出踩配乐拍点（SPEC §3 ⑤）
+      }
+      if (page.type === 'wish') ctx.onSaveWish = (wish) => {
+        state.chapter = { ...state.chapter, wish };
+        $('json').textContent = JSON.stringify(state.chapter, null, 2);
+        note('心愿已写进本章：' + wish.text + '（下一章开头会回应它）');
+      };
+      mount.appendChild(renderer(chapter, ctx));
+    } else if (typeof mod.createPage === 'function') {
+      const model = mod.pageModel(chapter, page.params || {});
+      const ctrl = mod.createPage({
+        model,
+        captions: chapter.captions,
+        reduceMotion: state.reduceMotion,
+        onOpen: startAudio,
+        onMedalFall: playMedalDing, // 奖章每枚一声叮（SPEC §3 ④；音频未启动时静默）
+      });
+      ctrl.mount(mount);
+      state.ctrl = ctrl;
+    } else {
+      const box = document.createElement('div');
+      box.className = 'placeholder';
+      box.innerHTML = '<span>⏳ 页型 ' + page.type + ' 缺少渲染接口</span>';
+      mount.appendChild(box);
+    }
+  }
+  Array.from($('bars').children).forEach((el, idx) => {
+    el.className = idx < state.index ? 'd' : idx === state.index ? 'c' : '';
+  });
+  // 顶栏期间称呼按章型：月章「2026 年 10 月」；周记「2026.10.12」；年书「2026 年」
+  // （周/年不再截取首月月名——与 narrative periodLabel 同一失真口径）。
+  var chromeWhen = chapter.type === 'week'
+    ? chapter.period.from.slice(0, 4) + '.' + chapter.period.from.slice(5, 7) + '.' + chapter.period.from.slice(8, 10)
+    : chapter.type === 'year'
+      ? chapter.period.from.slice(0, 4) + ' 年'
+      : chapter.period.from.slice(0, 4) + ' 年 ' + Number(chapter.period.from.slice(5, 7)) + ' 月';
+  $('chromeLabel').textContent = chromeWhen + ' · 第 ' + (state.index + 1) + ' 页';
+  // 浅色页外壳：进度条/顶栏换深色（原型 p7 内联值；与 player LIGHT_PAGES 同步）
+  $('frame').classList.toggle('lab-light', LIGHT_PAGES.indexOf(page.type) >= 0);
+  if (state.audio) state.audio.setPage(state.index);
+  renderCaptionPanel(page.type);
+}
+
+// ---------------------------------------------------------------------------
+// 配乐 — 轻点「翻开这一章」后淡入；换页只换段，不重启（SPEC §4）
+// 模块按需加载；奖章叮声走同一会话（与配乐同调，SPEC §3 ④）。
+// ---------------------------------------------------------------------------
+async function startAudio() {
+  if (!state.chapter) return;
+  if (!state.audio) {
+    const c = state.contracts || (await tryImport('./contracts.js').then((r) => r.mod));
+    const st = state.soundtrack || (await tryImport('./soundtrack.js').then((r) => r.mod));
+    if (!c || !st) { note('配乐模块加载失败 — 页面仍可浏览', true); return; }
+    state.contracts = c; state.soundtrack = st;
+    state.audio = st.createSoundtrack({ input: c.songInputFor(state.chapter), pageCount: state.chapter.pages.length, storage: window.localStorage });
+    if (typeof state.audio.prepare === 'function') state.audio.prepare(); // 空闲预建没赶上：手势里兜底（少见路径）
+  }
+  const result = state.audio.start(state.index);
+  updateMute();
+  if (!result || result.ok !== true) note('配乐未能启动（' + (result && result.reason) + '）— 页面仍可浏览', true);
+}
+function playMedalDing(index) {
+  if (state.audio && typeof state.audio.ding === 'function') state.audio.ding(state.index, index);
+}
+$('muteBtn').addEventListener('click', () => {
+  if (!state.audio) { note('先「翻开这一章」启动配乐，再静音'); return; }
+  state.audio.setMuted(!state.audio.isMuted());
+  updateMute();
+});
+function updateMute() {
+  const muted = state.audio && state.audio.isMuted();
+  $('muteBtn').textContent = muted ? '∅' : '♪';
+  $('muteBtn').setAttribute('aria-label', muted ? '取消静音' : '静音');
+}
+$('stopAudio').addEventListener('click', () => {
+  if (state.audio) { state.audio.stop(); state.audio = null; note('音乐已停止'); }
+});
+// iOS 中断恢复：来电/Siri 挂起 AudioContext 后，回到页面或任何后续手势都
+// unlock()（soundtrack 提供该接口；此前全仓零调用，中断后要等翻页才出声）。
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.audio && typeof state.audio.unlock === 'function') state.audio.unlock();
+});
+document.addEventListener('pointerdown', () => {
+  if (state.audio && typeof state.audio.unlock === 'function') state.audio.unlock();
+}, true);
+
+// ---------------------------------------------------------------------------
+// 口径卡（SPEC §1.3 求真红线：每个数字都可以长按查看口径）——definitions.js
+// 供给文本，player.metricSample 同口径的真实样本数通道由本页内置实现。
+// ---------------------------------------------------------------------------
+const METRIC_LABEL_ROWS = [
+  ['指标', (d) => d.title], ['数据源', (d) => d.source],
+  ['计算方式', (d) => d.method], ['样本数', (d) => d.samples],
+];
+let definitionsMod = null;
+let metricPress = null;
+function closeMetricCard() {
+  const host = $('metricHost');
+  host.hidden = true;
+  host.innerHTML = '';
+  metricPress = null;
+}
+async function openMetricCard(key) {
+  if (!definitionsMod) definitionsMod = await tryImport('./definitions.js').then((r) => r.mod);
+  const host = $('metricHost');
+  host.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'st-metric-card';
+  if (!definitionsMod) {
+    card.innerHTML = '<p class="st-metric-empty">口径模块加载失败</p>';
+  } else {
+    const def = definitionsMod.definitionFor(key);
+    if (!def) {
+      card.innerHTML = '<h4>' + key + '</h4><p class="st-metric-empty">暂无口径说明</p>';
+    } else {
+      const sample = metricSampleOf(state.chapter, key);
+      const rows = METRIC_LABEL_ROWS
+        .map(([k, get]) => [k, k === '样本数' && sample != null ? String(sample) : String(get(def) || '')])
+        .filter(([, v]) => v);
+      card.innerHTML = '<h4>' + key + '</h4>' +
+        '<dl>' + rows.map(([k, v]) => '<div><dt>' + k + '</dt><dd></dd></div>').join('') + '</dl>';
+      const dds = card.querySelectorAll('dd');
+      rows.forEach(([, v], idx) => { dds[idx].textContent = v; });
+    }
+  }
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'st-metric-close';
+  close.textContent = '关闭';
+  close.addEventListener('click', closeMetricCard);
+  card.appendChild(close);
+  host.appendChild(card);
+  host.hidden = false;
+}
+// 与 player.metricSample 同口径：能从 chapter.stats 直接算出的键给真实数字，
+// 其余回落 definitions 的文字说明（含 N/M 占位时如实展示文字，不编数字）。
+function metricSampleOf(chapter, key) {
+  const stats = chapter && chapter.stats;
+  if (!stats) return null;
+  const t = stats.totals || {};
+  if (key === 'totals.events') return t.events != null ? t.events : null;
+  if (key === 'totals.aiRelays') return t.aiRelays != null ? t.aiRelays : null;
+  if (key === 'totals.prevEvents') return t.prevEvents != null ? t.prevEvents : null;
+  if (key === 'totals.delta') return t.delta != null ? t.delta : null;
+  if (key === 'lessons.learned' || key === 'lessons') return stats.lessons && stats.lessons.learned ? stats.lessons.learned.length : null;
+  if (key === 'topDay.events' || key === 'topDay') return stats.topDay ? stats.topDay.events : null;
+  if (key === 'topDay.timeline') return stats.topDay ? stats.topDay.timeline.length : null;
+  if (key === 'savedTime.confirmedMinutes' || key === 'savedTime') return stats.savedTime ? stats.savedTime.confirmedMinutes : null;
+  if (key === 'keywords' || key === 'keywords.top') return Array.isArray(stats.keywords) ? stats.keywords.length : null;
+  if (key === 'panels' || /^panels\.\d+$/.test(key)) return Array.isArray(stats.panels) ? stats.panels.length : null;
+  if (key === 'year.months') return stats.year && stats.year.months ? stats.year.months.length : null;
+  if (key === 'year.streak.days') return stats.year && stats.year.streak ? stats.year.streak.days : null;
+  if (key.indexOf('kindMinutes.') === 0) {
+    const rows = stats.kindMinutes || [];
+    for (const row of rows) if (row.kind === key.slice(12)) return row.minutes;
+    return null;
+  }
+  if (key.indexOf('rhythm.hourly.') === 0) {
+    const h = Number(key.slice(14));
+    return stats.rhythm && stats.rhythm.hourly && Number.isFinite(h) ? (stats.rhythm.hourly[h] != null ? stats.rhythm.hourly[h] : null) : null;
+  }
+  return null;
+}
+const METRIC_PRESS_MS = 500;
+$('pageMount').addEventListener('pointerdown', (event) => {
+  const target = event.target && event.target.closest ? event.target.closest('[data-metric]') : null;
+  if (!target) return;
+  const key = target.getAttribute('data-metric');
+  const t0 = Date.now();
+  metricPress = { key, t0, x: event.clientX, y: event.clientY };
+  const up = (ev) => {
+    window.removeEventListener('pointerup', up, true);
+    if (!metricPress) return;
+    const moved = Math.abs(ev.clientX - metricPress.x) > 10 || Math.abs(ev.clientY - metricPress.y) > 10;
+    const held = Date.now() - metricPress.t0;
+    const k = metricPress.key;
+    metricPress = null;
+    if (!moved && held >= METRIC_PRESS_MS && k) openMetricCard(k);
+  };
+  window.addEventListener('pointerup', up, true);
+});
+$('metricHost').addEventListener('click', (event) => {
+  if (event.target === $('metricHost')) closeMetricCard();
+});
+
+// ---------------------------------------------------------------------------
+// 文案面板：当前页可编辑文案 + AI 润色（经 /api/story/polish，失败保留模板）。
+// 服务端返回在客户端再过 narrative.acceptedPolishText 全套红线过滤（≤24 字 +
+// lintCopy 禁鸡汤/夸大/与他人比较/「留白」）；不过滤直接写 captions 会绕开
+// narrative 线的红线（服务端只拦长度与「留白」）。
+// ---------------------------------------------------------------------------
+const POLISHABLE = [
+  { re: /^(cover|poster|spectrum|rhythm)\.title$/, kind: 'title' },
+  { re: /^panels-\d+$/, kind: 'panel' },
+  { re: /^(freed\.lead|learned\.first)$/, kind: 'closing' },
+];
+function polishKindOf(key) {
+  for (const rule of POLISHABLE) if (rule.re.test(key)) return rule.kind;
+  return null;
+}
+async function captionKeysFor(pageType) {
+  const chapter = state.chapter;
+  if (!chapter) return [];
+  const entry = await loadPageMod(pageType);
+  if (pageType === 'panels') {
+    return (chapter.stats.panels || []).map((row, idx) => ({ key: 'panels-' + idx, fallback: row.caption }));
+  }
+  if (entry && entry.ok && typeof entry.mod.captionDefaults === 'function') {
+    let model = null;
+    if (typeof entry.mod.pageModel === 'function') {
+      model = entry.mod.pageModel(chapter, {});
+    } else if (MODEL_BUILDERS[pageType] && typeof entry.mod[MODEL_BUILDERS[pageType]] === 'function') {
+      model = entry.mod[MODEL_BUILDERS[pageType]](chapter); // T6 页型：model 构建器
+    }
+    const defaults = entry.mod.captionDefaults(model) || {};
+    return Object.keys(defaults).map((key) => ({ key, fallback: defaults[key] }));
+  }
+  return [];
+}
+function captionValue(key, fallback) {
+  const caps = (state.chapter && state.chapter.captions) || {};
+  return caps[key] != null ? caps[key] : fallback;
+}
+function statsContext() {
+  const s = state.chapter && state.chapter.stats;
+  if (!s) return '';
+  return '事件 ' + s.totals.events + ' · 接力 ' + s.totals.aiRelays + ' · 环比 ' + (s.totals.delta > 0 ? '+' : '') + (s.totals.delta == null ? '无' : s.totals.delta) +
+    ' · 确认省时 ' + s.savedTime.confirmedMinutes + ' 分钟 · 流派 ' + (s.rhythm.genre ? s.rhythm.genre.title : '待定（同频线未定稿）');
+}
+async function renderCaptionPanel(pageType) {
+  const panel = $('capPanel');
+  const rows = await captionKeysFor(pageType);
+  if (!state.chapter) return;
+  if (!rows.length) { panel.innerHTML = '<span style="font-size:12px;color:#9a9a92">本页没有 captions 槽（模板直出或数据页）。</span>'; return; }
+  panel.innerHTML = '';
+  for (const row of rows) {
+    const kind = polishKindOf(row.key);
+    const line = document.createElement('div');
+    line.className = 'cap-row';
+    const keyEl = document.createElement('span');
+    keyEl.className = 'ck';
+    keyEl.textContent = row.key;
+    keyEl.title = row.key;
+    const input = document.createElement('input');
+    input.value = captionValue(row.key, row.fallback);
+    input.addEventListener('change', () => {
+      state.chapter.captions[row.key] = input.value;
+      showPage(state.index);
+    });
+    line.appendChild(keyEl);
+    line.appendChild(input);
+    if (kind) {
+      const polish = document.createElement('button');
+      polish.type = 'button';
+      polish.textContent = '✨ 润色';
+      polish.addEventListener('click', async () => {
+        polish.disabled = true;
+        polish.textContent = '润色中…';
+        try {
+          const res = await fetch('/api/story/polish', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ items: [{ kind, fallback: input.value, context: statsContext() }] }),
+          });
+          const data = await res.json();
+          if (res.ok && data.texts && data.texts[0]) {
+            const narrative = state.narrative || (await tryImport('./narrative.js').then((r) => r.mod));
+            const accepted = narrative && typeof narrative.acceptedPolishText === 'function'
+              ? narrative.acceptedPolishText(data.texts[0])
+              : null;
+            if (accepted) {
+              input.value = accepted;
+              state.chapter.captions[row.key] = accepted;
+              showPage(state.index);
+              note('已润色（≤24 字、过红线检查，仍可继续编辑）');
+            } else {
+              note('润色结果未过红线检查（超 24 字或鸡汤/夸大/比较句）— 保留模板文案', true);
+            }
+          } else {
+            note('润色不可用（' + (data.error || res.status) + '）— 保留模板文案', true);
+          }
+        } catch (e) {
+          note('润色代理不可达 — 保留模板文案（需经 scripts/story-lab.mjs 打开本页）', true);
+        }
+        polish.disabled = false;
+        polish.textContent = '✨ 润色';
+      });
+      line.appendChild(polish);
+    }
+    panel.appendChild(line);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 交互绑定
+// ---------------------------------------------------------------------------
+$('typeSeg').addEventListener('click', (event) => {
+  const btn = event.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('#typeSeg button').forEach((b) => b.classList.remove('on'));
+  btn.classList.add('on');
+});
+$('gen').addEventListener('click', generateChapter);
+$('preview').addEventListener('click', async () => {
+  const src = $('source').value === 'teacher' ? 'teacher' : 'student';
+  const { previewChapter, buildDemoStatsInput } = await tryImport('./demo-data.js').then((r) => r.mod || {});
+  const chapter = typeof previewChapter === 'function' ? previewChapter(src) : null;
+  if (!chapter) { note('原型对照章不可用', true); return; }
+  state.contracts = state.contracts || (await tryImport('./contracts.js').then((r) => r.mod));
+  state.input = buildDemoStatsInput(src, {});
+  openChapter(chapter, '原型对照章 · design/story-recap/prototype.html 逐值钉死（仅学生人设；老师为十月聚合章）');
+});
+$('tapL').addEventListener('click', () => showPage(state.index - 1));
+$('tapR').addEventListener('click', () => showPage(state.index + 1));
+document.addEventListener('keydown', (event) => {
+  if (!state.chapter) return;
+  if (event.target && /input|textarea/i.test(event.target.tagName)) return;
+  if (event.key === 'Escape') { closeMetricCard(); return; }
+  if (event.key === 'ArrowLeft') showPage(state.index - 1);
+  else if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); showPage(state.index + 1); }
+});
+</script>
+</body>
+</html>

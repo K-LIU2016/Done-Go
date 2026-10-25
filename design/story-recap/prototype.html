@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探戈 · 时光故事书 定稿原型</title>
+<style>
+:root{
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --serif:"Songti SC","Noto Serif SC","STSong",serif;
+  /* kind colors (time spectrum) */
+  --k-nec:#7C8A99; --k-create:#E8B04B; --k-connect:#E9826A; --k-explore:#6E8FD6; --k-restore:#5FA67F; --k-still:#B9A8D8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#1c1d1a;font-family:var(--font);-webkit-font-smoothing:antialiased}
+.stage{display:flex;gap:26px;padding:26px;flex-wrap:wrap;align-items:flex-start}
+.cap{color:#ddd;font-size:14.5px;font-weight:600;margin-bottom:10px;width:390px}
+.cap small{display:block;font-weight:400;color:#9a9a92;font-size:12px;margin-top:3px}
+.pg{width:390px;height:844px;border-radius:36px;position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);color:#fff}
+/* story chrome */
+.bars{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:4px;z-index:3}
+.bars i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}
+.bars i.d{background:rgba(255,255,255,.95)}
+.bars i.c{position:relative}.bars i.c::after{content:"";position:absolute;inset:0;width:45%;background:#fff}
+.chrome{position:absolute;top:26px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center;font-size:12px;opacity:.9;z-index:3}
+.chrome .mute{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:13px}
+.inner{position:absolute;inset:72px 26px 40px 26px;display:flex;flex-direction:column}
+.k{font-size:12.5px;letter-spacing:2px;opacity:.75}
+.serif{font-family:var(--serif)}
+h1.big{font-family:var(--serif);font-weight:900;font-size:40px;line-height:1.18;margin-top:12px}
+.lead{font-size:16px;line-height:1.75;opacity:.92;margin-top:14px}
+.num{font-family:"Avenir Next","Helvetica Neue",sans-serif;font-weight:700;font-size:96px;line-height:1;letter-spacing:-2px}
+.num small{font-size:22px;font-weight:600;margin-left:4px;letter-spacing:0}
+.foot{margin-top:auto;font-size:11.5px;opacity:.6;display:flex;justify-content:space-between}
+.hold{font-size:11.5px;opacity:.65;margin-top:8px}
+/* p0 cover */
+.p0{background:linear-gradient(160deg,#2C3E35 0%,#1E2B25 100%)}
+.book{margin:50px auto 0;width:236px;height:320px;border-radius:6px 16px 16px 6px;background:linear-gradient(135deg,#E95432,#B8401F);box-shadow:inset 10px 0 0 rgba(0,0,0,.18),0 30px 60px rgba(0,0,0,.45);position:relative;padding:28px 22px;display:flex;flex-direction:column}
+.book .ch{font-size:12px;letter-spacing:3px;opacity:.85}
+.book h2{font-family:var(--serif);font-weight:900;font-size:34px;line-height:1.2;margin-top:18px}
+.book p{font-size:13px;opacity:.85;margin-top:10px;line-height:1.6}
+.book .who{margin-top:auto;font-size:12px;opacity:.8}
+.book::after{content:"";position:absolute;right:12px;top:10px;bottom:10px;width:6px;border-radius:3px;background:repeating-linear-gradient(180deg,rgba(255,255,255,.5) 0 2px,transparent 2px 5px)}
+.open{margin:36px auto 0;height:52px;border-radius:26px;padding:0 30px;background:#fff;color:#1E2B25;font-weight:700;font-size:16px;border:0;display:flex;align-items:center;gap:10px}
+.open i{font-style:normal;font-size:18px}
+/* p1 number */
+.p1{background:radial-gradient(120% 80% at 20% 0%,#3A5A8C 0%,#1D2D4B 60%,#141E33 100%)}
+.dots{display:flex;flex-wrap:wrap;gap:5px;margin-top:22px}
+.dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.35)}
+.dots i.ai{background:#FFB27A;box-shadow:0 0 8px #FFB27A}
+/* p2 spectrum */
+.p2{background:#18171D}
+.spec{display:flex;height:300px;border-radius:22px;overflow:hidden;margin-top:22px}
+.spec i{display:block;filter:saturate(1.1)}
+.spec-lg{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:16px;font-size:13px}
+.spec-lg span{display:flex;align-items:center;gap:8px}
+.spec-lg b{width:12px;height:12px;border-radius:4px;display:inline-block}
+/* p3 day */
+.p3{background:linear-gradient(180deg,#F6C9A0 0%,#E9E4CF 35%,#9FC0C6 70%,#3E4C86 100%);color:#1f2a2a}
+.p3 .k{opacity:.7}
+.tl{margin-top:20px;position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:rgba(31,42,42,.35)}
+.tl div{position:relative;font-size:14px;margin-bottom:12px}
+.tl div::before{content:"";position:absolute;left:-21px;top:4px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #1f2a2a}
+.tl div.ai::before{background:#E8B04B;border-color:#E8B04B;box-shadow:0 0 0 4px rgba(232,176,75,.3)}
+.tl small{opacity:.65;margin-right:6px;font-variant-numeric:tabular-nums}
+/* p4 learned */
+.p4{background:radial-gradient(100% 70% at 50% 0%,#5A3E1E 0%,#2A1F14 70%)}
+.medals{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
+.medal{background:rgba(255,255,255,.07);border:1px solid rgba(232,176,75,.35);border-radius:18px;padding:14px;text-align:center}
+.medal .m{width:52px;height:52px;border-radius:50%;margin:0 auto 8px;background:radial-gradient(circle at 35% 30%,#FFE7A6,#E8B04B 60%,#9A6A10);box-shadow:0 0 20px rgba(232,176,75,.45)}
+.medal b{font-size:13.5px;display:block;line-height:1.4}
+.medal small{font-size:11px;opacity:.7}
+.first{margin-top:18px;background:rgba(232,176,75,.15);border-radius:16px;padding:14px;font-size:14px;line-height:1.7}
+.first b{color:#FFD58A}
+/* p5 freed time */
+.p5{background:linear-gradient(180deg,#14303A 0%,#1F4A4F 60%,#2C5F57 100%)}
+.moon{position:absolute;right:30px;top:96px;width:70px;height:70px;border-radius:50%;box-shadow:-14px 8px 0 0 #FFF0C2;transform:rotate(-20deg)}
+.alloc{margin-top:22px;display:flex;flex-direction:column;gap:12px}
+.alloc div{display:flex;align-items:center;gap:12px}
+.alloc .ico{width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.12);display:grid;place-items:center;font-size:20px}
+.alloc .t{flex:1}
+.alloc .t b{display:block;font-size:15px}
+.alloc .t i{display:block;height:6px;border-radius:3px;background:#FFE7A6;margin-top:6px;font-style:normal}
+.alloc .h{font-family:"Avenir Next",sans-serif;font-weight:700;font-size:20px}
+/* p6 rhythm */
+.p6{background:#0F1424}
+.heat{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:24px}
+.heat i{aspect-ratio:1;border-radius:3px;background:#E8B04B}
+.hours{display:flex;justify-content:space-between;font-size:10.5px;opacity:.6;margin-top:6px}
+.arche{margin-top:22px;border-radius:20px;padding:16px;background:linear-gradient(135deg,#3B6A82,#24475A)}
+.arche small{font-size:11.5px;opacity:.8;letter-spacing:1px}
+.arche b{display:block;font-family:var(--serif);font-size:26px;margin-top:4px}
+/* p7 four panels */
+.p7{background:#F4EFE4;color:#2a2620}
+.four{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.four div{border-radius:16px;padding:14px;height:160px;display:flex;flex-direction:column;justify-content:space-between;color:#fff}
+.four small{font-size:11px;opacity:.85;letter-spacing:1px}
+.four b{font-family:var(--serif);font-size:19px;line-height:1.35}
+.kw{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;align-items:baseline}
+.kw span{font-family:var(--serif);font-weight:900}
+/* p8 next chapter */
+.p8{background:linear-gradient(180deg,#22313A,#101820)}
+.wish{margin-top:22px;border:1.5px dashed rgba(255,255,255,.35);border-radius:18px;padding:16px;font-size:15px;line-height:1.7;min-height:120px;color:rgba(255,255,255,.9)}
+.wish em{display:block;font-style:normal;font-size:12px;opacity:.6;margin-bottom:6px}
+.callback{margin-top:16px;background:rgba(255,255,255,.08);border-radius:16px;padding:14px;font-size:13.5px;line-height:1.7}
+.callback b{color:#FFD58A}
+.save{margin-top:auto;height:52px;border-radius:26px;background:#fff;color:#101820;font-weight:700;font-size:16px;border:0}
+/* p9 poster */
+.p9{background:radial-gradient(110% 70% at 80% 0%,#E9826A 0%,#B8401F 45%,#5A1E10 100%)}
+.pp{margin-top:6px;background:rgba(255,255,255,.1);border-radius:26px;padding:22px;backdrop-filter:blur(4px)}
+.pp .ttl{font-family:var(--serif);font-weight:900;font-size:30px;line-height:1.25}
+.pp .g{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.pp .g div{background:rgba(0,0,0,.18);border-radius:14px;padding:12px}
+.pp .g b{font-family:"Avenir Next",sans-serif;font-size:26px;display:block}
+.pp .g span{font-size:11.5px;opacity:.85}
+.pp .song{margin-top:14px;display:flex;align-items:center;gap:10px;font-size:12.5px;opacity:.95}
+.pp .song .wv{display:flex;gap:3px;align-items:center;height:22px}
+.pp .song .wv i{width:3px;background:#fff;border-radius:2px}
+.shareb{display:flex;gap:10px;margin-top:auto}
+.shareb button{flex:1;height:50px;border-radius:25px;border:0;font-weight:700;font-size:15px}
+.shareb .s1{background:#fff;color:#5A1E10}.shareb .s2{background:rgba(255,255,255,.18);color:#fff}
+/* audio demo */
+.demo{width:100%;color:#ddd;background:#2a2b27;border-radius:16px;padding:16px 18px;font-size:13.5px;line-height:1.7}
+.demo button{height:40px;border-radius:20px;padding:0 18px;border:0;font-weight:700;margin-right:8px;cursor:pointer}
+.demo code{background:#111;border-radius:6px;padding:1px 6px;color:#FFD58A}
+</style>
+</head>
+<body>
+<div class="stage">
+
+<div class="demo" id="demo">
+  <b style="color:#fff">♪ 数据作曲演示（真实可播放）</b>：这一章的配乐由你的时间数据实时生成。<code>tempo</code> = 本月忙碌度，<code>调式</code> = 你的自评（"省了不少"多则明亮大调），<code>乐器音色</code> = 占比最高的事项类别，<code>旋律走向</code> = 每周事项数的起伏。每个人、每一章都不一样，也没有版权问题。
+  <div style="margin-top:10px"><button id="play" style="background:#E95432;color:#fff">▶ 播放「十月 · 时间之歌」</button><button id="stop" style="background:#555;color:#fff">■ 停止</button><span id="st" style="opacity:.7"></span></div>
+</div>
+
+<!-- 0 cover -->
+<div><div class="cap">⓪ 封面：轻点"翻开"才开始播放音乐<small>（浏览器自动播放限制 + 给人仪式感）</small></div>
+<div class="pg p0">
+  <div class="chrome"><span>探戈 · 时光故事书</span><span class="mute">♪</span></div>
+  <div class="inner" style="inset:60px 26px 40px">
+    <div class="book"><span class="ch">第 10 章 · 月章</span><h2>十月，<br>你把 6 小时<br>还给了自己</h2><p>2026.10.01 — 10.31<br>86 件事 · 23 次 AI 接力</p><span class="who">致 安静的湖</span></div>
+    <button class="open"><i>📖</i>翻开这一章</button>
+    <p class="hold" style="text-align:center;margin-top:14px">戴上耳机更好 · 约 2 分钟</p>
+  </div>
+</div></div>
+
+<!-- 1 number -->
+<div><div class="cap">① 开篇数字：你记下了多少件事<small>数字从 0 滚动上来；每个点是一件事，金色是交给 AI 的</small></div>
+<div class="pg p1">
+  <div class="bars"><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="chrome" style="top:30px"><span>十月 · 第 1 页</span><span class="mute">♪</span></div>
+  <div class="inner">
+    <span class="k">这个月，你记下了</span>
+    <span class="num" style="margin-top:14px">86<small>件事</small></span>
+    <p class="lead">其中 <b style="color:#FFB27A">23 件</b>交给了 AI 接力。<br>比九月多了 9 件。</p>
+    <div class="dots">
+      <i></i><i class="ai"></i><i></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i></i><i class="ai"></i><i></i><i></i><i></i><i></i><i class="ai"></i><i></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i></i><i class="ai"></i><i></i><i class="ai"></i><i></i><i></i><i></i><i class="ai"></i><i></i><i></i><i></i>
+    </div>
+    <div class="foot"><span>长按数字看口径</span><span>轻点继续 ›</span></div>
+  </div>
+</div></div>
+
+<!-- 2 spectrum -->
+<div><div class="cap">② 时间的颜色：一个月的时间光谱<small>对标"音乐颜色"；色块按占比，从下往上缓缓铺满</small></div>
+<div class="pg p2">
+  <div class="bars"><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="inner">
+    <span class="k">你的十月是这个颜色</span>
+    <h1 class="big" style="font-size:32px">金色的创作，<br>夹着橘色的相聚</h1>
+    <div class="spec"><i style="flex:31;background:linear-gradient(180deg,#F2C46A,#E8B04B)"></i><i style="flex:22;background:linear-gradient(180deg,#8E9BAA,#7C8A99)"></i><i style="flex:18;background:linear-gradient(180deg,#F0957F,#E9826A)"></i><i style="flex:13;background:linear-gradient(180deg,#86A4E0,#6E8FD6)"></i><i style="flex:11;background:linear-gradient(180deg,#78B996,#5FA67F)"></i><i style="flex:5;background:linear-gradient(180deg,#CBBDE3,#B9A8D8)"></i></div>
+    <div class="spec-lg"><span><b style="background:var(--k-create)"></b>创造 31%</span><span><b style="background:var(--k-nec)"></b>必要 22%</span><span><b style="background:var(--k-connect)"></b>相聚 18%</span><span><b style="background:var(--k-explore)"></b>探索 13%</span><span><b style="background:var(--k-restore)"></b>恢复 11%</span><span><b style="background:var(--k-still)"></b>自己的时间 5%</span></div>
+    <div class="foot"><span>按事项计划时长统计</span><span>轻点继续 ›</span></div>
+  </div>
+</div></div>
+
+<!-- 3 a special day -->
+<div><div class="cap">③ 最特别的一天<small>本月最满的一天，背景是那一天的天光（晨→夜）</small></div>
+<div class="pg p3">
+  <div class="bars"><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="inner">
+    <span class="k">还记得 10 月 18 日吗</span>
+    <h1 class="big" style="font-size:34px;color:#1f2a2a">那天你做了<br>9 件事</h1>
+    <div class="tl">
+      <div class="ai"><small>08:30</small>读懂一篇论文 ✦</div>
+      <div><small>10:00</small>组会</div>
+      <div class="ai"><small>13:30</small>整理组会纪要 ✦</div>
+      <div><small>15:00</small>跑实验</div>
+      <div class="ai"><small>17:20</small>给导师回邮件 ✦</div>
+      <div><small>19:00</small>和室友吃火锅</div>
+      <div><small>22:10</small>给妈妈打电话</div>
+    </div>
+    <p class="lead" style="font-size:14.5px">最忙的一天，你还是留了一通电话给妈妈。</p>
+    <div class="foot" style="color:#1f2a2a"><span>✦ = AI 同行</span><span>轻点继续 ›</span></div>
+  </div>
+</div></div>
+
+<!-- 4 learned -->
+<div><div class="cap">④ 这一章你学会的 AI 用法<small>奖章逐个落下，带"叮"的音效（和配乐同调）</small></div>
+<div class="pg p4">
+  <div class="bars"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="inner">
+    <span class="k">十月，你多会了</span>
+    <h1 class="big" style="font-size:36px">4 个 AI 用法</h1>
+    <div class="medals">
+      <div class="medal"><div class="m"></div><b>论文 → 5 个要点</b><small>用了 7 次</small></div>
+      <div class="medal"><div class="m"></div><b>会议 → 重点和待办</b><small>用了 5 次</small></div>
+      <div class="medal"><div class="m"></div><b>口语 → 礼貌邮件</b><small>用了 3 次</small></div>
+      <div class="medal"><div class="m" style="filter:grayscale(.6)"></div><b>想法 → 分步计划</b><small>用了 1 次</small></div>
+    </div>
+    <p class="first">10 月 12 日晚上 11 点，你<b>第一次自己在 DeepSeek 里</b>把一篇论文读成了 5 个要点。<br>那是你自己接住的第一棒。</p>
+    <div class="foot"><span>来自你的接力记录</span><span>轻点继续 ›</span></div>
+  </div>
+</div></div>
+
+<!-- 5 freed time -->
+<div><div class="cap">⑤ 省下的时间去了哪里<small>只统计你确认过的；条形随音乐的鼓点逐条长出</small></div>
+<div class="pg p5">
+  <div class="bars"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i></div>
+  <span class="moon"></span>
+  <div class="inner">
+    <span class="k">AI 帮你省下的</span>
+    <span class="num" style="margin-top:14px">6<small>小时</small></span>
+    <p class="lead">你把它们，给了这些：</p>
+    <div class="alloc">
+      <div><span class="ico">🏃</span><span class="t"><b>运动</b><i style="width:100%"></i></span><span class="h">2.5h</span></div>
+      <div><span class="ico">👨‍👩‍👧</span><span class="t"><b>陪家人</b><i style="width:72%"></i></span><span class="h">1.8h</span></div>
+      <div><span class="ico">📚</span><span class="t"><b>学新东西</b><i style="width:40%"></i></span><span class="h">1.0h</span></div>
+      <div><span class="ico">🌙</span><span class="t"><b>早点睡</b><i style="width:28%"></i></span><span class="h">0.7h</span></div>
+    </div>
+    <div class="foot"><span>只算你确认过的时间 · 长按看口径</span><span>›</span></div>
+  </div>
+</div></div>
+
+<!-- 6 rhythm -->
+<div><div class="cap">⑥ 你的节律与流派<small>一天 24 小时的热力格；流派与"同频"一致</small></div>
+<div class="pg p6">
+  <div class="bars"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i></div>
+  <div class="inner">
+    <span class="k">你最常在什么时候做事</span>
+    <h1 class="big" style="font-size:34px">晚上 10 点，<br>是你的黄金时间</h1>
+    <div class="heat">
+      <i style="opacity:.05"></i><i style="opacity:.04"></i><i style="opacity:.03"></i><i style="opacity:.02"></i><i style="opacity:.02"></i><i style="opacity:.03"></i><i style="opacity:.08"></i><i style="opacity:.2"></i><i style="opacity:.35"></i><i style="opacity:.5"></i><i style="opacity:.55"></i><i style="opacity:.4"></i><i style="opacity:.2"></i><i style="opacity:.35"></i><i style="opacity:.5"></i><i style="opacity:.45"></i><i style="opacity:.4"></i><i style="opacity:.3"></i><i style="opacity:.25"></i><i style="opacity:.45"></i><i style="opacity:.7"></i><i style="opacity:.9"></i><i style="opacity:1"></i><i style="opacity:.6"></i>
+    </div>
+    <div class="hours"><span>0 点</span><span>6</span><span>12</span><span>18</span><span>23</span></div>
+    <div class="arche"><small>十月你的时间流派</small><b>深夜创作派</b><p style="font-size:13px;opacity:.9;margin-top:4px">灯熄了，你的想法才刚开始。</p></div>
+    <div class="foot"><span>按事项开始时间</span><span>轻点继续 ›</span></div>
+  </div>
+</div></div>
+
+<!-- 7 four panels + keywords -->
+<div><div class="cap">⑦ 十月四格 + 关键词<small>对标"音乐四格"：四周各一格，由 AI 写一句话旁白</small></div>
+<div class="pg p7">
+  <div class="bars"><i class="d" style="background:#2a2620"></i><i class="d" style="background:#2a2620"></i><i class="d" style="background:#2a2620"></i><i class="d" style="background:#2a2620"></i><i class="d" style="background:#2a2620"></i><i class="d" style="background:#2a2620"></i><i class="d" style="background:#2a2620"></i><i class="c" style="background:rgba(0,0,0,.2)"></i><i style="background:rgba(0,0,0,.2)"></i><i style="background:rgba(0,0,0,.2)"></i></div>
+  <div class="inner">
+    <span class="k">你的十月四格</span>
+    <div class="four">
+      <div style="background:#6E8FD6"><small>第 1 周</small><b>开学第一周，<br>论文还没头绪</b></div>
+      <div style="background:#E8B04B"><small>第 2 周</small><b>第一次自己<br>用 AI 读完论文</b></div>
+      <div style="background:#E9826A"><small>第 3 周</small><b>最忙的一周，<br>也最常打电话回家</b></div>
+      <div style="background:#5FA67F"><small>第 4 周</small><b>开始晨跑，<br>省下的时间有去处了</b></div>
+    </div>
+    <p class="k" style="margin-top:20px">十月关键词</p>
+    <div class="kw"><span style="font-size:38px">论文</span><span style="font-size:26px;color:#B8401F">组会</span><span style="font-size:30px">跑步</span><span style="font-size:20px;color:#5FA67F">妈妈</span><span style="font-size:22px">实验</span><span style="font-size:17px;opacity:.7">火锅</span></div>
+    <div class="foot" style="color:#2a2620"><span>旁白由 AI 根据统计生成，可修改</span><span>›</span></div>
+  </div>
+</div></div>
+
+<!-- 8 next chapter -->
+<div><div class="cap">⑧ 写给下一章：留一句心愿<small>下个月的故事开头会"回应"这句话，形成连载感</small></div>
+<div class="pg p8">
+  <div class="bars"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i></i></div>
+  <div class="inner">
+    <span class="k">上一章你写下的心愿</span>
+    <p class="callback">"九月的我：希望十月能早点睡。"<br>→ 十月你有 <b>11 天</b>在 12 点前结束了最后一件事，比九月多 <b>6 天</b>。做到了一半，很好。</p>
+    <span class="k" style="margin-top:26px">写给十一月的自己</span>
+    <div class="wish"><em>一句就好，下个月我们一起看看</em>想把省下来的时间，多留一点给跑步和妈妈。</div>
+    <button class="save">存进下一章</button>
+  </div>
+</div></div>
+
+<!-- 9 poster -->
+<div><div class="cap">⑨ 收尾海报：保存或分享<small>1080×1920 导出；附本章"时间之歌"的波形和二维码</small></div>
+<div class="pg p9">
+  <div class="bars"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i></div>
+  <div class="inner">
+    <span class="k">探戈 Done&amp;Go · 第 10 章</span>
+    <div class="pp">
+      <div class="ttl">十月，<br>我把 6 小时<br>还给了自己</div>
+      <div class="g"><div><b>86</b><span>件事</span></div><div><b>23</b><span>次 AI 接力</span></div><div><b>4</b><span>个新用法</span></div><div><b>深夜</b><span>创作派</span></div></div>
+      <div class="song"><span class="wv"><i style="height:8px"></i><i style="height:16px"></i><i style="height:12px"></i><i style="height:20px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:14px"></i><i style="height:6px"></i><i style="height:15px"></i><i style="height:19px"></i><i style="height:10px"></i></span>♪ 十月 · 时间之歌（由我的数据生成）</div>
+    </div>
+    <div class="shareb"><button class="s1">保存海报</button><button class="s2">分享这一章</button></div>
+    <p class="hold" style="text-align:center;margin-top:12px">↑ 回到书架看其他章节</p>
+  </div>
+</div></div>
+
+</div>
+
+<script>
+// ===== Data sonification demo (reference implementation for web/story/soundtrack.js) =====
+// Inputs (from the chapter stats): busyness 0..1, mood 0..1 (share of "省了不少"), dominantKind, weeklyCounts[]
+const chapter = { busyness: .62, mood: .7, dominantKind: 'create', weeklyCounts: [14, 22, 28, 22] };
+let ctx, timer, nodes = [];
+const KIND_TIMBRE = { create: 'triangle', necessary: 'sine', connect: 'sawtooth', explore: 'square', restore: 'sine', stillness: 'sine' };
+function play() {
+  stop(); ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value = .0; master.connect(ctx.destination);
+  master.gain.linearRampToValueAtTime(.22, ctx.currentTime + 2.5);
+  const verb = ctx.createConvolver(); const len = ctx.sampleRate * 2.6, ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.4); }
+  verb.buffer = ir; const wet = ctx.createGain(); wet.gain.value = .55; verb.connect(wet); wet.connect(master);
+  const bpm = 64 + chapter.busyness * 40, beat = 60 / bpm;
+  const root = 57; // A3
+  const scale = chapter.mood >= .5 ? [0, 2, 4, 7, 9, 12, 14, 16] : [0, 2, 3, 7, 8, 12, 14, 15]; // major vs minor pentatonic-ish
+  const prog = chapter.mood >= .5 ? [0, 5, 3, 4] : [0, 3, 5, 4]; // degrees for pads (I–vi–IV–V)
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const max = Math.max(...chapter.weeklyCounts);
+  let step = 0, t0 = ctx.currentTime + .1;
+  function pad(time, deg) {
+    [0, 4, 7].forEach((iv, k) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
+      o.frequency.value = hz(root - 12 + scale[deg % scale.length] + iv); g.gain.setValueAtTime(0, time);
+      g.gain.linearRampToValueAtTime(.05, time + beat * 1.5); g.gain.linearRampToValueAtTime(0, time + beat * 8);
+      o.connect(g); g.connect(verb); g.connect(master); o.start(time); o.stop(time + beat * 8.2); nodes.push(o); });
+  }
+  function note(time, idx) {
+    const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    o.type = KIND_TIMBRE[chapter.dominantKind] || 'sine'; o.frequency.value = hz(root + 12 + scale[idx % scale.length]);
+    f.type = 'lowpass'; f.frequency.value = 1800; g.gain.setValueAtTime(0, time); g.gain.linearRampToValueAtTime(.09, time + .02);
+    g.gain.exponentialRampToValueAtTime(.0005, time + beat * 1.8); o.connect(f); f.connect(g); g.connect(verb); g.connect(master);
+    o.start(time); o.stop(time + beat * 2); nodes.push(o);
+  }
+  function tick() {
+    while (t0 < ctx.currentTime + .6) {
+      const bar = Math.floor(step / 8), week = bar % chapter.weeklyCounts.length;
+      if (step % 8 === 0) pad(t0, prog[bar % prog.length]);
+      // melody contour follows weekly counts: busier weeks → higher, denser notes
+      const lvl = Math.round((chapter.weeklyCounts[week] / max) * 5);
+      const dense = chapter.weeklyCounts[week] / max > .7 ? 1 : 2;
+      if (step % dense === 0 && Math.random() > .25) note(t0, Math.max(0, lvl - 2 + Math.floor(Math.random() * 3)));
+      t0 += beat / 2; step++;
+    }
+    document.getElementById('st').textContent = ` 速度 ${Math.round(bpm)} bpm · ${chapter.mood >= .5 ? '大调（明亮）' : '小调'} · 音色 ${KIND_TIMBRE[chapter.dominantKind]} · 第 ${Math.floor(step / 8) % 4 + 1} 周`;
+  }
+  timer = setInterval(tick, 150); tick();
+}
+function stop() { clearInterval(timer); nodes.forEach(n => { try { n.stop(); } catch {} }); nodes = []; if (ctx) ctx.close(); ctx = null; document.getElementById('st').textContent = ''; }
+document.getElementById('play').onclick = play; document.getElementById('stop').onclick = stop;
+if (/shot=1/.test(location.search)) document.getElementById('demo').style.display = 'none';
+</script>
+</body>
+</html>
