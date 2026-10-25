@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { isIP } from 'node:net';
 import { readFile } from 'node:fs/promises';
-import { resolve, sep, join, isAbsolute } from 'node:path';
+import { resolve, sep, join, isAbsolute, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { speechCapabilities, transcribeSpeech, MAX_AUDIO_BYTES } from './tango-speech.mjs';
 import { assistantError, createAssistant, MAX_CHAT_BYTES } from './ai-assistant.mjs';
@@ -157,7 +157,7 @@ export function createTangoServer(options = {}) {
       const checked = validateIntentInput(body);
       if (!checked.ok) { send(400, { error: 'intent-input-invalid', field: checked.field }); return; }
       try {
-        const output = await analyzeIntent(checked.value, { llm: false });
+        const output = await analyzeIntent(checked.value);
         const checkedOutput = validateIntentOutput(output.final);
         if (!checkedOutput.ok) { send(502, { error: 'intent-output-invalid' }); return; }
         send(200, checkedOutput.value);
@@ -344,7 +344,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const demoMode=process.env.TANGO_DEMO_MODE==='1';
   const configuredDatabase=process.env.AUTH_DATABASE_PATH||process.env.TANGO_AUTH_DB||process.env.TANGO_COLLAB_DB;
   if(configuredDatabase&&configuredDatabase!==':memory:'&&!isAbsolute(configuredDatabase))throw new Error('AUTH_DATABASE_PATH must be absolute');
-  const collaboration = await createCollaborationService({ databaseFile: configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite'), assistant: delegate, demoMode, authOptions: demoMode ? { autoStart: true } : {} });
+  const collaborationDatabase = configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite');
+  const collaboration = await createCollaborationService({ databaseFile: collaborationDatabase, assistant: delegate, demoMode, authOptions: demoMode ? { autoStart: true } : {} });
   const metrics = createMetrics({ dir: join(projectRoot, '.tango-donego', 'metrics'), apps: externalAppIds(EXTERNAL_APPS) });
-  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration, metrics }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
+  // PRD §7: social.sqlite 与 collaboration.sqlite 同目录（生产不能用内存库，重启会丢搭档与圈子）
+  const socialDatabaseFile = collaborationDatabase === ':memory:' ? ':memory:' : join(dirname(collaborationDatabase), 'social.sqlite');
+  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration, metrics, socialDatabaseFile }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
 }
