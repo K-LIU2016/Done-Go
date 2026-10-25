@@ -39,6 +39,7 @@
 // drive clicks/clipboard/downloads with stubs.
 
 import { RATINGS } from './contracts.js';
+import { mountShelf } from '../story/shelf.js';
 
 var EVENT_ROW_MAX = 24;      // long event titles truncate with … (shot shows 读论文 Attention…)
 var DEFAULT_RECENT_LIMIT = 10; // 最近 keeps the page short; store cap is 200
@@ -341,6 +342,7 @@ export function renderPassport(model, options) {
       return skillCard(skill, strings, opts.highlightUsageId);
     }).join('') + '</div>';
   }
+  html += '<section id="relay-story-shelf" data-slot="story-shelf" aria-label="我的故事书"></section>';
   var recent = Array.isArray(data.recent) ? data.recent : [];
   if (recent.length) {
     html += '<div class="sec"><h3>' + esc(strings.secRecent) + '</h3></div>'
@@ -426,6 +428,27 @@ export function createPassport(options) {
       strings: strings,
       highlightUsageId: state.highlightUsageId,
     });
+    var shelfHost = node.querySelector ? node.querySelector('#relay-story-shelf') : null;
+    if (shelfHost) {
+      var scoped = null;
+      try { scoped = root && (root.TangoAccountStorage || root.localStorage); } catch (e) { scoped = null; }
+      mountShelf(shelfHost, {
+        loadText: function () {
+          try { return scoped && typeof scoped.getItem === 'function' ? scoped.getItem('tango-donego.story.v1') : null; } catch (e) { return null; }
+        },
+        handlers: {
+          onOpen: function (chapter) {
+            if (typeof opts.onStoryOpen === 'function') opts.onStoryOpen(chapter);
+            else if (root && root.location) root.location.hash = '#/story?chapter=' + encodeURIComponent(chapter.id);
+          },
+          onReplay: function (chapter) {
+            if (typeof opts.onStoryReplay === 'function') opts.onStoryReplay(chapter);
+            else if (root && root.location) root.location.hash = '#/story?chapter=' + encodeURIComponent(chapter.id);
+          },
+          onExportPoster: opts.onStoryExportPoster,
+        },
+      });
+    }
   }
 
   function closest(el, selector) {

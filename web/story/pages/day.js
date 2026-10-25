@@ -231,3 +231,8 @@ export function createPage(options) {
     },
   };
 }
+
+export function renderPage(page, ctx) {
+  var c = ctx || {};
+  return pageView(pageModel(c.chapter, page && page.params), c.captions);
+}
