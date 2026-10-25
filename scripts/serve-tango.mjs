@@ -14,6 +14,9 @@ import { createVoiceGateway, VOICE_STREAM_PATH } from './voice-gateway.mjs';
 import { createSocialService } from './social-service.mjs';
 import { createSocialStore } from './social-store.mjs';
 import { buildStyleCard } from './social-features.mjs';
+import { validateFeaturesUpload } from '../web/social/contracts.js';
+import { validateIntentInput, validateIntentOutput } from '../web/voice/contracts.js';
+import { analyzeIntent } from './intent.mjs';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
@@ -103,6 +106,7 @@ export function createTangoServer(options = {}) {
    socket.destroy();
  };
  const getSocialAuth = () => socialAuth;
+ const storyPolish = options.storyPolish || (input => assistant.chat(input));
 
  const discovery = options.discovery || createDiscovery();
  const aiGuard = options.aiGuard || createAIGuard();
@@ -126,6 +130,38 @@ export function createTangoServer(options = {}) {
     if (pathname.startsWith('/api/social/')) {
       if (!options.collaboration || !options.collaboration.requestAllowed(req)) { send(403, { error: 'origin-rejected' }); return; }
       await social.handle(req, res, req.url);
+      return;
+    }
+    if (pathname === '/api/story/polish') {
+      if (req.method !== 'POST') { send(405, { error: 'method-rejected' }); return; }
+      if (!req.headers.origin || !/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) { send(415, { error: 'story-polish-json-required' }); return; }
+      let body;
+      try { const chunks = []; let size = 0; for await (const chunk of req) { size += chunk.length; if (size > 16 * 1024) throw new Error('too-large'); chunks.push(chunk); } body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { send(400, { error: 'story-polish-invalid' }); return; }
+      if (!body || !Array.isArray(body.items) || body.items.length < 1 || body.items.length > 8 || body.items.some(item => !item || !['title', 'panel', 'closing'].includes(item.kind) || typeof item.fallback !== 'string' || !item.fallback.trim() || item.fallback.length > 60 || (item.context != null && (typeof item.context !== 'string' || item.context.length > 200)))) { send(400, { error: 'story-polish-invalid' }); return; }
+      const prompt = ['【当前任务：润色时光故事书】', '只输出润色后的句子，一行一句，共 ' + body.items.length + ' 行；每句不超过24字；只使用统计数字、类别与模板基线；不夸大、不比较、不输出「留白」或鸡汤。', ...body.items.map((item, index) => (index + 1) + '. 基线：' + item.fallback + (item.context ? '；统计：' + item.context : ''))].join('\n');
+      try {
+        const result = await storyPolish({ mode: 'story', prompt });
+        const text = result?.content?.filter(part => part?.type === 'text').map(part => part.text).join('\n') || '';
+        const rows = text.trim().split(/\r?\n/).map(row => row.trim()).filter(Boolean);
+        if (rows.length !== body.items.length || rows.some(row => row.length > 24 || row.includes('留白'))) throw new Error('invalid');
+        send(200, { texts: rows, fallback: false });
+      } catch { send(200, { texts: body.items.map(item => item.fallback), fallback: true }); }
+      return;
+    }
+    if (pathname === '/api/voice/intent') {
+      if (!options.collaboration || !options.collaboration.requestAllowed(req)) { send(403, { error: 'origin-rejected' }); return; }
+      try { options.collaboration.authenticate(req); } catch (error) { send(401, { error: error.code || 'AUTH_REQUIRED' }); return; }
+      if (req.method !== 'POST') { send(405, { error: 'method-rejected' }); return; }
+      let body;
+      try { const chunks = []; for await (const chunk of req) chunks.push(chunk); body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { send(400, { error: 'intent-input-invalid' }); return; }
+      const checked = validateIntentInput(body);
+      if (!checked.ok) { send(400, { error: 'intent-input-invalid', field: checked.field }); return; }
+      try {
+        const output = await analyzeIntent(checked.value, { llm: false });
+        const checkedOutput = validateIntentOutput(output.final);
+        if (!checkedOutput.ok) { send(502, { error: 'intent-output-invalid' }); return; }
+        send(200, checkedOutput.value);
+      } catch { send(502, { error: 'intent-failed' }); }
       return;
     }
     let actor;

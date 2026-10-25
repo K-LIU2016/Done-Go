@@ -24,6 +24,13 @@ const ROUTE_SYSTEM_HEAD = '【当前任务：为一件事匹配最合适的 AI �
 const ROUTE_SYSTEM_TAIL = '\n以上是全部候选；清单之外的 id 一律无效。';
 const routeSystem = lib => ROUTE_SYSTEM_HEAD + lib.usages.map(usage => usage.id + '｜' + usage.title + '｜' + usage.keywords.join(',')).join('\n') + ROUTE_SYSTEM_TAIL;
 const STORY_SYSTEM = '【当前任务：润色时光故事书】\n输入只包含统计数字、类别与模板基线，不包含事项标题、材料或其他个人原文。逐行输出与输入条目数相同的短句，每句不超过24字；只使用输入事实，不夸大、不比较，不输出「留白」或鸡汤文案。失败时调用方保留模板。';
+const STORY_BANNED = ['留白', '未来可期', '遇见更好的自己', '成为更好的自己', '相信自己', '你是最棒的', '越努力越幸运', '岁月静好', '静待花开', '正能量', '逆风翻盘', '向阳而生', '不负韶华', '海量', '无数', '惊天', '逆天', '爆表', '无人能及', '史上最', '世界上最'];
+export function validateStoryText(text, count) {
+  if (typeof text !== 'string') return false;
+  const rows = text.trim().split(/\r?\n/).map(row => row.trim()).filter(Boolean);
+  if (Number.isInteger(count) && rows.length !== count) return false;
+  return rows.length > 0 && rows.every(row => row.length <= 24 && !STORY_BANNED.some(word => row.includes(word)));
+}
 const MODE_SYSTEMS = { parse: PARSE_SYSTEM, prompt: PROMPT_SYSTEM, relay: RELAY_SYSTEM, story: STORY_SYSTEM };
 const systemFor = (mode, relayV2, sceneLib) => {
   const modeSystem = mode === ROUTE_MODE ? routeSystem(sceneLib) : mode === RELAY_MODE && relayV2 ? RELAY_V2_SYSTEM : MODE_SYSTEMS[mode];
@@ -215,6 +222,7 @@ export function createAssistant(options = {}) {
           let value; try { value = JSON.parse(await readLimited(response, options.responseBytes || 192 * 1024, upstreamSignal)); } catch (error) { if (error.code?.startsWith('TANGO_AI_')) throw error; throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
           const text = contentText(anthropic, value);
           if (typeof text !== 'string' || !text.trim() || text.length > 24000) throw assistantError('TANGO_AI_RESPONSE_INVALID');
+          if (mode === 'story' && !validateStoryText(text)) throw assistantError('TANGO_AI_RESPONSE_INVALID');
           return { content: [{ type: 'text', text: text.split(config.key).join('[redacted]') }] };
         }, budgetMs(options, config, tier, env, mode, relayV2), signal);
       } catch (error) { if (error.code?.startsWith('TANGO_AI_')) throw error; throw assistantError('TANGO_AI_UPSTREAM_FAILED'); }
@@ -259,6 +267,7 @@ export function createAssistant(options = {}) {
           let value; try { value = JSON.parse(await readLimited(response, rawBytes, abort.signal)); } catch (error) { if (error.code?.startsWith('TANGO_AI_')) throw error; throw assistantError('TANGO_AI_RESPONSE_INVALID'); }
           const text = contentText(anthropic, value);
           if (typeof text !== 'string' || !text.trim() || text.length > 24000) throw assistantError('TANGO_AI_RESPONSE_INVALID');
+          if (mode === 'story' && !validateStoryText(text)) throw assistantError('TANGO_AI_RESPONSE_INVALID');
           yield text.split(config.key).join('[redacted]');
           return;
         }
