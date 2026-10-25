@@ -113,6 +113,19 @@ test('empty material greys out the main button; over-cap material shows the trun
   assert.ok(/data-flow-submit[^>]*\bdisabled\b/.test(longHtml));
 });
 
+test('SPEC §6: the clipboard-fallback hint node always exists (hidden) so a failed paste can surface 长按粘贴', () => {
+  const normal = matchCardHtml(initState());
+  // 正常态：节点存在但隐藏——剪贴板读取失败时 pasteFromClipboard 才有落点可写降级提示。
+  assert.ok(normal.includes('<p class="alt" data-flow-material-hint hidden>'), 'hint node present but hidden in normal state');
+  assert.ok(normal.includes('太长了，先贴最重要的一段'));
+  const long = initState();
+  long.material = 'x'.repeat(MATERIAL_MAX + 1);
+  long.materialState = checkMaterial(long.material);
+  const longHtml = matchCardHtml(long);
+  assert.ok(longHtml.includes('<p class="alt" data-flow-material-hint>'), 'hint node carries no hidden attr when over cap');
+  assert.ok(!longHtml.includes('<p class="alt" data-flow-material-hint hidden>'));
+});
+
 test('low confidence switches the title to a three-way usage choice', () => {
   const state = initState({ confidence: 0.3 });
   const html = matchCardHtml(state);

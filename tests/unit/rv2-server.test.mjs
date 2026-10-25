@@ -316,6 +316,32 @@ test('/api/metrics counts guest funnel events without auth (D5) and guards origi
   assert.equal((await call(port, '/api/metrics', { method: 'GET', headers: { Origin: origin } })).status, 401); // authenticate() throws for guests
 });
 
+test('D5: guests reach the relay endpoints (GET config, chat, speech) with an anonymous actor; every other /api route still 401s', async t => {
+  const seen = [];
+  const assistant = { configuration: () => ({ available: true, provider: 'openai', model: 'auto' }), chat: async input => { seen.push(input && input.mode); return { content: [{ type: 'text', text: 'ok' }] }; } };
+  const collaboration = {
+    requestAllowed: () => true,
+    authenticate() { throw Object.assign(new Error('AUTH_REQUIRED'), { code: 'AUTH_REQUIRED' }); },
+    auth: { throttle() {} },
+  };
+  const server = createTangoServer({ collaboration, assistant, metrics: createMetrics(), discovery: noDiscovery });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port, origin = 'http://127.0.0.1:' + port;
+  const config = await call(port, '/api/assistant/config', { headers: { Origin: origin } });
+  assert.equal(config.status, 200);
+  assert.equal(config.data.available, true);
+  const speech = await call(port, '/api/speech', { headers: { Origin: origin } });
+  assert.equal(speech.status, 200);
+  const chat = await call(port, '/api/assistant/chat', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'relay', prompt: '【AI 接力】<event>整理组会</event><material>张三负责测试</material>' }) });
+  assert.equal(chat.status, 200);
+  assert.equal(chat.data.content[0].text, 'ok');
+  assert.deepEqual(seen, ['relay']);
+  // 不放松其它门：无会话 PUT config 仍 401（管理员写入门），GET metrics 仍 401。
+  assert.equal((await call(port, '/api/assistant/config', { method: 'PUT', headers: { Origin: origin }, body: '{}' })).status, 401);
+  assert.equal((await call(port, '/api/metrics', { headers: { Origin: origin } })).status, 401);
+});
+
 test('/api/metrics GET serves an admin the day snapshot and validates ?day=', async t => {
   const metrics = { record: async () => null, snapshot: async day => ({ day, events: { relay_send: 7, start_submit: 7 } }) };
   const admin = { requestAllowed: () => true, authenticate: () => ({ id: 'u1', role: 'admin' }) };

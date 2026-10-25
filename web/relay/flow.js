@@ -494,7 +494,7 @@ export function matchCardHtml(state) {
     + '<div class="does">' + does + '</div>'
     + '<div class="label">' + esc(usage.materialLabel) + '<em>' + esc(S.materialEm) + '</em></div>'
     + '<textarea class="material" data-flow-material maxlength="' + MATERIAL_MAX + '" placeholder="' + esc(usage.materialHint) + '">' + esc(state.material) + '</textarea>'
-    + (tooLong ? '<p class="alt" data-flow-material-hint>' + esc(S.tooLong) + '</p>' : '')
+    + '<p class="alt" data-flow-material-hint' + (tooLong ? '' : ' hidden') + '>' + esc(S.tooLong) + '</p>'
     + '<div class="tools">' + tools + '</div>'
     + '<p class="privacy">' + icon('lock') + esc(S.privacy) + '</p>'
     + '<button type="button" class="btn pri wide" data-flow-submit' + (materialOk ? '' : ' disabled') + '>' + esc(S.submit) + '</button>'
@@ -1011,7 +1011,10 @@ export function createRelayFlow(options) {
     var root = typeof globalThis !== 'undefined' ? globalThis : null;
     var fetchApi = root && root.fetch;
     if (!fetchApi) return Promise.resolve({ available: false });
-    return fetchApi.call(root, '/api/assistant/config').then(function (response) { return response.json(); }).catch(function () { return { available: false }; });
+    return fetchApi.call(root, '/api/assistant/config').then(function (response) {
+      if (!response.ok) return { available: false, status: response.status };
+      return response.json();
+    }).catch(function () { return { available: false }; });
   };
   var copyText = opts.copyText || defaultCopyText;
   var openExternal = opts.openExternal || function (url) {
@@ -1154,7 +1157,11 @@ export function createRelayFlow(options) {
     var hint = node.querySelector('[data-flow-material-hint]');
     var ok = !!(state.materialState && state.materialState.ok);
     if (submit) submit.disabled = !ok;
-    if (hint) hint.hidden = state.materialState.reason !== 'too_long';
+    if (hint) {
+      hint.hidden = state.materialState.reason !== 'too_long';
+      // 超限提示与剪贴板降级提示（SPEC §6 长按粘贴）共用此节点：回到 too_long 时恢复超限文案。
+      if (!hint.hidden) hint.textContent = stringsOf(state && state.strings).tooLong;
+    }
   }
 
   function patchResult() {

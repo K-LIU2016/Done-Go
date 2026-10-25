@@ -108,13 +108,19 @@ export function createTangoServer(options = {}) {
       if(!options.collaboration.requestAllowed(req)){send(403,{error:'origin-rejected'});return;}
       // D5: guests walk the whole relay flow — funnel metrics (§5.5) must be
       // postable without an account, so POST /api/metrics skips the
-      // authenticate gate; GET below still requires the admin actor.
+      // authenticate gate. The guest relay endpoints (GET assistant config,
+      // assistant chat, speech) likewise only TRY to authenticate and fall
+      // back to an anonymous actor — the D23 aiGuard then budgets the
+      // anonymous IP; every other /api route still hard-requires the gate,
+      // and GET metrics below still requires the admin actor.
       const guestMetrics=pathname==='/api/metrics'&&req.method==='POST';
+      const guestRelay=(pathname==='/api/assistant/config'&&req.method==='GET')||pathname==='/api/assistant/chat'||pathname==='/api/speech'||pathname==='/api/speech/transcribe';
       if(!pathname.startsWith('/api/auth/')&&pathname!=='/api/status'&&!guestMetrics){
-        try{actor=options.collaboration.authenticate(req);}catch(error){send(401,{error:error.code||'AUTH_REQUIRED'});return;}
-        if(pathname==='/api/assistant/config'&&req.method==='PUT'&&actor.role!=='admin'){send(403,{error:'ADMIN_REQUIRED'});return;}
+        if(guestRelay){try{actor=options.collaboration.authenticate(req);}catch{actor=undefined;}}
+        else{try{actor=options.collaboration.authenticate(req);}catch(error){send(401,{error:error.code||'AUTH_REQUIRED'});return;}}
+        if(pathname==='/api/assistant/config'&&req.method==='PUT'&&(!actor||actor.role!=='admin')){send(403,{error:'ADMIN_REQUIRED'});return;}
         if(pathname==='/api/assistant/chat'||pathname==='/api/speech/transcribe'){
-          try{options.collaboration.auth.throttle('paid-user:'+actor.id,30);options.collaboration.auth.throttle('paid-ip:'+req.socket.remoteAddress,90);}catch{send(429,{error:'rate-limited'});return;}
+          try{if(actor)options.collaboration.auth.throttle('paid-user:'+actor.id,30);options.collaboration.auth.throttle('paid-ip:'+req.socket.remoteAddress,90);}catch{send(429,{error:'rate-limited'});return;}
         }
       }
     }

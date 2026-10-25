@@ -17,15 +17,19 @@ async function register(email){const result=await request('/api/auth/register',{
 test('direct registration then explicit login unlocks all app APIs; anonymous users cannot use paid or shared features',async t=>{
  const f=await fixture(t);
 assert.equal((await f.request('/api/auth/local-register',{username:'legacy',password:'EmailPass123'})).status,403);
- for(const path of ['/api/assistant/config','/api/speech','/api/discovery','/api/collaboration/groups']) assert.equal((await f.request(path)).status,401,path);
+ // D5 (SPEC §1.7): guests walk the whole relay flow — assistant config and speech
+ // capabilities are guest-readable relay metadata (chat itself stays budgeted by
+ // the D23 aiGuard); account/collaboration surfaces keep the auth wall.
+ for(const path of ['/api/discovery','/api/collaboration/groups']) assert.equal((await f.request(path)).status,401,path);
+ for(const path of ['/api/assistant/config','/api/speech']) assert.equal((await f.request(path)).status,200,path);
 const registered=await f.request('/api/auth/register',{email:'one@example.test',password:'EmailPass123',confirmPassword:'EmailPass123'});
  assert.equal(registered.status,200);assert.equal(registered.body.user.emailVerified,true);assert.equal(registered.cookie,undefined);
- assert.equal((await f.request('/api/assistant/config')).status,401);
+ assert.equal((await f.request('/api/assistant/config')).status,200); // D5: guest metadata, not a paid surface
 const login=await f.request('/api/auth/login',{email:'one@example.test',password:'EmailPass123'});assert.equal(login.status,200);assert.ok(login.cookie);
  assert.equal((await f.request('/api/assistant/config',undefined,login.cookie)).status,200);
  assert.equal((await f.request('/api/assistant/config',{model:'other'},login.cookie,'PUT')).status,403);
  assert.equal((await f.request('/api/collaboration/groups',{name:'Verified group'},login.cookie)).status,200);
- await f.request('/api/auth/logout',{},login.cookie);assert.equal((await f.request('/api/assistant/config',undefined,login.cookie)).status,401);
+ await f.request('/api/auth/logout',{},login.cookie);assert.equal((await f.request('/api/collaboration/groups',undefined,login.cookie)).status,401);
 });
 test('public HTTPS sessions set secure cookies and reject foreign, missing and wrong-port origins',async t=>{
  const publicOrigin='https://donego.example.test';const f=await fixture(t,{TANGO_PUBLIC_ORIGIN:publicOrigin,NODE_ENV:'production'});
