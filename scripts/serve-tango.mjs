@@ -1,6 +1,17 @@
 import { createServer } from 'node:http';
 import { isIP } from 'node:net';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
+
+const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg', '.txt', '.map']);
+const gzipCache = new Map(); // path → { etag, buffer }；文件变了 etag 就变，旧条目被覆盖
+function gzipped(path, etag, body) {
+  const hit = gzipCache.get(path);
+  if (hit && hit.etag === etag) return hit.buffer;
+  const buffer = gzipSync(body, { level: 6 });
+  gzipCache.set(path, { etag, buffer });
+  return buffer;
+}
 import { resolve, sep, join, isAbsolute, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { speechCapabilities, transcribeSpeech, MAX_AUDIO_BYTES } from './tango-speech.mjs';
@@ -312,10 +323,19 @@ export function createTangoServer(options = {}) {
     }
     const target = resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!target.startsWith(root.endsWith(sep) ? root : root + sep)) { res.writeHead(403).end(); return; }
-    const body = await readFile(target);
+    const info = await stat(target);
     const extension = target.slice(target.lastIndexOf('.'));
-    const payload = body;
-    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': payload.length });
+    // 首屏约 1.15MB（index.html 单体 532KB）：gzip + ETag 协商缓存，部署后改了 mtime 就自然失效。
+    // ponytail: 资源没有指纹，只能 no-cache 走 304；带指纹后可改 immutable 长缓存
+    const etag = 'W/"' + info.size.toString(36) + '-' + Math.floor(info.mtimeMs).toString(36) + '"';
+    const headers = { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-cache', ETag: etag, Vary: 'Accept-Encoding' };
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers).end(); return; }
+    let payload = await readFile(target);
+    if (COMPRESSIBLE.has(extension) && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+      payload = gzipped(target, etag, payload);
+      headers['Content-Encoding'] = 'gzip';
+    }
+    res.writeHead(200, { ...headers, 'Content-Length': payload.length });
     for (let offset = 0; offset < payload.length; offset += 16384) res.write(payload.subarray(offset, offset + 16384));
     res.end();
   } catch {
