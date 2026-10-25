@@ -8,6 +8,7 @@ import { assistantError, createAssistant, MAX_CHAT_BYTES } from './ai-assistant.
 import { createDiscovery } from './ai-discovery.mjs';
 import { applyDotEnv, loadAssistantConfig, saveAssistantMetadata } from './assistant-config.mjs';
 import { createCollaborationService } from './collaboration-service.mjs';
+import { createVersionSwitch } from './version-switch.mjs';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
@@ -83,7 +84,9 @@ export function createTangoServer(options = {}) {
  const assistant = options.assistant || createAssistant();
  const discovery = options.discovery || createDiscovery();
  const aiGuard = options.aiGuard || createAIGuard();
+ const versionSwitch = options.nextPort ? createVersionSwitch({ nextPort: options.nextPort, secure: !!options.collaboration?.publicOrigin }) : null;
  const server = createServer(async (req, res) => {
+  if (versionSwitch && versionSwitch.handle(req, res)) return;
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
   res.setHeader('Content-Security-Policy',"frame-ancestors 'self'; base-uri 'self'; object-src 'none'");
@@ -218,6 +221,7 @@ export function createTangoServer(options = {}) {
     else if (!res.destroyed) res.writeHead(404).end();
   }
  });
+ if (versionSwitch) server.on('upgrade', (req, socket, head) => { if (!versionSwitch.upgrade(req, socket, head)) socket.destroy(); });
  return server;
 }
 
@@ -236,5 +240,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const configuredDatabase=process.env.AUTH_DATABASE_PATH||process.env.TANGO_AUTH_DB||process.env.TANGO_COLLAB_DB;
   if(configuredDatabase&&configuredDatabase!==':memory:'&&!isAbsolute(configuredDatabase))throw new Error('AUTH_DATABASE_PATH must be absolute');
   const collaboration = await createCollaborationService({ databaseFile: configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite'), assistant: delegate, demoMode, authOptions: demoMode ? { autoStart: true } : {} });
-  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
+  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration, nextPort: Number(process.env.TANGO_NEXT_PORT) || 0 }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
 }
