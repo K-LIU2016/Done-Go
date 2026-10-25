@@ -1,0 +1,139 @@
+/* web/social/social.css — 同频（社交游戏化）S5同频页样式。
+   视觉契约：design/social-sync/prototype.html ① 同频首页（类名逐字沿用：
+   .top/.me/.sub/.arch/.bot/.share/.sec/.match/.mh/.av/.sim/.why/.uses/.acts/
+   .b.cheer/.b.pair），另补原型未覆盖态 .ahead（「略多一点」理由行）、.invite
+   （PRD §3.3 冷启动邀请）、.pending（流派卡未生成）与 .soc-note 状态区。
+   token 沿用 relay-v2 SPEC §3（design/relay-v2/SPEC.md），作用域 .soc——与
+   web/relay/relay.css 的 .rv2 同名同值；五种外观主题在 html[data-appearance=X]
+   .soc 下重定义同名 token（值照抄 relay.css 对应主题）。tab 栏/第 4 个 tab
+   挂载属二期集成，不在本文件。
+   传棒 sheet、搭档火苗卡、圈、周挑战、分享图属于其他线，样式由各自线在
+   本文件追加（web/social/social.css 是 social 线共用样式文件，S5 只落 ① 屏）。 */
+
+/* ===== tokens: standard（= relay-v2 SPEC §3 定稿 + 原型 :root）===== */
+.soc{
+  --bg:#FAF8F3; --surface:#FFFFFF; --sunk:#F3F0E8; --ink:#252722; --ink2:#64665D; --ink3:#8E9086; --line:#E4E2D8;
+  --brand:#E95432; --brand-ink:#FFFFFF; --brand-soft:#FDECE6;
+  --forest:#335D4B; --forest-soft:#E7F0EA; --gold:#E8B04B; --gold-soft:#FBF1DC;
+  --ok:#2F7D57; --warn:#B7791F; --err:#B4432F;
+  --r-lg:20px; --r-md:14px; --r-sm:10px;
+  --shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);
+  --t-hero:28px; --t-h2:20px; --t-body:16px; --t-sm:14px; --t-xs:12px;
+  --tap:48px;
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  /* 六时间流派色 = PRD §3.2 / 原型 :root --a-*（不随外观主题变，是流派身份色）*/
+  --a-dawn:#E8B04B; --a-night:#4C7A93; --a-relay:#E95432;
+  --a-slow:#3E7B5B; --a-scholar:#615CED; --a-multi:#C7701F;
+}
+/* 五种外观主题映射（值与 web/relay/relay.css 同主题一致，SPEC §3）*/
+html[data-appearance=standard] .soc{
+  --bg:#FAF8F3; --surface:#FFFFFF; --sunk:#F3F0E8; --ink:#252722; --ink2:#64665D; --ink3:#8E9086; --line:#E4E2D8;
+  --brand:#E95432; --brand-ink:#FFFFFF; --brand-soft:#FDECE6;
+  --forest:#335D4B; --forest-soft:#E7F0EA; --gold:#E8B04B; --gold-soft:#FBF1DC;
+  --ok:#2F7D57; --warn:#B7791F; --err:#B4432F;
+  --r-lg:20px; --r-md:14px; --r-sm:10px;
+  --shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);
+}
+/* swiss：瑞士雪境研究桌——冷调蓝灰、暗红主色、直角、无阴影 */
+html[data-appearance=swiss] .soc{
+  --bg:#EDF2F5; --surface:#FFFFFF; --sunk:#E6EDF2; --ink:#202F39; --ink2:#5F7280; --ink3:#7A8B98; --line:#C3CFD8;
+  --brand:#A33E39; --brand-ink:#FFFFFF; --brand-soft:#F3E4E3;
+  --forest:#344F61; --forest-soft:#E3EBF1; --gold:#6F5F4A; --gold-soft:#EFEAE2;
+  --ok:#44626F; --warn:#6F5F4A; --err:#A33E39;
+  --r-lg:4px; --r-md:3px; --r-sm:2px;
+  --shadow:none;
+}
+/* archive：个人时间档案——暖纸/棕、赤陶主色、小圆角、浅投影 */
+html[data-appearance=archive] .soc{
+  --bg:#EEE3D0; --surface:#F8F0E1; --sunk:#E9DCC7; --ink:#2E2D28; --ink2:#6B604E; --ink3:#8A7E6B; --line:#C9B694;
+  --brand:#9B4F39; --brand-ink:#FFF8EE; --brand-soft:#F0DFD2;
+  --forest:#47705D; --forest-soft:#E4E9DA; --gold:#9B6B2C; --gold-soft:#F5E2C2;
+  --ok:#47705D; --warn:#9B6B2C; --err:#9B4F39;
+  --r-lg:8px; --r-md:6px; --r-sm:4px;
+  --shadow:0 6px 16px rgba(91,73,51,.18);
+}
+/* designer：夜间观测花园（深色）——文本对比度 ≥ 4.5:1（SPEC §3，单测校验）*/
+html[data-appearance=designer] .soc{
+  --bg:#253D33; --surface:#324D40; --sunk:#2A4437; --ink:#F6F4E8; --ink2:#D0DCCD; --ink3:#B7C8BC; --line:#52645A;
+  --brand:#F4F1DD; --brand-ink:#283B2E; --brand-soft:#3A5A4A;
+  --forest:#ACD5BC; --forest-soft:#34503F; --gold:#8A6420; --gold-soft:#3E5343;
+  --ok:#ACD5BC; --warn:#F0CE95; --err:#EDB6A3;
+  --r-lg:22px; --r-md:16px; --r-sm:12px;
+  --shadow:0 12px 40px rgba(0,0,0,.32);
+}
+/* workbench：知识工作台——中性灰、青绿点缀、微圆角、无阴影 */
+html[data-appearance=workbench] .soc{
+  --bg:#F7F4ED; --surface:#FFFFFF; --sunk:#EDF2EF; --ink:#121817; --ink2:#5A625F; --ink3:#7E8783; --line:#CCD4D0;
+  --brand:#FF6B3D; --brand-ink:#121817; --brand-soft:#FFE9E0;
+  --forest:#006C66; --forest-soft:#E3F1EE; --gold:#A05A1C; --gold-soft:#F6ECDF;
+  --ok:#007F78; --warn:#A05A1C; --err:#C74B2F;
+  --r-lg:6px; --r-md:4px; --r-sm:3px;
+  --shadow:none;
+}
+
+/* ===== base（作用域内重置，= 原型 *{box-sizing;margin:0;padding:0}）===== */
+.soc,.soc *{box-sizing:border-box;margin:0;padding:0}
+.soc{
+  background:var(--bg);color:var(--ink);
+  font-family:var(--font);font-size:var(--t-body);line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.soc button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.soc svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.soc :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.soc [hidden]{display:none!important}
+.soc-sprite{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ===== ① 顶栏与身份（原型 .top/.me/.sub）===== */
+.soc .top{display:flex;align-items:center;justify-content:space-between}
+.soc .top h1{font-size:26px}
+.soc .me{width:34px;height:34px;border-radius:50%;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700}
+.soc .sub{color:var(--ink2);font-size:13.5px;margin-top:4px}
+
+/* ===== ① 流派卡（原型 .arch；渐变与吉祥物色由 home.js 按流派推导内联）===== */
+.soc .arch{margin-top:14px;border-radius:24px;padding:18px;color:#fff;position:relative;overflow:hidden}
+.soc .arch::after{content:"";position:absolute;right:-30px;top:-30px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.08)}
+.soc .arch small{font-size:12px;opacity:.8;letter-spacing:.5px}
+.soc .arch h2{font-size:26px;margin:4px 0 2px}
+.soc .arch p{font-size:13.5px;opacity:.9}
+.soc .arch ul{list-style:none;margin-top:12px;font-size:12.5px;display:flex;flex-direction:column;gap:6px}
+.soc .arch li{background:rgba(255,255,255,.12);border-radius:10px;padding:7px 10px}
+.soc .arch .bot{position:absolute;right:16px;top:18px;width:64px;height:64px}
+.soc .arch .share{margin-top:12px;height:36px;min-height:0;border-radius:12px;background:var(--surface);color:var(--ink);font-weight:600;font-size:13px;padding:0 14px}
+/* 流派卡未生成（原型未覆盖态，PRD 补齐）*/
+.soc .pending{margin-top:14px;border:1.5px dashed var(--line);border-radius:var(--r-md);padding:14px;color:var(--ink2);font-size:13.5px;line-height:1.6}
+
+/* ===== ① 区块标题（原型 .sec）===== */
+.soc .sec{display:flex;justify-content:space-between;align-items:baseline;margin:18px 2px 8px}
+.soc .sec h3{font-size:16px}
+.soc .sec span{font-size:12px;color:var(--ink3)}
+
+/* ===== ① 同频推荐卡（原型 .match/.mh/.av/.sim/.why/.uses/.acts）===== */
+.soc .match{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px 14px;margin-bottom:10px}
+.soc .mh{display:flex;align-items:center;gap:10px}
+.soc .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;flex:none}
+.soc .mh b{font-size:15px;display:block}
+.soc .mh small{font-size:12px;color:var(--ink2)}
+.soc .sim{margin-left:auto;font-size:12px;font-weight:700;color:var(--forest);background:var(--forest-soft);border-radius:99px;padding:3px 8px}
+.soc .why{margin-top:8px;font-size:12.5px;color:var(--ink2);line-height:1.55}
+.soc .why b{color:var(--ink);font-weight:600}
+/* 「略多一点」理由行（PRD §3.3 / D4，原型未画，交付要求补齐）*/
+.soc .ahead{margin-top:6px;font-size:12px;color:var(--ink3)}
+.soc .uses{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.soc .uses span{font-size:11.5px;background:var(--sunk);border-radius:6px;padding:3px 7px;color:var(--ink2)}
+.soc .acts{display:flex;gap:8px;margin-top:10px}
+.soc .acts .b{height:34px;min-height:0;border-radius:10px;font-size:13px;font-weight:600;padding:0 12px;display:inline-flex;align-items:center;gap:6px}
+.soc .b.cheer{background:var(--brand-soft);color:var(--brand)}
+.soc .b.pair{background:var(--ink);color:var(--bg)}
+.soc .b.did,.soc .b.full,.soc .b[disabled]{cursor:default;opacity:.6}
+
+/* ===== ① 冷启动邀请（PRD §3.3：不足推荐数时引导邀请，不造假人）===== */
+.soc .invite{margin-top:2px;min-height:var(--tap);width:100%;border:1.5px dashed var(--line);border-radius:var(--r-md);background:var(--surface);color:var(--ink2);font-size:13.5px;font-weight:600}
+
+/* ===== 轻提醒 / 操作反馈（live region）===== */
+.soc .soc-note{font-size:12.5px;color:var(--forest);margin-top:8px}
+
+/* ===== 无障碍：prefers-reduced-motion 关动画（SPEC §6 同规）===== */
+@media (prefers-reduced-motion:reduce){
+  .soc,.soc *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN" data-appearance="standard">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>同频 · 实验入口（lab）</title>
+<!-- S9实验入口线：四屏演示外壳。数据全部来自 /api/social/*（scripts/social-lab.mjs
+     装配 createTangoServer + createSocialService + S2 引擎 matcher）；渲染复用
+     web/social/home.js（①）、baton.js（②）、poster.js（④）与 social.css（.soc
+     tokens，relay-v2 SPEC §3）。③ 搭档/圈/挑战与 lab 外壳样式在本文件内联
+     （social.css 属 S5 线，本线不改他人文件）。
+     演示鉴权：所有请求带 x-lab-account: demo-*，示例账号全部标记「·示例」。 -->
+<link rel="stylesheet" href="/social/social.css">
+<style>
+  /* ===== lab 展台（暗底，照原型 .stage 观感；不影响 .soc 域） ===== */
+  body.lab{margin:0;background:#2a2b27;color:#ddd;font-family:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .lab-top{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid #3a3b36;background:#23241f;position:sticky;top:0;z-index:20}
+  .lab-top b{font-size:16px;color:#fff}
+  .lab-top .meta{font-size:12.5px;color:#9d9f95}
+  .lab-top select{font:inherit;font-size:13px;padding:5px 8px;border-radius:8px;background:#faf8f3;color:#252722;border:1px solid #555}
+  .lab-top button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:8px;border:1px solid #555;background:#33342e;color:#ddd;cursor:pointer}
+  .lab-stage{display:flex;gap:28px;padding:24px;flex-wrap:wrap;align-items:flex-start}
+  .lab-col>.cap{color:#ddd;font-size:15px;font-weight:600;margin-bottom:10px}
+  .lab-note{color:#8e9086;font-size:12px;margin-top:8px;max-width:390px;line-height:1.6}
+  .phone{width:390px;height:844px;border-radius:36px;background:var(--bg,#FAF8F3);position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .scroll{position:absolute;inset:0 0 72px 0;overflow-y:auto;padding:56px 18px 12px;scrollbar-width:thin}
+  .tabbar{position:absolute;left:0;right:0;bottom:0;height:72px;background:#fff;border-top:1px solid #E4E2D8;display:flex;justify-content:space-around;align-items:center;font-size:11.5px;color:#8E9086}
+  .tabbar span{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .tabbar i{width:22px;height:22px;border-radius:7px;background:#E4E2D8;display:block}
+  .tabbar .on{color:#E95432;font-weight:600}.tabbar .on i{background:#E95432}
+  /* ===== ② 屏：我的用法背景 + 传棒 sheet（sheet 内容由 baton.js 内联样式兜底） ===== */
+  .p2-usage{filter:blur(1px);opacity:.55;user-select:none}
+  .p2-usage h1{font-size:26px;color:#252722;margin:0}
+  .p2-usage .u{margin-top:14px;background:#fff;border-radius:14px;box-shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);padding:12px 14px;color:#252722;cursor:pointer}
+  .p2-usage .u b{font-size:14px}
+  .p2-usage .u small{display:block;color:#64665D;margin-top:4px;font-size:12px}
+  .p2-sheet{position:absolute;inset:0;z-index:5}
+  /* 原型②：scrim/sheet 只在手机屏内（absolute），不横贯浏览器窗口。baton.js
+     的内联 position:fixed 是全屏挂载的生产值，lab 里用 !important 收回屏内。 */
+  .lab .phone .scrim{position:absolute !important;inset:0}
+  .lab .phone .sheet{position:absolute !important;left:0;right:0;bottom:0;max-width:none !important;margin:0 !important}
+  .p2-result{position:absolute;left:20px;right:20px;bottom:90px;z-index:7;background:#fff;color:#252722;border-radius:14px;padding:12px 14px;font-size:12.5px;box-shadow:0 12px 30px rgba(0,0,0,.25);line-height:1.6}
+  .p2-result code{background:#F3F0E8;border-radius:6px;padding:2px 6px;font-size:11px;word-break:break-all}
+  .p2-result .p2-open{font:inherit;font-size:12px;font-weight:600;color:#E95432;background:#FBF1DC;border:0;border-radius:8px;padding:4px 10px;cursor:pointer}
+  .baton-receive{position:absolute;inset:0;overflow-y:auto;background:var(--bg,#FAF8F3);padding:56px 18px 12px;box-sizing:border-box;z-index:6}
+  /* ===== ③ 屏：加圈入口（邀请码输入 + 加入） ===== */
+  .soc .circlejoin{display:flex;gap:8px;margin-top:4px}
+  .soc .circlejoin input{flex:1;font:inherit;font-size:13px;padding:8px 10px;border-radius:10px;border:1px solid #E4E2D8;background:#fff;color:#252722;min-width:0}
+  .soc .circlejoin button{font:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:10px;border:0;background:#E95432;color:#fff;cursor:pointer}
+  /* ===== ③ 屏：搭档 / 圈 / 挑战（原型 ③ 类名，.soc 域内 token 生效） ===== */
+  .soc .pairrow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;box-shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);padding:10px 12px;margin-bottom:8px}
+  .soc .pairrow b{font-size:14px}
+  .soc .pairrow .st{font-size:11.5px;color:#64665D}
+  .soc .flame{margin-left:auto;display:flex;align-items:center;gap:4px;font-weight:700;color:#E95432;font-size:15px}
+  .soc .flame i{width:18px;height:22px;border-radius:50% 50% 45% 45%/60% 60% 40% 40%;background:linear-gradient(180deg,#FFB27A,#E95432);display:block}
+  .soc .flame.cold{color:#8E9086}.soc .flame.cold i{background:linear-gradient(180deg,#DADBD3,#A3A59B)}
+  .soc .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;flex:none}
+  .soc .av.s{width:24px;height:24px;font-size:10px}
+  .soc .circlecard{background:#fff;border-radius:20px;box-shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);padding:14px;margin-top:4px}
+  .soc .circlecard h4{font-size:16px;display:flex;justify-content:space-between;margin:0}
+  .soc .circlecard h4 span{font-size:12px;color:#8E9086;font-weight:400}
+  .soc .wall{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .soc .wall span{font-size:12px;border-radius:99px;padding:4px 10px;background:#E7F0EA;color:#335D4B;font-weight:500}
+  .soc .freed .bar{display:flex;height:12px;border-radius:6px;overflow:hidden}
+  .soc .freed .lg{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:11.5px;color:#64665D}
+  .soc .freed .lg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+  .soc .rank{margin-top:12px;font-size:12.5px}
+  .soc .rank div{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #E4E2D8}
+  .soc .rank div b{width:18px;color:#8E9086;font-weight:600}
+  .soc .rank div em{margin-left:auto;font-style:normal;font-weight:700}
+  .soc .rank .you{background:#FBF1DC;border-radius:8px;padding:6px 8px;border:0}
+  .soc .questrow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;box-shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);padding:10px 12px;margin-top:8px;font-size:13px;color:#252722}
+  .soc .prog{height:6px;border-radius:3px;background:#F3F0E8;flex:1;overflow:hidden}
+  .soc .prog i{display:block;height:100%;background:#335D4B;border-radius:3px}
+  .soc .chainline{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:#64665D;flex-wrap:wrap}
+  .soc .chainline .arr{color:#8E9086}
+  .soc .kudosline{margin-top:12px;font-size:12.5px;color:#64665D}
+  /* ===== ④ 屏：分享图 ===== */
+  .p4-wrap{position:absolute;inset:0;padding:40px 26px;color:#fff;background:radial-gradient(120% 70% at 80% 0%,#4F86A3 0%,#24475A 55%,#16303E 100%)}
+  .p4-wrap .brand{font-size:13px;opacity:.85;display:flex;justify-content:space-between}
+  .p4-wrap canvas{width:100%;border-radius:14px;margin-top:24px;display:block}
+  .p4-wrap .empty{margin-top:120px;font-size:15px;opacity:.9;line-height:1.7}
+  .p4-actions{position:absolute;left:26px;right:26px;bottom:26px;display:flex;gap:10px}
+  .p4-actions a,.p4-actions button{flex:1;text-align:center;font-size:13px;font-weight:600;padding:10px;border-radius:12px;border:0;cursor:pointer;text-decoration:none}
+  .p4-actions a{background:#fff;color:#24475A}
+  .p4-actions button{background:rgba(255,255,255,.14);color:#fff}
+  /* ===== onboarding 演示兜底（social.css 尚未含 soc-onb-*） ===== */
+  .lab #lab-onb-host{position:fixed;inset:0;z-index:40;display:none;background:rgba(37,39,34,.55)}
+  .lab #lab-onb-host.show{display:grid;place-items:center}
+  .lab .soc-onb-overlay{width:min(420px,92vw)}
+  .lab .soc-onb-card{background:#FAF8F3;color:#252722;border-radius:24px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .lab .soc-onb-kicker{font-size:12px;color:#E95432;font-weight:700;letter-spacing:1px;margin:0}
+  .lab .soc-onb-title{font-size:22px;margin:8px 0 10px}
+  .lab .soc-onb-body{font-size:13.5px;color:#64665D;line-height:1.7;margin:0 0 12px}
+  .lab .soc-onb-list{margin:0 0 14px;padding-left:18px;font-size:12.5px;color:#64665D;line-height:1.9}
+  .lab .soc-onb-dots{display:flex;gap:6px;margin-bottom:14px}
+  .lab .soc-onb-dot{width:7px;height:7px;border-radius:50%;background:#E4E2D8}
+  .lab .soc-onb-dot.on{background:#E95432}
+  .lab .soc-onb-actions{display:flex;gap:10px}
+  .lab .soc-onb-btn{flex:1;height:44px;border-radius:12px;font-size:14px;font-weight:600;border:0;cursor:pointer}
+  .lab .soc-onb-btn.pri{background:#E95432;color:#fff}
+  .lab .soc-onb-btn.ghost{background:#F3F0E8;color:#64665D}
+  /* ===== API 日志 ===== */
+  #lab-log{position:fixed;right:14px;bottom:14px;width:320px;max-height:260px;overflow:auto;background:#1c1d19;border:1px solid #3a3b36;border-radius:12px;padding:10px 12px;font-size:11.5px;z-index:30}
+  #lab-log b{color:#bbb;font-size:12px}
+  #lab-log ol{margin:6px 0 0;padding-left:18px;color:#9d9f95}
+  #lab-log li{margin:2px 0}
+  #lab-log .ok{color:#7fbf9f}
+  #lab-log .bad{color:#e08f7f}
+</style>
+</head>
+<body class="lab">
+<header class="lab-top">
+  <div>
+    <b>探戈 · 同频 — 实验入口</b>
+    <span class="meta" id="lab-week"></span>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <label class="meta" for="lab-account">演示账号</label>
+    <select id="lab-account" aria-label="切换演示账号"></select>
+    <button id="lab-onb" type="button">首次引导 3 屏</button>
+  </div>
+</header>
+
+<main class="lab-stage">
+  <section class="lab-col">
+    <div class="cap">① 同频首页（home.js · 流派卡 + 同频的人）</div>
+    <div class="phone"><div class="scroll soc" id="p1"></div>
+      <div class="tabbar"><span><i></i>开始</span><span><i></i>我的用法</span><span class="on"><i></i>同频</span><span><i></i>发现</span></div>
+    </div>
+    <p class="lab-note">流派卡三条证据与「略多一点」推荐全部来自 /api/social/matches（S2 引擎 + S4 服务），加油一键完成（本地反馈），结为搭档真实入库。</p>
+  </section>
+
+  <section class="lab-col">
+    <div class="cap">② 传棒（baton.js · 用法卡 + 三途发送）</div>
+    <div class="phone soc">
+      <div class="scroll p2-usage" id="p2-usage"></div>
+      <div class="p2-sheet" id="p2-sheet"></div>
+      <div class="p2-result" id="p2-result" hidden></div>
+      <div class="tabbar"><span><i></i>开始</span><span class="on"><i></i>我的用法</span><span><i></i>同频</span><span><i></i>发现</span></div>
+    </div>
+    <p class="lab-note">用法卡只含 usageId + 场景标题 + 提示词模板（D6）；对方只看到用法与提示词。发出的传棒真实落库，链接访客可直接打开。</p>
+  </section>
+
+  <section class="lab-col">
+    <div class="cap">③ 接力搭档 · 同频圈 · 周挑战</div>
+    <div class="phone"><div class="scroll soc" id="p3"></div>
+      <div class="tabbar"><span><i></i>开始</span><span><i></i>我的用法</span><span class="on"><i></i>同频</span><span><i></i>发现</span></div>
+    </div>
+    <p class="lab-note">圈内排名只按传棒与毕业，只显示前 3 名和「你」；「空出来的时间」只显示占比（D5）。挑战进度与「太多了」反馈均走正式端点。</p>
+  </section>
+
+  <section class="lab-col">
+    <div class="cap">④ 流派分享图（poster.js · 1080×1920）</div>
+    <div class="phone">
+      <div class="p4-wrap">
+        <div class="brand"><span id="p4-brand">探戈 Done&amp;Go</span><span>同频</span></div>
+        <canvas id="p4-canvas" width="1080" height="1920" aria-label="流派分享图"></canvas>
+        <p class="empty" id="p4-empty" hidden>本周还没有流派卡——先在 ① 开启同频并上传画像。</p>
+        <div class="p4-actions">
+          <a id="p4-download" download="tango-social-week.png" href="#">保存分享图</a>
+          <button id="p4-redraw" type="button">重画</button>
+        </div>
+      </div>
+    </div>
+    <p class="lab-note">画布由 poster.js drawPoster 渲染；facts 只取本人聚合计数（relays / self-kept / freed）。</p>
+  </section>
+</main>
+
+<div id="lab-onb-host" aria-live="polite"></div>
+<aside id="lab-log"><b>API 调用日志</b><ol id="lab-log-list"></ol></aside>
+
+<script type="module" src="/social/lab-app.js"></script>
+</body>
+</html>

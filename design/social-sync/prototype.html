@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>探戈 · 同频 定稿原型</title>
+<style>
+:root{
+  --bg:#FAF8F3; --surface:#FFFFFF; --sunk:#F3F0E8; --ink:#252722; --ink2:#64665D; --ink3:#8E9086; --line:#E4E2D8;
+  --brand:#E95432; --brand-soft:#FDECE6; --forest:#335D4B; --forest-soft:#E7F0EA; --gold:#E8B04B; --gold-soft:#FBF1DC;
+  --r-lg:20px; --r-md:14px; --shadow:0 1px 2px rgba(37,39,34,.05),0 8px 24px rgba(37,39,34,.06);
+  --font:"PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  /* archetype colors */
+  --a-dawn:#E8B04B; --a-night:#4C7A93; --a-relay:#E95432; --a-slow:#3E7B5B; --a-scholar:#615CED; --a-multi:#C7701F;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#2a2b27;font-family:var(--font);color:var(--ink);-webkit-font-smoothing:antialiased}
+.stage{display:flex;gap:28px;padding:28px;flex-wrap:wrap;align-items:flex-start}
+.cap{color:#ddd;font-size:15px;font-weight:600;margin-bottom:10px}
+.phone{width:390px;height:844px;border-radius:36px;background:var(--bg);position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.scroll{position:absolute;inset:0 0 72px 0;overflow:hidden;padding:56px 18px 0}
+.top{display:flex;align-items:center;justify-content:space-between}
+.top h1{font-size:26px}
+.top .me{width:34px;height:34px;border-radius:50%;background:var(--a-night);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700}
+.sub{color:var(--ink2);font-size:13.5px;margin-top:4px}
+/* archetype card */
+.arch{margin-top:14px;border-radius:24px;padding:18px;color:#fff;position:relative;overflow:hidden;background:linear-gradient(135deg,#3B6A82,#24475A)}
+.arch::after{content:"";position:absolute;right:-30px;top:-30px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.08)}
+.arch small{font-size:12px;opacity:.8;letter-spacing:.5px}
+.arch h2{font-size:26px;margin:4px 0 2px}
+.arch p{font-size:13.5px;opacity:.9}
+.arch ul{list-style:none;margin-top:12px;font-size:12.5px;display:flex;flex-direction:column;gap:6px}
+.arch li{background:rgba(255,255,255,.12);border-radius:10px;padding:7px 10px}
+.arch .bot{position:absolute;right:16px;top:18px;width:64px;height:64px}
+.arch .share{margin-top:12px;height:36px;border-radius:12px;background:#fff;color:#24475A;font-weight:600;font-size:13px;border:0;padding:0 14px}
+.sec{display:flex;justify-content:space-between;align-items:baseline;margin:18px 2px 8px}
+.sec h3{font-size:16px}
+.sec span{font-size:12px;color:var(--ink3)}
+/* match card */
+.match{background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px 14px;margin-bottom:10px}
+.mh{display:flex;align-items:center;gap:10px}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;flex:none}
+.mh b{font-size:15px;display:block}
+.mh small{font-size:12px;color:var(--ink2)}
+.sim{margin-left:auto;font-size:12px;font-weight:700;color:var(--forest);background:var(--forest-soft);border-radius:99px;padding:3px 8px}
+.why{margin-top:8px;font-size:12.5px;color:var(--ink2);line-height:1.55}
+.why b{color:var(--ink);font-weight:600}
+.uses{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.uses span{font-size:11.5px;background:var(--sunk);border-radius:6px;padding:3px 7px;color:var(--ink2)}
+.acts{display:flex;gap:8px;margin-top:10px}
+.b{height:34px;border-radius:10px;font-size:13px;font-weight:600;border:0;padding:0 12px;display:inline-flex;align-items:center;gap:6px}
+.b.cheer{background:var(--brand-soft);color:var(--brand)}
+.b.pair{background:var(--ink);color:#fff}
+.b.ghost{background:var(--sunk);color:var(--ink)}
+/* tabbar */
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:72px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;font-size:11.5px;color:var(--ink3)}
+.tabbar span{display:flex;flex-direction:column;align-items:center;gap:3px}
+.tabbar i{width:22px;height:22px;border-radius:7px;background:var(--line);display:block}
+.tabbar .on{color:var(--brand);font-weight:600}.tabbar .on i{background:var(--brand)}
+/* baton sheet */
+.scrim{position:absolute;inset:0;background:rgba(37,39,34,.4)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:28px 28px 0 0;padding:14px 20px 26px}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+.sheet h2{font-size:20px}
+.usecard{margin-top:12px;border:2px solid var(--ink);border-radius:18px;padding:14px;background:linear-gradient(180deg,#fff,#FFF9F2)}
+.usecard .k{font-size:11.5px;font-weight:700;color:var(--brand);letter-spacing:.6px}
+.usecard h3{font-size:18px;margin:4px 0}
+.usecard p{font-size:12.5px;color:var(--ink2);line-height:1.55}
+.chain{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--ink2)}
+.chain .av{width:24px;height:24px;font-size:10px}
+.chain .arr{color:var(--ink3)}
+.to{margin-top:14px;font-size:13px;font-weight:600}
+.pick{display:flex;gap:10px;margin-top:8px;overflow:hidden}
+.pk{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11.5px;color:var(--ink2);width:60px}
+.pk .av{width:48px;height:48px;font-size:15px}
+.pk.on .av{box-shadow:0 0 0 3px #fff,0 0 0 5px var(--brand)}
+.pk .plus{background:var(--sunk);color:var(--ink2);font-size:20px}
+.note{margin-top:12px;font-size:12px;color:var(--ink3);display:flex;gap:6px}
+.big{margin-top:14px;width:100%;height:52px;border-radius:16px;background:var(--brand);color:#fff;font-weight:700;font-size:16px;border:0}
+/* pairs & circle */
+.pair{display:flex;align-items:center;gap:10px;background:#fff;border-radius:var(--r-md);box-shadow:var(--shadow);padding:10px 12px;margin-bottom:8px}
+.flame{margin-left:auto;display:flex;align-items:center;gap:4px;font-weight:700;color:var(--brand);font-size:15px}
+.flame i{width:18px;height:22px;border-radius:50% 50% 45% 45%/60% 60% 40% 40%;background:linear-gradient(180deg,#FFB27A,#E95432);display:block}
+.flame.cold{color:var(--ink3)}.flame.cold i{background:linear-gradient(180deg,#DADBD3,#A3A59B)}
+.pair .st{font-size:11.5px;color:var(--ink2)}
+.circle{background:#fff;border-radius:var(--r-lg);box-shadow:var(--shadow);padding:14px;margin-top:4px}
+.circle h4{font-size:16px;display:flex;justify-content:space-between}
+.circle h4 span{font-size:12px;color:var(--ink3);font-weight:400}
+.wall{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.wall span{font-size:12px;border-radius:99px;padding:4px 10px;background:var(--forest-soft);color:var(--forest);font-weight:500}
+.freed{margin-top:12px}
+.freed .bar{display:flex;height:12px;border-radius:6px;overflow:hidden}
+.freed .lg{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:11.5px;color:var(--ink2)}
+.freed .lg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+.rank{margin-top:12px;font-size:12.5px}
+.rank div{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.rank div b{width:18px;color:var(--ink3)}
+.rank div em{margin-left:auto;font-style:normal;font-weight:700}
+.rank .you{background:var(--gold-soft);border-radius:8px;padding:6px 8px;border:0}
+.quest{display:flex;align-items:center;gap:10px;background:#fff;border-radius:var(--r-md);box-shadow:var(--shadow);padding:10px 12px;margin-top:8px;font-size:13px}
+.prog{height:6px;border-radius:3px;background:var(--sunk);flex:1;overflow:hidden}.prog i{display:block;height:100%;background:var(--forest);border-radius:3px}
+/* share poster */
+.poster{position:absolute;inset:0;padding:40px 26px;color:#fff;background:radial-gradient(120% 70% at 80% 0%,#4F86A3 0%,#24475A 55%,#16303E 100%)}
+.poster .brand{font-size:13px;opacity:.85;display:flex;justify-content:space-between}
+.poster h1{font-size:44px;line-height:1.1;margin-top:120px}
+.poster h1 small{display:block;font-size:15px;font-weight:500;opacity:.8;margin-bottom:10px;letter-spacing:1px}
+.poster .bot{width:150px;height:150px;position:absolute;right:20px;top:120px;opacity:.95}
+.poster .facts{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.poster .facts div{background:rgba(255,255,255,.1);border-radius:16px;padding:14px}
+.poster .facts b{font-size:30px;display:block}
+.poster .facts span{font-size:12px;opacity:.85}
+.poster .line{margin-top:22px;font-size:15px;line-height:1.7;opacity:.95}
+.poster .qr{position:absolute;left:26px;right:26px;bottom:34px;display:flex;align-items:center;gap:12px;font-size:12.5px;opacity:.9}
+.poster .qr i{width:56px;height:56px;border-radius:10px;background:#fff;display:block}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><symbol id="bot" viewBox="0 0 100 100"><path d="M30 30 L28 12" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="27.5" cy="10" r="6" fill="currentColor"/><path d="M70 30 C71 18 74 13 79 14 C84 15 83 22 78 21" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round"/><rect x="9" y="42" width="12" height="24" rx="5" fill="currentColor"/><rect x="79" y="42" width="12" height="24" rx="5" fill="currentColor"/><rect x="16" y="28" width="68" height="62" rx="18" fill="currentColor"/><circle cx="38" cy="56" r="7" fill="#24475A"/><circle cx="62" cy="56" r="7" fill="#24475A"/><path d="M40 74 Q50 80 60 74" stroke="#24475A" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M74 20 l3 -6 l3 6 l6 3 l-6 3 l-3 6 l-3 -6 l-6 -3z" fill="#FFE7A6"/></symbol></svg>
+<div class="stage">
+
+<!-- ① 同频首页 -->
+<div><div class="cap">① 同频：本周流派 + 同频的人</div>
+<div class="phone"><div class="scroll">
+  <div class="top"><h1>同频</h1><span class="me">夜</span></div>
+  <p class="sub">第 43 周 · 根据你怎么用 AI、怎么分配空出来的时间</p>
+  <div class="arch">
+    <small>本周你的时间流派</small><h2>深夜创作派</h2><p>灯熄了，你的想法才刚开始。</p>
+    <svg class="bot" style="color:#9FC6DA"><use href="#bot"/></svg>
+    <ul><li>58% 的事在晚上 9 点后开始</li><li>创作类的事占了 41%</li><li>学会 2 个新用法，自己做到 1 次</li></ul>
+    <button class="share">生成分享图</button>
+  </div>
+  <div class="sec"><h3>本周和你同频</h3><span>每周一更新</span></div>
+  <div class="match">
+    <div class="mh"><span class="av" style="background:var(--a-night)">湖</span><div><b>安静的湖</b><small>深夜创作派 · 自己做到 3 次</small></div><span class="sim">同频 86%</span></div>
+    <p class="why">你们都在<b>晚上 10 点后</b>写东西，都把空出来的时间<b>给了运动</b>。</p>
+    <div class="uses"><span>长文 → 5 个要点</span><span>摘要翻成英文</span></div>
+    <div class="acts"><button class="b cheer">♥ 加油</button><button class="b pair">结为搭档</button></div>
+  </div>
+  <div class="match">
+    <div class="mh"><span class="av" style="background:var(--a-scholar)">松</span><div><b>远山的松</b><small>学术攀登派 · 自己做到 4 次</small></div><span class="sim">同频 79%</span></div>
+    <p class="why">你们都常用<b>"读懂论文"</b>，都在<b>组会前一晚</b>最忙。</p>
+    <div class="acts"><button class="b cheer">♥ 加油</button><button class="b pair">结为搭档</button></div>
+  </div>
+</div>
+<div class="tabbar"><span><i></i>开始</span><span><i></i>我的用法</span><span class="on"><i></i>同频</span><span><i></i>发现</span></div></div></div>
+
+<!-- ② 传棒 -->
+<div><div class="cap">② 传棒：把学会的用法传给 TA</div>
+<div class="phone"><div class="scroll" style="filter:blur(1px)"><div class="top"><h1>我的用法</h1></div></div>
+<div class="scrim"></div>
+<div class="sheet">
+  <div class="grab"></div>
+  <h2>把这个用法传下去</h2>
+  <div class="usecard">
+    <div class="k">AI 用法 · 接力棒</div>
+    <h3>会议材料 → 重点和待办</h3>
+    <p>把会议内容交给 AI，先要「重点、待办、没说清的地方」。附带提示词，不含你的任何内容。</p>
+    <div class="chain"><span class="av" style="background:var(--a-dawn)">晨</span><span class="arr">→</span><span class="av" style="background:var(--a-night)">你</span><span class="arr">→</span><span class="av" style="background:var(--sunk);color:var(--ink3)">?</span><span>已经过 2 个人，下一棒交给谁？</span></div>
+  </div>
+  <p class="to">传给</p>
+  <div class="pick">
+    <span class="pk on"><span class="av" style="background:var(--a-night)">湖</span>安静的湖</span>
+    <span class="pk"><span class="av" style="background:var(--a-slow)">妈</span>妈妈</span>
+    <span class="pk"><span class="av" style="background:var(--a-scholar)">组</span>课题组</span>
+    <span class="pk"><span class="av plus">+</span>生成链接</span>
+  </div>
+  <p class="note">🔒 对方只看到用法和提示词。TA 学会后，你的传棒 +1。</p>
+  <button class="big">传给 安静的湖</button>
+</div></div></div>
+
+<!-- ③ 搭档与圈 -->
+<div><div class="cap">③ 接力搭档 · 同频圈 · 周挑战</div>
+<div class="phone"><div class="scroll">
+  <div class="sec" style="margin-top:4px"><h3>接力搭档</h3><span>每天各接力 1 次 · 最多 5 位</span></div>
+  <div class="pair"><span class="av" style="background:var(--a-night)">湖</span><div><b style="font-size:14px">安静的湖</b><div class="st">今天你们都接力了 ✓</div></div><span class="flame"><i></i>12</span></div>
+  <div class="pair"><span class="av" style="background:var(--a-slow)">妈</span><div><b style="font-size:14px">妈妈</b><div class="st">TA 今天还没接力 · <u>提醒一下</u></div></div><span class="flame cold"><i></i>5</span></div>
+  <div class="sec"><h3>我的圈</h3><span>邀请码加入</span></div>
+  <div class="circle">
+    <h4>王老师课题组 <span>14 人 · 第 43 周</span></h4>
+    <div class="wall"><span>文献 → 5 要点 ×6</span><span>组会纪要 ×4</span><span>审稿回复 ×2</span><span>数据清洗 ×1</span></div>
+    <div class="freed"><p style="font-size:12.5px;font-weight:600;margin-bottom:6px">大家空出来的 23 小时去了哪</p>
+      <div class="bar"><i style="flex:34;background:var(--a-slow)"></i><i style="flex:26;background:var(--a-scholar)"></i><i style="flex:22;background:var(--a-dawn)"></i><i style="flex:18;background:#C9CBC1"></i></div>
+      <div class="lg"><span><i style="background:var(--a-slow)"></i>运动 34%</span><span><i style="background:var(--a-scholar)"></i>学新东西 26%</span><span><i style="background:var(--a-dawn)"></i>陪家人 22%</span><span><i style="background:#C9CBC1"></i>休息 18%</span></div></div>
+    <div class="rank"><div><b>1</b>远山的松<em>传棒 7</em></div><div><b>2</b>晨跑的鹿<em>传棒 5</em></div><div><b>3</b>安静的湖<em>传棒 4</em></div><div class="you"><b>6</b>你<em>传棒 2</em></div></div>
+  </div>
+  <div class="sec"><h3>本周挑战</h3><span>还剩 3 天</span></div>
+  <div class="quest">🤝 给 1 个人传棒<div class="prog"><i style="width:100%"></i></div>✓</div>
+  <div class="quest">🏡 把空出的 1 小时给家人<div class="prog"><i style="width:50%"></i></div>30′</div>
+</div>
+<div class="tabbar"><span><i></i>开始</span><span><i></i>我的用法</span><span class="on"><i></i>同频</span><span><i></i>发现</span></div></div></div>
+
+<!-- ④ 分享图 -->
+<div><div class="cap">④ 流派分享图（1080×1920 导出）</div>
+<div class="phone"><div class="poster">
+  <div class="brand"><span>探戈 Done&amp;Go · 第 43 周</span><span>同频</span></div>
+  <svg class="bot" style="color:#9FC6DA"><use href="#bot"/></svg>
+  <h1><small>这一周，我是</small>深夜<br>创作派</h1>
+  <div class="facts"><div><b>9</b><span>次 AI 接力</span></div><div><b>3</b><span>次自己做到</span></div><div><b>2</b><span>次传棒</span></div><div><b>3.0h</b><span>空出来给了运动</span></div></div>
+  <p class="line">灯熄了，我的想法才刚开始。<br>你是什么流派？</p>
+  <div class="qr"><i></i><span>扫码测测你的时间流派<br>donego.udify.fun</span></div>
+</div></div></div>
+
+</div>
+</body>
+</html>
