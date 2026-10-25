@@ -130,7 +130,7 @@ export function createVoiceGateway(options = {}) {
   const asrUrl = options.asrUrl || env.TANGO_VOICE_ASR_URL || env.FUNASR_URL || 'ws://127.0.0.1:10195';
   const asrConfig = { ...FUNASR_CONFIG_DEFAULTS, ...(options.asrConfig || {}) };
   const asrConnectTimeoutMs = options.asrConnectTimeoutMs ?? 3000;
-  const finalDrainMs = options.finalDrainMs ?? 6000; // 兜底：收不到 is_final 时最多等 6s
+  const finalDrainMs = options.finalDrainMs ?? 20000; // 兜底：收不到 is_final 时最多等 20s（thinkpad 上 14s 语音定稿实测 11.6s）
   const now = options.now || Date.now;
   const log = options.log || noLog;
   const authenticate = typeof options.authenticate === 'function' ? options.authenticate : () => { throw new Error('VOICE_AUTH_NOT_CONFIGURED'); };
