@@ -32,6 +32,7 @@
   "dependencies": {
     "lucide-react": "^1.45.0",
     "nodemailer": "^10.0.9",
+    "ws": "^8.22.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3"

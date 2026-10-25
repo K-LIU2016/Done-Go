@@ -44,6 +44,7 @@
 // library (migrated v1 rows have usageId null and stay nameless, per contracts).
 
 import { PERSONAS, EVENT_MAX } from './contracts.js';
+import { renderHomeSlots } from './slots.js';
 
 export var RELAY_PERSONA_KEY = 'tango-donego.relay.v2.persona';
 export var DEFAULT_PERSONA = 'student'; // SPEC §4① 首次默认"学生"
@@ -221,6 +222,7 @@ export function homeView(state, copyOver) {
       + '<b>' + esc(scene.title) + '</b><span>' + esc(scene.hint) + '</span></button>';
   });
   html += '</div>';
+  html += renderHomeSlots();
   html += '<div class="sec"><h3>' + esc(copy.sectionTitle) + '</h3><a class="sec-all" href="#/me" data-relay-all>' + esc(copy.allLink) + '</a></div>';
   var badges = Array.isArray(s.badges) ? s.badges : [];
   if (badges.length) {

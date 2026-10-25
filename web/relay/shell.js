@@ -21,9 +21,11 @@
 // ---------------------------------------------------------------------------
 
 export var RELAY_ROUTES = ['start', 'relay', 'me', 'discover', 'more'];
+export var INTEGRATION_ROUTES = ['sync', 'story'];
 export var LAB_PAGES = ['today', 'line', 'review', 'agreements'];
 export var LEGACY_ROUTES = ['settings', 'users', 'assistant'];
 export var DEFAULT_HASH = '#/start';
+export var HOME_SLOT_IDS = ['relay-home-banner', 'relay-home-next'];
 
 // 旧 hash → 新 hash。'#today' 在 §2 里归到 #/start（首页就是新的"今天"）；
 // line/review/agreements 是旧功能页，收进 #/lab/*（D2：旧功能不删）。
@@ -64,7 +66,7 @@ export function resolveRoute(raw) {
       ? { redirect: null, kind: 'lab', route: 'lab', lab: lab, query: parsed.query }
       : { redirect: DEFAULT_HASH };
   }
-  if (RELAY_ROUTES.indexOf(path) >= 0) {
+  if (RELAY_ROUTES.indexOf(path) >= 0 || INTEGRATION_ROUTES.indexOf(path) >= 0) {
     return { redirect: null, kind: 'relay', route: path, query: parsed.query };
   }
   if (LEGACY_ROUTES.indexOf(path) >= 0) {
@@ -76,7 +78,7 @@ export function resolveRoute(raw) {
   return { redirect: DEFAULT_HASH };
 }
 
-var TAB_BY_ROUTE = { start: 'start', relay: 'start', me: 'me', discover: 'discover' };
+var TAB_BY_ROUTE = { start: 'start', relay: 'start', me: 'me', discover: 'discover', sync: 'sync' };
 
 export function activeTab(info) {
   if (!info || info.redirect || info.kind !== 'relay') return null;
@@ -164,7 +166,7 @@ export function applyLanguage(lang, doc, storage) {
 var COPY = {
   zh: {
     brandName: '探戈', brandSub: 'Done&Go',
-    tabStart: '开始', tabMe: '我的用法', tabDiscover: '发现',
+    tabStart: '开始', tabMe: '我的用法', tabDiscover: '发现', tabSync: '同频',
     moreTitle: '更多', moreAria: '更多', guest: '访客',
     account: '账号', accountGuest: '访客 · 去登录',
     language: '语言', appearance: '外观',
@@ -181,7 +183,7 @@ var COPY = {
   },
   en: {
     brandName: '探戈', brandSub: 'Done&Go',
-    tabStart: 'Start', tabMe: 'My usages', tabDiscover: 'Discover',
+    tabStart: 'Start', tabMe: 'My usages', tabDiscover: 'Discover', tabSync: 'Sync',
     moreTitle: 'More', moreAria: 'More', guest: 'Guest',
     account: 'Account', accountGuest: 'Guest · Sign in',
     language: 'Language', appearance: 'Appearance',
@@ -246,6 +248,7 @@ var ICON_PATHS = {
   home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
   medal: '<circle cx="12" cy="15" r="5"/><path d="M8.5 10.5 6 3h4l2 5 2-5h4l-2.5 7.5"/>',
   compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>',
+  users: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 19a5 5 0 0 1 7 0"/>',
   more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -304,6 +307,7 @@ function tabEntries(copy) {
     { id: 'start', href: '#/start', label: copy.tabStart, icon: 'home' },
     { id: 'me', href: '#/me', label: copy.tabMe, icon: 'medal' },
     { id: 'discover', href: '#/discover', label: copy.tabDiscover, icon: 'compass' },
+    { id: 'sync', href: '#/sync', label: copy.tabSync || '同频', icon: 'users' },
   ];
 }
 
@@ -626,7 +630,7 @@ export function createRelayShell(options) {
       handleHash();
     },
     registerRoute: function (name, renderer) {
-      if (RELAY_ROUTES.indexOf(name) >= 0 && name !== 'more' && typeof renderer === 'function') renderers[name] = renderer;
+      if ((RELAY_ROUTES.indexOf(name) >= 0 || INTEGRATION_ROUTES.indexOf(name) >= 0) && name !== 'more' && typeof renderer === 'function') renderers[name] = renderer;
     },
     handleHash: handleHash,
     setAppearance: function (value) {

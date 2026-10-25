@@ -10,6 +10,10 @@ import { applyDotEnv, loadAssistantConfig, saveAssistantMetadata } from './assis
 import { createCollaborationService } from './collaboration-service.mjs';
 import { createMetrics, metricsDay, validMetricsDay, METRICS_BODY_MAX_BYTES } from './metrics.mjs';
 import { EXTERNAL_APPS, externalAppIds } from '../web/relay/external-apps.js';
+import { createVoiceGateway, VOICE_STREAM_PATH } from './voice-gateway.mjs';
+import { createSocialService } from './social-service.mjs';
+import { createSocialStore } from './social-store.mjs';
+import { buildStyleCard } from './social-features.mjs';
 
 const root = fileURLToPath(new URL('../web/', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
@@ -83,6 +87,23 @@ export function createAIGuard(options = {}) {
 export function createTangoServer(options = {}) {
  const getSpeechCapabilities = options.speechCapabilities || speechCapabilities;
  const assistant = options.assistant || createAssistant();
+ const socialStore = options.socialStore || createSocialStore({ databaseFile: options.socialDatabaseFile || ':memory:' });
+ const social = options.social || createSocialService({ store: socialStore, auth: options.collaboration || { authenticate() { throw new Error('AUTH_REQUIRED'); } } });
+ const voiceGateway = options.voiceGateway || createVoiceGateway({
+   path: VOICE_STREAM_PATH,
+   authenticate: req => options.collaboration?.authenticate(req),
+   requestAllowed: req => options.collaboration?.requestAllowed(req) === true,
+ });
+ const socialAuth = options.collaboration;
+ const closeAuxiliary = () => { try { voiceGateway.close?.(); } catch {} try { social.close?.(); } catch {} };
+ const upgrade = (req, socket, head) => {
+   let pathname = '';
+   try { pathname = new URL(req.url, 'http://127.0.0.1').pathname; } catch { socket.destroy(); return; }
+   if (pathname === VOICE_STREAM_PATH) return voiceGateway.handleUpgrade(req, socket, head);
+   socket.destroy();
+ };
+ const getSocialAuth = () => socialAuth;
+
  const discovery = options.discovery || createDiscovery();
  const aiGuard = options.aiGuard || createAIGuard();
  // SPEC §5.5 / D10: count-only funnel counters; the production main() below
@@ -102,6 +123,11 @@ export function createTangoServer(options = {}) {
   };
   try {
     const url = new URL(req.url, 'http://127.0.0.1'), pathname = decodeURIComponent(url.pathname);
+    if (pathname.startsWith('/api/social/')) {
+      if (!options.collaboration || !options.collaboration.requestAllowed(req)) { send(403, { error: 'origin-rejected' }); return; }
+      await social.handle(req, res, req.url);
+      return;
+    }
     let actor;
     if(options.collaboration&&pathname.startsWith('/api/')){
       apiRequest=true;
@@ -261,7 +287,11 @@ export function createTangoServer(options = {}) {
     else if (!res.destroyed) res.writeHead(404).end();
   }
  });
- return server;
+  server.on('upgrade', upgrade);
+  server.on('close', closeAuxiliary);
+  server.social = social;
+  server.voiceGateway = voiceGateway;
+  return server;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

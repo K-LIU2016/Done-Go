@@ -283,6 +283,23 @@ function mountNode(id) {
   return doc ? doc.getElementById(id) : null;
 }
 
+// ----- 首页二期接缝：故事横幅 + 接下来的事 -----
+function mountHomeStoryAndNext(node) {
+  var banner = node.querySelector('#relay-home-banner');
+  var next = node.querySelector('#relay-home-next');
+  if (!banner || !next) return;
+  import('../story/store.js').then(function (storeMod) {
+    var store = storeMod.createStoryStore({ root: win });
+    var chapters = store.chapters || [];
+    var latest = chapters.length ? chapters[chapters.length - 1] : null;
+    if (latest) {
+      banner.innerHTML = '<a href="#/story" class="card"><strong>时光故事书 · 第 ' + String(latest.no) + ' 章</strong><span>打开这一章</span></a>';
+    }
+  }).catch(function () {});
+  var entries = win.TangoState && Array.isArray(win.TangoState.entries) ? win.TangoState.entries : [];
+  if (entries.length) next.innerHTML = '<div class="card"><h3>接下来的事</h3><p>' + String(entries[0].title || '').replace(/[&<>"']/g, '') + '</p></div>';
+}
+
 // ----- #/start（L2 home）-----
 function routeStart() {
   teardownPage();
@@ -302,8 +319,67 @@ function routeStart() {
     });
     pageCtl = home;
     home.mount(node);
+    mountHomeStoryAndNext(node);
   }).catch(function () { /* 模块缺失时保留骨架，不打断外壳 */ });
   return '<div id="rv2-start" aria-busy="true"></div>';
+}
+
+// ----- #/sync（social S5 home）-----
+function routeSync() {
+  teardownPage();
+  var token = ++pendingToken;
+  Promise.all([import('../social/home.js'), applyI18n()]).then(function (loaded) {
+    if (token !== pendingToken) return;
+    var info = shellApi && shellApi.routeInfo();
+    if (!info || info.route !== 'sync') return;
+    var node = mountNode('rv2-sync');
+    if (!node) return;
+    var socialMod = loaded[0];
+    var home = socialMod.createSocialHome({ onMetric: postMetric });
+    pageCtl = home;
+    home.mount(node);
+    win.fetch('/api/social/lab/style-card').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      if (data) home.update({ styleCard: data.styleCard, myGraduations: data.graduations });
+    }).catch(function () {});
+  }).catch(function () {});
+  return '<div id="rv2-sync" aria-busy="true"></div>';
+}
+
+// ----- #/story（正式播放器接入，所有页型通过 createStoryPlayer）-----
+function routeStory() {
+  teardownPage();
+  var token = ++pendingToken;
+  Promise.all([import('../story/player.js'), import('../story/demo-data.js'), import('../story/pages/cover.js'), import('../story/pages/count.js'), import('../story/pages/spectrum.js'), import('../story/pages/day.js'), import('../story/pages/learned.js'), import('../story/pages/freed.js'), import('../story/pages/rhythm.js'), import('../story/pages/four.js'), import('../story/pages/wish.js'), import('../story/pages/poster-page.js'), import('../story/soundtrack.js')]).then(function (mods) {
+    if (token !== pendingToken) return;
+    var info = shellApi && shellApi.routeInfo();
+    if (!info || info.route !== 'story') return;
+    var node = mountNode('rv2-story');
+    if (!node) return;
+    var chapter = mods[1].previewChapter('student');
+    var pageMods = mods.slice(2, 12);
+    var renderers = {};
+    pageMods.forEach(function (mod) {
+      if (mod.PAGE_TYPE && typeof mod.renderPage === 'function') renderers[mod.PAGE_TYPE] = mod.renderPage;
+    });
+    renderers.savedTime = mods[7].renderSavedTimePage;
+    renderers.rhythm = mods[8].renderRhythmPage;
+    renderers.panels = mods[9].renderPanelsPage;
+    renderers.wish = mods[10].renderWishPage;
+    renderers.poster = mods[11].renderPosterPage;
+    var player = mods[0].createStoryPlayer({
+      root: win, doc: doc, win: win, mount: node, chapter: chapter,
+      audio: mods[12].createAudioAdapter({ pageCount: chapter.pages.length }),
+      renderPage: function (page, index, ctx) {
+        var fn = renderers[page.type];
+        if (fn) return fn(page, ctx);
+        var mod = pageMods.find(function (candidate) { return candidate.PAGE_TYPE === page.type; });
+        if (mod && typeof mod.pageModel === 'function' && typeof mod.pageView === 'function') return mod.pageView(mod.pageModel(ctx.chapter, page.params), ctx.captions);
+        return '';
+      },
+    });
+    if (player) { pageCtl = { unmount: function () { player.destroy(); } }; player.open(); }
+  }).catch(function () {});
+  return '<div id="rv2-story" aria-busy="true"></div>';
 }
 
 // ----- #/relay（L3 flow + L7 matcher；交接参数见文件头约定）-----
@@ -589,8 +665,16 @@ function onLogin() {
     var result = null;
     try { result = mod.promoteGuestStore({ root: win }); } catch (e) { result = null; }
     return ensureStore(true).then(function () {
-      if (shellApi) shellApi.handleHash();
-      return result;
+      return import('../story/store.js').then(function (storyMod) {
+        var guest = win.localStorage;
+        var account = win.TangoAccountStorage;
+        var key = 'tango-donego.story.v1';
+        var raw = guest && guest.getItem(key);
+        if (raw && account && !account.getItem(key)) account.setItem(key, raw);
+      }).catch(function () {}).then(function () {
+        if (shellApi) shellApi.handleHash();
+        return result;
+      });
     });
   }).catch(function () { /* 提升失败不阻塞登录 */ });
 }
@@ -627,6 +711,8 @@ function start() {
     shellApi.registerRoute('relay', routeRelay);
     shellApi.registerRoute('me', routeMe);
     shellApi.registerRoute('discover', routeDiscover);
+    shellApi.registerRoute('sync', routeSync);
+    shellApi.registerRoute('story', routeStory);
     win.addEventListener('hashchange', syncLegacy);
     root.addEventListener('relay:lang-change', function () {
       applyI18n().then(function () { if (shellApi) shellApi.handleHash(); });
