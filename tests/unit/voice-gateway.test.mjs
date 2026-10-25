@@ -265,6 +265,30 @@ test("stop → 上游收 {is_speaking:false}，尾句 final 后下发 end 并正
   assert.equal((await client.waitClosed()).code, 1000);
 });
 
+test("stop 后晚到/连发的 offline final 不丢：is_final 帧到达即收尾 end（不等满兜底窗）", async t => {
+  const upstream = await startFakeUpstream(t);
+  const { url } = await startGateway(t, upstream); // 默认 finalDrainMs=5000（实测还会按音频时长伸缩）
+  const client = dial(url);
+  client.json({ type: "start", sampleRate: VOICE_SAMPLE_RATE });
+  const peer = await upstream.waitPeer();
+  peer.ws.send(JSON.stringify({ mode: "2pass-online", text: "第一句" }));
+  await client.next(f => f.type === "partial");
+  client.json({ type: "stop" });
+  for (let i = 0; i < 200 && !peer.texts.some(m => m.is_speaking === false); i++) await sleep(10);
+  // 尾句 final 在 stop 后 +300ms 才到（旧实现固定 2500ms 计时器与贴线 final 竞态 3/3 全丢），
+  // +800ms 再到带 is_final 的收尾帧（真实 FunASR 即此形态：尾句 final 与 is_final 同帧）
+  setTimeout(() => { try { peer.ws.send(JSON.stringify({ mode: "2pass-offline", text: "，第一句定稿。" })); } catch {} }, 300);
+  setTimeout(() => { try { peer.ws.send(JSON.stringify({ mode: "2pass-offline", text: "第二句定稿。", is_final: true })); } catch {} }, 800);
+  assert.deepEqual(await client.next(f => f.type === "final" && f.text === "第一句定稿。"), { type: "final", seg: 0, text: "第一句定稿。" });
+  assert.deepEqual(await client.next(f => f.type === "final" && f.text === "第二句定稿。"), { type: "final", seg: 1, text: "第二句定稿。" });
+  const afterIsFinal = Date.now();
+  await client.next(f => f.type === "end");
+  const settleMs = Date.now() - afterIsFinal;
+  assert.ok(settleMs <= 1500, `is_final 到达后应立即收尾（实测 ${settleMs}ms），而非等满兜底窗`);
+  assert.equal((await client.waitClosed()).code, 1000);
+  client.close();
+});
+
 test("stop 在 start 之前 → 直接 end 关闭（不连上游）", async t => {
   const upstream = await startFakeUpstream(t);
   const { url } = await startGateway(t, upstream);

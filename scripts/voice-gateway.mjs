@@ -33,6 +33,14 @@ export const DEFAULT_VOICE_LIMITS = Object.freeze({
   maxConcurrent: 3,
 });
 
+// stop 尾句 offline 定稿的到达时延随音频时长线性增长（2026-10-25 直连实测：2.4s 音频
+// +2212ms、16.1s 音频 +11158ms、零音频 +4ms，≈0.65×时长）：固定窗口必然丢长会话的 final。
+// drain 以 is_final 帧为完成信号（协议 ground truth：is_final 只在流结束时出现，与尾句
+// final 同帧；零音频也会回空文本 is_final），兜底计时只服务「上游永不回 is_final」的
+// 异常会话，并按已收音频时长伸缩。
+const DRAIN_AUDIO_SLOPE = 0.75; // 实测斜率 ~0.65，留余量
+const DRAIN_CAP_MS = 60_000;
+
 // FunASR config 帧默认值（Salon9 同款；[0,5,5]=300ms 粒度，压首字延迟）。
 export const FUNASR_CONFIG_DEFAULTS = Object.freeze({
   mode: '2pass',
@@ -119,7 +127,8 @@ const noLog = () => {};
 //                      ws://127.0.0.1:10195）
 //   asrConfig          config 帧覆盖（默认 FUNASR_CONFIG_DEFAULTS）
 //   asrConnectTimeoutMs 上游连接超时（默认 3000）
-//   finalDrainMs       stop 后等待尾句 final 的窗口（默认 2500）
+//   finalDrainMs       stop 后等待尾句 final 的兜底窗基数（默认 5000，按已收音频时长
+//                      伸缩；is_final 帧到达即收尾）
 //   limits             {sessionMaxMs, dailyBudgetMs, maxConcurrent} 覆盖
 //   now / log          注入时钟与日志（测试用）
 // 鉴权与 Origin 默认 fail closed：不注入就一律 unauthorized。
@@ -130,7 +139,7 @@ export function createVoiceGateway(options = {}) {
   const asrUrl = options.asrUrl || env.TANGO_VOICE_ASR_URL || env.FUNASR_URL || 'ws://127.0.0.1:10195';
   const asrConfig = { ...FUNASR_CONFIG_DEFAULTS, ...(options.asrConfig || {}) };
   const asrConnectTimeoutMs = options.asrConnectTimeoutMs ?? 3000;
-  const finalDrainMs = options.finalDrainMs ?? 2500;
+  const finalDrainMs = options.finalDrainMs ?? 5000;
   const now = options.now || Date.now;
   const log = options.log || noLog;
   const authenticate = typeof options.authenticate === 'function' ? options.authenticate : () => { throw new Error('VOICE_AUTH_NOT_CONFIGURED'); };
@@ -240,10 +249,17 @@ export function createVoiceGateway(options = {}) {
 
     function enterDrain() {
       phase = 'draining';
+      const audioMs = bytesReceived / BYTES_PER_MS; // 已收音频时长（16k/16bit/mono = 32B/ms）
+      armDrainEnd(Math.min(finalDrainMs + audioMs * DRAIN_AUDIO_SLOPE, DRAIN_CAP_MS));
+    }
+    // drain 收尾：send end 并正常关闭。is_final 帧到达＝上游流结束，立即收尾；
+    // 兜底计时只防「永不回 is_final」的异常上游。
+    function armDrainEnd(ms) {
+      if (drainTimer) clearTimeout(drainTimer);
       drainTimer = setTimeout(() => {
         send({ type: 'end' });
         finish(1000);
-      }, finalDrainMs);
+      }, ms);
     }
 
     function onUpstreamMessage(event) {
@@ -251,10 +267,16 @@ export function createVoiceGateway(options = {}) {
       if (typeof event.data !== 'string') return; // 只认 JSON 文本帧
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
-      for (const frame of translator.push(msg)) send(frame);
+      const frames = translator.push(msg);
+      for (const frame of frames) send(frame);
+      if (phase === 'draining' && msg.is_final === true) armDrainEnd(0); // 流结束标志：立即收尾
     }
     function onUpstreamGone() {
       if (phase === 'ended') return;
+      if (phase === 'draining') { // 上游处理完 stop 自行关闭：正常收尾，不是 asr 故障
+        send({ type: 'end' });
+        return finish(1000);
+      }
       fail(VOICE_ERROR_CODES.ASR_UNAVAILABLE);
     }
     function onUpstreamOpen() {
