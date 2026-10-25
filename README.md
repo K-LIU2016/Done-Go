@@ -7,6 +7,8 @@
 
 当前产品入口是 `web/index.html`，本地服务由 `scripts/serve-tango.mjs` 提供。`src/` 与 `server/start.mjs` 保留为历史 React 探索线，不代表当前入口。
 
+**产品介绍视频（2 分钟）**：[▶ 一句话录入、五种外观、小组协作暗号与诚实的用时核验，两分钟看完全貌](./docs/media/donego-intro-2min.mp4)
+
 ## 这是给谁的
 
 | 场景 | 它能帮你做的事 |
