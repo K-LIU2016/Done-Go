@@ -8,7 +8,7 @@ import vm from 'node:vm';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const execFile = promisify(execFileCallback);
-const files = ['web/index.html', 'web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/demo.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'scripts/production-readiness.mjs', 'server/urlguard.mjs', 'web/privacy.js', 'web/agreements.js', 'web/speech-capture.js', 'web/assistant-core.js', 'web/assistant-ui.js', 'web/assistant.css', 'scripts/serve-tango.mjs', 'scripts/tango-speech.mjs', 'scripts/tango-speech.ps1', 'scripts/ai-assistant.mjs', 'scripts/ai-discovery.mjs', 'scripts/assistant-config.mjs', 'web/model-catalog-cn.js', 'web/demo-onboarding.js', 'web/ai-parse.js', 'web/ai-prompt.js', 'scripts/metrics.mjs'];
+const files = ['web/index.html', 'web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/demo.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'scripts/production-readiness.mjs', 'server/urlguard.mjs', 'web/privacy.js', 'web/agreements.js', 'web/speech-capture.js', 'web/assistant-core.js', 'web/assistant-ui.js', 'web/assistant.css', 'scripts/serve-tango.mjs', 'scripts/tango-speech.mjs', 'scripts/tango-speech.ps1', 'scripts/ai-assistant.mjs', 'scripts/ai-discovery.mjs', 'scripts/assistant-config.mjs', 'scripts/metrics.mjs', 'scripts/voice-gateway.mjs', 'scripts/intent.mjs', 'scripts/social-service.mjs', 'scripts/social-store.mjs', 'scripts/social-features.mjs', 'web/model-catalog-cn.js', 'web/demo-onboarding.js', 'web/ai-parse.js', 'web/ai-prompt.js'];
 
 export async function buildRelease({ outputParent = join(root, 'dist-web') } = {}) {
   async function brandFiles(directory) {
@@ -21,8 +21,11 @@ export async function buildRelease({ outputParent = join(root, 'dist-web') } = {
   // matcher/store/i18n/baton/contracts/external-apps），scenes.zh.json 是按需
   // fetch 的场景库数据，relay.css 是外壳样式；scripts/metrics.mjs 由
   // serve-tango.mjs import（/api/metrics 计数端点）。
-  const relayAssets = ['web/relay/boot.js', 'web/relay/shell.js', 'web/relay/home.js', 'web/relay/flow.js', 'web/relay/passport.js', 'web/relay/discover.js', 'web/relay/matcher.js', 'web/relay/store.js', 'web/relay/i18n.js', 'web/relay/contracts.js', 'web/relay/baton.js', 'web/relay/external-apps.js', 'web/relay/scenes.zh.json', 'web/relay/relay.css'];
-  const assets = ['web/app-auth.js', 'web/app-auth.css', 'web/users-admin.js', 'web/users-admin.css', 'web/paper.css', 'web/appearance.css', 'web/appearance.js', 'web/locale-copy.js', 'web/ai-relay.js', ...relayAssets, ...await brandFiles('web/brand')];
+  const relayAssets = ['web/relay/boot.js', 'web/relay/shell.js', 'web/relay/home.js', 'web/relay/flow.js', 'web/relay/passport.js', 'web/relay/discover.js', 'web/relay/matcher.js', 'web/relay/store.js', 'web/relay/i18n.js', 'web/relay/contracts.js', 'web/relay/baton.js', 'web/relay/external-apps.js', 'web/relay/scenes.zh.json', 'web/relay/relay.css', 'web/relay/slots.js'];
+  const storyAssets = ['web/story/contracts.js', 'web/story/definitions.js', 'web/story/demo-data.js', 'web/story/narrative.js', 'web/story/player.js', 'web/story/soundtrack.js', 'web/story/store.js', 'web/story/shelf.js', 'web/story/poster.js', 'web/story/story.css', ...['cover', 'count', 'spectrum', 'day', 'learned', 'freed', 'rhythm', 'four', 'wish', 'poster-page'].map(name => 'web/story/pages/' + name + '.js')];
+  const socialAssets = ['web/social/contracts.js', 'web/social/home.js', 'web/social/social.css', 'web/social/features-client.js'];
+  const voiceAssets = ['web/voice/contracts.js'];
+  const assets = ['web/app-auth.js', 'web/app-auth.css', 'web/users-admin.js', 'web/users-admin.css', 'web/paper.css', 'web/appearance.css', 'web/appearance.js', 'web/locale-copy.js', 'web/ai-relay.js', ...relayAssets, ...storyAssets, ...socialAssets, ...voiceAssets, ...await brandFiles('web/brand')];
   const sources = await Promise.all([...files, ...assets].map(async path => [path, await readFile(join(root, path))]));
   const html = sources[0][1].toString('utf8');
   if (!html.includes('Done&amp;Go') || !html.includes('tango-time-core')) throw new Error('Done&Go entry is missing');
@@ -33,7 +36,7 @@ export async function buildRelease({ outputParent = join(root, 'dist-web') } = {
   // vm.Script rejects export statements, so module assets get the same
   // node --check ESM syntax validation the verify:web chain runs instead.
   // web/relay/*.js are the same kind of ES modules (boot.js import()s them).
-  const isModuleAsset = path => path === 'web/ai-parse.js' || (path.startsWith('web/relay/') && path.endsWith('.js'));
+  const isModuleAsset = path => path === 'web/ai-parse.js' || (path.startsWith('web/relay/') && path.endsWith('.js')) || (path.startsWith('web/story/') && path.endsWith('.js')) || (path.startsWith('web/social/') && path.endsWith('.js')) || (path.startsWith('web/voice/') && path.endsWith('.js'));
   for (const [path, source] of sources.filter(([path]) => path.startsWith('web/') && path.endsWith('.js') && !isModuleAsset(path))) new vm.Script(source.toString('utf8'), { filename: path });
   for (const [path] of sources.filter(([path]) => isModuleAsset(path))) await execFile(process.execPath, ['--check', join(root, path)]);
   await mkdir(outputParent, { recursive: true });
@@ -44,7 +47,9 @@ export async function buildRelease({ outputParent = join(root, 'dist-web') } = {
     await writeFile(join(directory, path), source, { flag: 'wx' });
     manifest.files[path] = createHash('sha256').update(source).digest('hex');
   }
-  await writeFile(join(directory, 'package.json'), JSON.stringify({ name: 'tango-donego', version: '0.1.0-local', private: true, type: 'module', engines: { node: '>=22.22' }, scripts: { start: 'node scripts/serve-tango.mjs', 'verify:production': 'node scripts/production-readiness.mjs' }, dependencies: { nodemailer: '10.0.9' } }, null, 2) + '\n', { flag: 'wx' });
+  await writeFile(join(directory, 'package.json'), JSON.stringify({ name: 'tango-donego', version: '0.1.0-local', private: true, type: 'module', engines: { node: '>=22.22' }, scripts: { start: 'node scripts/serve-tango.mjs', 'verify:production': 'node scripts/production-readiness.mjs' }, dependencies: { nodemailer: '10.0.9', ws: '8.22.0' } }, null, 2) + '\n', { flag: 'wx' });
+  await mkdir(join(directory, 'node_modules'), { recursive: true });
+  await execFile(process.execPath, ['-e', "require('fs').cpSync(require('path').dirname(require.resolve('ws/package.json')), process.argv[1] + '/node_modules/ws', { recursive: true })", directory]).catch(() => {});
   await writeFile(join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
   return { directory, manifest };
 }

@@ -63,14 +63,14 @@ async function startServer(t, options) {
   return server;
 }
 
-test('MODES is exactly the six product modes plus the internal test mode', () => {
+test('MODES includes the six product modes, internal test mode, and integrated relay/story modes', () => {
   const source = readFileSync(new URL('../../scripts/ai-assistant.mjs', import.meta.url), 'utf8');
   const start = source.indexOf('const MODES = [');
   const end = source.indexOf('];', start);
   assert.ok(start >= 0 && end > start, 'ai-assistant.mjs must declare MODES');
   const modesText = source.slice(start + 'const MODES = ['.length, end);
   const modes = [...modesText.matchAll(/["']([^"']+)["']/g)].map(item => item[1]);
-  assert.deepEqual(modes, ['chat', 'priorities', 'models', 'reflection', 'test', 'parse', 'prompt']);
+  assert.deepEqual(modes, ['chat', 'priorities', 'models', 'reflection', 'test', 'parse', 'prompt', 'relay', 'route', 'story']);
   assert.deepEqual([...new Set(modes)], modes, 'MODES values must be unique');
 });
 test('each product mode runs three times through a deterministic local fixture', async () => {

@@ -11,7 +11,7 @@ test('a Done&Go release contains the actual web app and verifiable files without
   const output = await mkdtemp(join(tmpdir(), 'tango-release-test-'));
   const release = await buildRelease({ outputParent: output });
   const files = await readdir(release.directory);
-  assert.deepEqual(files.sort(), ['manifest.json', 'package.json', 'scripts', 'server', 'web']);
+  assert.deepEqual(files.sort(), ['manifest.json', 'node_modules', 'package.json', 'scripts', 'server', 'web']);
   const html = await readFile(join(release.directory, 'web/index.html'), 'utf8');
   assert.match(html, /探戈/);
   assert.match(html, /Done&amp;Go/);
@@ -31,7 +31,7 @@ test('a Done&Go release contains the actual web app and verifiable files without
   // relay v2（集成线）：boot.js 是 index.html 的运行时入口，其余 web/relay/*
   // 经它 dynamic import / fetch（scenes.zh.json 为场景库数据），metrics.mjs 由
   // serve-tango.mjs import——发布缺任何一个，打包后的 serve-tango 或前端即断。
-  expected.push('web/relay/boot.js', 'web/relay/shell.js', 'web/relay/home.js', 'web/relay/flow.js', 'web/relay/passport.js', 'web/relay/discover.js', 'web/relay/matcher.js', 'web/relay/store.js', 'web/relay/i18n.js', 'web/relay/contracts.js', 'web/relay/baton.js', 'web/relay/external-apps.js', 'web/relay/scenes.zh.json', 'web/relay/relay.css', 'scripts/metrics.mjs');
+  expected.push('web/relay/boot.js', 'web/relay/shell.js', 'web/relay/home.js', 'web/relay/flow.js', 'web/relay/passport.js', 'web/relay/discover.js', 'web/relay/matcher.js', 'web/relay/store.js', 'web/relay/i18n.js', 'web/relay/contracts.js', 'web/relay/baton.js', 'web/relay/external-apps.js', 'web/relay/scenes.zh.json', 'web/relay/relay.css', 'web/relay/slots.js', 'web/story/contracts.js', 'web/story/definitions.js', 'web/story/demo-data.js', 'web/story/narrative.js', 'web/story/player.js', 'web/story/soundtrack.js', 'web/story/store.js', 'web/story/shelf.js', 'web/story/poster.js', 'web/story/story.css', 'web/story/pages/cover.js', 'web/story/pages/count.js', 'web/story/pages/spectrum.js', 'web/story/pages/day.js', 'web/story/pages/learned.js', 'web/story/pages/freed.js', 'web/story/pages/rhythm.js', 'web/story/pages/four.js', 'web/story/pages/wish.js', 'web/story/pages/poster-page.js', 'web/social/contracts.js', 'web/social/home.js', 'web/social/social.css', 'web/social/features-client.js', 'web/voice/contracts.js', 'scripts/metrics.mjs', 'scripts/voice-gateway.mjs', 'scripts/intent.mjs', 'scripts/social-service.mjs', 'scripts/social-store.mjs', 'scripts/social-features.mjs');
   assert.deepEqual(Object.keys(manifest.files).sort(), expected.slice().sort());
   for (const path of expected) {
     const bytes = await readFile(join(release.directory, path));
@@ -40,6 +40,7 @@ test('a Done&Go release contains the actual web app and verifiable files without
   const pkg = JSON.parse(await readFile(join(release.directory, 'package.json'), 'utf8'));
   assert.equal(pkg.scripts.start, 'node scripts/serve-tango.mjs');
   assert.equal(pkg.dependencies.nodemailer, '10.0.9');
+  assert.equal(pkg.dependencies.ws, '8.22.0');
   // Import the packaged entry itself so missing transitive modules fail here.
   const packaged = await import(pathToFileURL(join(release.directory, 'scripts/serve-tango.mjs')).href);
   const server = packaged.createTangoServer();

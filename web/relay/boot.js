@@ -328,7 +328,7 @@ function routeStart() {
 function routeSync() {
   teardownPage();
   var token = ++pendingToken;
-  Promise.all([import('../social/home.js'), applyI18n()]).then(function (loaded) {
+  Promise.all([import('../social/home.js'), import('../social/contracts.js'), applyI18n()]).then(function (loaded) {
     if (token !== pendingToken) return;
     var info = shellApi && shellApi.routeInfo();
     if (!info || info.route !== 'sync') return;
@@ -338,8 +338,17 @@ function routeSync() {
     var home = socialMod.createSocialHome({ onMetric: postMetric });
     pageCtl = home;
     home.mount(node);
-    win.fetch('/api/social/lab/style-card').then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
-      if (data) home.update({ styleCard: data.styleCard, myGraduations: data.graduations });
+    win.fetch('/api/social/state').then(function (r) { return r.ok ? r.json() : null; }).then(function (state) {
+      if (!state || state.optIn !== true) return;
+      return Promise.all([
+        win.fetch('/api/social/matches').then(function (r) { return r.ok ? r.json() : null; }),
+        win.fetch('/api/social/profile').then(function (r) { return r.ok ? r.json() : null; }),
+      ]).then(function (parts) {
+        var matches = parts[0] && Array.isArray(parts[0].matches) ? parts[0].matches : [];
+        var profile = parts[1] && parts[1].features ? parts[1].features : null;
+        var styleCard = profile ? loaded[1].buildStyleCard(profile) : null;
+        home.update({ styleCard: styleCard, matches: matches, myGraduations: profile && profile.graduations });
+      });
     }).catch(function () {});
   }).catch(function () {});
   return '<div id="rv2-sync" aria-busy="true"></div>';
@@ -349,26 +358,28 @@ function routeSync() {
 function routeStory() {
   teardownPage();
   var token = ++pendingToken;
-  Promise.all([import('../story/player.js'), import('../story/demo-data.js'), import('../story/pages/cover.js'), import('../story/pages/count.js'), import('../story/pages/spectrum.js'), import('../story/pages/day.js'), import('../story/pages/learned.js'), import('../story/pages/freed.js'), import('../story/pages/rhythm.js'), import('../story/pages/four.js'), import('../story/pages/wish.js'), import('../story/pages/poster-page.js'), import('../story/soundtrack.js')]).then(function (mods) {
+  Promise.all([import('../story/player.js'), import('../story/demo-data.js'), import('../story/store.js'), import('../story/pages/cover.js'), import('../story/pages/count.js'), import('../story/pages/spectrum.js'), import('../story/pages/day.js'), import('../story/pages/learned.js'), import('../story/pages/freed.js'), import('../story/pages/rhythm.js'), import('../story/pages/four.js'), import('../story/pages/wish.js'), import('../story/pages/poster-page.js'), import('../story/soundtrack.js')]).then(function (mods) {
     if (token !== pendingToken) return;
     var info = shellApi && shellApi.routeInfo();
     if (!info || info.route !== 'story') return;
     var node = mountNode('rv2-story');
     if (!node) return;
-    var chapter = mods[1].previewChapter('student');
-    var pageMods = mods.slice(2, 12);
+    var storyStore = mods[2].createStoryStore({ root: win });
+    var chapters = storyStore.chapters();
+    var chapter = chapters.length ? chapters[chapters.length - 1] : mods[1].previewChapter('student');
+    var pageMods = mods.slice(3, 13);
     var renderers = {};
     pageMods.forEach(function (mod) {
       if (mod.PAGE_TYPE && typeof mod.renderPage === 'function') renderers[mod.PAGE_TYPE] = mod.renderPage;
     });
-    renderers.savedTime = mods[7].renderSavedTimePage;
-    renderers.rhythm = mods[8].renderRhythmPage;
-    renderers.panels = mods[9].renderPanelsPage;
-    renderers.wish = mods[10].renderWishPage;
-    renderers.poster = mods[11].renderPosterPage;
+    renderers.savedTime = mods[8].renderSavedTimePage;
+    renderers.rhythm = mods[9].renderRhythmPage;
+    renderers.panels = mods[10].renderPanelsPage;
+    renderers.wish = mods[11].renderWishPage;
+    renderers.poster = mods[12].renderPosterPage;
     var player = mods[0].createStoryPlayer({
       root: win, doc: doc, win: win, mount: node, chapter: chapter,
-      audio: mods[12].createAudioAdapter({ pageCount: chapter.pages.length }),
+      audio: mods[13].createAudioAdapter({ pageCount: chapter.pages.length }),
       renderPage: function (page, index, ctx) {
         var fn = renderers[page.type];
         if (fn) return fn(page, ctx);
@@ -665,16 +676,14 @@ function onLogin() {
     var result = null;
     try { result = mod.promoteGuestStore({ root: win }); } catch (e) { result = null; }
     return ensureStore(true).then(function () {
-      return import('../story/store.js').then(function (storyMod) {
-        var guest = win.localStorage;
-        var account = win.TangoAccountStorage;
-        var key = 'tango-donego.story.v1';
-        var raw = guest && guest.getItem(key);
-        if (raw && account && !account.getItem(key)) account.setItem(key, raw);
-      }).catch(function () {}).then(function () {
-        if (shellApi) shellApi.handleHash();
-        return result;
+      var guest = win.localStorage;
+      var account = win.TangoAccountStorage;
+      var keys = ['tango-donego.story.v1', 'tango-donego.social.onboarding.v1', 'tango-donego.voice.v1'];
+      if (guest && account) keys.forEach(function (key) {
+        try { var raw = guest.getItem(key); if (raw && !account.getItem(key)) account.setItem(key, raw); } catch (e) { /* promotion is best effort */ }
       });
+      if (shellApi) shellApi.handleHash();
+      return result;
     });
   }).catch(function () { /* 提升失败不阻塞登录 */ });
 }

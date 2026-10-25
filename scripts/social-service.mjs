@@ -339,6 +339,8 @@ export function createSocialService(options = {}) {
     return publicState(store.setAlias(actor.id, { alias, avatarColor: body.avatarColor }));
   });
 
+  on('GET', /^\/api\/social\/profile$/, 'read', (actor, _body, ctx) => ({ features: store.getProfile(actor.id, weekParam(ctx.query)) }), { optIn: true });
+
   on('POST', /^\/api\/social\/profile$/, 'write', (actor, body) => {
     const result = validateFeaturesUpload(body); // D2 白名单：未知字段拒绝
     if (!result.ok) throw socialError('UPLOAD_FIELDS_REJECTED', 400);
