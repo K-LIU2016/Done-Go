@@ -8,8 +8,9 @@
      ① 正在听（WS 流式转写，灰=partial 黑=final）→ ② 正在理解（锁定转写+高亮+骨架）
      → ③ 听出了几件事（事件卡可编辑/纠正/全部加入）→ ④ 加入后的首页（模拟列表演示，二期才接真实首页）。
      数据契约唯一来源：/voice/contracts.js（commit 77a59d5）。
-     V1–V5（capture/stream-client/transcript-view/intent-view/voice-sheet）未合入前，本页内置
-     参考实现（走同一 contracts）；合入状态显示在顶部实验条，函数级接线待集成节点对齐。 -->
+     capture.js/pcm-worklet.js 已接线：真实麦克风 → AudioWorklet 16k/60ms PCM → WS 二进制上行
+     （SPEC §2/§3）；stream-client 等其余 V 模块仍用本页内置参考实现（同一 contracts 契约），
+     合入状态显示在顶部实验条。 -->
 <style>
 /* Tokens shared with relay-v2 (design/relay-v2/SPEC.md §3) + voice-specific tokens below. */
 :root{
@@ -205,6 +206,7 @@ html,body{background:#2a2b27;font-family:var(--font);-webkit-font-smoothing:anti
 
 <script type="module">
 import * as contracts from '/voice/contracts.js';
+import { createVoiceCapture, waveformBarHeights } from '/voice/capture.js';
 
 const $ = (id) => document.getElementById(id);
 const KIND_LABELS = { necessary: '必要', create: '创造', connect: '协作', explore: '探索', restore: '恢复', stillness: '静息' };
@@ -218,7 +220,7 @@ const S = {
   ws: null, wsState: null, wsFatal: false,
   items: [], addedItems: [], transcript: '',
   startedAt: 0, timerId: null, silenceId: null, limitId: null, lastFinalAt: 0,
-  micStream: null, micRAF: 0, waveMode: 'demo',
+  capture: null, waveMode: 'demo', wsReady: false, wsEnded: false, pcmQueue: [],
   intentMeta: null, editBase: null,
 };
 
@@ -235,7 +237,7 @@ async function probeModules() {
   if (serverInfo) {
     gw.textContent = `asr ${serverInfo.modules.gateway.mode}`; gw.className = `badge ${serverInfo.modules.gateway.mode}`;
     it.textContent = `intent ${serverInfo.modules.intent.mode}`; it.className = `badge ${serverInfo.modules.intent.mode}`;
-    gw.title = `WS ${serverInfo.wsPath} · V1–V5 前端模块 ${frontOn}/5 已合入（本页用内置参考实现，接线待集成对齐）`;
+    gw.title = `WS ${serverInfo.wsPath} · V1–V5 前端模块 ${frontOn}/5 已合入（本页 WS 为内置参考实现；capture/pcm-worklet 已接线真实 PCM 上行）`;
     it.title = `POST ${serverInfo.modules.intent.name || ''}`;
   } else {
     gw.textContent = 'asr 不可达'; gw.className = 'badge demo';
@@ -310,35 +312,44 @@ function renderTranscript() {
   if (caret.previousSibling !== txEl.lastChild && caret !== txEl.lastChild) txEl.appendChild(caret);
 }
 
-// —— 波形：真实麦克风 AnalyserNode 优先；失败/demo 回放用「帧到达脉冲」驱动（如实：非假随机动画）——
+// —— 采集与波形：capture.js 真实麦克风 → AudioWorklet 16k/16bit/60ms PCM（SPEC §2/§3）——
+// 波形由 onLevel 的 RMS 驱动（waveformBarHeights 确定性形状）；麦克风被拒时 demo 波形 + 打字降级兜底。
 const waveEl = $('wave');
 for (let i = 0; i < 15; i++) waveEl.appendChild(document.createElement('b'));
 const bars = waveEl.children;
-async function startMicLevel() {
+function renderMicWave(level) {
+  S.waveMode = 'mic';
+  const heights = waveformBarHeights(level);
+  for (let i = 0; i < bars.length; i++) bars[i].style.height = heights[i] + 'px';
+}
+function sendPcm(samples) {
+  const ws = S.ws;
+  if (ws && ws.readyState === WebSocket.OPEN && S.wsReady) { try { ws.send(samples); } catch {} return; }
+  if (S.pcmQueue.length < 300) S.pcmQueue.push(samples); // WS 未就绪先排队（~18s 上限，防内存无界）
+}
+async function startMic() {
   try {
-    S.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const ctx = new AudioContext();
-    const src = ctx.createMediaStreamSource(S.micStream);
-    const analyser = ctx.createAnalyser(); analyser.fftSize = 256;
-    src.connect(analyser);
-    const buf = new Uint8Array(analyser.frequencyBinCount);
-    S.waveMode = 'mic';
-    const tick = () => {
-      analyser.getByteTimeDomainData(buf);
-      let sum = 0; for (const v of buf) sum += (v - 128) ** 2;
-      const rms = Math.sqrt(sum / buf.length) / 64; // 0..~1
-      for (let i = 0; i < bars.length; i++) bars[i].style.height = Math.max(8, Math.min(40, 8 + rms * 34 * (0.7 + 0.3 * Math.sin(i * 1.7 + performance.now() / 90)))) + 'px';
-      S.micRAF = requestAnimationFrame(tick);
-    };
-    tick();
-  } catch { S.waveMode = 'demo'; /* 麦克风被拒：SPEC §3 capture 的提示职责，此处 demo 波形兜底 */ }
+    const cap = createVoiceCapture({
+      workletURL: '/voice/pcm-worklet.js',
+      onFrame: (samples) => sendPcm(samples), // 16k/16bit/mono，60ms 一帧 → WS 二进制上行
+      onLevel: (level) => renderMicWave(level),
+      onAutoStop: () => finishSpeaking(), // 静音 2s / 60s 上限由 capture.js 状态机驱动（SPEC §3）
+    });
+    S.capture = cap;
+    await cap.start();
+  } catch (error) {
+    S.capture = null; S.waveMode = 'demo'; // 麦克风被拒/不可用：SPEC §3 提示职责，demo 波形 + 打字降级兜底
+    const line = $('errline');
+    line.textContent = (error && error.message) || '麦克风启动失败，可以重试，或直接打字。';
+    line.classList.remove('hidden');
+    $('fallback').classList.remove('hidden');
+  }
 }
 function pulseWave() { if (S.waveMode !== 'demo') return; for (let i = 0; i < bars.length; i++) bars[i].style.height = Math.max(8, Math.min(40, 10 + Math.random() * 30)) + 'px'; }
 function idleWave() { if (S.waveMode !== 'demo') return; for (const b of bars) b.style.height = '8px'; }
 function stopMic() {
-  cancelAnimationFrame(S.micRAF);
-  S.micStream?.getTracks().forEach((t) => t.stop());
-  S.micStream = null; S.waveMode = 'demo'; idleWave();
+  try { S.capture?.stop(); } catch {}
+  S.capture = null; S.waveMode = 'demo'; idleWave();
 }
 
 // —— 计时与自动收尾 ——
@@ -363,18 +374,25 @@ function wsConnect() {
   const open = () => {
     const ws = new WebSocket(`${proto}://${location.host}/api/voice/stream`);
     S.ws = ws; S.wsState = contracts.initTranscriptState(); renderedPartial = ''; txEl.textContent = '';
+    S.wsReady = false; S.wsEnded = false;
     const caret = document.createElement('span'); caret.className = 'caret'; txEl.appendChild(caret);
-    ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'start', sampleRate: contracts.VOICE_SAMPLE_RATE })));
+    ws.addEventListener('open', () => {
+      ws.send(JSON.stringify({ type: 'start', sampleRate: contracts.VOICE_SAMPLE_RATE }));
+      S.wsReady = true;
+      for (const samples of S.pcmQueue) { try { ws.send(samples); } catch {} } // 连接建立前攒下的 PCM 帧补发
+      S.pcmQueue.length = 0;
+    });
     ws.addEventListener('message', (event) => {
       let msg; try { msg = JSON.parse(event.data); } catch { return; }
       try { S.wsState = contracts.applyServerMessage(S.wsState, msg); } catch { return; }
       if (msg.type === 'partial' || msg.type === 'final') { renderTranscript(); pulseWave(); }
       if (msg.type === 'final') { armSilence(); idleWaveSoon(); }
       if (msg.type === 'error') { wsError(msg.code); }
-      if (msg.type === 'end') { ws.close(); }
+      if (msg.type === 'end') { S.wsEnded = true; ws.close(); } // 服务端正常收尾：标记后不再重连
     });
     ws.addEventListener('close', () => {
-      if (S.phase === 'listening' && !S.wsFatal && !retried) { retried = true; open(); return; } // 重连一次（SPEC §3）
+      S.wsReady = false;
+      if (S.phase === 'listening' && !S.wsFatal && !S.wsEnded && !retried) { retried = true; open(); return; } // 传输断开重连一次（SPEC §3）；end 是正常收尾，不重连
       if (S.phase === 'listening') toUnderstanding();
     });
     ws.addEventListener('error', () => { /* close 会跟进来 */ });
@@ -401,7 +419,7 @@ function finishSpeaking() {
 function transcriptText() { return contracts.transcriptView(S.wsState).finalText + contracts.transcriptView(S.wsState).partialText; }
 function toUnderstanding(textOverride) {
   if (S.phase !== 'listening' && textOverride === undefined) return;
-  S.transcript = textOverride ?? transcriptText().trim() || S.transcript;
+  S.transcript = textOverride ?? (transcriptText().trim() || S.transcript);
   if (!S.transcript) { reset(); return; }
   setPhase('understanding');
   stopMic();
@@ -548,12 +566,13 @@ function setPhase(phase) {
 function startListening() {
   setPhase('listening');
   $('timer').textContent = '0:00';
-  startTimer(); armLimit(); armSilence();
-  startMicLevel();
+  startTimer(); armLimit(); // 静音 2s 自动结束由 capture.js 状态机驱动（spokenOnce 后才断句，SPEC §3）；final 到达仍会重挂 armSilence 兜底
+  startMic();
   wsConnect();
 }
 function reset() {
   clearTimeout(S.silenceId); clearTimeout(S.limitId); clearInterval(S.timerId);
+  S.wsReady = false; S.wsEnded = false; S.pcmQueue.length = 0;
   if (S.ws) { S.wsFatal = true; try { S.ws.close(); } catch {} }
   stopMic();
   S.items = []; S.transcript = ''; S.editBase = null; S.wsFatal = false;

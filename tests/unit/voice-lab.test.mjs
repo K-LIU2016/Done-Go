@@ -86,6 +86,25 @@ T('装配冒烟：createVoiceLabServer 返回可 listen 的 http server，tango 
   await server.voiceLab.close();
 });
 
+T('lab.html 内联 module 脚本可被引擎解析（b85ba5d ?? 与 || 未加括号混用导致整页死锁的回归钉）', async () => {
+  const { readFileSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { spawnSync } = await import('node:child_process');
+  const { join } = await import('node:path');
+  const html = readFileSync(new URL('../../web/voice/lab.html', import.meta.url), 'utf8');
+  const m = html.match(/<script type="module">([\s\S]*?)<\/script>/);
+  assert.ok(m, 'lab.html 应有内联 module 脚本');
+  const dir = mkdtempSync(join(tmpdir(), 'vi-lab-inline-'));
+  const file = join(dir, 'inline.mjs');
+  writeFileSync(file, m[1]);
+  try {
+    const r = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
+    assert.equal(r.status, 0, `内联脚本语法错误（整页将死锁）:\n${r.stderr}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 T('服务器可起可关：close 后再请求连接被拒，重复 close 安全', async () => {
   const { server, port } = await startLab();
   assert.ok(port > 0);
