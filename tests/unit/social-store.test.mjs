@@ -161,6 +161,29 @@ test('S3: poolCandidates honours opt-in and the minor flag; circle peers exclude
   store.close();
 });
 
+test('S3: pool/peer candidate cache invalidates on every committed write (PRD §7 weekly batch + live delta)', () => {
+  const store = mkStore();
+  store.optIn('cache-a', { enabled: true, minor: false, alias: '缓甲', avatarColor: '#4C7A93' });
+  store.saveProfile('cache-a', mkFeatures({ graduations: 2 }));
+  store.optIn('cache-b', { enabled: true, minor: false, alias: '缓乙', avatarColor: '#E8B04B' });
+  store.saveProfile('cache-b', mkFeatures());
+  assert.deepEqual(store.poolCandidates(WEEK).map((c) => c.account), ['cache-a', 'cache-b'], 'first read fills the cache');
+  assert.equal(store.poolCandidates(WEEK).length, 2, 'second read hits the cache');
+  store.optIn('cache-c', { enabled: true, minor: false, alias: '缓丙', avatarColor: '#E95432' });
+  store.saveProfile('cache-c', mkFeatures({ graduations: 7 }));
+  const after = store.poolCandidates(WEEK);
+  assert.deepEqual(after.map((c) => c.account), ['cache-a', 'cache-b', 'cache-c'], 'cache invalidates after a committed write');
+  assert.equal(after.find((c) => c.account === 'cache-c').graduations, 7, 'fresh profile is visible, not a stale snapshot');
+  store.optIn('cache-a', { enabled: false, minor: false });
+  assert.deepEqual(store.poolCandidates(WEEK).map((c) => c.account), ['cache-b', 'cache-c'], 'opt-out evicts from the cached pool view immediately');
+  store.createCircle({ id: 'cc', name: '缓存圈', inviteCode: 'TANGO99', owner: 'cache-b' });
+  store.joinCircle('cc', 'cache-c');
+  assert.deepEqual(store.circlePeerCandidates('cache-b', WEEK).map((p) => p.account), ['cache-c'], 'peer candidates reflect circle joins immediately');
+  store.leaveCircle('cc', 'cache-c');
+  assert.deepEqual(store.circlePeerCandidates('cache-b', WEEK), [], 'peer candidates reflect circle leaves immediately');
+  store.close();
+});
+
 // ---------------------------------------------------------------------------
 // 分享事件 + kudos。
 // ---------------------------------------------------------------------------

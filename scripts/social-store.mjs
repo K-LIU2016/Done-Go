@@ -214,6 +214,26 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
   const schemaVersion = migrate(db);
   tighten();
 
+  // 候选池读缓存（PRD §7「匹配每周批量 + 实时增量」）：pool/peers 的行解析
+  // （万级 JSON.parse 实测 ≈124ms/万行）是 /matches 全链路最大成本项，而
+  // 这些集合只随三张表变化：social_accounts / profiles_weekly / circle_members。
+  // 失效策略：改这三张表的写点（optIn/setAlias/markOnboardingSeen/saveProfile/
+  // createCircle/joinCircle/removeCircleMember/leaveCircle/purgeAccount）在事务
+  // 成功后显式 bumpGraphCache()，其余写（kudos/发棒/挑战等）不清缓存 ——
+  // 宁可多失效，不给陈旧候选留缝。返回值是共享只读快照，调用方只遍历/过滤。
+  const poolCache = new Map();
+  const POOL_CACHE_MAX = 512;
+  let graphVersion = 0;
+  const bumpGraphCache = () => { graphVersion += 1; poolCache.clear(); };
+  const cachedGraph = (key, compute) => {
+    const hit = poolCache.get(key);
+    if (hit && hit.version === graphVersion) return hit.value;
+    const value = compute();
+    if (poolCache.size >= POOL_CACHE_MAX) poolCache.delete(poolCache.keys().next().value);
+    poolCache.set(key, { version: graphVersion, value });
+    return value;
+  };
+
   function transaction(fn) {
     db.exec('BEGIN IMMEDIATE');
     try { const result = fn(); db.exec('COMMIT'); tighten(); return result; }
@@ -251,7 +271,7 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
   };
 
   const api = {
-    close() { tighten(); db.close(); },
+    close() { tighten(); poolCache.clear(); db.close(); },
     schemaVersion: () => schemaVersion,
     indexNames: () => all("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%'").map((row) => row.name),
     tableCounts() {
@@ -276,7 +296,7 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
       requireValue(alias && avatarColor);
       const minor = enabled ? input.minor === true : !!existing?.is_minor;
       const stamp = now();
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         db.prepare(`INSERT INTO social_accounts(account, alias, avatar_color, is_minor, opted_in, created_at, updated_at)
           VALUES (?,?,?,?,?,?,?)
           ON CONFLICT(account) DO UPDATE SET alias=excluded.alias, avatar_color=excluded.avatar_color,
@@ -284,6 +304,8 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
           .run(id, alias, avatarColor, minor ? 1 : 0, enabled ? 1 : 0, existing?.created_at || stamp, stamp);
         return api.getState(id);
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
     setAlias(account, input = {}) {
       const id = accountText(account);
@@ -291,11 +313,13 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
       const alias = validateAlias(input.alias);
       requireValue(alias);
       const avatarColor = isAvatarColor(input.avatarColor) ? input.avatarColor : null;
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         db.prepare('UPDATE social_accounts SET alias=?, avatar_color=COALESCE(?, avatar_color), updated_at=? WHERE account=?')
           .run(alias, avatarColor, now(), id);
         return api.getState(id);
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
     // 「已看过会分享什么」幂等标记（PRD §5）。账号行不存在时用调用方给的
     // 化名/头像色占位建档（opted_in=0）；之后的 /opt-in 会复用这个化名。
@@ -303,7 +327,7 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
       const id = accountText(account);
       requireValue(id);
       const stamp = now();
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         const existing = get('SELECT * FROM social_accounts WHERE account=?', id);
         if (existing) {
           db.prepare('UPDATE social_accounts SET onboarding_seen=1, updated_at=? WHERE account=?').run(stamp, id);
@@ -316,6 +340,8 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
         }
         return api.getState(id);
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
 
     // ---- 每周画像（D2 白名单在存储边界） -----------------------------------
@@ -323,11 +349,13 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
       const id = accountText(account);
       const sanitized = sanitizeFeaturesUpload(features);
       requireValue(id && sanitized);
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         db.prepare('INSERT OR REPLACE INTO profiles_weekly(account, week, features, uploaded_at) VALUES (?,?,?,?)')
           .run(id, sanitized.week, JSON.stringify(sanitized), now());
         return sanitized;
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
     getProfile: (account, week) => {
       const row = get('SELECT features FROM profiles_weekly WHERE account=? AND week=?', accountText(account), week);
@@ -335,10 +363,10 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
     },
     poolCandidates(week, { allowMinors = false } = {}) {
       requireValue(typeof week === 'string' && week);
-      return all(`SELECT s.account AS account, s.alias AS alias, s.avatar_color AS avatar_color, p.features AS features
+      return cachedGraph(`pool:${week}:${allowMinors ? 1 : 0}`, () => all(`SELECT s.account AS account, s.alias AS alias, s.avatar_color AS avatar_color, p.features AS features
         FROM social_accounts s JOIN profiles_weekly p ON p.account=s.account AND p.week=?
         WHERE s.opted_in=1 AND (?=1 OR s.is_minor=0)`, week, allowMinors ? 1 : 0)
-        .map((row) => { const features = JSON.parse(row.features); return { account: row.account, graduations: features.graduations, record: { alias: row.alias, avatarColor: row.avatar_color, features } }; });
+        .map((row) => { const features = JSON.parse(row.features); return { account: row.account, graduations: features.graduations, record: { alias: row.alias, avatarColor: row.avatar_color, features } }; }));
     },
     // 是否同圈（kudos 圈级挑战「圈内互相加油」的判定面）。
     isCirclePeer: (account, other) => !!get(
@@ -347,13 +375,13 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
     circlePeerCandidates(account, week, { allowMinors = true } = {}) {
       const id = accountText(account);
       requireValue(id && typeof week === 'string' && week);
-      return all(`SELECT DISTINCT s.account AS account, s.alias AS alias, s.avatar_color AS avatar_color, p.features AS features
+      return cachedGraph(`peers:${id}:${week}:${allowMinors ? 1 : 0}`, () => all(`SELECT DISTINCT s.account AS account, s.alias AS alias, s.avatar_color AS avatar_color, p.features AS features
         FROM circle_members mine
         JOIN circle_members theirs ON theirs.circle_id = mine.circle_id AND theirs.account <> ?
         JOIN social_accounts s ON s.account = theirs.account AND s.opted_in=1 AND (?=1 OR s.is_minor=0)
         JOIN profiles_weekly p ON p.account = theirs.account AND p.week=?
         WHERE mine.account=?`, id, allowMinors ? 1 : 0, week, id)
-        .map((row) => { const features = JSON.parse(row.features); return { account: row.account, graduations: features.graduations, record: { alias: row.alias, avatarColor: row.avatar_color, features } }; });
+        .map((row) => { const features = JSON.parse(row.features); return { account: row.account, graduations: features.graduations, record: { alias: row.alias, avatarColor: row.avatar_color, features } }; }));
     },
 
     // ---- 分享事件 + 加油 ----------------------------------------------------
@@ -515,12 +543,14 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
       const validated = validateCircle({ id, name: input.name, inviteCode });
       requireValue(validated && owner);
       requireValue(!get('SELECT 1 AS one FROM circles WHERE invite_code=?', inviteCode), 'CIRCLE_CODE_TAKEN', 409);
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         const stamp = now();
         db.prepare('INSERT INTO circles(id, name, invite_code, owner_account, created_at) VALUES (?,?,?,?,?)').run(validated.id, validated.name, validated.inviteCode, owner, stamp);
         db.prepare('INSERT INTO circle_members(circle_id, account, joined_at) VALUES (?,?,?)').run(validated.id, owner, stamp);
         return circleOf(circleRow(validated.id));
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
     findCircleByInvite: (code) => circleOf(get('SELECT * FROM circles WHERE invite_code=?', code)),
     getCircle: (id) => circleOf(circleRow(id)),
@@ -532,21 +562,25 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
       requireValue(member && circleRow(id), 'NOT_FOUND', 404);
       if (api.isCircleMember(id, member)) return { joined: true };
       requireValue(api.circleMemberCount(id) < CIRCLE_MAX_MEMBERS, 'CIRCLE_FULL', 409);
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         db.prepare('INSERT OR IGNORE INTO circle_members(circle_id, account, joined_at) VALUES (?,?,?)').run(id, member, now());
         return { joined: true };
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
     removeCircleMember(id, member) {
       requireValue(circleRow(id), 'NOT_FOUND', 404);
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         db.prepare('DELETE FROM circle_members WHERE circle_id=? AND account=?').run(id, accountText(member));
         return { removed: true };
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
     // 圈主离开：有成员则交给最早加入的成员；独守则整圈级联删除。
     leaveCircle(id, account) {
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         const circle = circleRow(id);
         requireValue(circle, 'NOT_FOUND', 404);
         const leaver = accountText(account);
@@ -558,6 +592,8 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
         }
         return { left: true };
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
     listCircles: (account) => all('SELECT c.* FROM circles c JOIN circle_members m ON m.circle_id=c.id WHERE m.account=? ORDER BY c.rowid', accountText(account)).map(circleOf),
 
@@ -699,7 +735,7 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
     purgeAccount(account) {
       const id = accountText(account);
       requireValue(id);
-      return transaction(() => {
+      const graphWrite = transaction(() => {
         const deleted = {};
         const del = (table, sql, ...params) => { const changes = db.prepare(sql).run(...params).changes; if (changes) deleted[table] = (deleted[table] || 0) + changes; };
         // 1) 搭档：两人关系随删；指向该搭档关系的传棒一并清
@@ -737,6 +773,8 @@ export function createSocialStore({ databaseFile = ':memory:', now = () => new D
         del('social_accounts', 'DELETE FROM social_accounts WHERE account=?', id);
         return { account: id, deleted };
       });
+      bumpGraphCache(); // 这张表在候选池面里：提交成功即失效
+      return graphWrite;
     },
 
     // 逐表复核某账号的残留引用（delete-me unit 的证明工具，与 purge 同一套谓词）。
