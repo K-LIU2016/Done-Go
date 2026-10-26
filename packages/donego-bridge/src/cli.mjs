@@ -1,12 +1,19 @@
 // donego-bridge CLI：pair/start/status 三个本机桥命令。
-// pair 只交换设备令牌；start 仅建立出站 WebSocket；status 只读本机状态文件。
+import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createBridgeClient } from './client/wss.mjs';
+import { createJsonRpcSession } from './codex/jsonrpc.mjs';
+import { createCodexAdapter } from './codex/adapter.mjs';
+import { createBridgeRuntime } from './runtime/session.mjs';
+import { chooseModel, chooseReviewModel } from './model/choose.mjs';
+import { decideApproval } from './policy/approvals.mjs';
+import { createMissionWorktree } from './git/worktree.mjs';
 import { deviceConfigPath, loadDeviceConfig, saveDeviceConfig } from './config.mjs';
 
 const usage = 'usage: donego-bridge pair <code> [--hub-url URL] | start | status';
 const defaultConfigDir = home => join(home, '.config', 'donego-bridge');
+const defaultRepoRoot = process.cwd();
 const defaultStateDir = home => join(home, '.local', 'state', 'donego-bridge');
 
 function print(io, line) { io?.print?.(line); }
@@ -44,10 +51,14 @@ export async function runCli(argv = [], deps = {}) {
     const code = argv[1];
     const hubUrl = option(argv, '--hub-url') ?? deps.hubUrl ?? 'https://127.0.0.1:3458';
     if (!code || argv.includes('--hub-url') && !option(argv, '--hub-url')) { print(io, usage); return { code: 2 }; }
+    const ownerToken = option(argv, '--owner-token') ?? deps.ownerToken ?? process.env.DONEGO_OWNER_TOKEN;
+    if (!ownerToken && !deps.fetchImpl) { print(io, 'pair failed: owner credential required (--owner-token)'); return { code: 2 }; }
     let response;
     try {
       response = await fetchImpl(`${hubUrl.replace(/\/$/, '')}/api/bridge/pair`, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }),
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(ownerToken ? { authorization: `Bearer ${ownerToken}` } : {}) },
+        body: JSON.stringify({ code }),
       });
     } catch (error) { print(io, `pair failed: ${error.message}`); return { code: 1 }; }
     if (!response || response.status < 200 || response.status >= 300) {
@@ -82,14 +93,64 @@ export async function runCli(argv = [], deps = {}) {
       return { code: 1 };
     }
   }
-  const client = createBridgeClient({
+  let client;
+  let adapter;
+  let runtime;
+  const sendEvent = event => client?.send({ type: 'bridge.event', event });
+  const repoRoot = deps.repoRoot ?? defaultRepoRoot;
+  const sessionFactory = deps.sessionFactory ?? (hooks => createJsonRpcSession({
+    spawn: deps.spawn ?? spawn,
+    argv: deps.codexArgv ?? ['codex', 'app-server', '--stdio'],
+    ...hooks,
+  }));
+  const makeAdapter = hooks => {
+    adapter = createCodexAdapter({
+      sessionFactory,
+      chooseModel,
+      chooseReviewModel,
+      decideApproval,
+      onNeed: hooks.onNeed,
+      log: deps.log,
+    });
+    return adapter;
+  };
+  if (deps.enableRuntime !== false) {
+    runtime = createBridgeRuntime({
+      makeAdapter,
+      repoRoot,
+      worktrees: deps.worktrees ?? { create: (missionId, options) => createMissionWorktree(repoRoot, missionId, options) },
+      chooseModel,
+      chooseReviewModel,
+      sendEvent,
+      stateFile: deps.stateFile ?? join(stateDir, 'runtime-state.json'),
+      log: deps.log,
+    });
+  }
+  const bridgeClient = createBridgeClient({
     url: wsUrl, token: config.token, WebSocket,
     heartbeatMs: deps.heartbeatMs, minBackoffMs: deps.minBackoffMs, maxBackoffMs: deps.maxBackoffMs,
-    onMessage: message => { saveState(stateDir, { ...loadState(stateDir), connected: true, lastMessageType: message?.type ?? null }); deps.onMessage?.(message); },
+    onMessage: message => {
+      saveState(stateDir, { ...loadState(stateDir), connected: true, lastMessageType: message?.type ?? null });
+      deps.onMessage?.(message);
+      if (message?.type === 'mission.command' && runtime) {
+        const command = message.command ? { ...message, type: message.command } : message.commandPayload;
+        Promise.resolve(runtime.handleCommand(command)).then(result => sendEvent({ type: 'mission.command.result', requestId: message.requestId, result }))
+          .catch(error => sendEvent({ type: 'mission.command.error', requestId: message.requestId, error: { code: error.code ?? 'INTERNAL_ERROR', message: error.message } }));
+      } else if (message?.type === 'need.answer' && adapter) {
+        adapter.resolveNeed(message.requestId, message.decision ?? message.answer);
+      }
+    },
     onRevoked: () => { saveState(stateDir, { ...loadState(stateDir), connected: false, lastError: 'DEVICE_REVOKED' }); print(io, 'device token revoked; run pair again'); deps.onRevoked?.(); },
     onStateChange: (state, info) => { saveState(stateDir, { ...loadState(stateDir), connected: state === 'connected', state, ...(info?.error ? { lastError: String(info.error.message ?? info.error) } : {}) }); deps.onStateChange?.(state, info); },
     log: deps.log,
   });
+  client = {
+    ...bridgeClient,
+    stop() {
+      bridgeClient.stop();
+      runtime?.close();
+    },
+  };
   client.connect();
   return { code: 0, client };
 }

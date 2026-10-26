@@ -137,6 +137,7 @@ async function start(hub, owner, dir, onMessage, onRevoked = () => {}) {
     heartbeatMs: 25,
     minBackoffMs: 15,
     maxBackoffMs: 60,
+    enableRuntime: false,
     onMessage,
     onRevoked,
     onStateChange: state => { if (state === 'connected') connected(); },
