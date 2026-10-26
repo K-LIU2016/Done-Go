@@ -3,6 +3,12 @@
     {
       "id": "grant-1",
       "ownerId": "x",
+      "revision": 1,
+      "schemaVersion": 1,
+      "createdAt": "2026-10-26T08:00:00Z",
+      "updatedAt": "2026-10-26T08:00:00Z",
+      "deletedAt": null,
+      "source": "demo",
       "contractHash": "0000000000000000000000000000000000000000000000000000000000000000",
       "actor": "x",
       "capabilities": [
@@ -15,6 +21,12 @@
     {
       "id": "grant-2",
       "ownerId": "x",
+      "revision": 1,
+      "schemaVersion": 1,
+      "createdAt": "2026-10-26T08:00:00Z",
+      "updatedAt": "2026-10-26T08:00:00Z",
+      "deletedAt": null,
+      "source": "demo",
       "contractHash": "0000000000000000000000000000000000000000000000000000000000000000",
       "actor": "x",
       "capabilities": [

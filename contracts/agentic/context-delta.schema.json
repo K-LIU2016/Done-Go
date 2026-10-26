@@ -31,12 +31,17 @@
       ]
     },
     "evidence": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
+      "type": "object",
+      "required": [
+        "imageRef"
+      ],
+      "properties": {
+        "imageRef": {
+          "type": "string",
+          "minLength": 1
+        }
       },
-      "minItems": 1
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,
