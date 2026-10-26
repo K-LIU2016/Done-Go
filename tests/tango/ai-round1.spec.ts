@@ -10,7 +10,7 @@ import { test, expect, type Page } from '@playwright/test';
  *          canned parse JSON incl. 晚上10点→22:00, canned prompt reply)
  *   17517  entry shim used only so playwright's globalSetup finds /__test/register
  *   17521  real scripts/serve-tango.mjs with TANGO_AI_PARSE=1 TANGO_AI_PROMPTS=1
- *          TANGO_AI_URL→stub TANGO_DEMO_MODE=1 (visitor, auto demo login)
+ *          TANGO_AI_URL→stub（演示模式已于 2026-10-26 移除：重新搭这套环境时需改为账号登录）
  *   17520  same as 17521 but TANGO_AI_DAILY_LIMIT=1
  *
  * Skipped unless TANGO_ROUND1_E2E=1, so the shared `verify:ui` gate never needs

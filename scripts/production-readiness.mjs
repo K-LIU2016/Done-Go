@@ -3,7 +3,6 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 export function productionReadiness(env){
  const missing=[];let config;
- if(env.TANGO_DEMO_MODE==='1')missing.push('demo-mode-not-production');
  try{config=readAuthConfig(env);}catch{missing.push('valid-email-and-session-configuration');}
  if(!env.TANGO_PUBLIC_ORIGIN)missing.push('https-public-origin');
  if(env.NODE_ENV!=='production')missing.push('production-mode');

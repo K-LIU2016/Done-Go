@@ -11,7 +11,6 @@
 <link rel="stylesheet" href="/users-admin.css">
 <script src="/users-admin.js"></script>
 <script defer src="/model-catalog-cn.js"></script>
-<script src="/demo-onboarding.js"></script>
 <link rel="stylesheet" href="/collaboration.css">
 <!-- TANGO:BODY-START -->
 <title>探戈 Done&amp;Go</title>
@@ -313,12 +312,6 @@ html:not([lang|=zh]) .fw-n b { margin-inline: .3em; }
 .seg button { border: 0; background: none; padding: 5px 14px; border-radius: 999px; cursor: pointer; font-size: 13.5px; color: var(--text-2); }
 .seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
 .block { display: grid; gap: 12px; }
-.demo-onboarding { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 16px; }
-.demo-onboarding-head, .demo-onboarding-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.demo-onboarding ol { display: grid; gap: 12px; margin: 0; padding-inline-start: 1.5em; }
-.demo-onboarding li { padding-inline-start: 2px; }
-.demo-onboarding input { display: block; width: 100%; min-height: 42px; margin-top: 6px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.demo-onboarding-action { justify-content: flex-start; flex-wrap: wrap; margin-top: 6px; }
 .stack-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: var(--line); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--text-2); }
 .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
@@ -729,9 +722,6 @@ window.TangoAppAuth.start(function (authUser) {
   var localStorage = window.TangoAccountStorage;
   var usersAdmin = window.TangoUsersAdmin.create({user:authUser,route:route,refresh:render});
   var developerUI = window.__TANGO_DEVELOPER_UI__ === true;
-  var demoStorage = null;
-  try { demoStorage = window.localStorage; } catch (e) {}
-  var demoOnboarding = window.TangoDemoOnboarding.create(demoStorage, authUser.id);
 
   var KINDS = {
     necessary: { label: '必要', color: 'var(--k-nec)' },
@@ -840,7 +830,7 @@ window.TangoAppAuth.start(function (authUser) {
     return emptyState();
   }
   var S = load();
-  if (!S.mode) S.mode = authUser.demo ? 'demo' : 'real';
+  if (!S.mode) S.mode = 'real';
   var collaboration = null, collaborationPersonal = null;
   S.trials = Array.isArray(S.trials) ? S.trials : [];
   S.methods = Array.isArray(S.methods) ? S.methods : [];
@@ -1513,7 +1503,7 @@ window.TangoAppAuth.start(function (authUser) {
       '<form id="capForm" class="say"><input id="cap-text" maxlength="600" value="' + esc(capState.text) + '" placeholder="14:00–15:00 开会" aria-label="说或写事项" autocomplete="off"><button id="capGo" type="submit" aria-label="整理"' + (capState.busy ? ' disabled' : '') + '>→</button></form>' +
       (aiFeatures.parse && assistantCfg ? '<button type="button" id="aiTidyBtn" class="btn sm" data-act="ai-tidy" aria-pressed="' + aiTidyOn + '">AI 整理' + (aiTidyOn ? ' · 开' : '') + '</button>' : '') +
       '<p id="capStatus" class="status' + (capState.warn ? ' warn' : '') + '" role="status">' + esc(capState.msg) + '</p>' + drafts() + '</section>' +
-      demoOnboarding.render() + '<div class="today-workspace"><div class="today-bubble-panel">' + bubbleField() + '</div><aside class="col paper-tools">' + timeOverview(list) + picker() + '</aside></div>' +
+      '<div class="today-workspace"><div class="today-bubble-panel">' + bubbleField() + '</div><aside class="col paper-tools">' + timeOverview(list) + picker() + '</aside></div>' +
       '<section class="companion-invite"><div><b>想一起理清今天？</b></div><div class="btns"><button class="btn sm primary" data-act="priorities-today">帮我排优先级</button><button class="btn sm" data-act="assistant-open">和探戈聊聊</button></div></section>' + pendingChoices() + todayRoute(list);
     return html;
   }
@@ -2446,7 +2436,7 @@ window.TangoAppAuth.start(function (authUser) {
   }
   function accountSettings() {
     var user = window.TangoCurrentUser;
-    if (!user || user.demo) return '';
+    if (!user) return '';
     var role = user.role === 'admin' ? '管理员' : '普通用户';
     return '<section class="block account-settings" id="account-settings"><h2>账号与安全</h2><p class="small muted">真实账号已登录。时间记录、AI 偏好、备份和导出仍保存在当前浏览器；协作页面的成员身份使用这个账号。</p><form id="account-profile-form" class="col" style="gap:14px"><div class="field"><label for="account-email">邮箱</label><input id="account-email" type="email" value="' + esc(user.email || '') + '" readonly></div><div class="field"><label for="account-display-name">称呼</label><input id="account-display-name" maxlength="80" value="' + esc(user.displayName || '') + '"></div><p class="small muted">' + esc(user.emailVerified ? '已验证邮箱' : user.phoneVerified ? '已验证手机号' : '账号已验证') + ' · ' + esc(role) + '</p><button class="btn primary" type="submit">保存账号设置</button></form><form id="account-password-form" class="col" style="gap:14px"><h3>修改密码</h3><div class="field"><label for="account-old-password">原密码</label><input id="account-old-password" type="password" autocomplete="current-password" minlength="8" maxlength="256" required></div><div class="field"><label for="account-new-password">新密码</label><input id="account-new-password" type="password" autocomplete="new-password" minlength="8" maxlength="15" required></div><button class="btn" type="submit">更新密码</button></form><div class="btns"><a class="btn sm" href="#agreements">打开协作</a><button class="btn sm" type="button" data-auth="logout">退出登录</button></div><p class="small muted">退出后当前会话立即失效；此浏览器中的时间记录不会被删除。</p></section>';
   }
@@ -2957,12 +2947,6 @@ window.TangoAppAuth.start(function (authUser) {
       toast('已记录尝试来源；结果与用时待记录'); return;
     }
     if (act === 'event-ai') { var opportunityTask = byId(el.getAttribute('data-id')); if (opportunityTask) return aiTools(opportunityTask.title, dur(opportunityTask), opportunityTask.id); return; }
-    if (act === 'demo-onboarding-dismiss') { demoOnboarding.dismiss(); var onboardingCard = el.closest('.demo-onboarding'); if (onboardingCard) onboardingCard.remove(); return; }
-    if (act === 'demo-onboarding-guidance') {
-      var onboardingTask = document.getElementById('demo-onboarding-task'), onboardingTitle = onboardingTask && onboardingTask.value.trim();
-      if (!onboardingTitle) { if (onboardingTask) onboardingTask.focus(); toast('先写一个今天真实要完成的小任务'); return; }
-      return aiTools(onboardingTitle, 60);
-    }
     if (act === 'method-reuse') return methodReuseSheet(byMethodId(el.getAttribute('data-mid')));
     if (act === 'budget-edit') { el.hidden = true; document.getElementById('budgetForm').hidden = false; var budgetInput = document.getElementById('today-budget'); budgetInput.focus(); budgetInput.select(); return; }
     if (act === 'budget-cancel') return closeBudgetEditor();
@@ -3285,7 +3269,6 @@ window.TangoAppAuth.start(function (authUser) {
   });
   document.addEventListener('input', function (ev) {
     if (ev.target.id === 'cap-text') capState.text = capState.pendingText = ev.target.value;
-    if (ev.target.id === 'demo-onboarding-task') demoOnboarding.setTask(ev.target.value);
   });
   document.addEventListener('submit', function (ev) {
     ev.preventDefault();

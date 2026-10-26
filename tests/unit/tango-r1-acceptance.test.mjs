@@ -149,11 +149,11 @@ test('stream raw bytes and visible content caps reject oversized local fixtures'
   await assert.rejects(collect(contentApp, { prompt: 'hello', mode: 'chat', stream: true }), error => error.code === 'TANGO_AI_RESPONSE_INVALID');
 });
 
-test('visitor daily limit is enforced per demo visitor and resets by day', () => {
+test('visitor daily limit is enforced per anonymous IP and resets by day', () => {
   let clock = new Date(2026, 9, 23, 9, 0).getTime();
   const guard = createAIGuard({ env: { TANGO_AI_VISITOR_DAILY_LIMIT: '2' }, now: () => clock });
   const req = ip => ({ socket: { remoteAddress: '127.0.0.1' }, headers: { 'x-forwarded-for': ip } });
-  const demo = { id: 'demo-session', demo: true, role: 'user' };
+  const demo = undefined; // 匿名访客（演示模式已移除）
   guard.check(req('203.0.113.20'), demo, 'chat');
   guard.check(req('203.0.113.20'), demo, 'chat');
   assert.throws(() => guard.check(req('203.0.113.20'), demo, 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT' && error.status === 429);

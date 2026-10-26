@@ -19,13 +19,12 @@ const EXPECTED = Object.freeze({
   port: Number(process.env.RELEASE_EXPECTED_PORT || 17507),
   publicOrigin: process.env.RELEASE_EXPECTED_PUBLIC_ORIGIN || 'https://donego.udify.fun',
   serviceUnit: process.env.RELEASE_EXPECTED_SERVICE_UNIT || null,
-  demoMode: process.env.RELEASE_EXPECTED_DEMO_MODE || '1',
   litellmUrl: process.env.RELEASE_EXPECTED_LITELLM_URL || 'http://127.0.0.1:4000/v1/chat/completions',
   litellmModel: process.env.RELEASE_EXPECTED_LITELLM_MODEL || 'auto'
 });
 
 const REQUIRED_ENV_NAMES = Object.freeze([
-  'NODE_ENV', 'TANGO_HOST', 'TANGO_PORT', 'TANGO_PUBLIC_ORIGIN', 'TANGO_DEMO_MODE',
+  'NODE_ENV', 'TANGO_HOST', 'TANGO_PORT', 'TANGO_PUBLIC_ORIGIN',
   'TANGO_AUTH_SECRET', 'EMAIL_TRANSPORT', 'MAIL_FROM', 'TANGO_COLLAB_DB',
   'RESEND_API_KEY', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD',
   'LITELLM_URL', 'LITELLM_MODEL'
@@ -263,7 +262,6 @@ function checkExpectedConfiguration() {
     bind: expectation('TANGO_HOST', EXPECTED.bind, ['RELEASE_BIND']),
     port: expectation('TANGO_PORT', EXPECTED.port, ['RELEASE_PORT']),
     publicOrigin: expectation('TANGO_PUBLIC_ORIGIN', EXPECTED.publicOrigin, ['RELEASE_PUBLIC_ORIGIN']),
-    demoMode: expectation('TANGO_DEMO_MODE', EXPECTED.demoMode),
     litellmUrl: expectation('LITELLM_URL', EXPECTED.litellmUrl, ['TANGO_LITELLM_URL']),
     litellmModel: expectation('LITELLM_MODEL', EXPECTED.litellmModel, ['TANGO_LITELLM_MODEL', 'TANGO_AI_MODEL'])
   };

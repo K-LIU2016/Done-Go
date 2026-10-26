@@ -23,8 +23,6 @@
     "verify:ui": "playwright test --config playwright.tango.config.ts",
     "verify:collaboration": "playwright test --config playwright.collaboration.config.ts",
     "verify:account": "playwright test --config playwright.account.config.ts",
-    "verify:demo": "playwright test --config playwright.demo.config.ts",
-    "verify:demo-direct": "playwright test --config playwright.demo-direct.config.ts",
     "verify:production": "node scripts/production-readiness.mjs",
     "test:e2e": "playwright test --config playwright.tango.config.ts",
     "test:e2e:react-history": "playwright test"
