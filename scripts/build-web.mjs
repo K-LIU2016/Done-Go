@@ -8,7 +8,7 @@ import vm from 'node:vm';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const execFile = promisify(execFileCallback);
-const files = ['web/index.html', 'web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/demo.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'scripts/production-readiness.mjs', 'server/urlguard.mjs', 'web/privacy.js', 'web/agreements.js', 'web/speech-capture.js', 'web/assistant-core.js', 'web/assistant-ui.js', 'web/assistant.css', 'scripts/serve-tango.mjs', 'scripts/version-switch.mjs', 'scripts/tango-speech.mjs', 'scripts/tango-speech.ps1', 'scripts/ai-assistant.mjs', 'scripts/ai-discovery.mjs', 'scripts/assistant-config.mjs', 'web/model-catalog-cn.js', 'web/demo-onboarding.js', 'web/ai-parse.js', 'web/ai-prompt.js'];
+const files = ['web/index.html', 'web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/demo.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'scripts/production-readiness.mjs', 'server/urlguard.mjs', 'web/privacy.js', 'web/agreements.js', 'web/speech-capture.js', 'web/assistant-core.js', 'web/assistant-ui.js', 'web/assistant.css', 'scripts/serve-tango.mjs', 'scripts/version-switch.mjs', 'scripts/voice-pipeline/asr.mjs', 'scripts/voice-pipeline/asr-worker.mjs', 'scripts/voice-pipeline/clean.mjs', 'scripts/voice-pipeline/gateway.mjs', 'scripts/voice-pipeline/llm.mjs', 'scripts/voice-pipeline/time.mjs', 'scripts/intent.mjs', 'web/voice/contracts.js', 'scripts/tango-speech.mjs', 'scripts/tango-speech.ps1', 'scripts/ai-assistant.mjs', 'scripts/ai-discovery.mjs', 'scripts/assistant-config.mjs', 'web/model-catalog-cn.js', 'web/demo-onboarding.js', 'web/ai-parse.js', 'web/ai-prompt.js'];
 
 export async function buildRelease({ outputParent = join(root, 'dist-web') } = {}) {
   async function brandFiles(directory) {
@@ -26,7 +26,7 @@ export async function buildRelease({ outputParent = join(root, 'dist-web') } = {
   // web/ai-parse.js is an ES module that index.html import()s at runtime; classic
   // vm.Script rejects export statements, so module assets get the same
   // node --check ESM syntax validation the verify:web chain runs instead.
-  const moduleAssets = ['web/ai-parse.js'];
+  const moduleAssets = sources.map(([path]) => path).filter(path => path === 'web/ai-parse.js' || (path.startsWith('web/voice/') && path.endsWith('.js'))); // web/voice/ 下都是 ES 模块
   for (const [path, source] of sources.filter(([path]) => path.startsWith('web/') && path.endsWith('.js') && !moduleAssets.includes(path))) new vm.Script(source.toString('utf8'), { filename: path });
   for (const path of moduleAssets) await execFile(process.execPath, ['--check', join(root, path)]);
   await mkdir(outputParent, { recursive: true });

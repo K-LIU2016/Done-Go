@@ -193,7 +193,7 @@ export function createTangoServer(options = {}) {
       if (pathname === '/api/status') {
         if (req.method !== 'GET') { send(405, { error: 'method-rejected' }); return; }
         const speech = await getSpeechCapabilities();
-        send(200, { app: 'Tango', version: '0.1.0-local', runtime: 'web-local', status: 'ok', speech: { available: speech.available === true, languages: Array.isArray(speech.languages) ? speech.languages.filter(language => typeof language === 'string' && /^[a-z]{2}-[A-Z]{2}$/.test(language)) : [] } });
+        send(200, { app: 'Tango', version: '0.1.0-local', runtime: 'web-local', status: 'ok', voiceV3: !!options.voiceV3, speech: { available: speech.available === true, languages: Array.isArray(speech.languages) ? speech.languages.filter(language => typeof language === 'string' && /^[a-z]{2}-[A-Z]{2}$/.test(language)) : [] } });
         return;
       }
       if (pathname === '/api/speech' && req.method === 'GET') { send(200, await getSpeechCapabilities()); return; }
@@ -221,7 +221,12 @@ export function createTangoServer(options = {}) {
     else if (!res.destroyed) res.writeHead(404).end();
   }
  });
- if (versionSwitch) server.on('upgrade', (req, socket, head) => { if (!versionSwitch.upgrade(req, socket, head)) socket.destroy(); });
+ const voiceV3 = options.voiceV3 || null;
+ if (versionSwitch || voiceV3) server.on('upgrade', (req, socket, head) => {
+   if (versionSwitch && versionSwitch.upgrade(req, socket, head)) return; // donego_version=v2 → 新版进程
+   if (voiceV3 && (req.url || '').split('?')[0] === voiceV3.path) return voiceV3.handleUpgrade(req, socket, head);
+   socket.destroy();
+ });
  return server;
 }
 
@@ -240,5 +245,18 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const configuredDatabase=process.env.AUTH_DATABASE_PATH||process.env.TANGO_AUTH_DB||process.env.TANGO_COLLAB_DB;
   if(configuredDatabase&&configuredDatabase!==':memory:'&&!isAbsolute(configuredDatabase))throw new Error('AUTH_DATABASE_PATH must be absolute');
   const collaboration = await createCollaborationService({ databaseFile: configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite'), assistant: delegate, demoMode, authOptions: demoMode ? { autoStart: true } : {} });
-  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration, nextPort: Number(process.env.TANGO_NEXT_PORT) || 0 }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
+  // 语音管线 v3：配置了 TANGO_VOICE_MODELS（Mac 本地开发见 Done & Go/dev.sh）才启用；模型启动时预加载
+  let voiceV3 = null;
+  const voiceModels = process.env.TANGO_VOICE_MODELS;
+  if (voiceModels) {
+    // 可选能力：动态加载，核心服务不硬依赖 ws / sherpa-onnx-node（发布包与 thinkpad 未装模型时照常启动）
+    const { createAsrEngine, modelsAvailable } = await import('./voice-pipeline/asr.mjs');
+    const { createVoiceV3Gateway } = await import('./voice-pipeline/gateway.mjs');
+    if (modelsAvailable(voiceModels)) {
+    const engine = createAsrEngine({ modelsDir: voiceModels, threads: Number(process.env.TANGO_VOICE_THREADS) || 2 });
+    engine.then(() => process.stdout.write('voice v3: models loaded\n'), error => process.stderr.write('voice v3: model load failed: ' + error.message + '\n'));
+    voiceV3 = createVoiceV3Gateway({ engine, authenticate: req => collaboration.authenticate(req), requestAllowed: req => collaboration.requestAllowed(req), log: entry => process.stdout.write(JSON.stringify(entry) + '\n') });
+    } else process.stderr.write('voice v3: TANGO_VOICE_MODELS set but models missing; voice v3 disabled\n');
+  }
+  createTangoServer({ assistant: delegate, assistantConfigStore: store, collaboration, nextPort: Number(process.env.TANGO_NEXT_PORT) || 0, voiceV3 }).listen(port, bind, () => process.stdout.write('Tango local server: http://' + bind + ':' + port + '\n'));
 }

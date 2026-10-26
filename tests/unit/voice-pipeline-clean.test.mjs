@@ -10,7 +10,7 @@ test('drops fillers and hesitation words at clause boundaries (real x-asr output
 });
 
 test('collapses an immediately repeated word', () => {
-  assert.equal(ruleClean('呃， 今天今天要把周报写完， 然后明天上午十点开会。'), '今天要把周报写完，然后明天上午十点开会。');
+  assert.equal(ruleClean('呃， 今天今天要把周报写完， 然后明天上午十点开会。'), '今天要把周报写完，明天上午十点开会。');
   assert.equal(ruleClean('今天，今天要写周报'), '今天要写周报');
 });
 
