@@ -59,6 +59,18 @@ test('blockToEntry roundtrip：规范字段还原一致；无 start 的 draft �
   assert.ok(draftRound.start == null);
 });
 
+test('边界：非对象/缺 id/title/kind 非字符串 → null；blockToEntry 缺省字段补默认（对齐 entryToBlock）', () => {
+  assert.equal(entryToBlock(null), null);                                    // 非对象
+  assert.equal(entryToBlock('x'), null);                                     // 同上
+  assert.equal(entryToBlock({ date: '2026-10-26', title: 't', kind: 'create' }), null);          // 缺 id（幂等键）
+  assert.equal(entryToBlock({ id: 'a1', date: '2026-10-26', title: 7, kind: 'create' }), null);  // title 非字符串
+  assert.equal(entryToBlock({ id: 'a1', date: '2026-10-26', title: 't', kind: 7 }), null);       // kind 非字符串
+  const round = blockToEntry({ id: 'b1', date: '2026-10-26', start: '09:00', end: '10:00', title: 't', kind: 'create' });
+  assert.equal(round.prio, 3);
+  assert.equal(round.note, '');
+  assert.equal(round.done, false);
+});
+
 test('mergeBlockIntoEntry：只覆盖规范字段，stillness 的 state/kept/use/intent/freed/collaborationRef 不丢', () => {
   const local = {
     id: 's1', date: '2026-10-26', start: '20:00', end: '21:00', title: '自由安排', kind: 'stillness', prio: 3, note: '', done: false,
