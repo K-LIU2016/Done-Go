@@ -114,6 +114,22 @@ test('local minicpm-v adapter: refuses without a configured endpoint, posts when
   assert.equal(out.seen, '本地识别');
 });
 
+test('malformed-but-braced JSON and image-less calls reject with opaque codes', async () => {
+  const broken = createVisionClient({ baseUrl: 'u', model: 'm', timeoutMs: 500, getKey: () => KEY, fetchImpl: async () => ok('{"seen":}') });
+  await assert.rejects(broken.analyze({ imageBase64: 'QQ', mimeType: 'image/jpeg', prompt: 'p' }), /vision-bad-json/);
+  const arrayTop = createVisionClient({ baseUrl: 'u', model: 'm', timeoutMs: 500, getKey: () => KEY, fetchImpl: async () => ok('[1,2]') });
+  await assert.rejects(arrayTop.analyze({ imageBase64: 'QQ', mimeType: 'image/jpeg', prompt: 'p' }), /vision-bad-json/);
+  const noImg = createVisionClient({ baseUrl: 'u', model: 'm', timeoutMs: 500, getKey: () => KEY, fetchImpl: async () => ok('{"seen":"x"}') });
+  await assert.rejects(noImg.analyze({ prompt: 'p' }), /vision-no-image/);
+});
+
+test('actions normalization keeps only non-empty string entries', async () => {
+  const messy = createVisionClient({ baseUrl: 'u', model: 'm', timeoutMs: 500, getKey: () => KEY, fetchImpl: async () => ok('{"seen":"s","actions":["记下来", 42, null, "  "]}') });
+  assert.deepEqual((await messy.analyze({ imageBase64: 'QQ', mimeType: 'image/jpeg', prompt: 'p' })).actions, ['记下来']);
+  const noAuth = createVisionClient({ baseUrl: 'u', model: 'm', timeoutMs: 500, getKey: () => undefined, fetchImpl: async () => ok('{"seen":"x"}') });
+  await noAuth.analyze({ imageBase64: 'QQ', mimeType: 'image/jpeg', prompt: 'p' }); // 无 key 时不带 authorization 头也不炸
+});
+
 // ---------- prompts.mjs（CTO 实测结构化 JSON：seen/change/suggestion/actions，BUILD-PLAN L143）----------
 
 test('fastPrompt: 即时卡提示词只索要 seen，并带上块上下文与只输出 JSON 的约束', () => {
@@ -131,4 +147,12 @@ test('deepPrompt: 深感知提示词索要 seen/change/suggestion/actions 四件
   assert.ok(prompt.includes('产品周会'));
   assert.ok(prompt.includes('Q4 三项目标评审'), '带计划上下文好对比变化');
   assert.ok(prompt.includes('JSON'));
+});
+
+test('prompts: 上下文字段缺省时也有完整形状（占位兜底，不抛错）', () => {
+  const fast = fastPrompt({});
+  assert.ok(fast.includes('seen') && fast.includes('JSON') && fast.includes('未命名'));
+  const deep = deepPrompt({ blockTitle: '读书会', blockKind: 'reading' });
+  assert.ok(deep.includes('seen') && deep.includes('change') && deep.includes('suggestion') && deep.includes('actions'));
+  assert.ok(!deep.includes('null, nowText'), '缺省字段不渲染占位残留');
 });
