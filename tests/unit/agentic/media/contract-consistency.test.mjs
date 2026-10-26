@@ -1,86 +1,113 @@
-// W11 w0-merge-close · 契约一致性先行单测（RED 契约）。
-// 依据：BUILD-PLAN §2.2："收尾阶段必须 git merge feat/s2d-w0-contracts，并加一条契约
+// W11 w0-merge-close · 契约一致性单测（GREEN：对齐 W0 冻结版 contracts.mjs）。
+// 依据：BUILD-PLAN §2.2「收尾阶段必须 git merge feat/s2d-w0-contracts，并加一条契约
 // 一致性测试：自己产出的对象用 scripts/agentic/contracts.mjs 校验通过、自己能吃下
-// W0 的 fixtures"。PRD §10.3 定义 sample/reel/scene 对象。
-// ⚠️ 假设（组5 合并后需与冻结版对齐）：contracts.mjs 导出名为 validate（或
-// validateObject/default）的校验函数，调用形态 (schema, obj) 或 (obj, schema)，
-// 返回真值或 { ok }；schema 文件按对象名放在 contracts/agentic/。
+// W0 的 fixtures」。PRD §10.3 定义 sample/reel/scene 对象。
+// 冻结版 API（scripts/agentic/contracts.mjs，feat/s2d-w0-contracts @1331960 冻结）：
+// validate(value, schema, { schemaDir }) → { valid, errors }（value 在前）；schema 按
+// 对象名放在 contracts/agentic/preview-{sample,reel,scene}.schema.json；fixtures 形如
+// { valid: [...], invalid: [...] }，合法样例每个对象 ≥2 个。
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { validate } from '../../../../scripts/agentic/contracts.mjs';
+import { goldenScenario, buildSmokePreview } from '../../../../scripts/agentic/media/smoke.mjs';
+import { composeSample } from '../../../../scripts/agentic/composer/compose-sample.mjs';
+import { composeReel } from '../../../../scripts/agentic/composer/compose-reel.mjs';
+import { exportReel } from '../../../../scripts/agentic/composer/export.mjs';
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const importHere = rel => import(pathToFileURL(join(root, rel)).href);
 const contractsDir = join(root, 'contracts', 'agentic');
 const fixturesDir = join(contractsDir, 'fixtures');
 
-// PRD §10.3 的 canonical 对象（W11 产出）
-const CANONICAL_SAMPLE = {
-  id: 's1',
-  layout: 'slide-title-bullets-image',
-  page: '第 2 课时 · 首页',
-  text: { title: 'AI 进课堂 · 第 2 课时：用 AI 备课', bullets: ['用 AI 生成导入问题', '对照课标逐条核对', '说出 AI 帮了哪、错在哪'] },
-  image: { prompt: '老师在教室用平板备课，清新鼠尾草绿，扁平插画，不要出现任何文字', model: 'z-image-turbo', url: '/api/media/abc.png', status: 'ready' },
-  watermark: '示意',
-};
-const CANONICAL_REEL = { composition: '/api/previews/m_123/v4/reel.html', durationSec: 42, narrationAudio: '/api/previews/m_123/v4/narration.wav', mp4: null };
-const CANONICAL_SCENE = { status: 'off', model: 'happyhorse-1.1-t2v', url: null };
+const schemaOf = name => JSON.parse(readFileSync(join(contractsDir, name), 'utf8'));
+const fixturesOf = name => JSON.parse(readFileSync(join(fixturesDir, name), 'utf8'));
+/** 冻结校验入口：value 在前，schema 在后（schemaDir 供 $ref 解析同级 schema）。 */
+const check = (value, schema) => validate(value, schema, { schemaDir: contractsDir });
 
-async function loadContracts() {
-  const mod = await importHere('scripts/agentic/contracts.mjs');
-  const validator = mod.validate ?? mod.validateObject ?? mod.default;
-  assert.equal(typeof validator, 'function', 'contracts.mjs 未导出可识别的校验入口（validate/validateObject/default）');
-  return { mod, validator };
-}
-
-function loadSchema(candidates) {
-  for (const name of candidates) {
-    try { return JSON.parse(readFileSync(join(contractsDir, name), 'utf8')); } catch { /* try next */ }
+test('W11 产出的 sample/scene 对象过冻结契约（goldenScenario 未生成态 + buildSmokePreview 装配态）', () => {
+  const sampleSchema = schemaOf('preview-sample.schema.json');
+  const sceneSchema = schemaOf('preview-scene.schema.json');
+  const golden = goldenScenario();
+  for (const s of golden.samples) {
+    const r = check(s, sampleSchema);
+    assert.equal(r.valid, true, `golden 样张 ${s.id} 过 preview-sample 契约：${JSON.stringify(r.errors)}`);
   }
-  assert.fail('contracts/agentic/ 缺少 ' + candidates.join(' 或 ') + '（必须先 merge feat/s2d-w0-contracts）');
-}
-
-async function validates(validator, schema, obj) {
-  let result;
-  try { result = await validator(schema, obj); } catch { result = await validator(obj, schema); }
-  if (result && typeof result === 'object') return result.ok !== false;
-  return !!result;
-}
-
-test('W11 sample/reel/scene objects pass the W0 contract validator', async () => {
-  const { validator } = await loadContracts();
-  const sampleSchema = loadSchema(['sample.schema.json', 'samples.schema.json']);
-  const reelSchema = loadSchema(['reel.schema.json']);
-  const sceneSchema = loadSchema(['scene.schema.json']);
-  assert.ok(await validates(validator, sampleSchema, CANONICAL_SAMPLE), 'sample 对象过契');
-  assert.ok(await validates(validator, reelSchema, CANONICAL_REEL), 'reel 对象过契');
-  assert.ok(await validates(validator, sceneSchema, CANONICAL_SCENE), 'scene 对象过契');
+  const sr = check(golden.scene, sceneSchema);
+  assert.equal(sr.valid, true, `golden scene 过 preview-scene 契约：${JSON.stringify(sr.errors)}`);
+  // 冒烟装配态（配图落地：url + status ready）同样必须过契
+  const preview = buildSmokePreview({
+    golden,
+    subtitles: [{ text: '先看第 1 课时样张', startSec: 1, endSec: 3 }],
+    durationSec: 32,
+    imageUrlFor: id => `/media/${id}.png`,
+  });
+  for (const s of preview.samples) {
+    const r = check(s, sampleSchema);
+    assert.equal(r.valid, true, `装配态样张 ${s.id} 过 preview-sample 契约：${JSON.stringify(r.errors)}`);
+  }
 });
 
-test('W11 composers swallow W0 fixtures without breaking (吃下 fixtures 渲染不炸)', async () => {
-  const { composeSample } = await importHere('scripts/agentic/composer/compose-sample.mjs');
-  const { composeReel } = await importHere('scripts/agentic/composer/compose-reel.mjs');
+test('W11 产出的 reel 对象过冻结契约（字段取实产，mp4 按留桩语义=null）', () => {
+  const reelSchema = schemaOf('preview-reel.schema.json');
+  const preview = buildSmokePreview({
+    subtitles: [],
+    durationSec: 41.58,
+    imageUrlFor: id => `/media/${id}.png`,
+  });
+  const exported = exportReel({ composition: '/previews/m_smoke_course/v1/reel.html' });
+  assert.equal(exported.status, 'pending', 'export 留桩未产出 mp4（P2 HyperFrames，BUILD-PLAN W11.2）');
+  // composition/narrationAudio/durationSec 全部取 W11 实产字段；mp4 只有 export 成功态才非空
+  const reel = {
+    composition: '/previews/m_smoke_course/v1/reel.html',
+    durationSec: preview.durationSec,
+    narrationAudio: preview.narrationAudio,
+    mp4: exported.status === 'ok' ? exported.mp4 : null,
+  };
+  const r = check(reel, reelSchema);
+  assert.equal(r.valid, true, `reel 过 preview-reel 契约：${JSON.stringify(r.errors)}`);
+});
+
+test('校验器对照组：W0 fixtures valid 全过、invalid 必被拦（证明上面不是空转通过）', () => {
+  for (const name of ['preview-sample', 'preview-reel', 'preview-scene']) {
+    const schema = schemaOf(`${name}.schema.json`);
+    const fx = fixturesOf(`${name}.fixtures.json`);
+    assert.ok(fx.valid.length >= 2, `${name} 至少 2 个合法样例（BUILD-PLAN §2.2）`);
+    assert.ok(fx.invalid.length >= 1, `${name} 至少 1 个非法样例`);
+    for (const v of fx.valid) assert.equal(check(v, schema).valid, true, `${name} 合法样例应过契`);
+    for (const v of fx.invalid) assert.equal(check(v, schema).valid, false, `${name} 非法样例必须被拦下`);
+  }
+});
+
+test('W11 composers 吃下 W0 fixtures 渲染不炸（composeSample/composeReel 全量喂）', () => {
   const files = readdirSync(fixturesDir).filter(f => f.endsWith('.json'));
-  assert.ok(files.length >= 2, 'contracts/agentic/fixtures/ 至少每个对象 2 个合法样例（BUILD-PLAN §2.2）');
-  let fed = 0;
+  assert.ok(files.length >= 2, 'contracts/agentic/fixtures/ 存在（必须先 merge feat/s2d-w0-contracts）');
+  let fedSamples = 0;
+  let fedPreviews = 0;
   for (const f of files) {
-    const fixture = JSON.parse(readFileSync(join(fixturesDir, f), 'utf8'));
-    const previews = Array.isArray(fixture) ? fixture : [fixture];
-    for (const p of previews) {
-      if (Array.isArray(p?.samples)) {
+    for (const p of fixturesOf(f).valid ?? []) {
+      if (!p || typeof p !== 'object') continue;
+      // 样张形状（layout 字段）→ composeSample；配图给缓存后的 { url }（无 url 自然降级纯排版）
+      if (p.layout !== undefined) {
+        const html = composeSample(p, p.image ?? null);
+        assert.equal(typeof html, 'string');
+        fedSamples += 1;
+      }
+      // preview 形状（samples+storyboard）→ composeReel 整体吃下（时长取 reel 实测）
+      if (Array.isArray(p.samples) && Array.isArray(p.storyboard)) {
+        const reelHtml = composeReel({ ...p, durationSec: p.reel?.durationSec ?? p.durationSec ?? 0 });
+        assert.match(reelHtml, /^<!doctype html>/i);
+        fedPreviews += 1;
         for (const s of p.samples) {
           const html = composeSample(s, s.image ?? null);
           assert.equal(typeof html, 'string');
-          fed += 1;
-        }
-        if (Array.isArray(p.storyboard)) {
-          const reelHtml = composeReel({ ...p, durationSec: p.reel?.durationSec ?? p.durationSec ?? 0 });
-          assert.match(reelHtml, /^<!doctype html>/i);
+          fedSamples += 1;
         }
       }
     }
   }
-  assert.ok(fed > 0, 'fixtures 里必须有带 samples 的对象可喂给 composeSample');
+  assert.ok(fedSamples >= 2, 'fixtures 里喂进 composeSample 的样张 ≥2（含 preview 内嵌 samples）');
+  assert.ok(fedPreviews >= 2, 'fixtures 里喂进 composeReel 的 preview ≥2');
 });
