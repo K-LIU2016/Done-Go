@@ -54,6 +54,7 @@ export function authRequestAllowed(req, config) {
   if (origin === config.publicOrigin) return true;
   try {
     const parsed = new URL(origin);
-    return !config.publicOrigin && loopback && isLoopbackHostname(parsed.hostname) && parsed.protocol === "http:";
+    // 本机页面（http://localhost）只在非生产时放行：Mac 开发机同时挂着公网地址，本机也要能注册登录
+    return (!config.publicOrigin || !config.production) && loopback && isLoopbackHostname(parsed.hostname) && parsed.protocol === "http:";
   } catch { return false; }
 }
