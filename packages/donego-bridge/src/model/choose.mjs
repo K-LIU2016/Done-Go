@@ -22,6 +22,24 @@ function snapshot(rateLimits) {
   };
 }
 
+function choice(model, effort, reason, quotaSnapshot, flags = {}) {
+  const result = {
+    model,
+    effort,
+    reason,
+    rateLimit: {
+      weeklyUsed: quotaSnapshot.weeklyUsedPercent / 100,
+      spendControlReached: quotaSnapshot.spendControlReached,
+    },
+  };
+  // Keep the rich trace-only snapshot and control flags available to the runtime
+  // without putting non-contract fields on the CodexChoice wire object.
+  for (const [key, value] of Object.entries({ quotaSnapshot, ...flags })) {
+    Object.defineProperty(result, key, { value, enumerable: false, writable: false });
+  }
+  return result;
+}
+
 function isComplex(planResult) {
   const plan = planResult && typeof planResult === 'object' ? planResult : {};
   const signals = plan.signals && typeof plan.signals === 'object' ? plan.signals : {};
@@ -64,35 +82,35 @@ function downgrade(tier) {
 export function chooseModel(planResult = {}, rateLimits = {}, history = {}) {
   const quotaSnapshot = snapshot(rateLimits);
   if (quotaSnapshot.spendControlReached) {
-    return { pause: true, model: 'gpt-6-luna', effort: 'low', reason: 'SPEND_CONTROL_REACHED：暂停全部代码任务', quotaSnapshot };
+    return choice('gpt-6-luna', 'low', 'SPEND_CONTROL_REACHED：暂停全部代码任务', quotaSnapshot, { pause: true });
   }
 
   const urgent = planResult?.urgent === true;
   if (!urgent && quotaSnapshot.activeForeignThreads > 0) {
-    return { defer: true, model: 'gpt-6-luna', effort: 'low', reason: '让路：本机存在活跃非 Done&Go Codex thread', quotaSnapshot };
+    return choice('gpt-6-luna', 'low', '让路：本机存在活跃非 Done&Go Codex thread', quotaSnapshot, { defer: true });
   }
 
   let tier = baseTier(planResult, history);
   if (quotaSnapshot.weeklyUsedPercent > 90) {
-    return {
-      model: 'gpt-6-luna',
-      effort: 'low',
-      need: true,
-      reason: '额度已用 >90%：只允许 luna，需 JC 决定是否继续',
+    return choice(
+      'gpt-6-luna',
+      'low',
+      '额度已用 >90%：只允许 luna，需 JC 决定是否继续',
       quotaSnapshot,
-    };
+      { need: true },
+    );
   }
   if (quotaSnapshot.weeklyUsedPercent > 70) {
     tier = downgrade(tier);
   }
 
   const [model, effort] = tier;
-  return {
+  return choice(
     model,
     effort,
-    reason: `${isComplex(planResult) ? '复杂' : isStandard(planResult) ? '标准' : '简单'}任务${quotaSnapshot.weeklyUsedPercent > 70 ? '，额度 >70% 降一级' : ''}`,
+    `${isComplex(planResult) ? '复杂' : isStandard(planResult) ? '标准' : '简单'}任务${quotaSnapshot.weeklyUsedPercent > 70 ? '，额度 >70% 降一级' : ''}`,
     quotaSnapshot,
-  };
+  );
 }
 
 /** 评审必须选择与执行不同模型档位。 */

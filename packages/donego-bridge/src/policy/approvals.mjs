@@ -24,6 +24,8 @@ export const HIGH_RISK_COMMANDS = [
   /\b(?:mkfs|dd)\b/i,
 ];
 
+const SHELL_WRAPPERS = /\b(?:sh|bash|zsh|fish|cmd|powershell|pwsh)\s+(?:-[^\s]*c\b|--command\b|-Command\b)/i;
+
 const NETWORK_OR_INSTALL = [
   /\b(?:npm|pnpm|yarn)\s+(?:install|add|upgrade|update)\b/i,
   /\b(?:pip|pip3)\s+install\b/i,
@@ -204,6 +206,10 @@ export function decideApproval(request, contract = {}, ctx = {}) {
     if (matchesAny(HIGH_RISK_COMMANDS, command)) {
       return rejectResult('HIGH_RISK_COMMAND_BLOCKED');
     }
+    if (SHELL_WRAPPERS.test(command)) {
+      const hooked = hookResult(request, contract, ctx);
+      return hooked ?? needResult('INTERPRETER_COMMAND_APPROVAL_REQUIRED', request, contract);
+    }
     if (matchesAny(NETWORK_OR_INSTALL, command)) {
       const hooked = hookResult(request, contract, ctx);
       return hooked ?? needResult('NETWORK_OR_DEPENDENCY_APPROVAL_REQUIRED', request, contract);
@@ -211,6 +217,13 @@ export function decideApproval(request, contract = {}, ctx = {}) {
     if (!containedPath(root, params.cwd ?? root, ctx)) {
       const hooked = hookResult(request, contract, ctx);
       return hooked ?? needResult('COMMAND_CWD_OUTSIDE_WORKTREE', request, contract);
+    }
+    const pathArguments = Array.isArray(params.command)
+      ? params.command.slice(1).filter(value => typeof value === 'string' && (value.startsWith('/') || value.includes('/')))
+      : (command.match(/(?:^|\s)(\/[^\s;|&]+|\.\.?\/[^\s;|&]+)/g) ?? []).map(value => value.trim());
+    if (pathArguments.some(candidate => !containedPath(root, candidate, ctx))) {
+      const hooked = hookResult(request, contract, ctx);
+      return hooked ?? needResult('COMMAND_PATH_OUTSIDE_WORKTREE', request, contract);
     }
     const hooked = hookResult(request, contract, ctx);
     return hooked ?? approveResult('COMMAND_WITHIN_WORKTREE');

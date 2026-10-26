@@ -85,6 +85,10 @@ export function createBridgeClient({
   }
   return {
     connect() { if (stopped && !revoked) { stopped = false; connect(); } },
+    send(message) {
+      if (!socket || (socket.readyState !== undefined && socket.readyState !== OPEN)) return false;
+      try { socket.send(JSON.stringify(message)); return true; } catch { return false; }
+    },
     stop() { stopped = true; clearTimers(); const current = socket; socket = null; if (current) { try { current.close(); } catch {} } state('stopped'); },
     isRevoked() { return revoked; },
     getState() { return { connected: Boolean(socket && (socket.readyState === undefined || socket.readyState === OPEN)), revoked, stopped }; },

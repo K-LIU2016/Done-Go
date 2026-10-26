@@ -61,6 +61,17 @@ function outputFrom(result) {
   return result.output;
 }
 
+function notificationText(item) {
+  if (!item || typeof item !== 'object') return '';
+  return item.text ?? item.content ?? item.output_text ?? '';
+}
+
+function parseCompletedOutput(text, structured) {
+  if (!structured) return { status: 'completed', text };
+  const value = String(text ?? '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try { return JSON.parse(value); } catch { return value; }
+}
+
 function approvalResult(decision) {
   if (decision === 'approve') return { result: { decision: 'approved' } };
   if (decision === 'reject') return { result: { decision: 'denied' } };
@@ -90,6 +101,9 @@ export function createCodexAdapter({
   let started = false;
   const threads = createThreadRegistry();
   const missions = new Map();
+  const pendingNeeds = new Map();
+  const completedTurns = new Map();
+  const turnWaiters = new Map();
 
   function activeSession() {
     if (!session) throw new Error('CODEX_SESSION_NOT_STARTED');
@@ -102,9 +116,15 @@ export function createCodexAdapter({
   }
 
   function serverRequestHandler(request, reply) {
-    const mission = [...missions.values()].find(item => item.threadId === request.threadId)
-      ?? [...missions.values()][0];
-    const contract = mission?.contract ?? {};
+    const threadId = request?.threadId ?? request?.params?.threadId;
+    const mission = threadId
+      ? [...missions.values()].find(item => item.threadId === threadId)
+      : missions.size === 1 ? [...missions.values()][0] : null;
+    if (!mission) {
+      reply({ result: { decision: 'denied', reason: 'UNKNOWN_THREAD' } });
+      return;
+    }
+    const contract = mission.contract ?? {};
     let decision;
     try {
       decision = typeof decideApproval === 'function'
@@ -127,12 +147,62 @@ export function createCodexAdapter({
       reason: decision?.reason ?? 'APPROVAL_REQUIRED',
       missionId: mission?.missionId,
     };
-    try { onNeed?.(need); } catch (error) { log('approval need callback failed', error); }
+    pendingNeeds.set(request.id, { reply, missionId: mission.missionId, request });
+    try { onNeed?.({ ...need, reply: decisionReply => resolveNeed(request.id, decisionReply) }); } catch (error) { log('approval need callback failed', error); }
+  }
+
+  function resolveNeed(requestId, decision) {
+    const pending = pendingNeeds.get(requestId);
+    if (!pending) return false;
+    const immediate = approvalResult(decision?.decision ?? decision);
+    if (!immediate) return false;
+    pendingNeeds.delete(requestId);
+    return pending.reply(immediate);
+  }
+
+  function onNotify(method, params) {
+    log('codex.notify', { method, params });
+    const turnId = params?.turnId ?? params?.turn?.id;
+    if (method === 'item/completed' && turnId) {
+      const items = completedTurns.get(turnId)?.items ?? [];
+      items.push(params.item);
+      completedTurns.set(turnId, { ...(completedTurns.get(turnId) ?? {}), items });
+    }
+    if (method === 'turn/completed' && turnId) {
+      const result = {
+        turn: params.turn,
+        text: (completedTurns.get(turnId)?.items ?? []).map(notificationText).join(''),
+      };
+      completedTurns.set(turnId, result);
+      const waiter = turnWaiters.get(turnId);
+      if (waiter) { turnWaiters.delete(turnId); waiter(result); }
+    }
+  }
+
+  async function completedTurn(turnId) {
+    const existing = completedTurns.get(turnId);
+    if (existing?.turn) return existing;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { turnWaiters.delete(turnId); reject(new Error(`CODEX_TURN_TIMEOUT: ${turnId}`)); }, 30_000);
+      turnWaiters.set(turnId, result => { clearTimeout(timer); resolve(result); });
+    });
+  }
+
+  async function requestTurn(current, params) {
+    const result = await current.request('turn/start', params);
+    const turnId = result?.turn?.id ?? result?.turnId;
+    if (!turnId) {
+      // Fixture sessions return the completed turn directly; real App Server sessions
+      // must expose the asynchronous turn id and completion notification.
+      return result;
+    }
+    const completed = await completedTurn(turnId);
+    return { output: params.outputSchema ? parseCompletedOutput(completed.text, true) : parseCompletedOutput(completed.text, false), turn: completed.turn };
   }
 
   async function start() {
     if (started) return { session };
-    session = sessionFactory({ onNotify: (method, params) => log('codex.notify', { method, params }), onServerRequest: serverRequestHandler });
+    session = sessionFactory({ onNotify, onServerRequest: serverRequestHandler });
     if (!session || typeof session.request !== 'function' || typeof session.notify !== 'function') {
       throw new TypeError('sessionFactory must return a JSON-RPC session');
     }
@@ -162,7 +232,7 @@ export function createCodexAdapter({
       objective: Array.isArray(goal) ? goal.join('\n') : goal,
       goal,
     });
-    const result = await current.request('turn/start', {
+    const result = await requestTurn(current, {
       threadId,
       input: [{ type: 'text', text: mission.contract.summary || mission.contract.goal || 'Produce a structured change plan.' }],
       model: 'gpt-6-luna',
@@ -180,7 +250,7 @@ export function createCodexAdapter({
     if (choice?.defer) return { deferred: true, reason: choice.reason };
     const { entry } = contextFor(missionId);
     const mission = missions.get(missionId);
-    const result = await activeSession().request('turn/start', {
+    const result = await requestTurn(activeSession(), {
       threadId: entry.threadId,
       input: [{ type: 'text', text: mission?.contract?.summary || mission?.contract?.goal || 'Execute the approved mission.' }],
       model: required(choice?.model, 'model'),
@@ -211,7 +281,21 @@ export function createCodexAdapter({
     const { entry } = contextFor(missionId);
     const result = await activeSession().request('thread/fork', { threadId: entry.threadId });
     const threadId = threadIdFrom(result);
+    // The fork is a separate thread; keep the original mission binding active
+    // until a caller explicitly adopts the returned thread for a new mission.
     return { ...result, threadId };
+  }
+
+  function adoptThread(missionId, threadId) {
+    const mission = missions.get(missionId) ?? { missionId };
+    missions.set(missionId, { ...mission, threadId });
+    threads.set(missionId, { threadId, worktree: mission.worktree });
+  }
+
+  async function resume(missionId) {
+    const { entry } = contextFor(missionId);
+    const result = await activeSession().request('thread/resume', { threadId: entry.threadId });
+    return result;
   }
 
   async function revert(missionId, checkpoint) {
@@ -239,7 +323,7 @@ export function createCodexAdapter({
   }
 
   return Object.freeze({
-    start, plan, execute, steer, interrupt, fork, revert, review, close,
+    start, plan, execute, steer, interrupt, fork, revert, review, resume, adoptThread, resolveNeed, close,
     rateLimits: () => activeSession().request('account/rateLimits/read', {}),
     listModels: () => activeSession().request('model/list', {}),
     listLoadedThreads: () => activeSession().request('thread/loaded/list', {}),

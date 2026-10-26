@@ -16,9 +16,12 @@ function canonical(value) {
   return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
 }
 
-/** PRD §8.1 最小合同 hash：稳定排序 JSON 后 SHA-256。 */
+/** W0 §合同规范化：剔除顶层 self-hash 后稳定排序 JSON，再 SHA-256。 */
 export function hashContract(contract) {
-  return createHash('sha256').update(canonical(contract)).digest('hex');
+  const payload = contract && typeof contract === 'object' && !Array.isArray(contract)
+    ? Object.fromEntries(Object.entries(contract).filter(([key]) => key !== 'hash'))
+    : contract;
+  return createHash('sha256').update(canonical(payload)).digest('hex');
 }
 
 function clone(value) {
@@ -189,6 +192,19 @@ export function createBridgeRuntime({
       persist();
       emit({ type: 'mission.deferred', missionId, reason: choice.reason, quotaSnapshot: choice.quotaSnapshot });
       return choice;
+    }
+    if (choice?.need) {
+      const need = {
+        type: 'quota-approval',
+        missionId,
+        reason: choice.reason ?? 'MODEL_CHOICE_NEEDS_APPROVAL',
+        choice: clone(choice),
+      };
+      mission.status = 'blocked';
+      mission.blockedReason = need.reason;
+      persist();
+      emit({ type: 'need', ...need });
+      return { ...choice, blocked: true, need };
     }
     const result = await adapter.execute(missionId, choice);
     mission.choice = clone(choice);

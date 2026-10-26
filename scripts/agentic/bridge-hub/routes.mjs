@@ -119,9 +119,13 @@ export function createBridgeRoutes({
     return count;
   }
 
+  function apiError(code, message, details) {
+    return { error: { code, message, ...(details ? { details } : {}) } };
+  }
+
   // 先消费 POST body 再返回未登录，避免客户端尚未写完请求体时连接被重置。
   function unauthorizedPost(req, res) {
-    readJson(req).catch(() => {}).finally(() => writeJson(res, 401, { error: 'AUTH_REQUIRED' }));
+    readJson(req).catch(() => {}).finally(() => writeJson(res, 401, apiError('AUTH_REQUIRED', 'Owner authentication is required')));
   }
 
   function route(req, res, pathname = new URL(req.url || '/', 'http://localhost').pathname) {
@@ -130,10 +134,15 @@ export function createBridgeRoutes({
       try { ownerId = authenticateOwner(req); } catch { unauthorizedPost(req, res); return true; }
       readJson(req).then(body => {
         const result = pairing.consumePairingCode(body.code, ownerId);
-        if (!result.ok) { writeJson(res, result.code === 'OWNER_MISMATCH' ? 403 : 400, { error: result.code }); return; }
+        if (!result.ok) {
+          const status = result.code === 'OWNER_MISMATCH' ? 403 : 400;
+          const code = result.code === 'OWNER_MISMATCH' ? 'FORBIDDEN' : result.code === 'PAIRING_CODE_EXPIRED' ? 'NOT_FOUND' : 'CONFLICT';
+          writeJson(res, status, apiError(code, result.code));
+          return;
+        }
         const device = devices.issueDeviceToken(ownerId, body.label);
         writeJson(res, 200, device);
-      }).catch(error => writeJson(res, error.code === 'REQUEST_TOO_LARGE' ? 413 : 400, { error: error.code || 'INVALID_JSON' }));
+      }).catch(error => writeJson(res, error.code === 'REQUEST_TOO_LARGE' ? 413 : 400, apiError(error.code === 'REQUEST_TOO_LARGE' ? 'CONFLICT' : 'CONTRACT_INVALID', error.code || 'INVALID_JSON')));
       return true;
     }
     if (req.method === 'POST' && pathname === '/api/bridge/devices/revoke') {
@@ -141,12 +150,12 @@ export function createBridgeRoutes({
       try { ownerId = authenticateOwner(req); } catch { unauthorizedPost(req, res); return true; }
       readJson(req).then(body => {
         const device = devices.listDevices(ownerId).find(item => item.deviceId === body.deviceId);
-        if (!device) { writeJson(res, 403, { error: 'DEVICE_NOT_FOUND' }); return; }
+        if (!device) { writeJson(res, 404, apiError('NOT_FOUND', 'Bridge device was not found')); return; }
         devices.revokeDevice(body.deviceId, ownerId);
         const active = sessions.get(body.deviceId);
         if (active) { clearInterval(active.timer); sessions.delete(body.deviceId); try { active.ws.close(4001, 'revoked'); } catch {} }
         writeJson(res, 200, { ok: true });
-      }).catch(error => writeJson(res, error.code === 'REQUEST_TOO_LARGE' ? 413 : 400, { error: error.code || 'INVALID_JSON' }));
+      }).catch(error => writeJson(res, error.code === 'REQUEST_TOO_LARGE' ? 413 : 400, apiError(error.code === 'REQUEST_TOO_LARGE' ? 'CONFLICT' : 'CONTRACT_INVALID', error.code || 'INVALID_JSON')));
       return true;
     }
     return false;
