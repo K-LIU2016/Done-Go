@@ -19,6 +19,7 @@
   ],
   "invalid": [
     {
+      "model": "not-a-model",
       "effort": "low",
       "reason": "x",
       "rateLimit": {

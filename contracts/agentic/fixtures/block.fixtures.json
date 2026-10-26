@@ -34,22 +34,21 @@
     }
   ],
   "invalid": [
-    [
-      {
-        "id": "b1",
-        "ownerId": "u1",
-        "revision": 0,
-        "schemaVersion": 1,
-        "date": "2026-99-99",
-        "start": "25:00",
-        "end": "26:00",
-        "title": "x",
-        "kind": "bad",
-        "done": false,
-        "source": "manual",
-        "createdAt": "bad",
-        "updatedAt": "bad"
-      }
-    ]
+    {
+      "id": "b1",
+      "ownerId": "u1",
+      "revision": 1,
+      "schemaVersion": 1,
+      "date": "2026-10-26",
+      "start": "14:00",
+      "end": "15:00",
+      "title": "研究",
+      "kind": "necessary",
+      "done": false,
+      "source": "manual",
+      "createdAt": "2026-10-26T10:00:00Z",
+      "updatedAt": "2026-10-26T10:00:00Z",
+      "unexpected": true
+    }
   ]
 }

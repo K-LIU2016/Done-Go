@@ -17,9 +17,10 @@
   ],
   "invalid": [
     {
+      "id": "acceptance-bad",
       "artifactId": "x",
       "actor": "x",
-      "decision": "accepted",
+      "decision": "not-a-decision",
       "createdAt": "2026-10-26T10:00:00Z"
     }
   ]
