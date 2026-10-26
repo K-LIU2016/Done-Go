@@ -5,7 +5,10 @@ import { ruleClean } from './clean.mjs';
 import { cleanSegment, structureUtterance } from './llm.mjs';
 
 export const VOICE_V3_PATH = '/api/voice/v3';
-const MAX_SESSION_MS = 60_000;
+const MAX_SESSION_MS = 30 * 60_000; // ponytail: 只防忘关话筒；一口气说几分钟不受限
+const VOCAB_MAX = 60;
+// 客户端带来的用户常用词（近期事项标题），给意图解析纠正专有名词；只收短字符串
+const cleanVocab = v => (Array.isArray(v) ? [...new Set(v.filter(x => typeof x === 'string').map(x => x.trim().slice(0, 30)).filter(Boolean))].slice(0, VOCAB_MAX) : []);
 
 /** 当前时刻的 ISO（带 +08:00），供时间解析。 */
 export function shanghaiNow(date = new Date()) {
@@ -39,7 +42,7 @@ export function createVoiceV3Gateway({
     const send = msg => { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); };
     const segs = []; // { a, b, clean, edited }
     const cleaning = [];
-    let asr = null, started = false, stopped = false, closed = false;
+    let asr = null, started = false, stopped = false, closed = false, vocab = [];
     let structuring = null, dirty = false, lastItems = [], doneKey = null, lastResult = null, finalizing = false;
     const t0 = Date.now();
 
@@ -52,7 +55,7 @@ export function createVoiceV3Gateway({
           const input = { a: textOf('a'), b: textOf('b') };
           const key = input.a + '\u0000' + input.b;
           if (key === doneKey && lastResult?.source === 'cloud') continue; // 输入没变：不重复调用
-          const r = await structure(input, { now: now(), hedgeMs: final ? 2500 : 60_000 }); // 只在最终一轮对冲，免得说话中的中间轮挤占同一个 key 的并发
+          const r = await structure(input, { now: now(), vocab, hedgeMs: final ? 8000 : 120_000 }); // 只在最终一轮对冲（思考型模型正常 4–10s），免得说话中的中间轮挤占并发
           if (closed || finalizing) return; // 已进入最终轮：中间轮结果作废
           lastItems = r.items;
           if (r.source === 'cloud') { doneKey = key; lastResult = r; }
@@ -86,7 +89,7 @@ export function createVoiceV3Gateway({
       // 不发规则即时卡片——10-26 实测质量差（「十分@15:00」），界面先出整理文字 + 「正在整理成日程」占位。
       finalizing = true;
       const key = textOf('a') + '\u0000' + textOf('b');
-      const r = key === doneKey && lastResult ? lastResult : await structure({ a: textOf('a'), b: textOf('b') }, { now: now(), hedgeMs: 2500 });
+      const r = key === doneKey && lastResult ? lastResult : await structure({ a: textOf('a'), b: textOf('b') }, { now: now(), vocab, hedgeMs: 8000 });
       lastItems = r.items;
       send({ type: 'items', clean: r.clean, items: r.items, source: r.source, upto: segs.length, final: true });
       await Promise.all(cleaning); // 各句整理文字发完再结束
@@ -106,6 +109,7 @@ export function createVoiceV3Gateway({
         if (msg.type === 'start' && !started) {
           if (msg.sampleRate !== 16000) { send({ type: 'error', code: 'bad-sample-rate' }); return ws.close(1008); }
           started = true;
+          vocab = cleanVocab(msg.vocab);
           const e = await engine;
           asr = e.createSession({ onPartial, onFinal, onAlt });
           send({ type: 'ready' });

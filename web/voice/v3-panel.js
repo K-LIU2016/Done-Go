@@ -43,7 +43,7 @@ function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.g
 /**
  * 打开面板。opts: { onAdd(drafts) → 返回 Promise<string>（结果提示）, onClose() }
  */
-export function openVoicePanel({ onAdd, onClose } = {}) {
+export function openVoicePanel({ onAdd, onClose, vocab = [] } = {}) {
   ensureStyles();
   const today = todayStr();
   const root = document.createElement('div');
@@ -53,7 +53,7 @@ export function openVoicePanel({ onAdd, onClose } = {}) {
       <header class="v3-head"><span class="v3-dot" aria-hidden="true"></span><b class="v3-status" role="status">准备话筒…</b><span class="v3-clock">0:00</span><button type="button" class="v3-x" aria-label="关闭">×</button></header>
       <div class="v3-meter" aria-hidden="true"><i></i></div>
       <div class="v3-text" aria-label="识别的文字，可以直接改"><span class="v3-placeholder">说说今天要做的事，可以一次说好几件</span></div>
-      <p class="v3-hint">停顿会自动断句 · 文字可以直接点开改</p>
+      <p class="v3-hint">想说多久说多久，说完点「说完了」· 文字可以直接点开改</p>
       <section class="v3-cards" aria-live="polite"></section>
       <footer class="v3-foot"><button type="button" class="v3-btn v3-primary" data-v3="stop">说完了</button></footer>
     </div>`;
@@ -132,7 +132,7 @@ export function openVoicePanel({ onAdd, onClose } = {}) {
     try { ws?.close(); } catch {}
     root.remove(); onClose?.();
   }
-  function restart() { close(); openVoicePanel({ onAdd, onClose }); }
+  function restart() { close(); openVoicePanel({ onAdd, onClose, vocab }); }
 
   root.addEventListener('click', async e => {
     const act = e.target.closest('[data-v3]')?.dataset.v3 || (e.target.classList.contains('v3-x') ? 'close' : e.target === root ? 'close' : '');
@@ -153,7 +153,8 @@ export function openVoicePanel({ onAdd, onClose } = {}) {
   const queue = [];
   capture = createVoiceCapture({
     workletURL: new URL('./pcm-worklet.js', import.meta.url),
-    silenceTimeoutMs: 1200,
+    silenceTimeoutMs: 8000, // 想事情的停顿不打断；长时间不说话才自动收口
+    maxSessionMs: 30 * 60_000,
     onFrame: pcm => { const buf = pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + pcm.byteLength); if (ws?.readyState === 1 && phase === 'listening') ws.send(buf); else if (phase !== 'thinking' && phase !== 'done') queue.push(buf); },
     onLevel: level => { meter.style.transform = `scaleX(${Math.min(1, level * 6).toFixed(3)})`; },
     onAutoStop: () => stop(),
@@ -161,7 +162,7 @@ export function openVoicePanel({ onAdd, onClose } = {}) {
   capture.start().catch(error => { setStatus(error?.message || '无法使用话筒 · 检查设备后重试', 'error'); phase = 'done'; renderFoot(); });
 
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/voice/v3`);
-  ws.onopen = () => ws.send(JSON.stringify({ type: 'start', sampleRate: 16000 }));
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'start', sampleRate: 16000, vocab }));
   ws.onmessage = ev => {
     const m = JSON.parse(ev.data);
     if (m.type === 'ready') {
@@ -178,7 +179,7 @@ export function openVoicePanel({ onAdd, onClose } = {}) {
         showFinalText(m.clean);
         renderFoot();
       }
-    } else if (m.type === 'error') { setStatus(m.code === 'session-too-long' ? '一次最多说 60 秒' : '语音整理出了点问题，可以重新说', 'error'); }
+    } else if (m.type === 'error') { setStatus(m.code === 'session-too-long' ? '已经说了 30 分钟，先整理这些' : '语音整理出了点问题，可以重新说', 'error'); }
   };
   ws.onerror = () => { if (phase !== 'done') { setStatus('连不上语音服务，可以直接打字', 'error'); phase = 'done'; renderFoot(); } };
   ws.onclose = () => { if (phase === 'thinking') { phase = 'done'; renderFoot(); } };

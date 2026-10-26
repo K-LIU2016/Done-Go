@@ -1305,7 +1305,7 @@ window.TangoAppAuth.start(function (authUser) {
   }
   function startMic() {
     if (v3Panel && LANG === 'zh' && !v3Open && !capState.busy) {
-      v3Open = v3Panel.openVoicePanel({ onAdd: addVoiceItems, onClose: function () { v3Open = null; } });
+      v3Open = v3Panel.openVoicePanel({ onAdd: addVoiceItems, onClose: function () { v3Open = null; }, vocab: S.entries.slice(-60).map(function (e) { return e.title; }) });
       return;
     }
     if (v3Open) return;

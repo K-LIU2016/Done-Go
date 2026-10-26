@@ -33,13 +33,13 @@ async function harness(t, opts = {}) {
   return `ws://127.0.0.1:${server.address().port}${VOICE_V3_PATH}`;
 }
 
-function talk(url, steps) {
+function talk(url, steps, start = {}) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url); const got = [];
     ws.on('unexpected-response', (_, res) => resolve({ rejected: res.statusCode }));
     ws.on('error', reject);
     ws.on('message', d => { const m = JSON.parse(String(d)); got.push(m); if (m.type === 'ready') steps(ws); });
-    ws.on('open', () => ws.send(JSON.stringify({ type: 'start', sampleRate: 16000 })));
+    ws.on('open', () => ws.send(JSON.stringify({ type: 'start', sampleRate: 16000, ...start })));
     ws.on('close', () => resolve({ got }));
   });
 }
@@ -77,4 +77,13 @@ test('rejects upgrades without a session or from a foreign origin', async t => {
 
 test('shanghaiNow formats the current time with the +08:00 offset', () => {
   assert.equal(shanghaiNow(new Date('2026-10-26T01:00:00Z')), '2026-10-26T09:00:00+08:00');
+});
+
+test('the user vocabulary from start reaches every structuring call, deduped and sanitized', async t => {
+  const seen = [];
+  const url = await harness(t, { structure: async (input, opts) => { seen.push(opts.vocab); return { clean: input.a, items: [], source: 'cloud' }; } });
+  const vocab = ['Argus', 'Mystic', 'Argus', 42, '  ', 'x'.repeat(50)];
+  await talk(url, ws => { for (let i = 0; i < 4; i++) ws.send(Buffer.alloc(3200)); setTimeout(() => ws.send(JSON.stringify({ type: 'stop' })), 50); }, { vocab });
+  assert.ok(seen.length >= 1);
+  for (const v of seen) assert.deepEqual(v, ['Argus', 'Mystic', 'x'.repeat(30)]);
 });
