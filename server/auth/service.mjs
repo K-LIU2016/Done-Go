@@ -250,11 +250,15 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
     const password = passwordInput(body.password);
     const fallbackName = target.channel === "phone" ? `用户${target.identifier.slice(-4)}` : target.identifier.split("@")[0];
     const displayName = nameInput(body.displayName, fallbackName);
-    // Hash outside the transaction so account creation remains atomic.
+    // Hash outside the transaction; code consumption and user creation are atomic.
+    // 注册必须先通过验证码证明邮箱/手机归属（c6d1521 曾去掉这步，任何人可冒用他人邮箱注册，10-26 恢复）
     const passwordHash = await hashPassword(password);
+    const codeId = verifyCode(target.identifier, body.code, "register");
     const id = randomUUID();
     transaction(() => {
       if (userByIdentifier(target)) fail(400, "REGISTRATION_FAILED", "该账号无法注册，请尝试登录。");
+      const consumed = db.prepare("UPDATE email_verifications SET consumed = 1 WHERE id = ? AND consumed = 0 AND expires_at > ?").run(codeId, now());
+      if (consumed.changes !== 1) fail(400, "INVALID_CODE", "验证码无效或已过期，请重新获取。");
       const storedEmail = target.channel === "phone" ? phoneEmail(target.identifier) : target.identifier;
       if (userByEmail(storedEmail)) fail(400, "REGISTRATION_FAILED", "该账号无法注册，请尝试登录。");
       db.prepare("INSERT INTO users(id,email,phone,display_name,password_hash,created_at,role,account_kind) VALUES (?,?,?,?,?,?,?,?)").run(id, storedEmail, target.channel === "phone" ? target.identifier : null, displayName, passwordHash, new Date(now()).toISOString(), target.channel === "email" && config.adminEmails.includes(target.identifier) ? "admin" : "user", target.channel);
@@ -346,7 +350,7 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
       if (!body || typeof body !== "object" || Array.isArray(body)) fail(400, "INVALID_BODY", "请求内容无效。");
       const method = req.method || "GET";
       let payload;
-      if (method === "GET" && url === "/api/auth/status") payload = { enabled: true, localAccounts, requireLoginAfterRegistration, emailDelivery: config.transport === "disabled" ? "unavailable" : config.transport === "console" ? "console" : "email", phoneDelivery: config.transport === "console" ? "console" : "unavailable", codeLogin: false, registrationEnabled: true, passwordMinLength: PASSWORD_MIN, passwordMaxLength: PASSWORD_MAX, codeResendSeconds: config.codeResendSeconds };
+      if (method === "GET" && url === "/api/auth/status") payload = { enabled: true, localAccounts, requireLoginAfterRegistration, emailDelivery: config.transport === "disabled" ? "unavailable" : config.transport === "console" ? "console" : "email", phoneDelivery: config.transport === "console" ? "console" : "unavailable", codeLogin: false, registrationEnabled: config.transport !== "disabled", passwordMinLength: PASSWORD_MIN, passwordMaxLength: PASSWORD_MAX, codeResendSeconds: config.codeResendSeconds };
       else if (method === "POST" && url === "/api/auth/local-register") payload = await registerLocal(body, req, res);
       else if (method === "POST" && url === "/api/auth/send-code") payload = await sendCode(body, req);
       else if (method === "POST" && url === "/api/auth/register") payload = await register(body, req, res);

@@ -29,16 +29,19 @@ async function fixture(t, overrides = {}) {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { await new Promise((resolve) => server.close(resolve)); service.close(); await rm(directory, { recursive: true, force: true }); });
+  const advance = (ms) => { clock += ms; };
   const request = async (path, { method = "GET", body, cookie, headers = {} } = {}) => {
     const response = await fetch(url + path, { method, headers: { ...HEADERS, ...(cookie ? { cookie } : {}), ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
     return { status: response.status, body: await response.json(), cookie: response.headers.get("set-cookie"), headers: response.headers };
   };
+  const codeFor = async (email) => (await request("/api/auth/send-code", { method: "POST", body: { email } })).body.devCode;
   const register = async (email) => {
-    const response = await request("/api/auth/register", { method: "POST", body: { email, password: PASSWORD, confirmPassword: PASSWORD } });
+    advance(61000); // 跨过同 IP 发码冷却之外的同邮箱冷却
+    const response = await request("/api/auth/register", { method: "POST", body: { email, password: PASSWORD, confirmPassword: PASSWORD, code: await codeFor(email) } });
     assert.equal(response.status, 200);
     return response;
   };
-  return { request, register, sent, databaseFile, advance: (ms) => { clock += ms; }, failDelivery: () => { failDelivery = true; }, restart: () => { service.close(); service = createAuthService(options); } };
+  return { request, register, codeFor, sent, databaseFile, advance, failDelivery: () => { failDelivery = true; }, restart: () => { service.close(); service = createAuthService(options); } };
 }
 
 test("mail2profile registration, cookie restore, login and logout preserve separate identities", async (t) => {
@@ -88,7 +91,7 @@ test("login codes are single-use, persist cooldown across restart, and exhaust a
   assert.equal((await f.request("/api/auth/me", { cookie: alice.cookie })).status, 200);
 });
 
-test("expired, superseded and wrong-purpose codes are rejected while direct registration needs no code", async (t) => {
+test("expired, superseded and wrong-purpose codes are rejected, and registration always needs a code", async (t) => {
   const f = await fixture(t);
   const first = await f.request("/api/auth/send-code", { method: "POST", body: { email: "expiry@example.test" } });
   f.advance(601000);
@@ -99,7 +102,8 @@ test("expired, superseded and wrong-purpose codes are rejected while direct regi
   assert.equal((await f.request("/api/auth/login-code", { method: "POST", body: { email: "alice@example.test", code: reset.body.devCode } })).body.error, "INVALID_CODE");
   const direct = await f.register("new@example.test");
   assert.equal(direct.status, 200);
-  assert.equal((await f.request("/api/auth/register", { method: "POST", body: { email: "alice@example.test", password: PASSWORD, confirmPassword: PASSWORD } })).body.error, "REGISTRATION_FAILED");
+  // 已注册的邮箱拿不到注册码（发码被静默抑制），所以重复注册先报验证码无效，不暴露账号是否存在
+  assert.equal((await f.request("/api/auth/register", { method: "POST", body: { email: "alice@example.test", password: PASSWORD, confirmPassword: PASSWORD } })).body.error, "INVALID_CODE");
   assert.equal((await f.request("/api/auth/me", { cookie: registered.cookie })).status, 200);
 });
 
@@ -198,9 +202,10 @@ test("invalid fields do not create an account and concurrent registration create
   const body = { email: "alice@example.test", password: PASSWORD, confirmPassword: PASSWORD };
   assert.equal((await f.request("/api/auth/register", { method: "POST", body: { ...body, password: "short", confirmPassword: "short" } })).body.error, "INVALID_PASSWORD");
   assert.equal((await f.request("/api/auth/register", { method: "POST", body: { ...body, displayName: "" } })).body.error, "INVALID_NAME");
-  const results = await Promise.all([f.request("/api/auth/register", { method: "POST", body }), f.request("/api/auth/register", { method: "POST", body })]);
+  const code = await f.codeFor("alice@example.test");
+  const results = await Promise.all([f.request("/api/auth/register", { method: "POST", body: { ...body, code } }), f.request("/api/auth/register", { method: "POST", body: { ...body, code } })]);
   assert.deepEqual(results.map((result) => result.status).sort(), [200, 400]);
-  assert.equal(results.find((result) => result.status === 400).body.error, "REGISTRATION_FAILED");
+  assert.ok(["REGISTRATION_FAILED", "INVALID_CODE"].includes(results.find((result) => result.status === 400).body.error));
 });
 
 test("passwords are enforced server-side between 8 and 15 characters", async (t) => {
@@ -209,8 +214,8 @@ test("passwords are enforced server-side between 8 and 15 characters", async (t)
   const tooLong = await f.request("/api/auth/register", { method: "POST", body: { email: "bounds@example.test", password: "Abcdefghijklmno1", confirmPassword: "Abcdefghijklmno1" } });
   assert.equal(tooShort.body.error, "INVALID_PASSWORD");
   assert.equal(tooLong.body.error, "INVALID_PASSWORD");
-  const minimum = await f.request("/api/auth/register", { method: "POST", body: { email: "bounds@example.test", password: "Abcdefg1", confirmPassword: "Abcdefg1" } });
-  const maximum = await f.request("/api/auth/register", { method: "POST", body: { email: "wide@example.test", password: "Abcdefghijklmno", confirmPassword: "Abcdefghijklmno" } });
+  const minimum = await f.request("/api/auth/register", { method: "POST", body: { email: "bounds@example.test", password: "Abcdefg1", confirmPassword: "Abcdefg1", code: await f.codeFor("bounds@example.test") } });
+  const maximum = await f.request("/api/auth/register", { method: "POST", body: { email: "wide@example.test", password: "Abcdefghijklmno", confirmPassword: "Abcdefghijklmno", code: await f.codeFor("wide@example.test") } });
   assert.equal(minimum.status, 200);
   assert.equal(maximum.status, 200);
   const login = await f.request("/api/auth/login", { method: "POST", body: { email: "bounds@example.test", password: "Abcdefg1" } });
@@ -239,21 +244,21 @@ test("public email mode sets secure cookies and never returns verification codes
   const result = await f.request("/api/auth/send-code", { method: "POST", body: { email: "alice@example.test" }, headers });
   assert.equal(result.status, 200);
   assert.equal(result.body.devCode, undefined);
-  const registration = await f.request("/api/auth/register", { method: "POST", body: { email: "alice@example.test", password: PASSWORD, confirmPassword: PASSWORD }, headers });
+  const registration = await f.request("/api/auth/register", { method: "POST", body: { email: "alice@example.test", password: PASSWORD, confirmPassword: PASSWORD, code: f.sent.at(-1).code }, headers });
   assert.equal(registration.status, 200);
   assert.match(registration.cookie, /; Secure/);
 });
 
-test("unconfigured email keeps direct registration working while codes report unavailable", async (t) => {
+test("unconfigured email closes registration because no code can prove the address", async (t) => {
   const f = await fixture(t, { config: config({ EMAIL_TRANSPORT: "disabled" }) });
   const status = await f.request("/api/auth/status");
-  assert.equal(status.body.registrationEnabled, true);
+  assert.equal(status.body.registrationEnabled, false);
   assert.equal(status.body.emailDelivery, "unavailable");
   assert.equal(status.body.codeLogin, false);
   assert.equal(status.body.passwordMinLength, 8);
   assert.equal(status.body.passwordMaxLength, 15);
   assert.equal((await f.request("/api/auth/send-code", { method: "POST", body: { email: "alice@example.test" } })).status, 503);
-  assert.equal((await f.register("alice@example.test")).status, 200);
+  assert.equal((await f.request("/api/auth/register", { method: "POST", body: { email: "alice@example.test", password: PASSWORD, confirmPassword: PASSWORD } })).body.error, "INVALID_CODE");
 });
 
 test("resend adapter uses the configured sender, does not follow redirects and hides provider failure detail", async () => {
@@ -265,4 +270,16 @@ test("resend adapter uses the configured sender, does not follow redirects and h
   assert.equal(JSON.parse(request.options.body).from, "noreply@example.test");
   const failing = createEmailSender(config({ EMAIL_TRANSPORT: "resend", RESEND_API_KEY: "test-key", MAIL_FROM: "noreply@example.test" }), { fetchImpl: async () => new Response("sensitive provider diagnostic", { status: 500 }) });
   await assert.rejects(failing({ email: "alice@example.test", code: "123456", purpose: "reset" }), { message: "email_delivery_failed" });
+});
+
+test("registration requires a valid, unused code sent to that address", async (t) => {
+  const f = await fixture(t);
+  const body = { email: "carol@example.test", password: PASSWORD, confirmPassword: PASSWORD };
+  assert.equal((await f.request("/api/auth/register", { method: "POST", body })).body.error, "INVALID_CODE");
+  const code = await f.codeFor("carol@example.test");
+  assert.equal((await f.request("/api/auth/register", { method: "POST", body: { ...body, code: code === "000000" ? "111111" : "000000" } })).body.error, "INVALID_CODE");
+  assert.equal((await f.request("/api/auth/register", { method: "POST", body: { ...body, email: "mallory@example.test", code } })).body.error, "INVALID_CODE", "a code only proves the address it was sent to");
+  const ok = await f.request("/api/auth/register", { method: "POST", body: { ...body, code } });
+  assert.equal(ok.status, 200);
+  assert.equal((await f.request("/api/auth/register", { method: "POST", body: { ...body, code } })).body.error, "INVALID_CODE", "a code cannot be reused");
 });

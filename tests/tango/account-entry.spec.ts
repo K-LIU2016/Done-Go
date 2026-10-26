@@ -1,7 +1,9 @@
 import {test,expect,type Page} from '@playwright/test';
 const password='SyncPass123';
 const accountInput=(page:Page)=>page.locator('#app-auth-form input').first();
-const registerLink=(page:Page)=>page.locator('.auth-alt .auth-link');
+const registerLink=(page:Page)=>page.locator('[data-auth="register"]');
+// 注册必须先收验证码：测试宿主的 /__test/mailbox 取出发给该邮箱的码
+async function fillCode(page:Page,email:string){await page.locator('[data-auth="send-code"]').click();await expect(page.locator('.auth-notice')).toContainText('验证码已发送');const mail=await (await page.context().request.get('/__test/mailbox?email='+encodeURIComponent(email))).json();expect(mail.code).toMatch(/^\d{6}$/);await page.locator('#auth-code').fill(mail.code);}
 
 async function expectNoContactToggle(page:Page){
  await expect(page.locator('.auth-tabs')).toHaveCount(0);
@@ -25,7 +27,7 @@ test('administrators list, disable, enable and confirm-delete users; ordinary me
 async function prepare(page:Page){await page.route('https://**',route=>route.abort());await page.addInitScript(()=>{if(!localStorage.getItem('tango-donego.web.v1'))localStorage.setItem('tango-donego.web.v1',JSON.stringify({v:1,pv:5,mode:'real',entries:[{id:'unclaimed',title:'PRIVATE LEGACY RECORD',date:'2026-10-21',start:'09:00',end:'09:30',kind:'necessary'}],drafts:[],trials:[],methods:[],methodUses:[]}));});}
 
 async function signUp(page:Page,account:string){
- await expectNoContactToggle(page);await registerLink(page).click();await accountInput(page).fill(account);await page.locator('#auth-password').fill(password);
+ await expectNoContactToggle(page);await registerLink(page).click();await accountInput(page).fill(account);await fillCode(page,account);await page.locator('#auth-password').fill(password);
  await expect(page.locator('#auth-password')).toHaveAttribute('minlength','8');
  await page.locator('#auth-passwordConfirm').fill(password);await page.locator('#auth-displayName').fill('Research member');
  await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.auth-notice')).toContainText('注册成功，请登录');await expect(page.locator('#auth-passwordConfirm')).toHaveCount(0);
@@ -53,12 +55,11 @@ test('signed-in settings connect account identity, app data and logout',async({p
  await page.locator('#account-settings [data-auth="logout"]').click();await expect(page.locator('#app-auth-form')).toBeVisible();await expect(page.locator('.tabs')).toBeHidden();expect((await page.context().request.get('/api/auth/me',{headers:{'x-tango-client':'tango-settings/1'}})).status()).toBe(401);
 });
 
-test('entry registers and signs in with a phone number through the same single account field',async({page})=>{
+test('phone sign-up is refused with a clear notice until an SMS provider exists',async({page})=>{
  await prepare(page);await page.goto('/#today');await expect(accountInput(page)).toBeVisible();await expectNoContactToggle(page);await expect(page.locator('#app-auth-form input')).toHaveCount(2);
  const phone='138'+String(Math.floor(10000000+Math.random()*89999999));
- await registerLink(page).click();await accountInput(page).fill(phone);await page.locator('#auth-password').fill(password);await page.locator('#auth-passwordConfirm').fill(password);
- await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.auth-notice')).toContainText('注册成功，请登录');await expect(page.locator('#auth-passwordConfirm')).toHaveCount(0);
- await page.locator('#auth-password').fill(password);await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.tabs')).toBeVisible();
+ await registerLink(page).click();await accountInput(page).fill(phone);await page.locator('[data-auth="send-code"]').click();
+ await expect(page.locator('.auth-notice')).toContainText('暂不支持手机号注册');
 });
 
 async function signIn(page:Page,account:string){
@@ -76,4 +77,17 @@ test('auth forms keep drafts across every language and unlock themes after sign-
  await page.locator('#lang').selectOption('zh');await signIn(page,account);await expect(page.locator('#appearance-control')).toBeVisible();
  for(const theme of ['standard','designer']){await page.locator('#appearance-select').selectOption(theme);await expect(page.locator('html')).toHaveAttribute('data-appearance',theme);await page.screenshot({path:info.outputPath(theme+'-signed-in.png'),fullPage:true});}
  expect(calls).toBe(0);
+});
+
+test('forgot password resets with an email code and only the new password signs in',async({page})=>{
+ await prepare(page);await page.goto('/#today');
+ const name='reset'+Math.random().toString(36).slice(2,10),email=name+'@fixture.test',fresh='NewPass456';
+ const created=await page.context().request.post('/__test/register',{data:{username:name,password,displayName:'Reset member'}});expect(created.status()).toBe(200);
+ await page.context().clearCookies();await page.reload();await expect(accountInput(page)).toBeVisible();
+ await page.locator('[data-auth="reset"]').click();await expect(page.locator('#auth-code')).toBeVisible();
+ await accountInput(page).fill(email);await fillCode(page,email);
+ await page.locator('#auth-password').fill(fresh);await page.locator('#auth-passwordConfirm').fill(fresh);
+ await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.auth-notice')).toContainText('密码已重置');
+ await accountInput(page).fill(email);await page.locator('#auth-password').fill(password);await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.auth-notice')).toContainText('账号或密码不正确');
+ await page.locator('#auth-password').fill(fresh);await page.locator('#app-auth-form button[type=submit]').click();await expect(page.locator('.tabs')).toBeVisible();
 });

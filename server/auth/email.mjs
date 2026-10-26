@@ -11,7 +11,7 @@ const SERIF = "'Noto Serif SC','Songti SC','STSong',serif";
 const SANS = "'Noto Sans SC','PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,sans-serif";
 
 function renderVerificationEmail({ code, purpose, minutes }) {
-  const label = purpose === "register" ? "注册账号" : "重置密码";
+  const label = { register: "注册账号", reset: "重置密码", login: "登录" }[purpose] || "账号验证";
   const subject = `${BRAND.name} ${BRAND.latin} ${label}验证码`;
   const text = [
     `${BRAND.name} ${BRAND.latin} —— ${label}验证码`,

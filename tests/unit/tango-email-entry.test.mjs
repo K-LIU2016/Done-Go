@@ -11,14 +11,16 @@ async function fixture(t,extra={}){
  const server=createTangoServer({collaboration:service,assistant});await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
  t.after(async()=>{server.closeIdleConnections();await new Promise(r=>server.close(r));service.close();});
  async function request(path,body,cookie,method){const r=await fetch(origin+path,{method:method||(body===undefined?'GET':'POST'),headers:{origin,'x-tango-client':'tango-settings/1','Content-Type':'application/json',...(cookie?{cookie}:{})},body:body===undefined?undefined:JSON.stringify(body)});return {status:r.status,body:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
-async function register(email){const result=await request('/api/auth/register',{email,password:'EmailPass123',confirmPassword:'EmailPass123'});assert.equal(result.status,200);return result;}
- return {request,register,sent,service,origin};
+async function codeFor(email){assert.equal((await request('/api/auth/send-code',{email})).status,200);return sent.at(-1).code;}
+async function register(email){const result=await request('/api/auth/register',{email,password:'EmailPass123',confirmPassword:'EmailPass123',code:await codeFor(email)});assert.equal(result.status,200);return result;}
+ return {request,register,codeFor,sent,service,origin};
 }
-test('direct registration then explicit login unlocks all app APIs; anonymous users cannot use paid or shared features',async t=>{
+test('code-verified registration then explicit login unlocks all app APIs; anonymous users cannot use paid or shared features',async t=>{
  const f=await fixture(t);
 assert.equal((await f.request('/api/auth/local-register',{username:'legacy',password:'EmailPass123'})).status,403);
  for(const path of ['/api/assistant/config','/api/speech','/api/discovery','/api/collaboration/groups']) assert.equal((await f.request(path)).status,401,path);
-const registered=await f.request('/api/auth/register',{email:'one@example.test',password:'EmailPass123',confirmPassword:'EmailPass123'});
+assert.equal((await f.request('/api/auth/register',{email:'one@example.test',password:'EmailPass123',confirmPassword:'EmailPass123'})).body.detail.code,'INVALID_CODE');
+const registered=await f.request('/api/auth/register',{email:'one@example.test',password:'EmailPass123',confirmPassword:'EmailPass123',code:await f.codeFor('one@example.test')});
  assert.equal(registered.status,200);assert.equal(registered.body.user.emailVerified,true);assert.equal(registered.cookie,undefined);
  assert.equal((await f.request('/api/assistant/config')).status,401);
 const login=await f.request('/api/auth/login',{email:'one@example.test',password:'EmailPass123'});assert.equal(login.status,200);assert.ok(login.cookie);
@@ -30,7 +32,8 @@ const login=await f.request('/api/auth/login',{email:'one@example.test',password
 test('public HTTPS sessions set secure cookies and reject foreign, missing and wrong-port origins',async t=>{
  const publicOrigin='https://donego.example.test';const f=await fixture(t,{TANGO_PUBLIC_ORIGIN:publicOrigin,NODE_ENV:'production'});
  async function request(path,body,cookie,headers={}){return new Promise((resolve,reject)=>{const req=httpRequest({hostname:'127.0.0.1',port:new URL(f.origin).port,path,method:body===undefined?'GET':'POST',headers:{host:'donego.example.test',origin:publicOrigin,'x-tango-client':'tango-settings/1','Content-Type':'application/json',...(cookie?{cookie}:{}),...headers}},response=>{let raw='';response.on('data',chunk=>raw+=chunk);response.on('end',()=>resolve({status:response.statusCode,body:JSON.parse(raw),cookie:response.headers['set-cookie']?.[0]||null}));});req.on('error',reject);req.end(body===undefined?undefined:JSON.stringify(body));});}
-const registered=await request('/api/auth/register',{email:'public@example.test',password:'EmailPass123',confirmPassword:'EmailPass123'});assert.equal(registered.status,200);assert.equal(registered.cookie,null);
+assert.equal((await request('/api/auth/send-code',{email:'public@example.test'})).status,200);
+const registered=await request('/api/auth/register',{email:'public@example.test',password:'EmailPass123',confirmPassword:'EmailPass123',code:f.sent.at(-1).code});assert.equal(registered.status,200);assert.equal(registered.cookie,null);
 const login=await request('/api/auth/login',{email:'public@example.test',password:'EmailPass123'});assert.equal(login.status,200);assert.match(login.cookie,/; Secure/);assert.match(login.cookie,/HttpOnly/);
  const cookie=login.cookie.split(';')[0];assert.equal((await request('/api/assistant/config',undefined,cookie)).status,200);
  for(const headers of [{origin:'https://attacker.example.test'},{origin:''},{host:'donego.example.test:8443',origin:publicOrigin}])assert.equal((await request('/api/collaboration/groups',{name:'Denied'},cookie,headers)).status,403);

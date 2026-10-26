@@ -38,14 +38,16 @@ async function fixture(t, { publicOrigin = "", ...options } = {}) {
     MAIL_FROM: "noreply@example.test",
     ADMIN_EMAILS: "admin@example.test",
   });
-  const auth = createAuthService({ databaseFile: join(directory, "auth.sqlite"), config });
+  const sent = [];
+  const auth = createAuthService({ databaseFile: join(directory, "auth.sqlite"), config, sendEmail: async (message) => { sent.push(message); } });
   const app = createAppServer({ settingsFile: join(directory, "settings.json"), auth, publicOrigin, ...options });
   const port = await app.start();
   t.after(async () => { await app.close(); auth.close(); await rm(directory, { recursive: true, force: true }); });
   const headers = publicOrigin ? { host: new URL(publicOrigin).host, origin: publicOrigin } : {};
   const api = (path, options = {}) => request(port, path, { ...options, headers: { ...headers, ...options.headers } });
   const register = async (email) => {
-    const response = await api("/api/auth/register", { method: "POST", body: { email, password: "LocalPass123", confirmPassword: "LocalPass123" } });
+    assert.equal((await api("/api/auth/send-code", { method: "POST", body: { email } })).status, 200);
+    const response = await api("/api/auth/register", { method: "POST", body: { email, password: "LocalPass123", confirmPassword: "LocalPass123", code: sent.at(-1).code } });
     assert.equal(response.status, 200);
     return response.cookie;
   };

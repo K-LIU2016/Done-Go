@@ -49,8 +49,10 @@ async function fixture(t, extraConfig = {}) {
     assert.equal(result.status, 200);
     return result.body.devCode;
   };
+  // 注册必须先收码（手机号同样要证明归属），console 模式下 devCode 直接回显
   const register = async (payload) => {
-    return request("/api/auth/register", { method: "POST", body: { ...payload, password: PASSWORD, confirmPassword: PASSWORD } });
+    const code = await issueCode(payload);
+    return request("/api/auth/register", { method: "POST", body: { ...payload, password: PASSWORD, confirmPassword: PASSWORD, code } });
   };
   return { request, register, issueCode, sentSms, sentEmail, databaseFile };
 }
@@ -62,7 +64,8 @@ test("phone registration normalizes mainland numbers, validates confirmation and
   assert.equal(mismatch.body.error, "PASSWORD_MISMATCH");
   const missingConfirmation = await f.request("/api/auth/register", { method: "POST", body: { phone: "13800138000", password: PASSWORD } });
   assert.equal(missingConfirmation.body.error, "PASSWORD_MISMATCH");
-  const created = await f.request("/api/auth/register", { method: "POST", body: { phone: "+8613800138000", password: PASSWORD, confirmPassword: PASSWORD } });
+  assert.equal((await f.request("/api/auth/register", { method: "POST", body: { phone: "+8613800138000", password: PASSWORD, confirmPassword: PASSWORD } })).body.error, "INVALID_CODE");
+  const created = await f.request("/api/auth/register", { method: "POST", body: { phone: "+8613800138000", password: PASSWORD, confirmPassword: PASSWORD, code: await f.issueCode({ phone: "+8613800138000" }) } });
   assert.equal(created.status, 200);
   assert.equal(created.body.user.phone, "+8613800138000");
   assert.equal(created.body.user.email, null);
@@ -72,19 +75,19 @@ test("phone registration normalizes mainland numbers, validates confirmation and
   assert.equal(login.status, 200);
   assert.match(login.cookie, /HttpOnly/);
   assert.equal((await f.request("/api/auth/me", { cookie: login.cookie })).body.user.phone, "+8613800138000");
-  const minimal = await f.request("/api/auth/register", { method: "POST", body: { phone: "13900139001", password: "Abcdefg1", confirmPassword: "Abcdefg1" } });
+  const minimal = await f.request("/api/auth/register", { method: "POST", body: { phone: "13900139001", password: "Abcdefg1", confirmPassword: "Abcdefg1", code: await f.issueCode({ phone: "13900139001" }) } });
   assert.equal(minimal.status, 200);
   assert.equal(minimal.body.user.phone, "+8613900139001");
   const raw = await readFile(f.databaseFile);
   assert.equal(raw.includes(Buffer.from(PASSWORD)), false);
-  assert.equal(f.sentSms.length, 0);
+  assert.equal(f.sentSms.length, 2); // 两次注册各发一条注册码;
 });
 
 test("phone placeholder collisions return an actionable error", async (t) => {
   const f = await fixture(t);
   const reserved = await f.register({ email: "8613800138002@phone.tango.invalid" });
   assert.equal(reserved.status, 200);
-  const collision = await f.request("/api/auth/register", { method: "POST", body: { phone: "13800138002", password: PASSWORD, confirmPassword: PASSWORD } });
+  const collision = await f.register({ phone: "13800138002" });
   assert.equal(collision.status, 400);
   assert.equal(collision.body.error, "REGISTRATION_FAILED");
 });
@@ -93,7 +96,7 @@ test("phone code login issues one session, burns the code and suppresses unknown
   const f = await fixture(t);
   const created = await f.register({ phone: "13800138000" });
   assert.equal(created.status, 200);
-  assert.equal(f.sentSms.length, 0);
+  assert.equal(f.sentSms.length, 1); // 注册码;
   const loginCode = await f.issueCode({ phone: "13800138000", purpose: "login" });
   const login = await f.request("/api/auth/login-code", { method: "POST", body: { phone: "13800138000", code: loginCode } });
   assert.equal(login.status, 200);
@@ -104,7 +107,7 @@ test("phone code login issues one session, burns the code and suppresses unknown
   const unknown = await f.request("/api/auth/send-code", { method: "POST", body: { phone: "13900139000", purpose: "login" } });
   assert.equal(unknown.status, 200);
   assert.equal(unknown.body.devCode, undefined);
-  assert.equal(f.sentSms.length, 1);
+  assert.equal(f.sentSms.length, 2); // 注册码 + 登录码（未注册号码的登录码被抑制）;
 });
 
 test("email code login works with the same endpoint and keeps verified email accounts compatible", async (t) => {
