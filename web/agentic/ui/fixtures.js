@@ -128,7 +128,7 @@ export const preview = (id, opts = {}) => {
       { type: 'caveat', text: '无法访问付费数据库（知网全文等），改用公开来源；实际引用数取决于检索结果。' },
     ] },
     storyboard: STORYBOARD, narration: narrOf(patched), boundary: boundaryOf('r'),
-    diff: patched ? { changed: ['shape.blocks[0]', 'shape.blocks[1]'], reason: '你说只看国内 K12：新增课堂实践与教师准备度，删除海外案例，来源范围仅国内' } : null,
+    ...(patched ? { diff: { changed: ['shape.blocks[0]', 'shape.blocks[1]'], reason: '你说只看国内 K12：新增课堂实践与教师准备度，删除海外案例，来源范围仅国内' } } : {}),
     samples: [], reel: reelOf('r'), scene: SCENE,
   };
   if (id === 'c') return {
@@ -145,7 +145,7 @@ export const preview = (id, opts = {}) => {
       { type: 'caveat', text: patched ? '课程将引用 14:00 研究报告的结论；如研究延期，课程设计顺延开始。' : '需要你告诉我：学员是谁、几课时、什么形式。' },
     ] },
     storyboard: STORYBOARD, narration: narrOf(patched), boundary: boundaryOf('c'),
-    diff: patched ? { changed: ['shape.blocks[0]', 'shape.blocks[1]'], reason: '课程改为 4 课时工作坊（样张：15 分钟改教案）' } : null,
+    ...(patched ? { diff: { changed: ['shape.blocks[0]', 'shape.blocks[1]'], reason: '课程改为 4 课时工作坊（样张：15 分钟改教案）' } } : {}),
     samples: [], reel: reelOf('c'), scene: SCENE,
   };
   if (id === 'f') return {
@@ -154,7 +154,7 @@ export const preview = (id, opts = {}) => {
       { type: 'facts', items: kv([['出发', '18:25 从家出发（地铁 32 分钟，按当前路况）'], ['要点', '他上周说在找新工作；你想聊 Argus 的合作'], ['带什么', '上次借的书']]) },
       { type: 'caveat', text: '不会替你订位或付款；餐厅只给 2 个备选。' },
     ] },
-    storyboard: [], narration: '', boundary: boundaryOf('f'), diff: null,
+    storyboard: [], narration: '', boundary: boundaryOf('f'),
     samples: [], reel: reelOf('f'), scene: SCENE,
   };
   if (id === 'b') return {
@@ -163,7 +163,7 @@ export const preview = (id, opts = {}) => {
       { type: 'facts', items: kv([['物料', '侧板 2 · 隔板 3 · 螺丝 12 · 木胶 · 夹子 2'], ['步骤', '7 步，预计 45 分钟（第一次做 +15 分钟余量）'], ['关键点', '第 3 步上胶后要夹紧固化 15 分钟再拧螺丝']]) },
       { type: 'caveat', text: '效果图是示意；实际木纹与尺寸以你的套件为准。' },
     ] },
-    storyboard: [], narration: '', boundary: boundaryOf('b'), diff: null,
+    storyboard: [], narration: '', boundary: boundaryOf('b'),
     samples: [], reel: reelOf('b'), scene: SCENE,
   };
   return { // s：零打扰
@@ -172,7 +172,7 @@ export const preview = (id, opts = {}) => {
       { type: 'facts', items: kv([['agent 行为', '无。这段时间不推送、不安排任务。']]) },
       { type: 'caveat', text: '这是你的时间。' },
     ] },
-    storyboard: [], narration: '', boundary: boundaryOf('s'), diff: null,
+    storyboard: [], narration: '', boundary: boundaryOf('s'),
     samples: [], reel: reelOf('s'), scene: SCENE,
   };
 };

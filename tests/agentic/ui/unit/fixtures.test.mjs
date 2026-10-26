@@ -35,9 +35,11 @@ test('M02 blocks：黄金场景 5 块 r/c/f/b/s（prototype L249-255）', () => 
 test('M02 preview：字段名对齐 PRD §10.3（missionId/version/confidence/shape/storyboard/narration/boundary/diff/samples/reel/scene）', () => {
   for (const id of ['r', 'c']) {
     const p = preview(id);
-    for (const key of ['missionId', 'version', 'confidence', 'shape', 'storyboard', 'narration', 'boundary', 'diff', 'samples', 'reel', 'scene']) {
+    // diff 非必填且 present 必为 object（W0 schema）：初始态省略，patched 态在——M21 契约对齐
+    for (const key of ['missionId', 'version', 'confidence', 'shape', 'storyboard', 'narration', 'boundary', 'samples', 'reel', 'scene']) {
       assert.ok(key in p, `preview(${id}) 缺 PRD §10.3 字段 ${key}`);
     }
+    assert.ok('diff' in preview(id, { patched: true }), `preview(${id}, patched) 应带 diff`);
     assert.equal(typeof p.confidence, 'number');
     assert.ok(p.shape && typeof p.shape.kind === 'string' && typeof p.shape.title === 'string');
     assert.ok(Array.isArray(p.shape.blocks) && p.shape.blocks.length > 0);
@@ -62,7 +64,7 @@ test('M02 preview：patched 两态（prototype L260-294）——置信度/大纲
   assert.equal(typeof base.boundary.budget, 'string', '契约 boundary.budget 是整段串（PRD L754）');
   assert.ok(base.boundary.will.length > 0 && base.boundary.wont.length > 0);
   assert.deepEqual(Object.keys(patched.diff || {}), ['changed', 'reason'], '契约 diff = {changed, reason}');
-  assert.equal(base.diff, null, '初始态无 diff');
+  assert.ok(!('diff' in base), '初始态省略 diff 键（schema：present 必为 object）');
   assert.equal(base.scene.status, 'off'); // D-9：场景片默认关
   assert.ok(['happyhorse-1.1-t2v', 'wan2.7-t2v'].includes(base.scene.model), 'scene.model 枚举');
   assert.equal(base.reel.durationSec, 42);
