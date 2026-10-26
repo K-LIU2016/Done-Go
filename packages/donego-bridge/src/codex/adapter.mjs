@@ -2,6 +2,24 @@
 // 会话、选模、审批均通过依赖注入，单测使用录制夹具，不启动真实 Codex。
 import { createThreadRegistry } from './threads.mjs';
 
+function contractPlan(output, missionId) {
+  const value = output && typeof output === 'object' ? output : {};
+  return {
+    missionId,
+    model: 'gpt-6-luna',
+    effort: 'low',
+    files: Array.isArray(value.files) ? value.files : [],
+    steps: Array.isArray(value.steps) && value.steps.length > 0
+      ? value.steps
+      : [String(value.summary ?? 'Produce the approved change plan.')],
+    risks: Array.isArray(value.risks) ? value.risks : (Array.isArray(value.riskFlags) ? value.riskFlags : []),
+    tests: Array.isArray(value.tests) ? value.tests : [],
+    ...(Number.isInteger(value.diffLines)
+      ? { diffLines: value.diffLines }
+      : Number.isFinite(value.estimatedDiffLines) ? { diffLines: Math.max(0, Math.round(value.estimatedDiffLines)) } : {}),
+  };
+}
+
 const PLAN_OUTPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -153,7 +171,8 @@ export function createCodexAdapter({
       sandbox: { mode: READ_ONLY_SANDBOX },
       outputSchema: PLAN_OUTPUT_SCHEMA,
     });
-    return { threadId, plan: outputFrom(result) };
+    const plan = outputFrom(result);
+    return { threadId, plan, codexPlan: contractPlan(plan, missionId) };
   }
 
   async function execute(missionId, choice) {
