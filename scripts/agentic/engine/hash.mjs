@@ -30,6 +30,14 @@ export function sha256Hex(value) {
 }
 
 export function contractHash(contract) {
+  // `hash` is a derived field, not part of the frozen contract payload.  Strip
+  // only the top-level field so a caller can safely hash a stored contract
+  // without creating a self-referential digest.
+  if (contract && typeof contract === 'object' && !Array.isArray(contract)) {
+    const payload = { ...contract };
+    delete payload.hash;
+    return sha256Hex(canonicalJson(payload));
+  }
   return sha256Hex(canonicalJson(contract));
 }
 

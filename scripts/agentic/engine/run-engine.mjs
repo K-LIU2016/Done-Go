@@ -35,6 +35,9 @@ export function createRunEngine({ db, policy = null, outbox = null, now = () => 
     if (outbox?.cancelRegistered) outbox.cancelRegistered(runId);
     else db.prepare("UPDATE outbox SET status='cancelled', updated_at=? WHERE run_id=? AND status='registered'").run(nowValue(now), runId);
   };
+  const markStepOutboxCancelled = (runId, stepId) => {
+    db.prepare("UPDATE outbox SET status='cancelled', updated_at=? WHERE run_id=? AND step_id=? AND status='registered'").run(nowValue(now), runId, stepId);
+  };
   const handle = (id) => {
     const status = () => get(id);
     const assertActive = () => {
@@ -64,6 +67,11 @@ export function createRunEngine({ db, policy = null, outbox = null, now = () => 
       let attempt = 0;
       let lastError;
       const spent = {};
+      const cancelStep = (error = 'RUN_CANCELLED') => {
+        db.prepare("UPDATE run_steps SET status='failed', spent=?, error=?, updated_at=? WHERE id=?").run(json(spent), error, nowValue(now), stepId);
+        markStepOutboxCancelled(id, stepId);
+        return { skipped: true, reason: error };
+      };
       const ctx = {
         db, runId: id, stepName: name,
         spend(cost = {}) { for (const [key, value] of Object.entries(cost)) spent[key] = (spent[key] || 0) + (Number(value) || 0); },
@@ -73,12 +81,18 @@ export function createRunEngine({ db, policy = null, outbox = null, now = () => 
         },
       };
       while (attempt < 3) {
+        if (assertActive() === 'RUN_CANCELLED') return cancelStep();
         attempt += 1;
         db.prepare('UPDATE run_steps SET attempt=?, updated_at=? WHERE id=?').run(attempt, nowValue(now), stepId);
         try {
           const result = await fn(ctx);
+          // cancel() may run while fn is awaiting an external operation.  A
+          // completed callback must never resurrect a cancelled run or commit
+          // a successful checkpoint after cancellation.
+          if (assertActive() === 'RUN_CANCELLED') return cancelStep();
           if (budgetExceeded(run, spent)) {
             db.prepare("UPDATE run_steps SET status='failed', attempt=?, spent=?, error=?, updated_at=? WHERE id=?").run(attempt, json(spent), 'BUDGET_EXHAUSTED', nowValue(now), stepId);
+            if (outbox) db.prepare("UPDATE outbox SET status='failed', updated_at=? WHERE run_id=? AND step_id=? AND status='registered'").run(nowValue(now), id, stepId);
             touch(id, 'paused');
             return { failed: true, reason: 'BUDGET_EXHAUSTED', attempt };
           }
@@ -86,6 +100,7 @@ export function createRunEngine({ db, policy = null, outbox = null, now = () => 
           db.prepare("UPDATE runs SET status='running', spent=?, updated_at=? WHERE id=?").run(json(sumSpent(id)), nowValue(now), id);
           return { skipped: false, result, attempt };
         } catch (error) {
+          if (assertActive() === 'RUN_CANCELLED') return cancelStep();
           lastError = error;
           if (attempt < 3) await sleep(retryBaseMs * (2 ** (attempt - 1)));
         }
