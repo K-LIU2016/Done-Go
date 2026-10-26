@@ -10,6 +10,7 @@ import { test } from 'node:test';
 
 import { createVideoClient } from '../../../../../scripts/agentic/media/video-client.mjs';
 import { createDailyQuota } from '../../../../../scripts/agentic/media/quota.mjs';
+import { createMediaCache } from '../../../../../scripts/agentic/media/cache.mjs';
 
 const BASE = 'https://gw.example.com';
 const KEY = 'test-key-000';
@@ -32,7 +33,8 @@ function harness({ statuses = ['succeeded'], content = MP4, poll = null } = {}) 
       i += 1;
       return { ok: true, status: 200, json: async () => body };
     }
-    if (url === BASE + '/v1/videos/vid_1/content') return { ok: true, status: 200, arrayBuffer: async () => content.buffer.slice(0) };
+    // 精确切片：小 Buffer 的 .buffer 是 8KiB 共享池，slice(0) 会带出整个池
+    if (url === BASE + '/v1/videos/vid_1/content') return { ok: true, status: 200, arrayBuffer: async () => content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength) };
     throw new Error('unexpected url ' + url);
   };
   return { clock, fetch, calls };
@@ -140,6 +142,35 @@ test('an optional daily video quota is spent once per accepted job, not on POST 
     '超每日场景片配额直接拒绝',
   );
   rmSync(d, { recursive: true, force: true });
+});
+
+test('video bytes land in the Mission-versioned cache when a cache is provided (落盘)', async () => {
+  const { fetch, clock } = harness({ statuses: ['succeeded'] });
+  const dir = mkdtempSync(join(tmpdir(), 'w11-vc-'));
+  const cache = createMediaCache({ dir });
+  const client = createVideoClient({
+    baseUrl: BASE, key: KEY, fetch, now: clock.now, sleep: clock.sleep,
+    pollIntervalMs: 100, timeoutMs: 60_000, cache,
+  });
+  const out = await client.generateVideo({ model: 'happyhorse-1.1-t2v', prompt: 'p', missionId: 'm9', version: 2 });
+
+  assert.ok(typeof out.file === 'string' && out.file.length > 0, '必须返回落盘路径');
+  const key = cache.key({ missionId: 'm9', version: 2, model: 'happyhorse-1.1-t2v', prompt: 'p' });
+  const hit = cache.get(key);
+  assert.ok(hit, '按 Mission 版本可再取回');
+  assert.equal(Buffer.compare(Buffer.from(hit.bytes), MP4), 0);
+  assert.equal(hit.meta.source, 'content');
+  assert.equal(hit.meta.videoId, 'vid_1');
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('defaults work too: real timers with a 1ms poll interval finish promptly (default now/sleep)', async () => {
+  const { fetch } = harness({ statuses: ['queued', 'succeeded'] });
+  // 不注入 now/sleep：走默认时钟与真实 setTimeout；轮询间隔 1ms，第一次排队第二次就绪
+  const client = createVideoClient({ baseUrl: BASE, key: KEY, fetch, pollIntervalMs: 1, timeoutMs: 5000 });
+  const out = await client.generateVideo({ model: 'happyhorse-1.1-t2v', prompt: 'p' });
+  assert.equal(out.videoId, 'vid_1');
+  assert.ok(Buffer.from(out.bytes).length > 0);
 });
 
 test('video requests carry the Bearer key from DONEGO_GATEWAY_KEY when not injected', async () => {

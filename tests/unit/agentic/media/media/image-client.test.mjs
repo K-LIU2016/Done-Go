@@ -84,7 +84,8 @@ test('generateImage supports url responses and downloads from allowlisted gatewa
   const fetch = async (url, init) => {
     calls.push(url);
     if (url === BASE + '/v1/images/generations') return resJson({ data: [{ url: 'https://gw.example.com/files/img1.png' }] });
-    return { ok: true, status: 200, arrayBuffer: async () => PNG.buffer.slice(0) };
+    // 精确切片：PNG.buffer 是 8KiB 共享池，slice(0) 会带出 8192 字节而非 PNG 本体
+    return { ok: true, status: 200, arrayBuffer: async () => PNG.buffer.slice(PNG.byteOffset, PNG.byteOffset + PNG.byteLength) };
   };
   const { client, dir } = makeClient({ fetch });
   const out = await client.generateImage({ missionId: 'm1', version: 4, prompt: '教室场景', textInImage: false });
@@ -125,7 +126,14 @@ test('a new Mission version must not hit the previous version cache', async () =
 });
 
 test('daily quota over-limit throws a typed QUOTA_EXCEEDED before any HTTP call', async () => {
-  const fetch = async () => { throw new Error('must not be called'); };
+  // 修正（实现期发现 mock bug）：原 mock 对任何调用都抛错，但首笔必须成功生成并记账
+  // （否则配额永远到不了上限）。改为首次 POST 成功、之后一律拒绝——超额路径仍零外呼。
+  let posts = 0;
+  const fetch = async (url, init) => {
+    posts += 1;
+    if (posts > 1) throw new Error('must not be called');
+    return resJson({ data: [{ b64_json: PNG.toString('base64') }] });
+  };
   const { client, dir } = makeClient({ fetch });
   const file = join(dir, 'q1.json');
   const limited = createDailyQuota({ file, limit: 1, now: () => new Date('2026-10-26T10:00:00+08:00') });
@@ -135,6 +143,7 @@ test('daily quota over-limit throws a typed QUOTA_EXCEEDED before any HTTP call'
     () => c1.generateImage({ missionId: 'm1', version: 2, prompt: 'p2', textInImage: false }),
     err => err.code === 'QUOTA_EXCEEDED' && /1/.test(err.message),
   );
+  assert.equal(posts, 1, '超额那次没有发生任何 HTTP 调用');
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -174,6 +183,19 @@ test('non-ok gateway responses surface as typed http errors that never leak the 
   await assert.rejects(
     () => client.generateImage({ missionId: 'm1', version: 1, prompt: 'p', textInImage: false }),
     err => /http-?500/i.test(err.code ?? err.message) && !String(err.message).includes(KEY),
+  );
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('a malformed gateway image url is rejected with BAD_IMAGE_URL before download', async () => {
+  const fetch = async url => {
+    if (url === BASE + '/v1/images/generations') return resJson({ data: [{ url: '::not-a-url::' }] });
+    throw new Error('download must not happen');
+  };
+  const { client, dir } = makeClient({ fetch });
+  await assert.rejects(
+    () => client.generateImage({ missionId: 'm1', version: 1, prompt: 'p', textInImage: false }),
+    err => err.code === 'BAD_IMAGE_URL',
   );
   rmSync(dir, { recursive: true, force: true });
 });

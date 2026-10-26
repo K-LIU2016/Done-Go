@@ -13,14 +13,17 @@ const dir = () => mkdtempSync(join(tmpdir(), 'w11-cache-'));
 
 test('normalizePrompt collapses whitespace so equivalent prompts share one cache entry', () => {
   assert.equal(normalizePrompt('  老师 在\n教室   用平板备课 '), '老师 在 教室 用平板备课');
-  assert.equal(normalizePrompt('老师在教室用平板备课'), normalizePrompt('  老师\n在教室 用平板备课  '));
+  // 修正（实现期发现 RED 骨架自相矛盾）：上一行期望串（字节级）定义了「空白折叠为单空格」
+  // 语义，因此等价对必须两侧都含空格；原写法（无空格 ≡ 有空格）只有全删除语义才满足，
+  // 与上一行互斥。此处改为「同一位置空格、不同 run 长度/种类/首尾」的等价对。
+  assert.equal(normalizePrompt('老师 在 教室 用平板备课'), normalizePrompt('  老师\t在\n\n教室   用平板备课 '));
 });
 
 test('cache key is a sha256 hex of missionId+version+model+normalized prompt', () => {
   const c = createMediaCache({ dir: dir() });
-  const key = c.key({ missionId: 'm1', version: 4, model: 'z-image-turbo', prompt: '教室场景' });
+  const key = c.key({ missionId: 'm1', version: 4, model: 'z-image-turbo', prompt: '教室 场景' });
   assert.match(key, /^[0-9a-f]{64}$/);
-  // 归一化等价 → 同键
+  // 归一化等价（run 长度/种类/首尾空白不同）→ 同键；与 normalizePrompt 折叠语义一致
   assert.equal(key, c.key({ missionId: 'm1', version: 4, model: 'z-image-turbo', prompt: ' 教室\n场景 ' }));
 });
 
