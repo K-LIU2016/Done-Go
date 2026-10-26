@@ -36,7 +36,9 @@ export async function captureShots({ url, samplesUrl, outDir, plan, chromium }) 
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
   const captured = [];
   try {
-    await page.goto(url, { waitUntil: 'networkidle' });
+    // waitUntil:'load' 而非 networkidle：旁白 <audio preload=auto> 的大文件下载会让
+    // 网络长期不空闲，networkidle 默认 30s 超时会误杀（就绪由下方 waitForFunction 把关）。
+    await page.goto(url, { waitUntil: 'load', timeout: 20000 });
     await page.waitForFunction(() => window.__reel, null, { timeout: 15000 });
     const playing = () => page.waitForFunction(() => window.__reel.state === 'playing', null, { timeout: 10000 }).then(() => true).catch(() => false);
     if (!(await playing())) {
@@ -47,6 +49,9 @@ export async function captureShots({ url, samplesUrl, outDir, plan, chromium }) 
     for (const shot of plan.shots) {
       if (shot.action === 'seek-play') {
         await page.evaluate(atSec => { const r = window.__reel; r.seek(atSec); if (r.state !== 'playing') r.play(); }, shot.atSec);
+        // seek 生效校验：音频未就绪时个别浏览器会吞掉 currentTime 赋值，1.5s 未到位补一次
+        await page.waitForFunction(atSec => window.__reel.time() >= atSec - 0.5, shot.atSec, { timeout: 1500 })
+          .catch(() => page.evaluate(atSec => window.__reel.seek(atSec), shot.atSec));
         await page.waitForTimeout(700); // 等 fade/字幕收敛
       } else {
         await page.waitForFunction(
@@ -63,8 +68,8 @@ export async function captureShots({ url, samplesUrl, outDir, plan, chromium }) 
       await page.screenshot({ path });
       captured.push(path);
     }
-    await page.goto(samplesUrl, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(500);
+    await page.goto(samplesUrl, { waitUntil: 'load', timeout: 20000 });
+    await page.waitForTimeout(800); // 等配图背景与字体渲染收敛
     const samplesPath = shotPath(outDir, plan.samples.name);
     await page.screenshot({ path: samplesPath });
     captured.push(samplesPath);

@@ -10,7 +10,7 @@
 // 与产品每日预算（quota.mjs 默认 30/3）是两组数字；真实调用次数/耗时/模型全部记入
 // 台账 ledger.json（summarizeLedger 汇总），key 只经注入或 env DONEGO_GATEWAY_KEY
 // 运行时读取，绝不打印/落盘。
-import { spawnSync } from 'node:child_process';
+import { spawn as spawnAsync } from 'node:child_process';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
@@ -26,6 +26,18 @@ import { modelsAvailable, createTtsEngine, synthesizeNarration } from '../tts/en
 /** 冒烟预算（BUILD-PLAN §2.3：生图 ≤20、生视频 ≤2）。images=2 页样张 + 1 张可选
  *  qwen-image-2.0 图中文字对比；videos=1 段可选场景片。缓存命中不计真实外呼。 */
 export const SMOKE_BUDGET = { images: 3, videos: 1 };
+/**
+ * 网关生图返回的 CDN 域（DashScope OSS 加速集群）：z-image-turbo 经 LiteLLM 只回 url
+ * （2026-10-26 实测 dashscope-a717.oss-accelerate.aliyuncs.com）。BUILD-PLAN W11.6
+ * 「远程 URL 拉取限制在网关返回域」——白名单=网关自身+这些网关实际返回的域，逐个点名、
+ * 绝不放通任意主机；网关换 CDN 时在此追加。
+ */
+export const GATEWAY_IMAGE_CDN_HOSTS = ['dashscope-a717.oss-accelerate.aliyuncs.com'];
+
+/** 冒烟生图客户端的下载域白名单：网关 hostname + GATEWAY_IMAGE_CDN_HOSTS（去重）。 */
+export function smokeAllowDomains(baseUrl) {
+  return [...new Set([new URL(baseUrl).hostname, ...GATEWAY_IMAGE_CDN_HOSTS])];
+}
 /** 本流端口段（BUILD-PLAN §1：W11 = 17641–17649）；单测注入 [0] 用临时端口。 */
 export const SMOKE_PORTS = [17641, 17642, 17643, 17644, 17645, 17646, 17647, 17648, 17649];
 /** 场景片受控超时：happyhorse-1.1-t2v 实测 5 秒片段 ≈116s（PRD §2.4），给 3× 裕量。 */
@@ -130,15 +142,30 @@ export function buildSmokePreview({ golden, subtitles, durationSec, imageUrlFor 
   };
 }
 
+/** 预演片上下文里的样张模板样式（.slide 等）：composeReel 自包含样式只铺 .shot/.frame 壳，
+ *  样张模板的内部排版由宿主页补齐（与 samplesHostPage 同一套取值，对照 prototype.html:147-161）。 */
+const REEL_SAMPLE_STYLE = `
+.shot .samp{display:block;border:0;background:#FCFBF6;}
+.shot .slide{position:absolute;inset:0;display:grid;grid-template-columns:1.1fr 1fr;}
+.shot .slide .txt{padding:6% 7%;display:grid;gap:6px;align-content:center;color:#22302A;text-align:left;}
+.shot .slide .tag{font-size:12px;color:#4F8570;letter-spacing:.08em;}
+.shot .slide h4{margin:0;font:600 clamp(18px,2.6vw,26px)/1.3 var(--font-serif,serif);}
+.shot .slide ul{margin:8px 0 0;padding-left:1.2em;display:grid;gap:8px;font-size:clamp(13px,1.8vw,17px);line-height:1.5;}
+.shot .slide .pic{background-size:cover;background-position:62% center;}
+.shot .frame{background:#FCFBF6;}
+`;
+
 /**
  * composeReel 自包含页 → 冒烟宿主页：给 .reel 加 data-reel-manual（关掉播放器自动挂载），
  * 尾部插一个模块脚本显式 createReelPlayer 并暴露 window.__reel，供 Playwright 驱动
- * 播放/暂停/seek 后截图。幂等：已装配的页原样返回（不重复插脚本）。
+ * 播放/暂停/seek 后截图；并补样张模板在预演片上下文里的排版样式（宿主页职责）。
+ * 幂等：已装配的页原样返回（不重复插脚本/样式）。
  */
 export function smokeHostPage(reelHtml, { playerSrc = '/agentic/reel/player.js' } = {}) {
   if (reelHtml.includes('window.__reel')) return reelHtml;
   let html = reelHtml.replace('<div class="reel">', '<div class="reel" data-reel-manual>');
-  const glue = `<script type="module">
+  const glue = `<style>${REEL_SAMPLE_STYLE}</style>
+<script type="module">
 import { createReelPlayer } from '${playerSrc}';
 window.__reel = createReelPlayer(document.querySelector('.reel'), { autoplay: true });
 </script>`;
@@ -240,8 +267,30 @@ export async function createSmokeServer({ routes, host = '127.0.0.1', portRange 
         res.end('not found');
         return;
       }
-      res.writeHead(200, { 'content-type': hit.type, 'content-length': hit.body.length });
-      res.end(hit.body);
+      const body = Buffer.isBuffer(hit.body) ? hit.body : Buffer.from(hit.body);
+      // Range 支持：chromium 对 <audio> 的 seek 会发 bytes= 范围请求，回 200 全量会触发
+      // 「重新从头加载」——旁白主时钟 seek 直接失效（2026-10-26 真实冒烟实测踩坑）。
+      const range = /^bytes=(\d+)-(\d*)$/.exec(String(req.headers.range ?? ''));
+      if (range) {
+        const start = Number(range[1]);
+        const end = range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
+        if (start <= end && start < body.length) {
+          const chunk = body.subarray(start, end + 1);
+          res.writeHead(206, {
+            'content-type': hit.type,
+            'content-length': chunk.length,
+            'content-range': `bytes ${start}-${end}/${body.length}`,
+            'accept-ranges': 'bytes',
+          });
+          res.end(chunk);
+          return;
+        }
+        res.writeHead(416, { 'content-range': `bytes */${body.length}` });
+        res.end();
+        return;
+      }
+      res.writeHead(200, { 'content-type': hit.type, 'content-length': body.length, 'accept-ranges': 'bytes' });
+      res.end(body);
     });
     const ok = await new Promise(resolve => {
       server.once('error', err => {
@@ -319,17 +368,30 @@ export function defaultTtsEngineFactory(root) {
   return createTtsEngine({ modelsDir });
 }
 
+/** 异步 spawn 并收集输出（绝不用 spawnSync：冒烟主进程同时是静态服务器，同步等待会
+ *  冻住事件循环 → 截图子进程的页面请求永远得不到响应 → goto 超时。2026-10-26 实测踩坑）。 */
+const collectSpawn = (cmd, args, opts) => new Promise(resolve => {
+  const child = spawnAsync(cmd, args, opts);
+  let stdout = '';
+  let stderr = '';
+  child.stdout?.on('data', d => { stdout += d; });
+  child.stderr?.on('data', d => { stderr += d; });
+  child.on('error', err => resolve({ status: -1, stdout, stderr: `${stderr}${err.message}` }));
+  child.on('close', code => resolve({ status: code, stdout, stderr }));
+});
+
 /** 默认截图器：Playwright 全局锁（flock -w 900）包裹的独立进程跑 smoke-shots.mjs。
  *  spawn 可注入（单测记录命令行参数，绝不真实起浏览器进程）。 */
-export function defaultRunShots({ root = WORKTREE_ROOT, url, samplesUrl, outDir, workDir = root, plan, spawn = spawnSync }) {
+export async function defaultRunShots({ root = WORKTREE_ROOT, url, samplesUrl, outDir, workDir = root, plan, spawn = collectSpawn }) {
   const planFile = join(workDir, '.shot-plan.json');
   writeFileSync(planFile, JSON.stringify(plan));
-  const r = spawn('flock', ['-w', '900', PW_LOCK, process.execPath, join(root, 'scripts/agentic/media/smoke-shots.mjs'), url, samplesUrl, outDir, planFile], {
+  const r = await spawn('flock', ['-w', '900', PW_LOCK, process.execPath, join(root, 'scripts/agentic/media/smoke-shots.mjs'), url, samplesUrl, outDir, planFile], {
     stdio: ['ignore', 'pipe', 'pipe'],
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
   });
-  return { ok: r.status === 0, status: r.status, stdout: r.stdout, stderr: r.stderr };
+  const tail = s => String(s ?? '').split('\n').filter(Boolean).slice(-3).join(' | ');
+  return { ok: r.status === 0, status: r.status, stdout: r.stdout, stderr: r.stderr, detail: r.status === 0 ? '' : `status=${r.status}${r.stderr ? `: ${tail(r.stderr)}` : ''}` };
 }
 
 /**
@@ -346,7 +408,7 @@ export async function runGoldenSmoke(opts = {}) {
     gatewayBaseUrl = process.env.DONEGO_GATEWAY_BASE_URL ?? 'http://127.0.0.1:4000',
     key = null, // 缺省走 env DONEGO_GATEWAY_KEY（W0 合入后换 gateway-key.mjs）
     fetch: fetchImpl = globalThis.fetch,
-    imageClientFactory = ({ cache, quota }) => createImageClient({ baseUrl: gatewayBaseUrl, key, fetch: fetchImpl, cache, quota }),
+    imageClientFactory = ({ cache, quota }) => createImageClient({ baseUrl: gatewayBaseUrl, key, fetch: fetchImpl, cache, quota, allowDomains: smokeAllowDomains(gatewayBaseUrl) }),
     videoClientFactory = ({ cache, quota }) => createVideoClient({ baseUrl: gatewayBaseUrl, key, fetch: fetchImpl, cache, quota, timeoutMs: opts.videoTimeoutMs ?? SMOKE_VIDEO_TIMEOUT_MS }),
     ttsEngineFactory = defaultTtsEngineFactory,
     runShots = defaultRunShots,
@@ -417,7 +479,7 @@ export async function runGoldenSmoke(opts = {}) {
     const plan = shotPlan(preview);
     const t0shots = Date.now();
     const shots = await runShots({ root, url: server.url, samplesUrl: `${server.url}samples`, outDir, workDir, plan });
-    record({ kind: 'shots', ms: Date.now() - t0shots, ok: Boolean(shots?.ok), detail: shots?.ok ? 'captured' : `status=${shots?.status ?? 'n/a'}` });
+    record({ kind: 'shots', ms: Date.now() - t0shots, ok: Boolean(shots?.ok), detail: shots?.ok ? 'captured' : (shots?.detail || `status=${shots?.status ?? 'n/a'}`) });
     log(`shots: ok=${shots?.ok} (${Date.now() - t0shots}ms)`);
 
     // 5) 可选：1 段 happyhorse-1.1-t2v 场景片（超时受控；失败/超时只记账）

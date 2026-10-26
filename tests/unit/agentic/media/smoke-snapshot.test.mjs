@@ -121,6 +121,7 @@ test('smokeHostPage 给 composeReel 页接上播放器：手动挂载标记 + �
   const base = composeReel(buildSmokePreview({ golden: goldenScenario(), subtitles: fakeCues(), durationSec: 32, imageUrlFor }));
   const host = smokeHostPage(base, { playerSrc: '/agentic/reel/player.js' });
   assert.ok(host.includes('<div class="reel" data-reel-manual>'), '关自动挂载，改由宿主脚本显式创建');
+  assert.ok(host.includes('.shot .slide'), '补样张模板在预演片上下文里的排版样式');
   assert.ok(host.includes("import { createReelPlayer } from '/agentic/reel/player.js';"));
   assert.ok(host.includes('window.__reel'), '冒烟脚本要经 window.__reel 驱动播放/暂停/seek');
   assert.equal((host.match(/type="module"/g) ?? []).length, 1, '只插入一个模块脚本');
@@ -187,6 +188,24 @@ test('createSmokeServer：端口段内起服务、命中路由、未命中 404�
   assert.ok(home.type.startsWith('text/html'));
   assert.equal((await get('/media/s2.png')).status, 200);
   assert.equal((await get('/missing')).status, 404);
+  // Range：旁白 <audio> seek 依赖 206 分片（chromium 对 200 全量回包会从头重载）
+  const part = await new Promise((resolve, reject) => {
+    httpGet({ host: '127.0.0.1', port, path: '/narration.wav', headers: { range: 'bytes=0-3' } }, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve({ status: res.statusCode, range: res.headers['content-range'], body: Buffer.concat(chunks) }));
+    }).on('error', reject);
+  });
+  assert.equal(part.status, 206);
+  assert.equal(part.body.length, 4);
+  assert.equal(part.range, `bytes 0-3/${smokeAssets().narrationWav.length}`);
+  const bad = await new Promise((resolve, reject) => {
+    httpGet({ host: '127.0.0.1', port, path: '/narration.wav', headers: { range: 'bytes=99999-' } }, res => {
+      res.resume();
+      res.on('end', () => resolve(res.statusCode));
+    }).on('error', reject);
+  });
+  assert.equal(bad, 416, '不可满足的范围请求按 416 回绝');
   await close();
 });
 
@@ -659,4 +678,13 @@ test('shotsOut/shotsErr 空串直写不炸；cliShots 缺省读真实计划文�
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
+});
+
+test('smokeAllowDomains：网关域 + 点名 CDN 域去重；坏 baseUrl 抛 URL 错', async () => {
+  const { smokeAllowDomains, GATEWAY_IMAGE_CDN_HOSTS } = await import('../../../../scripts/agentic/media/smoke.mjs');
+  const domains = smokeAllowDomains('http://127.0.0.1:4000');
+  assert.ok(domains.includes('127.0.0.1'));
+  for (const h of GATEWAY_IMAGE_CDN_HOSTS) assert.ok(domains.includes(h), `CDN 域 ${h} 在白名单`);
+  assert.equal(new Set(domains).size, domains.length, '去重');
+  assert.throws(() => smokeAllowDomains('not-a-url'), /URL/);
 });
