@@ -65,3 +65,27 @@ test('drops empty and filler titles, clamps priority, keeps remind', () => {
   assert.equal(out.length, 1);
   assert.deepEqual([out[0].start, out[0].remind, out[0].priority], ['16:30', '提前十分钟上线', 3]);
 });
+
+test('crosses midnight forward instead of chaining backwards or piling at 23:59', () => {
+  const late = resolveTimeline([
+    { title: '通宵赶稿', clock: '晚上十点到凌晨一点' },
+    { title: '睡觉', anchor: 'prev', durationMin: 420 },
+  ], { now: NOW });
+  assert.deepEqual(pick(late), [['通宵赶稿', '2026-10-26', '22:00', '01:00'], ['睡觉', '2026-10-27', '01:00', '08:00']]);
+  const pile = resolveTimeline([
+    { title: '加班', clock: '晚上十一点' },
+    { title: '复盘', anchor: 'prev', durationMin: 120 },
+    { title: '写日记', anchor: 'prev', durationMin: 30 },
+  ], { now: NOW });
+  assert.deepEqual(pick(pile), [['加班', '2026-10-26', '23:00', null], ['复盘', '2026-10-27', '00:00', '02:00'], ['写日记', '2026-10-27', '02:00', '02:30']]);
+  const nearMidnight = resolveTimeline([{ title: '吃药', anchor: 'now', gapMin: 30 }], { now: '2026-10-26T23:40:00+08:00' });
+  assert.deepEqual(pick(nearMidnight), [['吃药', '2026-10-27', '00:10', null]]);
+});
+
+test('a daypart-only follow-up without its own day still chains onto the previous day', () => {
+  const out = resolveTimeline([
+    { title: '面试', day: '明天', clock: '上午十点' },
+    { title: '复盘面试', anchor: 'prev', daypart: '中午', durationMin: 30 },
+  ], { now: NOW });
+  assert.deepEqual(pick(out), [['面试', '2026-10-27', '10:00', null], ['复盘面试', '2026-10-27', '11:00', '11:30']]);
+});

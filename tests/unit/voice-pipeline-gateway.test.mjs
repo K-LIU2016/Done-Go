@@ -87,3 +87,11 @@ test('the user vocabulary from start reaches every structuring call, deduped and
   assert.ok(seen.length >= 1);
   for (const v of seen) assert.deepEqual(v, ['Argus', 'Mystic', 'x'.repeat(30)]);
 });
+
+test('a throwing structurer or cleaner never crashes the process and the client still gets end', async t => {
+  const logs = [];
+  const url = await harness(t, { structure: async () => { throw new Error('boom'); }, clean: async () => { throw new Error('bad clean'); }, log: e => logs.push(e) });
+  const { got } = await talk(url, ws => { for (let i = 0; i < 4; i++) ws.send(Buffer.alloc(3200)); setTimeout(() => ws.send(JSON.stringify({ type: 'stop' })), 50); });
+  assert.equal(got.at(-1).type, 'end');
+  assert.ok(logs.some(e => e.event === 'voice-v3-error'));
+});

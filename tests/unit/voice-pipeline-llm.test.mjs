@@ -30,7 +30,7 @@ test('structureUtterance resolves the timeline deterministically, never trusting
     ['写论文', '2026-10-27', '10:00', '12:00', null, 3],
     ['交课程报告', null, null, null, '2026-10-30', 2],
   ]);
-  assert.match(sent.messages[0].content, /Argus、Mystic/);
+  assert.match(sent.messages[0].content, /「Argus」「Mystic」/);
   assert.match(sent.messages[0].content, /星期一/);
 });
 

@@ -5,6 +5,7 @@ import { resolveTimeText } from './time.mjs';
 const FILLER_TITLE = /^(?:嗯+|呃+|啊+|哦+|那个|就是|然后|好的?|对了)$/;
 const DAY_END = 23 * 60 + 59;
 const DEFAULT_SPAN = 60; // 只有开始钟点的事，接续时按一小时算（与 Kira 记录的默认时长一致）
+const DAY = 24 * 60;
 
 const str = v => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const mins = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.round(n) : 0; };
@@ -12,6 +13,9 @@ const toMin = hm => { const [h, m] = hm.split(':').map(Number); return h * 60 + 
 const toHm = t => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 // 「周五下班前」规则引擎只认出日子（date），那就把那天当截止日
 const deadlineOf = (text, now) => { const r = resolveTimeText(text.replace(/(?:之前|以前|前)$/, '') + '前', { now }); return r.deadline ?? r.date; };
+const addDays = (date, n) => { const d = new Date(date + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+// 绝对分钟（可超过一天）→ 落到哪天几点：过了午夜就顺延到第二天，不堆在 23:59
+const norm = (date, min) => ({ date: addDays(date, Math.floor(min / DAY)), min: ((min % DAY) + DAY) % DAY });
 export const clampPriority = p => (Number.isInteger(p) && p >= 1 && p <= 5 ? p : 3);
 
 /**
@@ -22,7 +26,7 @@ export const clampPriority = p => (Number.isInteger(p) && p >= 1 && p <= 5 ? p :
 export function resolveTimeline(raw, { now }) {
   const today = now.slice(0, 10);
   const nowMin = Math.ceil(toMin(now.slice(11, 16)) / 5) * 5;
-  let cursor = null; // 上一件有钟点的事结束于 { date, min }
+  let cursor = null; // 上一件有钟点的事结束于 { date, min }（已按午夜顺延）
   const out = [];
   for (const r of Array.isArray(raw) ? raw : []) {
     const title = str(r?.title)?.slice(0, 24);
@@ -41,21 +45,27 @@ export function resolveTimeline(raw, { now }) {
       priority: clampPriority(r.priority),
     };
     if (item.deadline && !day && !clock) item.date = null;
-    if (!clock && !repeat) chain(item, r);
     const dur = mins(r.durationMin);
-    if (item.start && !item.end && dur) item.end = toHm(Math.min(DAY_END, toMin(item.start) + dur));
+    if (!clock && !repeat) chain(item, r, day);
+    let endAbs = item.start && !item.end && dur ? toMin(item.start) + dur : null;
+    if (endAbs != null) item.end = toHm(Math.min(DAY_END, endAbs)); // 卡片本身不跨天，接续的下一件照常顺延
     if (item.vague) item.timeText = daypart;
-    if (item.start && item.date) cursor = { date: item.date, min: item.end ? toMin(item.end) : Math.min(DAY_END, toMin(item.start) + DEFAULT_SPAN) };
+    if (item.start && item.date) {
+      const s0 = toMin(item.start), e0 = item.end ? toMin(item.end) : null;
+      endAbs ??= e0 == null ? s0 + DEFAULT_SPAN : e0 < s0 ? e0 + DAY : e0; // 「晚上十点到凌晨一点」结束在第二天
+      cursor = norm(item.date, endAbs);
+    }
     out.push(item);
   }
   return out;
 
-  function chain(item, r) {
-    let at = null;
-    if (r.anchor === 'prev' && cursor && (!item.date || item.date === cursor.date)) { item.date = cursor.date; at = cursor.min; }
-    else if (r.anchor === 'now' && (!item.date || item.date === today)) { item.date = today; at = nowMin; }
-    if (at == null) return;
-    item.start = toHm(Math.min(DAY_END, at + mins(r.gapMin)));
+  function chain(item, r, day) {
+    let p = null;
+    if (r.anchor === 'prev' && cursor && (!day || item.date === cursor.date)) p = norm(cursor.date, cursor.min + mins(r.gapMin));
+    else if (r.anchor === 'now' && (!day || item.date === today)) p = norm(today, nowMin + mins(r.gapMin));
+    if (!p) return;
+    item.date = p.date;
+    item.start = toHm(p.min);
     item.vague = false;
   }
 }
