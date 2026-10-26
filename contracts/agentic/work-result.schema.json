@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "orderId",
+    "status",
+    "artifacts",
+    "evidence",
+    "spent",
+    "notes"
+  ],
+  "properties": {
+    "orderId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "done",
+        "partial",
+        "failed",
+        "needs_human"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "artifact-ref.schema.json"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "evidence.schema.json"
+      }
+    },
+    "spent": {
+      "$ref": "spend.schema.json"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "WorkOrder 的结构化结果。PRD §6.4。",
+  "$id": "work-result.schema.json",
+  "title": "WorkResult"
+}

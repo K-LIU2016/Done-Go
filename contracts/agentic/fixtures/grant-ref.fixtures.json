@@ -1,0 +1,18 @@
+{
+  "valid": [
+    {
+      "grantId": "g1"
+    },
+    {
+      "grantId": "g2",
+      "scope": "files.read:/Docs"
+    }
+  ],
+  "invalid": [
+    [
+      {
+        "scope": "files.read"
+      }
+    ]
+  ]
+}

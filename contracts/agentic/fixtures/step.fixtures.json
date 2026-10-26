@@ -1,0 +1,29 @@
+{
+  "valid": [
+    {
+      "id": "step-1",
+      "runId": "x",
+      "name": "x",
+      "kind": "plan",
+      "state": "pending",
+      "attempt": 1
+    },
+    {
+      "id": "step-2",
+      "runId": "x",
+      "name": "x",
+      "kind": "plan",
+      "state": "pending",
+      "attempt": 1
+    }
+  ],
+  "invalid": [
+    {
+      "runId": "x",
+      "name": "x",
+      "kind": "plan",
+      "state": "pending",
+      "attempt": 1
+    }
+  ]
+}

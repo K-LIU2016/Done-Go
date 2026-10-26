@@ -1,0 +1,121 @@
+{
+  "valid": [
+    {
+      "missionId": "m1",
+      "version": 1,
+      "confidence": 0.8,
+      "shape": {
+        "kind": "report",
+        "title": "研究",
+        "blocks": [
+          {
+            "type": "outline"
+          }
+        ]
+      },
+      "storyboard": [],
+      "narration": "先研究",
+      "boundary": {
+        "will": [
+          "查资料"
+        ],
+        "wont": [
+          "发邮件"
+        ],
+        "needs": [],
+        "budget": "免费"
+      },
+      "samples": [],
+      "reel": {
+        "composition": "/reel.html",
+        "durationSec": 30,
+        "narrationAudio": "/a.mp3",
+        "mp4": null
+      },
+      "scene": {
+        "status": "off",
+        "model": "happyhorse-1.1-t2v",
+        "url": null
+      }
+    },
+    {
+      "missionId": "m2",
+      "version": 2,
+      "confidence": 0.7,
+      "shape": {
+        "kind": "course",
+        "title": "课程",
+        "blocks": [
+          {
+            "type": "slides"
+          }
+        ]
+      },
+      "storyboard": [
+        {
+          "at": "14:00",
+          "actor": "writer",
+          "text": "写作"
+        }
+      ],
+      "narration": "开始",
+      "boundary": {
+        "will": [
+          "写方案"
+        ],
+        "wont": [
+          "发送"
+        ],
+        "needs": [
+          "画像"
+        ],
+        "budget": "10 calls"
+      },
+      "samples": [],
+      "reel": {
+        "composition": "/r",
+        "durationSec": 42,
+        "narrationAudio": "/n",
+        "mp4": "/v"
+      },
+      "scene": {
+        "status": "queued",
+        "model": "happyhorse-1.1-t2v",
+        "url": null
+      }
+    }
+  ],
+  "invalid": [
+    [
+      {
+        "missionId": "m1",
+        "version": 0,
+        "confidence": 3,
+        "shape": {
+          "kind": "x",
+          "title": "x",
+          "blocks": []
+        },
+        "storyboard": [],
+        "boundary": {
+          "will": [],
+          "wont": [],
+          "needs": [],
+          "budget": "x"
+        },
+        "samples": [],
+        "reel": {
+          "composition": "x",
+          "durationSec": 0,
+          "narrationAudio": "x",
+          "mp4": null
+        },
+        "scene": {
+          "status": "bad",
+          "model": "bad",
+          "url": null
+        }
+      }
+    ]
+  ]
+}

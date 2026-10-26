@@ -1,0 +1,25 @@
+{
+  "valid": [
+    {
+      "error": {
+        "code": "AUTH_REQUIRED",
+        "message": "x"
+      }
+    },
+    {
+      "error": {
+        "code": "AUTH_REQUIRED",
+        "message": "x"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "error": {
+        "code": "AUTH_REQUIRED",
+        "message": "x",
+        "unexpected": true
+      }
+    }
+  ]
+}
