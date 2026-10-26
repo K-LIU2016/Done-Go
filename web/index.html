@@ -841,11 +841,36 @@ window.TangoAppAuth.start(function (authUser) {
     catch (e) { memoryOnly = true; lastErrorCode = 'TANGO_STORAGE_FAILED'; return false; }
   }
   function saveBaseState(state) { if (!canWriteStorage()) return false; try { var nextRaw = JSON.stringify(state); localStorage.setItem(STORE_KEY, nextRaw); lastStoredRaw = nextRaw; return true; } catch (e) { memoryOnly = true; lastErrorCode = 'TANGO_STORAGE_FAILED'; recoveryNotice = '保存失败，当前更改仅在内存；请导出内存快照。'; showRecoveryNotice(); return false; } }
-  function save() { return collaborationPersonal ? collaborationPersonal.save() : saveBaseState(S); }
+  function save() { var ok = collaborationPersonal ? collaborationPersonal.save() : saveBaseState(S); if (ok) notifyBlockSync(); return ok; }
   function replaceWithSnapshot(next) {
     if (!canWriteStorage()) { toast('保存受保护或存在标签页冲突，请先导出快照并检查'); return false; }
     try { var nextRaw = JSON.stringify(next); localStorage.setItem(BACKUP_KEY, JSON.stringify(S)); localStorage.setItem(STORE_KEY, nextRaw); lastStoredRaw = nextRaw; S = next; return true; }
     catch (e) { memoryOnly = true; lastErrorCode = 'TANGO_STORAGE_FAILED'; toast('备份或保存失败，当前数据未替换'); return false; }
+  }
+
+  // ---------- W1 block sync hook（PRD §11.1：服务端权威、浏览器缓存；仅登录用户同步） ----------
+  // 仅此持久化段接入：save() 成功后把脏块交同步引擎入队（先既有保存再入队）；首次同步前的
+  // tango-donego.backup.<ts> 整备份、游标增量、离线排队/上线补写、冲突回调都在 /agentic/sync.js。
+  var blockSync = null; // var 提升供 save() 引用；动态 import 完成前为 null——同步缺位不影响本地
+  function notifyBlockSync() { if (!blockSync) return; try { blockSync.notifySave(); } catch (e) {} }
+  // typeof window 守卫：tests/unit/tango-web-gaps.test.mjs 会把本段（canWriteStorage→demo 标记）抽进无 window 的 vm 跑
+  if (typeof window !== 'undefined' && window.TangoCurrentUser) {
+    // 免构建动态 import（先例 :2845 import('/ai-parse.js')；serve-tango 以 web/ 为根，/agentic/sync.js 自然可达）；
+    // 不加 <script> 标签、不改 build-web/发布清单。加载或同步失败一律静默，不阻断本地应用。
+    import('/agentic/sync.js').then(function (m) {
+      blockSync = m.attachBlockSync({
+        getState: function () { return S; },
+        saveBase: saveBaseState, // 必须是 saveBaseState 语义：不能传 save()（其挂了 enqueue，下行并入→保存→上行会回环）
+        storage: localStorage,   // 登录态= TangoAccountStorage；游标/备份键不匹配其 scope 正则（app-auth.js:97），均为全局键
+        storeKey: STORE_KEY,
+        getAccount: function () { return window.TangoCurrentUser; },
+        pollMs: 30000,           // 空队列 flush 也会带回游标后的增量（另一设备写的下拉到本机）
+        onEvent: function () {}  // console-free；冲突提示 UI 第 3 批（W13）接
+      });
+      window.addEventListener('online', function () { blockSync.setOnline(true); });
+      window.addEventListener('offline', function () { blockSync.setOnline(false); });
+      return blockSync.start();
+    }).catch(function () { /* 同步是增益不是依赖 */ });
   }
 
   // ---------- demo ----------

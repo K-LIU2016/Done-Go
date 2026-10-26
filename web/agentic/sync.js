@@ -184,3 +184,148 @@ export function createBlockSync({
   const pending = () => queue.size;
   return { start, enqueue, flush, setOnline, pending };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// W1 Block 同步 · 挂载段：attachBlockSync——web/index.html load()/save() 持久化段的接入入口
+//（BUILD-PLAN §3 W1-3、PRD §11.1）。分工：引擎只管传输与队列（见上），本段负责宿主侧三件事：
+//   1. 首次同步前把本地数据完整备份到 localStorage['tango-donego.backup.<ts>']（全局键——
+//      不匹配 TangoAccountStorage 的 scope 正则 web/app-auth.js:97，登录态也不改名），
+//      完成后置 BACKUP_FLAG_PREFIX + ':<accountId>' 防重复备份（flag 含账号 id：同浏览器多账号各备一次）。
+//   2. serverChanges 并入本地 state：block.source==='draft' → S.drafts，其余 → S.entries（跨列表
+//      同 id 视为晋级，从旧列表移除）；deleted_at 置位的块从本地移除（软删除传播）；规范字段以服务端
+//      为准、非规范字段保留（mergeBlockIntoEntry）；并入后经 saveBase 落盘——必须传 saveBaseState
+//      语义的函数，不能传挂了 enqueue 的 save()，否则下行→保存→上行回环。
+//   3. notifySave 脏检测：只上行规范内容变化过的块（内容 key = entryToBlock 输出），冲突块上报后
+//      不自动重推（内容不变不再入队），冲突本身经 onEvent 透传、本地版本保留（第 3 批接提示 UI）。
+// 全依赖注入（无 DOM/localStorage 直引），浏览器与 Node 双跑；引擎 dequeue 失败时队列保留，
+// 乐观标记的 key 不丢数据（内容仍在引擎队列里，下一轮 flush 照发）。
+export const BACKUP_FLAG_PREFIX = 'tango-donego.blocks.backup.v1';
+
+export function attachBlockSync({
+  getState,               // () => S：live 状态（index.html 的 S 会被整体替换，必须经 getter 取引用）
+  saveBase = () => {},    // (state) => boolean 本地持久化（saveBaseState 语义；返回 false/抛错不阻断）
+  storage,                // localStorage 形状 {getItem,setItem}：游标 + 备份键
+  fetchImpl,              // 类 fetch；缺省用全局 fetch
+  getAccount = () => globalThis.TangoCurrentUser || null, // 登录账号或 null（null = 未登录，静默不动）
+  now = Date.now,         // 备份键时间戳与 flag 的时间来源
+  pollMs = 30000,         // 增量拉取轮询间隔（空队列 flush 也会带回游标后的 serverChanges）；0 = 关
+  timer = { set: (fn, ms) => setInterval(fn, ms), clear: handle => clearInterval(handle) }, // 可注入定时器
+  storeKey = 'tango-donego.web.v1', // index.html:737 的 STORE_KEY；备份优先取其原文（最忠实）
+  onEvent = () => {},     // console-free 事件透传（{type:'serverChanges'|'conflicts', items}）
+} = {}) {
+  if (typeof getState !== 'function') throw new Error('SYNC_STATE_REQUIRED');
+  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
+    throw new Error('SYNC_STORAGE_REQUIRED'); // 与引擎同约定：游标/备份不落盘宁可不构建
+  }
+  const engine = createBlockSync({ fetchImpl, storage, now, getAccount, onEvent: handleEngineEvent });
+  const account = () => { const value = getAccount(); return value && typeof value === 'object' ? value : null; };
+  const pushedKeys = new Map(); // id → 上次入队时 entryToBlock 的内容 key（脏检测）
+  let pollHandle = null;
+
+  /** serverChanges 并入本地（引擎事件 → 宿主 state）。任何一步失败只影响本次并入，不抛给引擎。 */
+  function applyServerChanges(blocks) {
+    if (!Array.isArray(blocks)) return;
+    const state = getState();
+    if (!state || typeof state !== 'object') return;
+    let changed = false;
+    for (const block of blocks) {
+      if (!block || typeof block !== 'object' || typeof block.id !== 'string' || !block.id) continue;
+      const listName = block.source === 'draft' ? 'drafts' : 'entries';
+      const otherName = listName === 'drafts' ? 'entries' : 'drafts';
+      if (!Array.isArray(state[listName])) state[listName] = [];
+      const list = state[listName];
+      const other = Array.isArray(state[otherName]) ? state[otherName] : null;
+      const index = list.findIndex(item => item && item.id === block.id);
+      const otherIndex = other ? other.findIndex(item => item && item.id === block.id) : -1;
+      if (block.deleted_at != null) {
+        // 软删除传播：两列表里都清（晋级残留一并回收）
+        if (index >= 0) { list.splice(index, 1); changed = true; }
+        if (otherIndex >= 0) { other.splice(otherIndex, 1); changed = true; }
+        continue;
+      }
+      if (index >= 0) {
+        const before = JSON.stringify(list[index]);
+        const merged = mergeBlockIntoEntry(list[index], block);
+        if (JSON.stringify(merged) !== before) { list[index] = merged; changed = true; } // 回声相同不落盘
+      } else {
+        if (otherIndex >= 0) other.splice(otherIndex, 1); // 跨设备晋级（draft→web）：换列表
+        list.push(blockToEntry(block));
+        changed = true;
+      }
+      // 种脏检测基线：刚从服务端拿到/并入的规范内容不算脏——否则首次同步会把拉下来的块原样回传
+      const seeded = entryToBlock(blockToEntry(block), { source: block.source === 'draft' ? 'draft' : 'web' });
+      if (seeded) pushedKeys.set(seeded.id, JSON.stringify(seeded));
+    }
+    if (changed) { try { saveBase(state); } catch { /* 存不下不阻断同步：内存态已并入 */ } }
+  }
+
+  function handleEngineEvent(event) {
+    if (event && event.type === 'serverChanges') applyServerChanges(event.items);
+    try { onEvent(event); } catch { /* 回调抛错不阻断同步 */ }
+  }
+
+  /** 首次同步前整备份（PRD §11.1：迁移现有本地数据，保留本地备份）。任何存储异常都静默——
+   *  备份失败不让同步停摆（本地原文仍在 storeKey 里，未被动过）。 */
+  function ensureFirstSyncBackup() {
+    const user = account();
+    if (!user) return;
+    const flagKey = BACKUP_FLAG_PREFIX + ':' + user.id;
+    try {
+      if (storage.getItem(flagKey)) return;                    // 该账号已备份过
+      const raw = storage.getItem(storeKey);
+      const snapshot = typeof raw === 'string' && raw ? raw : JSON.stringify(getState());
+      storage.setItem('tango-donego.backup.' + now(), snapshot);
+      storage.setItem(flagKey, '1');
+    } catch { /* 备份失败不阻断：下次 start 仍会重试整备份 */ }
+  }
+
+  /** save() 成功后调用（先既有保存再入队）：脏块入队并 flush。入队即标记内容 key——
+   *  flush 失败时引擎队列保留该块，标记不影响重发；冲突块上报后同内容不再自动重推。 */
+  function notifySave() {
+    const user = account();
+    if (!user) return 0;
+    const state = getState();
+    if (!state || typeof state !== 'object') return 0;
+    let dirty = 0;
+    const visit = (list, source) => {
+      if (!Array.isArray(list)) return;
+      for (const entry of list) {
+        if (!entry || typeof entry !== 'object') continue;
+        const block = entryToBlock(entry, { source });
+        if (!block) continue;                                  // 非法/缺 id：不上行脏数据（同引擎约定）
+        const key = JSON.stringify(block);
+        if (pushedKeys.get(block.id) === key) continue;        // 规范内容没变：幂等跳过
+        engine.enqueue(entry, { source });
+        pushedKeys.set(block.id, key);
+        dirty += 1;
+      }
+    };
+    visit(state.entries, 'web');
+    visit(state.drafts, 'draft');
+    if (dirty) engine.flush();
+    return dirty;
+  }
+
+  const poll = () => engine.flush();
+
+  /** 登录后的挂载入口：整备份（首次）→ 引擎 start() 全量拉取并入 → notifySave 上行本地（首次迁移，
+   *  迁移 POST 在本 promise 内完成，e2e/调用方可直接 await）。未登录静默；网络失败由引擎静默吞
+   *  （下次 poll/notifySave 补）。幂等：重复 start 不重复备份、干净时不多发。 */
+  async function start() {
+    if (!account()) return;
+    ensureFirstSyncBackup();
+    await engine.start();
+    if (notifySave() > 0) await engine.flush(); // flush 与 notifySave 触发的是同一 inFlight，合一等待
+    if (pollMs > 0 && !pollHandle && timer && typeof timer.set === 'function') {
+      pollHandle = timer.set(poll, pollMs);
+    }
+  }
+
+  /** 卸载：清轮询定时器（测试/登出场景）。 */
+  function stop() {
+    if (pollHandle != null && timer && typeof timer.clear === 'function') timer.clear(pollHandle);
+    pollHandle = null;
+  }
+
+  return { notifySave, start, stop, poll, setOnline: online => engine.setOnline(online), pending: () => engine.pending() };
+}
