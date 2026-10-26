@@ -148,3 +148,36 @@ test('getCapture of unknown id returns undefined instead of throwing', () => {
   assert.deepEqual(store.listEvents('alice', 'no-such-id'), []);
   assert.equal(store.getCard('alice', 'no-such-id'), undefined);
 });
+
+test('migrations are idempotent: a second store on the same db applies cleanly', () => {
+  const db = new DatabaseSync(':memory:');
+  const s1 = createPerceptionStore({ db });
+  const s2 = createPerceptionStore({ db });
+  const row = s2.insertCapture(capture());
+  assert.equal(s1.getCapture('alice', row.id).id, row.id, '两个 store 实例共享同一套表');
+});
+
+test('createPerceptionStore without db throws DB_REQUIRED', () => {
+  assert.throws(() => createPerceptionStore({}), /DB_REQUIRED/);
+});
+
+test('cards and events refuse orphan rows: unknown captureId is rejected by foreign keys', () => {
+  const store = makeStore();
+  assert.throws(() => store.insertCard({ captureId: 'no-such-capture', ownerId: 'alice', level: 'fast', model: 'm', ms: 1, state: 'created' }), /FOREIGN KEY/);
+  assert.throws(() => store.appendEvent({ captureId: 'no-such-capture', ownerId: 'alice', type: 'card.created', payload: {} }), /FOREIGN KEY/);
+});
+
+test('defaults: caller id kept, missing booleans coerce to false, status defaults, card fields default, cross-owner upgrade is a no-op', () => {
+  const store = makeStore();
+  const row = store.insertCapture(capture({ id: 'cap-explicit-001', keepOriginal: undefined, exifStripped: false, status: undefined }));
+  assert.equal(row.id, 'cap-explicit-001');
+  assert.equal(row.keepOriginal, false);
+  assert.equal(row.exifStripped, false);
+  assert.equal(row.status, 'pending');
+  const card = store.insertCard({ captureId: row.id, ownerId: 'alice', level: 'fast', model: 'minicpm-v', ms: 8000, state: 'created' });
+  assert.deepEqual(card.actions, []);
+  assert.equal(card.seen, null);
+  assert.equal(card.change, null);
+  assert.equal(store.upgradeCard('bob', row.id, { level: 'deep', model: 'm2', ms: 5, state: 'upgraded' }), undefined, '他人升级无效');
+  assert.equal(store.getCard('alice', row.id).level, 'fast', '快卡保留');
+});
