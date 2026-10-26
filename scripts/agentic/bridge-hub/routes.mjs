@@ -129,9 +129,8 @@ export function createBridgeRoutes({
       let ownerId;
       try { ownerId = authenticateOwner(req); } catch { unauthorizedPost(req, res); return true; }
       readJson(req).then(body => {
-        const result = pairing.consumePairingCode(body.code);
-        if (!result.ok) { writeJson(res, 400, { error: result.code }); return; }
-        if (result.ownerId !== ownerId) { writeJson(res, 403, { error: 'OWNER_MISMATCH' }); return; }
+        const result = pairing.consumePairingCode(body.code, ownerId);
+        if (!result.ok) { writeJson(res, result.code === 'OWNER_MISMATCH' ? 403 : 400, { error: result.code }); return; }
         const device = devices.issueDeviceToken(ownerId, body.label);
         writeJson(res, 200, device);
       }).catch(error => writeJson(res, error.code === 'REQUEST_TOO_LARGE' ? 413 : 400, { error: error.code || 'INVALID_JSON' }));

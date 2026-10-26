@@ -3,10 +3,8 @@
 const OPEN = 1;
 const REVOKED_CLOSE = 4001;
 
-function withToken(url, token) {
-  const target = new URL(url);
-  target.searchParams.set('token', token);
-  return target.toString();
+function withToken(url) {
+  return new URL(url).toString();
 }
 
 export function createBridgeClient({
@@ -54,7 +52,7 @@ export function createBridgeClient({
     state('connecting');
     let ws;
     try {
-      ws = new WebSocket(withToken(url, token), {
+      ws = new WebSocket(withToken(url), {
         headers: { authorization: `Bearer ${token}` },
       });
     }

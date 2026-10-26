@@ -26,13 +26,18 @@ export function createPairingService({ db, now = () => Date.now(), randomCode = 
     return { code, expiresAt };
   }
 
-  function consumePairingCode(code) {
+  function consumePairingCode(code, expectedOwnerId = null) {
     if (typeof code !== 'string' || !code) return { ok: false, code: 'PAIRING_CODE_UNKNOWN' };
     const row = db.prepare('SELECT code_hash, owner_id, expires_at, used_at FROM bridge_pairings WHERE code_hash = ?')
       .get(digest(code));
     if (!row) return { ok: false, code: 'PAIRING_CODE_UNKNOWN' };
     if (row.used_at != null) return { ok: false, code: 'PAIRING_CODE_USED' };
     if (now() >= row.expires_at) return { ok: false, code: 'PAIRING_CODE_EXPIRED' };
+    // Check owner before the one-time update: an authenticated account must not
+    // be able to burn another owner's pairing code as a denial-of-service.
+    if (expectedOwnerId != null && row.owner_id !== expectedOwnerId) {
+      return { ok: false, code: 'OWNER_MISMATCH' };
+    }
     const changed = db.prepare('UPDATE bridge_pairings SET used_at = ? WHERE code_hash = ? AND used_at IS NULL')
       .run(now(), row.code_hash);
     if (changed.changes !== 1) return { ok: false, code: 'PAIRING_CODE_USED' };

@@ -9,9 +9,10 @@ import { createBridgeClient } from '../../../../packages/donego-bridge/src/clien
 
 class FakeWebSocket extends EventEmitter {
   static created = [];
-  constructor(url) {
+  constructor(url, options) {
     super();
     this.url = url;
+    this.options = options;
     this.sent = [];
     this.pings = 0;
     this.closed = false;
@@ -57,7 +58,8 @@ test('connect：出站连接 URL 携带设备令牌，open 后进入 connected',
   const ws = sockets()[0];
   assert.ok(ws, 'connect 必须发起出站连接');
   assert.match(ws.url, /api\/bridge/, '连 /api/bridge');
-  assert.ok(ws.url.includes('dev-token-123'), '令牌随连接提交（query 或等价机制）');
+  assert.equal(ws.url.includes('dev-token-123'), false, '令牌不得进入 URL');
+  assert.equal(ws.options.headers.authorization, 'Bearer dev-token-123');
   ws.open();
   assert.ok(states.some(x => x.s === 'connected'));
   client.stop();

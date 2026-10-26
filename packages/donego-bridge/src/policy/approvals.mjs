@@ -7,6 +7,7 @@
  * 其余请求生成 Need，高危命令永远拒绝。
  */
 import path from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
 
 const POSIX = path.posix;
 
@@ -16,8 +17,9 @@ const POSIX = path.posix;
  */
 export const HIGH_RISK_COMMANDS = [
   /\brm\s+(?:(?:-[a-z]*[rf][a-z]*)(?:\s|$)|(?:--recursive|--force)\b)/i,
-  /\bgit\s+push\b[\s\S]*?(?:--force(?:-with-lease)?\b|-f\b|(?:^|\s)\+[^\s;|]+)/i,
-  /\bgit\s+config\b/i,
+  /\brm\b[\s\S]*\s(?:--recursive|--force)\b/i,
+  /\bgit\s+(?:-[^\s]+\s+)*push\b[\s\S]*?(?:--force(?:-with-lease)?\b|-f\b|(?:^|\s)\+[^\s;|]+)/i,
+  /\bgit\s+(?:(?:-[^\s]+)\s+\S+\s+)*config\b/i,
   /\bgit\s+reset\s+--hard\b/i,
   /\b(?:mkfs|dd)\b/i,
 ];
@@ -70,14 +72,30 @@ function containedPath(root, candidate, ctx = {}) {
   const absolute = resolveCandidate(rootAbs, candidate);
   if (!absolute) return null;
   const relative = POSIX.relative(rootAbs, absolute);
-  if (relative === '' || (relative !== '..' && !relative.startsWith('../') && !POSIX.isAbsolute(relative))) {
-    if (typeof ctx.resolvePath === 'function') {
-      const checked = ctx.resolvePath(absolute, rootAbs);
-      if (checked === false) return null;
-    }
-    return { absolute, relative: normalizedPath(relative) };
-  }
-  return null;
+  if (relative !== '' && (relative === '..' || relative.startsWith('../') || POSIX.isAbsolute(relative))) return null;
+  const resolver = typeof ctx.resolvePath === 'function'
+    ? ctx.resolvePath
+    : (value, rootValue) => {
+      try {
+        if (!existsSync(rootValue)) return true;
+        const rootReal = realpathSync(rootValue);
+        let existing = value;
+        const suffix = [];
+        while (!existsSync(existing)) {
+          const parent = POSIX.dirname(existing);
+          if (parent === existing) return false;
+          suffix.unshift(POSIX.basename(existing));
+          existing = parent;
+        }
+        const candidateReal = POSIX.resolve(realpathSync(existing), ...suffix);
+        const rel = POSIX.relative(rootReal, candidateReal);
+        return rel === '' || (rel !== '..' && !rel.startsWith('../') && !POSIX.isAbsolute(rel));
+      } catch {
+        return false;
+      }
+    };
+  if (resolver(absolute, rootAbs) === false) return null;
+  return { absolute, relative: normalizedPath(relative) };
 }
 
 function globToRegExp(pattern) {
