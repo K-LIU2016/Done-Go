@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createPerceptionRoutes } from '../../../../scripts/agentic/perception/routes.mjs';
 import { readExif } from '../../../../scripts/agentic/perception/exif.mjs';
-import { buildMultipart, jpegWithExif, MP4_BYTES, TEXT_BYTES } from './helpers.mjs';
+import { buildMultipart, jpegWithExif, JPEG_BYTES, MP4_BYTES, TEXT_BYTES } from './helpers.mjs';
 
 const COOKIE = 'session=alice';
 
@@ -264,4 +264,168 @@ test('unrelated paths are not handled (mount contract: returns false)', async t 
   assert.equal((await other.json()).error, 'route-not-found', 'harness 404 = routes 返回 false');
   const bare = await fetch(`${f.origin}/api/captures`, { method: 'POST', headers: { ...multipartHeaders('x'), cookie: 'session=nobody' }, body: 'x' });
   assert.equal(bare.status, 401, '先鉴权后路由');
+});
+
+test('构造与补充分支：db 直建 store、缺 file 部件 400、events 非 GET 405、pipeline 抛错 502、duration 钩子拒绝', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dataDir = join(tmpdir(), `w12-routes-${randomUUID()}`);
+  const db = new DatabaseSync(':memory:');
+  t.after(() => { try { db.close(); } catch { /* 已关 */ } try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* best effort */ } });
+  const events = [];
+  const pipeline = {
+    start(input) { // 上传即双路完成（微任务里发完两帧，交 emit 桥落台账）
+      queueMicrotask(() => input.emit('card.created', { captureId: input.captureId, blockId: 'b-shelf', seen: '隔板已涂胶' })
+        .then(() => input.emit('card.upgraded', { captureId: input.captureId, blockId: 'b-shelf', suggestion: '夹固 15 分钟' })));
+      return { captureId: input.captureId, attribution: { status: 'matched', blockId: 'b-shelf', confidence: 0.9 } };
+    },
+  };
+  const auth = { authenticate: () => ({ id: 'alice' }) };
+  const config = { dataDir, getBlocks: async () => [], checkVideoDuration: async () => {} };
+  const routes = createPerceptionRoutes({ db, auth, pipeline, config });
+  const server = createServer((req, res) => {
+    routes(req, res, new URL(req.url, 'http://localhost').pathname)
+      .then(handled => { if (!handled && !res.writableEnded) res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'route-not-found' })); })
+      .catch(() => { if (!res.headersSent) res.writeHead(500).end(); });
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { await new Promise(r => server.close(r)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  // db 直建 store（真实 node:sqlite + perception-0001 迁移）：归属结果已持久化到 captures 行
+  const jpeg = jpegWithExif({ dateTimeOriginal: '2026:10:26 19:05:00', withGps: false });
+  const posted = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'file', filename: 'p.jpg', contentType: 'image/jpeg', data: jpeg }]), multipartHeaders('w12b')));
+  assert.equal(posted.status, 202, JSON.stringify(posted.body));
+  const captureId = posted.body.captureId;
+  const persisted = db.prepare('SELECT * FROM captures WHERE id = ?').get(captureId);
+  assert.equal(persisted.owner_id, 'alice');
+  assert.equal(persisted.block_id, 'b-shelf', 'matched 归属经 updateAttribution 落库');
+  assert.equal(persisted.confidence, 0.9);
+  // 双帧已入台账（等微任务排空）
+  const deadline = Date.now() + 5000;
+  while (db.prepare('SELECT COUNT(*) AS n FROM perception_events').get().n < 2) {
+    if (Date.now() > deadline) assert.fail('emit 桥未把双帧写进 perception_events 台账');
+    await new Promise(r => setTimeout(r, 10));
+  }
+  // SSE 迟连：纯重放历史（含终态 card.upgraded）→ 重放完 [DONE] 收流
+  const sse = await fetch(`${origin}/api/captures/${captureId}/events`, { headers: { cookie: COOKIE } });
+  assert.equal(sse.status, 200);
+  const text = await sse.text();
+  const frames = text.split('\n\n').filter(Boolean).map(c => c.replace(/^data: /, ''));
+  assert.equal(frames[0].startsWith('{') ? JSON.parse(frames[0]).type : frames[0], 'card.created');
+  assert.equal(JSON.parse(frames[1]).type, 'card.upgraded');
+  assert.equal(frames[1].includes('夹固 15 分钟'), true);
+  assert.equal(frames.at(-1), '[DONE]', '历史含终态：重放后即收流');
+
+  // 缺 file 部件 → 400 file-required
+  const noFile = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'note', value: 'hi' }]), multipartHeaders('w12b')));
+  assert.equal(noFile.status, 400);
+  assert.equal(noFile.body.error, 'file-required');
+
+  // events 非 GET → 405；resolve 非 POST → 405
+  assert.equal((await fetch(`${origin}/api/captures/${captureId}/events`, { method: 'POST', headers: { cookie: COOKIE } })).status, 405);
+  assert.equal((await fetch(`${origin}/api/captures/${captureId}/resolve`, { headers: { cookie: COOKIE } })).status, 405);
+
+  // pipeline.start 同步抛错 → 502（捕获已入库不炸进程）
+  const bad = createPerceptionRoutes({
+    auth, db, pipeline: { start: () => { throw new Error('boom'); } }, config: { dataDir, getBlocks: async () => [] },
+  });
+  const server2 = createServer((req, res) => { bad(req, res, new URL(req.url, 'http://localhost').pathname); });
+  await new Promise(r => server2.listen(0, '127.0.0.1', r));
+  t.after(async () => { await new Promise(r => server2.close(r)); });
+  const origin2 = `http://127.0.0.1:${server2.address().port}`;
+  const boom = await json(await postCapture(origin2, buildMultipart('w12b', [{ name: 'file', filename: 'p2.jpg', contentType: 'image/jpeg', data: jpeg }]), multipartHeaders('w12b')));
+  assert.equal(boom.status, 502);
+  assert.equal(boom.body.error, 'pipeline-failed');
+});
+
+test('duration 钩子拒绝超长视频（≤60s 上限的可注入探测）', async t => {
+  const dataDir = join(tmpdir(), `w12-routes-${randomUUID()}`);
+  const store = fakeStore();
+  const pipelineStarts = [];
+  const auth = { authenticate: () => ({ id: 'alice' }) };
+  const checkVideoDuration = async () => { throw new Error('video too long: 75s exceeds 60s cap'); };
+  const routes = createPerceptionRoutes({ auth, store, pipeline: { start: i => pipelineStarts.push(i) }, config: { dataDir, getBlocks: async () => [], checkVideoDuration } });
+  const server = createServer((req, res) => { routes(req, res, new URL(req.url, 'http://localhost').pathname); });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { await new Promise(r => server.close(r)); try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* best effort */ } });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const out = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'file', filename: 'clip.mp4', contentType: 'video/mp4', data: MP4_BYTES }]), multipartHeaders('w12b')));
+  assert.equal(out.status, 413, JSON.stringify(out.body));
+  assert.equal(out.body.error, 'duration-rejected');
+  assert.equal(pipelineStarts.length, 0, '超长视频不入队');
+});
+
+test('ambiguous 归属持久化候选（真实 store.updateAttribution 候选分支）', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dataDir = join(tmpdir(), `w12-routes-${randomUUID()}`);
+  const db = new DatabaseSync(':memory:');
+  t.after(() => { try { db.close(); } catch { /* 已关 */ } try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* best effort */ } });
+  const candidates = [{ blockId: 'b-a', title: '吃饭', kind: 'meal', confidence: 0.5 }, { blockId: 'b-b', title: '通勤', kind: 'errand', confidence: 0.5 }];
+  const routes = createPerceptionRoutes({
+    auth: { authenticate: () => ({ id: 'alice' }) },
+    db,
+    pipeline: { start: input => ({ captureId: input.captureId, attribution: { status: 'ambiguous', candidates } }) },
+    config: { dataDir, getBlocks: async () => [] },
+  });
+  const server = createServer((req, res) => { routes(req, res, new URL(req.url, 'http://localhost').pathname); });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { await new Promise(r => server.close(r)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const jpeg = jpegWithExif({ dateTimeOriginal: '2026:10:26 18:10:00', withGps: false });
+  const out = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'file', filename: 'p.jpg', contentType: 'image/jpeg', data: jpeg }]), multipartHeaders('w12b')));
+  assert.equal(out.status, 202);
+  assert.deepEqual(out.body.attribution.candidates, candidates, '202 回体带候选交用户裁决');
+  const row = db.prepare('SELECT block_id, candidates FROM captures WHERE id = ?').get(out.body.captureId);
+  assert.equal(row.block_id, null, '歧义未决不落 blockId');
+  assert.deepEqual(JSON.parse(row.candidates), candidates, '候选已入库');
+});
+
+test('SSE 订阅-重放竞态：重放期间到达的实时帧入队补发，不丢不重', async t => {
+  const f = await makeFixture(t);
+  const jpeg = jpegWithExif({ dateTimeOriginal: '2026:10:26 19:05:00', withGps: false });
+  const posted = await json(await postCapture(f.origin, buildMultipart('w12b', [{ name: 'file', filename: 'p.jpg', contentType: 'image/jpeg', data: jpeg }]), multipartHeaders('w12b')));
+  const captureId = posted.body.captureId;
+  const emit = f.pipelineStarts[0].emit;
+  // 拖慢 listEvents：调用时同步取快照（此刻为空）再延迟返回——订阅后、重放完成前，
+  // 实时帧只能进订阅队列，重放为空后由队列补发（真正覆盖竞态分支而非重放路径）
+  const origList = f.store.listEvents.bind(f.store);
+  f.store.listEvents = async (ownerId, id) => { const snapshot = origList(ownerId, id); await new Promise(r => setTimeout(r, 60)); return snapshot; };
+  const sse = await fetch(`${f.origin}/api/captures/${captureId}/events`, { headers: { cookie: COOKIE } });
+  await new Promise(r => setTimeout(r, 10)); // 确认已进入订阅态（重放尚未完成）
+  await emit('card.created', { captureId, seen: '隔板已涂胶' });
+  await emit('card.upgraded', { captureId, suggestion: '夹固 15 分钟' });
+  const text = await sse.text();
+  const frames = text.split('\n\n').filter(Boolean).map(c => c.replace(/^data: /, ''));
+  const types = frames.filter(fr => fr !== '[DONE]').map(fr => JSON.parse(fr).type);
+  assert.deepEqual(types, ['card.created', 'card.upgraded'], `队列补发顺序正确：${JSON.stringify(frames)}`);
+  assert.equal(frames.at(-1), '[DONE]');
+});
+
+test('可注入 clock 与归属回退：config.now 生效、EXIF 时间非法走上传时间、无 attribution 回 none', async t => {
+  const dataDir = join(tmpdir(), `w12-routes-${randomUUID()}`);
+  const clockNow = '2026-10-26T11:00:00.000Z';
+  const store = fakeStore();
+  const routes = createPerceptionRoutes({
+    auth: { authenticate: () => ({ id: 'alice' }) },
+    store,
+    pipeline: { start: input => ({ captureId: input.captureId }) }, // 无 attribution
+    config: { dataDir, getBlocks: async () => [], now: () => clockNow },
+  });
+  const server = createServer((req, res) => { routes(req, res, new URL(req.url, 'http://localhost').pathname); });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { await new Promise(r => server.close(r)); try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* best effort */ } });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const jpeg = jpegWithExif({ dateTimeOriginal: 'not a date', withGps: false }); // EXIF 时间非法 → 上传时间兜底
+  const out = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'file', filename: 'p.jpg', contentType: 'image/jpeg', data: jpeg }]), multipartHeaders('w12b')));
+  assert.equal(out.status, 202);
+  assert.deepEqual(out.body.attribution, { status: 'none', reason: 'unknown' }, '缺 attribution 时回退 none');
+  const row = store.captures.get(out.body.captureId);
+  assert.equal(row.uploadedAt, clockNow, '上传时间来自注入 clock');
+  assert.equal(row.capturedAt, clockNow, 'EXIF 时间非法时拍摄时间回落上传时间');
+  // 无 EXIF 的 JPEG（JFIF 无 APP1）+ 部件名不是 'file'（取第一个文件部件兜底）
+  const plain = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'upload', filename: 'plain.jpg', contentType: 'image/jpeg', data: JPEG_BYTES }]), multipartHeaders('w12b')));
+  assert.equal(plain.status, 202, JSON.stringify(plain.body));
+  const plainRow = store.captures.get(plain.body.captureId);
+  assert.equal(plainRow.capturedAt, clockNow, '无 EXIF → 上传时间');
+  assert.equal(plainRow.exifStripped, true, 'JPEG 落盘副本保证无 GPS');
 });
