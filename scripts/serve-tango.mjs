@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { isIP } from 'node:net';
 import { readFile } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 import { resolve, sep, join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { speechCapabilities, transcribeSpeech, MAX_AUDIO_BYTES } from './tango-speech.mjs';
@@ -20,6 +21,7 @@ function aiFailure(error) {
   const message = AI_ERROR_MESSAGE[code];
   return { status: AI_ERROR_STATUS[code] || 502, error: code.slice(6).toLowerCase().replace(/_/g, '-'), ...(message ? { message } : {}) };
 }
+const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg', '.txt']);
 export function createAIGuard(options = {}) {
  const env = options.env || process.env;
  const flag = value => { const text = typeof value === 'string' ? value.trim().toLowerCase() : ''; return text === '1' || text === 'true'; };
@@ -203,8 +205,10 @@ export function createTangoServer(options = {}) {
     if (!target.startsWith(root.endsWith(sep) ? root : root + sep)) { res.writeHead(403).end(); return; }
     const body = await readFile(target);
     const extension = target.slice(target.lastIndexOf('.'));
-    const payload = body;
-    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': payload.length });
+    // 公网经隧道回源，带宽是瓶颈：文本类在源站 gzip（532KB 首页 → 约 1/4）。ponytail: 每次现压约几毫秒，慢了再加缓存
+    const gzip = COMPRESSIBLE.has(extension) && body.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+    const payload = gzip ? gzipSync(body) : body;
+    res.writeHead(200, { 'Content-Type': types[extension] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Length': payload.length, ...(gzip ? { 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' } : {}) });
     for (let offset = 0; offset < payload.length; offset += 16384) res.write(payload.subarray(offset, offset + 16384));
     res.end();
   } catch {
