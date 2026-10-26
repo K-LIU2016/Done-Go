@@ -32,7 +32,7 @@ const {
   applySpeedToggle, applyPauseToggle, tick, simStateText, clockText,
   pendingMap, costFor, segsFromFeed, traceFor, captureCardFor, sectionsFor,
   blockListProps, tiersProps, sceneCardProps, gallerySamples, storyboardProps,
-  discussProps, boundariesProps, feedProps, acceptanceProps, traceProps,
+  discussProps, boundariesProps, acceptanceProps,
   boardProps, inboxProps, bellCount, reelShots, createApp, getData,
 } = app;
 
@@ -70,7 +70,7 @@ test('M18 HM：分钟数 → HH:MM（prototype L245）', () => {
 });
 
 test('M18 makeHash：6 字节 → sha256: 十六进制…（prototype L633 格式）', () => {
-  assert.equal(makeHash([0, 1, 2, 10, 255, 16]), 'sha256:0001020a10ff…');
+  assert.equal(makeHash([0, 1, 2, 10, 255, 16]), 'sha256:0001020aff10…');
 });
 
 // ---------- B. 数据兜底（与 M02 fixtures 契约同形，落地后无缝切换） ----------
@@ -194,9 +194,10 @@ test('M18 tick：sim ≥ 19:00 → running=false（L609 收卷）', () => {
   assert.equal(st.running, false);
 });
 
-test('M18 tick：大跳多行同拍——13:10→14:05 一次吃下 4 行 + n1 同拍超时（顺序：剧本先行、超时殿后）', () => {
+test('M18 tick：advance 大跳多行同拍——13:10+55 分钟吃下 4 行 + n1 同拍超时（剧本先行、超时殿后）', () => {
   const data = getData();
-  const out = tick(at(T('13:10')), data.script, 0);
+  const out = tick(at(T('13:10')), data.script, 0, 55);
+  assert.equal(out.state.sim, T('14:05'));
   assert.equal(out.cursor, 4, '吃下 13:30/13:44/13:55/14:05 四行');
   assert.equal(out.state.feed.length, 4, '四行剧本各一条（13:55 无 text → 需要你：确认研究受众）');
   assert.equal(out.state.needs[0].done, '超时 · 按"对"继续', '14:05 ≥ due 14:00 同拍超时');
@@ -344,15 +345,15 @@ test('M18 costFor：agent 组成/调用数封顶/状态文案（prototype L473-4
   const items5 = Array.from({ length: 5 }, (_, i) => ({ t: `13:3${i}`, b: 'r', icon: '🔎', text: `x${i}` }));
   assert.equal(costFor({ ...s0, feed: items5 }, 'r', data).calls, 30, 'min(40, 5×6)');
   assert.equal(costFor({ ...s0, feed: Array.from({ length: 20 }, (_, i) => ({ t: `13:${i}`, b: 'r', icon: 'x', text: 'y' })) }, 'r', data).calls, 40, '封顶 40');
-  assert.equal(costFor({ ...s0, feed: items5 }, 'c', data).calls, 45, 'min(60, 5×9)');
-  assert.equal(costFor({ ...s0, feed: items5 }, 'f', data).calls, 10, 'f×2');
+  const cItems = items5.map((f) => ({ ...f, b: 'c' }));
+  assert.equal(costFor({ ...s0, feed: cItems }, 'c', data).calls, 45, 'min(60, 5×9)');
+  assert.equal(costFor({ ...s0, feed: items5.map((f) => ({ ...f, b: 'f' })) }, 'f', data).calls, 10, 'f×2');
   assert.equal(costFor(s0, 's', data).agents, '无');
   const live = costFor({ ...s0, status: { ...s0.status, r: 'live' } }, 'r', data);
   assert.equal(live.status, '进行中');
 });
 
 test('M18 segsFromFeed / boardProps：泳道段由 feed 派生；now/simState/speed 全量下传（prototype L509/L511）', () => {
-  const data = getData();
   const feed = [
     { t: '13:30', b: 'r', icon: '🔎', text: 'x', seg: ['13:30', '14:05', 'r', '检索 ×3'] },
     { t: '14:05', b: 'r', icon: '✍️', text: 'y', seg: ['14:05', '14:40', 'w', '写作'] },
@@ -361,7 +362,7 @@ test('M18 segsFromFeed / boardProps：泳道段由 feed 派生；now/simState/sp
     { b: 'r', s: '13:30', e: '14:05', c: 'r', text: '检索 ×3' },
     { b: 'r', s: '14:05', e: '14:40', c: 'w', text: '写作' },
   ]);
-  const s = { ...initialState(), feed, running: true, speed: 4 };
+  const s = { ...initialState(), feed, running: true, signed: true, speed: 4 };
   const bp = boardProps(s);
   assert.equal(bp.now, T('13:10'));
   assert.equal(bp.running, true);
@@ -507,14 +508,19 @@ function fakeDrawerComp(log) {
   return {
     mount(el, props = {}) {
       const h = {
-        el,
         props,
         slots: {},
+        el: {
+          querySelector(sel) {
+            const m = /data-slot="(\w+)"/.exec(sel);
+            return m ? h.slots[m[1]] ?? null : null;
+          },
+        },
         update(p = {}) {
           Object.assign(h.props, p);
           const secs = h.props.sections || {};
           const fresh = {};
-          for (const [name, html] of Object.entries(secs)) {
+          for (const html of Object.values(secs)) {
             for (const m of String(html).matchAll(/data-slot="(\w+)"/g)) fresh[m[1]] = fakeEl(`slot-${m[1]}`);
           }
           Object.assign(h.slots, fresh);
@@ -523,9 +529,8 @@ function fakeDrawerComp(log) {
         },
         showTab(name) { log.push({ tag: 'drawer', op: 'showTab', name }); },
       };
-      h.slots = {};
       h.update(props);
-      log.push({ tag: 'drawer', op: 'mount', props });
+      log.push({ tag: 'drawer', op: 'mount', el, props });
       return h;
     },
   };
