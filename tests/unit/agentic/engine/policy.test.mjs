@@ -155,6 +155,7 @@ test('expired grant is lazily marked and denied; contract change invalidates old
   assert.equal(verdict.reason, 'GRANT_EXPIRED');
   assert.equal(engine.getGrant(grant.id).status, 'expired', 'decide 时惰性落 expired');
 
+  const grant2 = await activeGrant(engine, contract, { contractHash: '0'.repeat(64) });
   await engine.grantInvalidateForContract(contract.hash, { reason: 'CONTRACT_CHANGED' });
   assert.equal(engine.getGrant(grant2.id).status, 'invalidated', '合同 hash 变化 → 旧 Grant invalidated（精准失效）');
 });
@@ -197,7 +198,9 @@ test('policy decision matrix: 26 numbered cases (≥20 required)', async () => {
     seen.add(c.id);
     const { engine, clock, db } = freshEngine();
     const contractRaw = { ...baseContract(), ...(c.mutate.contract ?? {}) };
-    const contract = (await engine.normalizeContract(contractRaw)).contract;
+    const normalizedInput = c.id === 'CASE-13' ? baseContract() : contractRaw;
+    const contract = (await engine.normalizeContract(normalizedInput)).contract;
+    if (c.id === 'CASE-13') contract.autonomy = 'A4'; // deliberately malformed runtime input: A4 must still require confirmation
     let grantRow = await activeGrant(engine, contract);
     if (c.mutate.grantStatus === 'revoked') { await engine.grantRevoke(grantRow.id); grantRow = engine.getGrant(grantRow.id); }
     if (c.mutate.grantStatus === 'consumed') { await engine.grantConsume(grantRow.id, { externalId: 'e1' }); grantRow = engine.getGrant(grantRow.id); }
@@ -212,8 +215,8 @@ test('policy decision matrix: 26 numbered cases (≥20 required)', async () => {
       action: { ...baseAction(), ...(c.mutate.action ?? {}) },
       grant: grantRow,
       contract,
-      spent: { modelCalls: 10, tokens: 1000 },
-      estimate: { modelCalls: 1, tokens: 100 },
+      spent: c.mutate.spent ?? { modelCalls: 10, tokens: 1000 },
+      estimate: c.mutate.estimate ?? { modelCalls: 1, tokens: 100 },
     });
     if (c.expect.allow) {
       assert.equal(verdict.allow, true, `${c.id} ${c.label} 应放行，实际 ${verdict.reason}`);
