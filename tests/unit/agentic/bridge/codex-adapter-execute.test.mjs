@@ -72,7 +72,7 @@ test('审批·approve：decideApproval=approve → 立即回 JSON-RPC 响应 app
 });
 
 test('审批·reject：黑名单命中 → 回 denied，不产生 Need', async () => {
-  const { adapter } = await plannedAdapter({
+  const { adapter, factory } = await plannedAdapter({
     decideApproval: () => ({ decision: 'reject', reason: 'HIGH_RISK_COMMAND rm -rf' }),
   });
   const reply = factory.serverRequest('applyPatchApproval', { patch: 'x' });
