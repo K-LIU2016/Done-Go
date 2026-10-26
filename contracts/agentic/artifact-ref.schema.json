@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "artifact-ref.schema.json",
+  "title": "ArtifactRef",
+  "description": "对某个交付物（Artifact）的轻量引用，用于工单输入与结果产出。PRD §6.4（WorkOrder.inputs / WorkResult.artifacts）。",
+  "type": "object",
+  "required": ["artifactId"],
+  "properties": {
+    "artifactId": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1, "description": "引用的版本号，缺省为最新" },
+    "kind": { "type": "string", "minLength": 1, "description": "ArtifactType 之一，见 README" }
+  },
+  "additionalProperties": false
+}

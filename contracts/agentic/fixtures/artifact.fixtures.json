@@ -1,0 +1,38 @@
+{
+  "valid": [
+    {
+      "id": "artifact-1",
+      "ownerId": "x",
+      "missionId": "m1",
+      "version": 1,
+      "type": "report",
+      "status": "generating",
+      "title": "x",
+      "location": "x",
+      "createdAt": "2026-10-26T10:00:00Z"
+    },
+    {
+      "id": "artifact-2",
+      "ownerId": "x",
+      "missionId": "m2",
+      "version": 1,
+      "type": "report",
+      "status": "generating",
+      "title": "x",
+      "location": "x",
+      "createdAt": "2026-10-26T10:00:00Z"
+    }
+  ],
+  "invalid": [
+    {
+      "ownerId": "x",
+      "missionId": "m1",
+      "version": 1,
+      "type": "report",
+      "status": "generating",
+      "title": "x",
+      "location": "x",
+      "createdAt": "2026-10-26T10:00:00Z"
+    }
+  ]
+}

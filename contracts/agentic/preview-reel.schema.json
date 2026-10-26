@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "composition",
+    "durationSec",
+    "narrationAudio",
+    "mp4"
+  ],
+  "properties": {
+    "composition": {
+      "type": "string",
+      "minLength": 1
+    },
+    "durationSec": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "narrationAudio": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mp4": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tracks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "at",
+          "durationSec",
+          "track"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "minLength": 1
+          },
+          "durationSec": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "track": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "description": "HyperFrames 兼容预演片描述。PRD §5.2、§10.3。",
+  "$id": "preview-reel.schema.json",
+  "title": "PreviewReel"
+}

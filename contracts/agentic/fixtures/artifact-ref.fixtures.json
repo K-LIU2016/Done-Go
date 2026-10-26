@@ -1,0 +1,19 @@
+{
+  "valid": [
+    {
+      "artifactId": "a_1"
+    },
+    {
+      "artifactId": "a_2",
+      "version": 2,
+      "kind": "report"
+    }
+  ],
+  "invalid": [
+    [
+      {
+        "version": 1
+      }
+    ]
+  ]
+}

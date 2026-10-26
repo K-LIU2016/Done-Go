@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "id",
+    "missionId",
+    "type",
+    "question",
+    "dueAt",
+    "defaultAction",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "missionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "decision",
+        "data",
+        "authorization",
+        "attendance",
+        "acceptance"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dueAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "defaultAction": {
+      "type": "string",
+      "enum": [
+        "continue",
+        "pause",
+        "skip",
+        "deliver_best",
+        "stop"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "answered",
+        "defaulted",
+        "waived",
+        "expired"
+      ]
+    },
+    "answer": {
+      "type": "string"
+    },
+    "answeredAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "description": "需要你收件箱中的一项。PRD §4.1、§5.5。",
+  "$id": "need.schema.json",
+  "title": "Need"
+}

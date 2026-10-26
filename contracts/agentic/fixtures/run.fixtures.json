@@ -1,0 +1,29 @@
+{
+  "valid": [
+    {
+      "id": "run-1",
+      "missionId": "m1",
+      "contractHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "state": "queued",
+      "startedAt": "2026-10-26T10:00:00Z",
+      "updatedAt": "2026-10-26T10:00:00Z"
+    },
+    {
+      "id": "run-2",
+      "missionId": "m2",
+      "contractHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "state": "queued",
+      "startedAt": "2026-10-26T10:00:00Z",
+      "updatedAt": "2026-10-26T10:00:00Z"
+    }
+  ],
+  "invalid": [
+    {
+      "missionId": "m1",
+      "contractHash": "x",
+      "state": "queued",
+      "startedAt": "2026-10-26T10:00:00Z",
+      "updatedAt": "2026-10-26T10:00:00Z"
+    }
+  ]
+}

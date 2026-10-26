@@ -1,0 +1,32 @@
+{
+  "valid": [
+    {
+      "id": "need-1",
+      "missionId": "m1",
+      "type": "decision",
+      "question": "x",
+      "dueAt": "2026-10-26T10:00:00Z",
+      "defaultAction": "continue",
+      "status": "open"
+    },
+    {
+      "id": "need-2",
+      "missionId": "m2",
+      "type": "decision",
+      "question": "x",
+      "dueAt": "2026-10-26T10:00:00Z",
+      "defaultAction": "continue",
+      "status": "open"
+    }
+  ],
+  "invalid": [
+    {
+      "missionId": "m1",
+      "type": "decision",
+      "question": "x",
+      "dueAt": "2026-10-26T10:00:00Z",
+      "defaultAction": "continue",
+      "status": "open"
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "valid": [
+    {
+      "id": "contract-1",
+      "missionId": "m1",
+      "version": 1,
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "goal": "x",
+      "deliverables": [
+        {
+          "type": "report",
+          "shape": "x",
+          "location": "x"
+        }
+      ],
+      "definitionOfDone": [
+        "done"
+      ],
+      "autonomy": "A1",
+      "will": [
+        "research"
+      ],
+      "wont": [
+        "no external send"
+      ],
+      "needs": [],
+      "capabilities": [],
+      "dataDisclosure": [],
+      "budget": {
+        "modelCalls": 1,
+        "tokens": 1,
+        "costCap": null,
+        "localSlots": 1
+      },
+      "window": {
+        "prepStart": "2026-10-26T09:00:00Z",
+        "start": "2026-10-26T10:00:00Z",
+        "end": "2026-10-26T11:00:00Z",
+        "overrun": "deliver_best"
+      },
+      "interruption": "needs_only"
+    },
+    {
+      "id": "contract-2",
+      "missionId": "m2",
+      "version": 1,
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "goal": "x",
+      "deliverables": [
+        {
+          "type": "report",
+          "shape": "x",
+          "location": "x"
+        }
+      ],
+      "definitionOfDone": [
+        "done"
+      ],
+      "autonomy": "A1",
+      "will": [
+        "research"
+      ],
+      "wont": [
+        "no external send"
+      ],
+      "needs": [],
+      "capabilities": [],
+      "dataDisclosure": [],
+      "budget": {
+        "modelCalls": 1,
+        "tokens": 1,
+        "costCap": null,
+        "localSlots": 1
+      },
+      "window": {
+        "prepStart": "2026-10-26T09:00:00Z",
+        "start": "2026-10-26T10:00:00Z",
+        "end": "2026-10-26T11:00:00Z",
+        "overrun": "deliver_best"
+      },
+      "interruption": "needs_only"
+    }
+  ],
+  "invalid": [
+    {
+      "missionId": "m1",
+      "version": 1,
+      "hash": "x",
+      "goal": "x",
+      "deliverables": [
+        {
+          "type": "report",
+          "shape": "x",
+          "location": "x"
+        }
+      ],
+      "definitionOfDone": [],
+      "autonomy": "A1",
+      "will": [],
+      "wont": [],
+      "needs": [],
+      "capabilities": [],
+      "dataDisclosure": [],
+      "budget": {
+        "modelCalls": 1,
+        "tokens": 1,
+        "costCap": "x",
+        "localSlots": 1
+      },
+      "window": {
+        "prepStart": "x",
+        "start": "x",
+        "end": "x",
+        "overrun": "deliver_best"
+      },
+      "interruption": "needs_only"
+    }
+  ]
+}
