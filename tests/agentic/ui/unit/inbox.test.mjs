@@ -160,8 +160,8 @@ test('M14 actionsHTML：选项按钮组 data-ans=needId data-v=选项（prototyp
 
 test('M14 needCardInner：未处理 = 标题/正文/meta + acts（prototype L519-521 原文结构）', () => {
   const html = needCardInner(NEEDS[0], BLOCKS);
-  assert.ok(html.startsWith('<b>确认研究受众</b><div>我按"国内 K12 · 初中教师"来写，对吗？</div>'), '标题 b + 正文 div（L519）');
-  assert.ok(html.includes('<div class="meta">AI 教育的深度研究 · 截止 14:00 · 超时：按"对"继续</div>'), 'meta 行（L520）');
+  assert.ok(html.startsWith('<b>确认研究受众</b><div>我按&quot;国内 K12 · 初中教师&quot;来写，对吗？</div>'), '标题 b + 正文 div（L519；esc 后引号为实体）');
+  assert.ok(html.includes('<div class="meta">AI 教育的深度研究 · 截止 14:00 · 超时：按&quot;对&quot;继续</div>'), 'meta 行（L520）');
   assert.ok(html.includes('data-ans="n1"') && html.includes('data-v="对"'), 'acts 按钮组（L521）');
   assert.equal(needCardInner(null, BLOCKS), '');
 });
@@ -175,13 +175,15 @@ test('M14 needCardInner：已处理 = 无 acts +「已处理：…」meta（prot
 });
 
 test('M14 needCardInner 转义：title/body/opts/done 五路 esc（M01 XSS 基线）', () => {
-  const evil = { id: 'n"1', title: '<script>t</script>', body: '<img src=x onerror=1>', opts: ['<b>对</b>'], due: '14:00', def: '按"<i>x</i>"继续', b: 'r', done: '你选了「<u>对</u>」' };
-  const html = needCardInner(evil, [{ id: 'r', title: '<em>块</em>' }]);
+  const pending = { id: 'n"1', title: '<script>t</script>', body: '<img src=x onerror=1>', opts: ['<b>对</b>'], due: '14:00', def: '按"<i>x</i>"继续', b: 'r', done: '' };
+  const html = needCardInner(pending, [{ id: 'r', title: '<em>块</em>' }]);
   assert.ok(!html.includes('<script>'), 'script 破坏');
   assert.ok(!html.includes('<img '), 'img 破坏');
-  assert.ok(!html.includes('<b>对</b>') && !html.includes('<u>对</u>') && !html.includes('<em>块</em>'), '注入标签不得存活');
+  assert.ok(!html.includes('<b>对</b>') && !html.includes('<em>块</em>'), '注入标签不得存活');
   assert.ok(html.includes('&lt;script&gt;t&lt;/script&gt;'));
   assert.ok(html.includes('data-v="&lt;b&gt;对&lt;/b&gt;"'), '选项值属性转义');
+  const answered = needCardInner({ ...pending, opts: [], done: '你选了「<u>对</u>」' }, BLOCKS);
+  assert.ok(!answered.includes('<u>对</u>') && answered.includes('你选了「&lt;u&gt;对&lt;/u&gt;」'), 'done 值转义');
 });
 
 test('M14 needCardHTML：.need + data-need 身份键；done 才带 opacity:.55（prototype L519）', () => {
@@ -349,7 +351,7 @@ test('M14 mount：need 卡内容 = 纯核 needCardInner 原文（meta 含所属�
   mount(host, { needs: [NEEDS[0]], blocks: BLOCKS });
   assert.equal(list.rows.length, 1);
   assert.equal(list.rows[0].innerHTML, needCardInner(NEEDS[0], BLOCKS), '壳渲染与纯核一致');
-  assert.ok(list.rows[0].innerHTML.includes('AI 教育的深度研究 · 截止 14:00 · 超时：按"对"继续'), 'meta 三段（L520）');
+  assert.ok(list.rows[0].innerHTML.includes('AI 教育的深度研究 · 截止 14:00 · 超时：按&quot;对&quot;继续'), 'meta 三段（L520；esc 实体）');
 });
 
 test('M14 作答：点选项按钮 → onAnswer(needId, value)（prototype L640 data-ans/data-v）', () => {
@@ -525,20 +527,21 @@ function stubBellHost() {
 }
 
 test('M14 mountBell：按钮 + 徽标一次写；count>0 显数、count=0 隐藏（prototype L517）', () => {
-  const { host, dom } = stubBellHost();
+  const s = stubBellHost();
+  const host = s.host; // s.dom 必须经 getter 取：innerHTML 重写会重建按钮/徽标
   const calls = [];
   const handle = mountBell(host, { count: 2, onToggle: () => calls.push('toggle') });
   assert.equal(host.writes, 1, '铃铛壳只写一次');
   assert.ok(host.innerHTML.startsWith('<button class="btn bell" type="button" aria-label="需要你">需要你<b'));
-  assert.equal(dom.badge.textContent, '2');
-  assert.equal(dom.badge.classList.contains('hidden'), false);
+  assert.equal(s.dom.badge.textContent, '2');
+  assert.equal(s.dom.badge.classList.contains('hidden'), false);
   assert.equal(handle.el, host);
   handle.update({ count: 0 });
   assert.equal(host.writes, 1, '增量：不重写按钮');
-  assert.equal(dom.badge.classList.contains('hidden'), true, '0 隐藏徽标（L517 toggle hidden）');
+  assert.equal(s.dom.badge.classList.contains('hidden'), true, '0 隐藏徽标（L517 toggle hidden）');
   handle.update({ count: 5 });
-  assert.equal(dom.badge.textContent, '5');
-  assert.equal(dom.badge.classList.contains('hidden'), false);
+  assert.equal(s.dom.badge.textContent, '5');
+  assert.equal(s.dom.badge.classList.contains('hidden'), false);
 });
 
 test('M14 mountBell：初始 count=0 → 徽标隐藏；count 缺省归 0', () => {
