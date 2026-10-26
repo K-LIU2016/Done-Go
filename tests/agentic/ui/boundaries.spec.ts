@@ -13,15 +13,17 @@ const SYS_WONT = '系统禁止：付款下单 · 以你名义发送（除非逐�
 
 async function mount(page: import('@playwright/test').Page, extra: Record<string, unknown> = {}) {
   await page.goto('/component.html?c=boundaries');
-  await page.evaluate((patch) => {
+  // BOUNDARY/SYS_WONT 经 evaluate 参数穿透进浏览器侧（自由变量在 page 上下文不可见，
+  // M02 harness 落地即 ReferenceError——ced2c4e 同款修复）
+  await page.evaluate(([patch, boundary, sysWont]) => {
     window.__calls = [];
     const props = {
-      boundary: BOUNDARY, sysWont: SYS_WONT, signed: false, hash: '', blockCount: 4, ...patch,
+      boundary, sysWont, signed: false, hash: '', blockCount: 4, ...patch,
     } as Record<string, unknown>;
     props.onSign = () => window.__calls!.push(['sign']);
     props.onRevoke = () => window.__calls!.push(['revoke']);
     window.__mount('boundaries', props);
-  }, extra);
+  }, [extra, BOUNDARY, SYS_WONT] as const);
 }
 
 test('M11 四栏：我会做 / 我不会做 / 需要你 / 花费与上限（prototype L464-465）', async ({ page }) => {
