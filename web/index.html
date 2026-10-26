@@ -1282,7 +1282,33 @@ window.TangoAppAuth.start(function (authUser) {
     clearTimeout(recQuiet); clearTimeout(recMax); capState.listening = false; micUi();
     if (micTranscribing) voiceBusy(false);
   }
+  // 语音面板 v3（豆包式管线，服务端 /api/voice/v3）：页面加载时就预取模块，点话筒时同步打开
+  // （Safari 要求音频上下文在点击的同步调用栈里创建，点击后再 import 会丢手势）。不可用时走下面的旧录音流程。
+  var v3Panel = null, v3Open = null;
+  fetch('/api/status').then(function (r) { return r.ok ? r.json() : null; }).then(function (s) {
+    if (s && s.voiceV3) return import('/voice/v3-panel.js').then(function (m) { v3Panel = m; });
+  }).catch(function () {});
+  function addVoiceItems(drafts) {
+    var ready = [], pending = [];
+    drafts.forEach(function (d) {
+      var e = { id: uid(), title: d.title, kind: guessKind(d.title), prio: d.prio, date: d.date, start: d.start, end: d.end };
+      if (d.note) e.note = d.note;
+      if (draftProblem(e)) pending.push(e); else ready.push(e);
+    });
+    S.drafts = S.drafts.concat(pending);
+    return new Promise(function (resolve) {
+      place(ready, function (n) {
+        var msg = (n ? '✓ ' + n + ' 项' : '未新增') + (pending.length ? ' · ' + pending.length + ' 项待补时间' : '');
+        setCap(msg, pending.length > 0); save(); render(); resolve(msg);
+      });
+    });
+  }
   function startMic() {
+    if (v3Panel && LANG === 'zh' && !v3Open && !capState.busy) {
+      v3Open = v3Panel.openVoicePanel({ onAdd: addVoiceItems, onClose: function () { v3Open = null; } });
+      return;
+    }
+    if (v3Open) return;
     if (localRec) return localRec.stop();
     if (rec) return rec.stop();
     if (micLoading) return cancelMic();

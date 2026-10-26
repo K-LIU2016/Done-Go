@@ -9,7 +9,7 @@ const CLOUD_URL = () => (process.env.TANGO_AI_URL || 'http://127.0.0.1:4000/v1/c
 const CLOUD_MODEL = () => process.env.TANGO_VOICE_STRUCT_MODEL || 'deepseek-v4.1-flash-fast';
 
 export const CLEAN_SYSTEM = `把语音输入整理成通顺的书面中文。输入是同一句话的两路识别 A、B（可能有近音错字）。
-对照两路和上下文还原原意；去掉语气词（嗯啊呃、那个、就是、然后呢、我想想）和重复；改口以最后说的为准；补全标点；不增删事实。只输出整理后的文字。`;
+以 A 为主（A 带标点、较可靠），B 只用来纠正 A 里明显不通顺的词，B 本身不通顺时忽略 B；去掉语气词（嗯啊呃、那个、就是、然后呢、我想想）和重复；改口以最后说的为准；补全标点；不增删事实。只输出整理后的文字。`;
 
 export function structSystem(now) {
   return `你是语音输入整理器。输入是用户一段话的两路语音识别结果 A、B（都可能有错：近音字、语气词、重复、改口）。
