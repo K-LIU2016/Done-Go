@@ -27,8 +27,9 @@ async function mountInbox(page: import('@playwright/test').Page, needs = NEEDS) 
 
 test('M14 need 卡：标题/正文/所属块/截止/超时默认（PRD §5.5 规则）', async ({ page }) => {
   await mountInbox(page);
-  await expect(page.locator('.need').first()).toContainText('确认研究受众');
-  const meta = await page.locator('.need').first().locator('.meta').textContent();
+  // prototype L518 倒序渲染（最新在前）：NEEDS=[n1,n2] → 首卡 n2、n1 在末位（M12 spec 同款修正）
+  await expect(page.locator('.need').last()).toContainText('确认研究受众');
+  const meta = await page.locator('.need').last().locator('.meta').textContent();
   expect(meta).toContain('AI 教育的深度研究');
   expect(meta).toContain('截止 14:00');
   expect(meta).toContain('超时：按"对"继续');
@@ -36,7 +37,7 @@ test('M14 need 卡：标题/正文/所属块/截止/超时默认（PRD §5.5 规
 
 test('M14 选项按钮组作答 → onAnswer(needId, value)（prototype L640）', async ({ page }) => {
   await mountInbox(page);
-  await page.locator('.need button[data-ans=n1], .need').first().locator('button', { hasText: '对' }).click();
+  await page.locator('.need button[data-ans=n1]', { hasText: '对' }).click();
   expect(await page.evaluate(() => window.__calls)).toEqual([['answer', 'n1', '对']]);
 });
 
