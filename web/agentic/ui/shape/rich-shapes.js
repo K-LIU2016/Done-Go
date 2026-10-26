@@ -33,7 +33,7 @@ export function timeline(block) {
 }
 
 // ---- slides：缩略幻灯片（.slide 双栏 tag/title/bullets，prototype L147-151）----
-const SAFE_SRC = /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/; // 相对路径白名单：禁协议/绝对路径/..
+const SAFE_SRC = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/; // 相对路径白名单：禁协议/绝对路径/..
 export function slides(block) {
   const pages = arr(block && block.pages);
   return `<div class="slides">${pages.map((pg) => {

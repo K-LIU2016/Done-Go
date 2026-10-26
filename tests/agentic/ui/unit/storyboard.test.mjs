@@ -302,7 +302,7 @@ test('M09 defaultSpeech：node 无 speechSynthesis → available=false；浏览�
   assert.equal(none.available, false);
   assert.equal(defaultSpeech({}).available, false, '有对象无 API 也不可用');
   const made = [];
-  function Utterance(text) { this.text = text; made.push(this); }
+  class Utterance { constructor(text) { this.text = text; made.push(this); } }
   const queued = [];
   let cancelled = 0;
   const win = {
@@ -434,7 +434,7 @@ test('M09 setLine：字幕=lines[i]（textContent）且 map[i] 事件点亮、�
 });
 
 test('M09 setLine 边界：负数/超大归 0/末句；map 缺行清点亮（prototype drawRail(undefined) 语义）', () => {
-  const { handle, evs, head, sub } = mountWired();
+  const { handle, sub } = mountWired();
   handle.setLine(-5);
   assert.equal(sub.textContent, LINES[0]);
   handle.setLine(99);

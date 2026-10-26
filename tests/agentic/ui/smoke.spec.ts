@@ -38,7 +38,7 @@ test('M02 __defaults 返回 fixtures 默认 props（block-card 含黄金场景 5
 
 test('M02 esc 注入安全：恶意标题原样呈现、不产生元素注入（M01 XSS 基线）', async ({ page }) => {
   await page.goto('/component.html?c=block-card');
-  const evil = await page.evaluate(() => {
+  await page.evaluate(() => {
     const props = window.__defaults('block-card');
     props.blocks = [{ ...props.blocks[0], id: 'x', title: '<img src=x onerror="window.__pwned=1">' }];
     window.__mount('block-card', props);
