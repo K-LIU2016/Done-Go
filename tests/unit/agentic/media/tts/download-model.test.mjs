@@ -17,7 +17,8 @@ const sha256 = buf => createHash('sha256').update(buf).digest('hex');
 test('a good checksum writes the model file and records its sha256', async () => {
   const bytes = Buffer.from('model-bytes-假');
   const dir = tmp();
-  const fetch = async () => ({ ok: true, status: 200, arrayBuffer: async () => bytes.buffer.slice(0) });
+  // 注：小 Buffer 的 .buffer 是 8KiB 共享池，slice(0) 会带出整池字节；须用 Uint8Array 复制出恰好内容的 ArrayBuffer
+  const fetch = async () => ({ ok: true, status: 200, arrayBuffer: async () => new Uint8Array(bytes).buffer });
   const out = await downloadModel({ url: URL_SRC, sha256: sha256(bytes), dir, name: 'vits-zh', fetch });
   assert.equal(out.file, join(dir, 'vits-zh'));
   assert.equal(out.sha256, sha256(bytes));
@@ -27,7 +28,7 @@ test('a good checksum writes the model file and records its sha256', async () =>
 
 test('a bad checksum deletes the file and throws CHECKSUM_MISMATCH', async () => {
   const dir = tmp();
-  const fetch = async () => ({ ok: true, status: 200, arrayBuffer: async () => Buffer.from('tampered').buffer.slice(0) });
+  const fetch = async () => ({ ok: true, status: 200, arrayBuffer: async () => new Uint8Array(Buffer.from('tampered')).buffer });
   await assert.rejects(
     () => downloadModel({ url: URL_SRC, sha256: '0'.repeat(64), dir, name: 'vits-zh', fetch }),
     err => err.code === 'CHECKSUM_MISMATCH',
@@ -39,7 +40,7 @@ test('a bad checksum deletes the file and throws CHECKSUM_MISMATCH', async () =>
 test('downloads above maxBytes are refused and cleaned up (DOWNLOAD_TOO_LARGE)', async () => {
   const bytes = Buffer.alloc(4096);
   const dir = tmp();
-  const fetch = async () => ({ ok: true, status: 200, arrayBuffer: async () => bytes.buffer.slice(0) });
+  const fetch = async () => ({ ok: true, status: 200, arrayBuffer: async () => new Uint8Array(bytes).buffer });
   await assert.rejects(
     () => downloadModel({ url: URL_SRC, sha256: sha256(bytes), dir, name: 'big', fetch, maxBytes: 1024 }),
     err => err.code === 'DOWNLOAD_TOO_LARGE',
