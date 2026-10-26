@@ -14,16 +14,18 @@ const ARTIFACT = {
 
 async function mountAcceptance(page: import('@playwright/test').Page, extra: Record<string, unknown> = {}) {
   await page.goto('/component.html?c=acceptance');
-  await page.evaluate((patch) => {
+  // ARTIFACT 经 evaluate 参数穿透进浏览器侧（自由变量在 page 上下文不可见，
+  // M02 harness 落地即 ReferenceError——ced2c4e/ea098d0 同款修复）
+  await page.evaluate(([patch, artifact]) => {
     window.__calls = [];
     const props = {
-      ready: true, artifact: ARTIFACT, accepted: false, gainText: '约 45 分钟', ...patch,
+      ready: true, artifact, accepted: false, gainText: '约 45 分钟', ...patch,
     } as Record<string, unknown>;
     props.onAccept = (payload: unknown) => window.__calls!.push(['accept', payload]);
     props.onRevise = (payload: unknown) => window.__calls!.push(['revise', payload]);
     props.onReject = () => window.__calls!.push(['reject']);
     window.__mount('acceptance', props);
-  }, extra);
+  }, [extra, ARTIFACT] as const);
 }
 
 test('M13 未就绪：占位说明（prototype L481）', async ({ page }) => {
