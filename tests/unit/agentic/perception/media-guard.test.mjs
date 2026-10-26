@@ -83,3 +83,31 @@ test('checkVideoDuration enforces ≤60s and reports probe failures', async () =
   await assert.rejects(checkVideoDuration('/tmp/v.mp4', { run: mk('not json at all') }), /probe/i);
   await assert.rejects(checkVideoDuration('/tmp/v.mp4', { run: async () => { throw new Error('ffprobe not found'); } }), /probe|ffprobe/i);
 });
+
+// —— 实现侧补充用例（RED 基线之上只增不改）：brand 家族、真实 ffprobe 失败路径 ——
+
+const ftyp = brand => Buffer.concat([
+  Buffer.from([0x00, 0x00, 0x00, 0x18]),
+  Buffer.from('ftyp', 'latin1'),
+  Buffer.from(brand.padEnd(4, ' '), 'latin1'),
+  Buffer.alloc(8, 0),
+]);
+
+test('detectKind: ftyp brand families map to mp4/mov/heic; near-misses rejected', () => {
+  assert.equal(detectKind(ftyp('avc1')), 'mp4');
+  assert.equal(detectKind(ftyp('mp42')), 'mp4');
+  assert.equal(detectKind(ftyp('mif1')), 'heic');
+  assert.equal(detectKind(ftyp('qt')), 'mov');
+  assert.equal(detectKind(ftyp('f4v ')), null, '未知 brand 宁拒不错');
+  const riffWave = Buffer.concat([Buffer.from('RIFF', 'latin1'), Buffer.alloc(4), Buffer.from('WAVE', 'latin1'), Buffer.alloc(8)]);
+  assert.equal(detectKind(riffWave), null, 'RIFF 但不是 WEBP');
+  assert.equal(detectKind('not a buffer'), null, '非 Buffer 判 unknown');
+});
+
+test('checkUpload extension matching is case-insensitive', () => {
+  assert.equal(checkUpload({ data: JPEG_BYTES, filename: 'PHOTO.JPG' }).format, 'jpeg');
+});
+
+test('checkVideoDuration: default runner surfaces real ffprobe failures', async () => {
+  await assert.rejects(checkVideoDuration('/nonexistent/w12-perception/nope.mp4'), /probe|ffprobe/);
+});
