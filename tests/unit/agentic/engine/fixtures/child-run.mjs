@@ -12,11 +12,11 @@
 import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openEngineDb, applyEngineMigrations } from '../../../../scripts/agentic/engine/db.mjs';
-import { createRunEngine } from '../../../../scripts/agentic/engine/run-engine.mjs';
-import { createOutbox } from '../../../../scripts/agentic/engine/outbox.mjs';
+import { openEngineDb, applyEngineMigrations } from '../../../../../scripts/agentic/engine/db.mjs';
+import { createRunEngine } from '../../../../../scripts/agentic/engine/run-engine.mjs';
+import { createOutbox } from '../../../../../scripts/agentic/engine/outbox.mjs';
 
-const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..', '..', '..', '..');
+const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..', '..', '..', '..', '..');
 const MIGRATIONS_DIR = resolve(ROOT, 'scripts', 'agentic', 'db', 'migrations');
 const CONTRACT_HASH = 'a'.repeat(64);
 
@@ -37,7 +37,7 @@ const budget = { modelCalls: 40, tokens: 100000, costCap: null, localSlots: 1 };
 // 外部动作已发生、dispatch 未完成（entry 停在 dispatched、检查点未落）。
 const send = async (payload) => {
   appendFileSync(marker, 'X\n');
-  if (mode === 'initial') await new Promise(() => {});
+  if (mode === 'initial') await new Promise(() => { setInterval(() => {}, 1000); });
   return { externalId: 'ext-marker', receipt: { marker: payload.marker } };
 };
 const verify = async () => (existsSync(marker) ? { ok: true } : { ok: false });

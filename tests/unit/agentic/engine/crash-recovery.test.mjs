@@ -36,16 +36,18 @@ async function waitFor(predicate, { timeoutMs = 20_000, everyMs = 25 } = {}) {
 }
 
 function runChild(args, { timeoutMs = 30_000 } = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CHILD, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let childProcess;
+  const promise = new Promise((resolve, reject) => {
+    const child = childProcess = spawn(process.execPath, [CHILD, ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '', err = '';
     const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error(`child timeout: ${err || out}`)); }, timeoutMs);
     child.stdout.on('data', (c) => { out += c; });
     child.stderr.on('data', (c) => { err += c; });
     child.on('error', (e) => { clearTimeout(timer); reject(e); });
     child.on('exit', (code, signal) => { clearTimeout(timer); resolve({ code, signal, out, err }); });
-    resolve.child = child;
   });
+  promise.child = childProcess;
+  return promise;
 }
 
 test('scenario A: SIGKILL mid-step after external effect → restart replays consistently, no duplicate action', { timeout: 90_000 }, async () => {

@@ -44,7 +44,7 @@ export function createOutbox(options = {}) {
   const listByStatus = (status) => db.prepare('SELECT * FROM outbox WHERE status=? ORDER BY updated_at,id').all(status);
 
   const dispatch = async (entry, { send, verify } = {}) => {
-    let current = getRaw(entry?.id);
+    let current = getRaw(entry?.id ?? entry?.id);
     if (!current) return { dispatched: false, reason: 'NOT_FOUND', status: null };
     if (isCancelledRun(current.run_id)) {
       current = save(current.id, 'cancelled');
@@ -91,7 +91,7 @@ export function createOutbox(options = {}) {
   const reconcile = async (entry, { probe } = {}) => {
     const current = getRaw(entry?.id) ?? entry;
     if (!current) return { status: 'unknown', reason: 'NOT_FOUND' };
-    if (current.status !== 'unknown') return current;
+    if (!['unknown', 'dispatched'].includes(current.status)) return current;
     if (typeof probe !== 'function') throw new TypeError('OUTBOX_PROBE_REQUIRED');
     let result;
     try {
