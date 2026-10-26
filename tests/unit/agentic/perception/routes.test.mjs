@@ -10,8 +10,11 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { createPerceptionRoutes } from '../../../../scripts/agentic/perception/routes.mjs';
 import { readExif } from '../../../../scripts/agentic/perception/exif.mjs';
+import { loadSchema, validate } from '../../../../scripts/agentic/contracts.mjs';
 import { buildMultipart, jpegWithExif, JPEG_BYTES, MP4_BYTES, TEXT_BYTES } from './helpers.mjs';
 
 const COOKIE = 'session=alice';
@@ -129,29 +132,38 @@ test('POST /api/captures: video uploads land with kind=video', async t => {
   assert.ok(row.storedPath.endsWith('.mp4'));
 });
 
-test('POST /api/captures rejects: 401 anonymous, 405 wrong method, 415 non-multipart, 400 bad multipart, 415 bad media, 413 oversized', async t => {
+test('POST /api/captures rejects: 401 anonymous, 405 wrong method, 415 non-multipart, 400 bad multipart, 415 bad media, 413 oversized——统一 api-error 冻结信封', async t => {
   const f = await makeFixture(t);
   // 401 未登录（仿 collaboration.authenticate：auth 抛错 → 401）
   const anon = await fetch(`${f.origin}/api/captures`, { method: 'POST', headers: { 'content-type': 'multipart/form-data; boundary=x' }, body: 'x' });
   assert.equal(anon.status, 401);
-  assert.equal((await anon.json()).error, 'unauthorized');
+  const anonBody = await anon.json();
+  assert.equal(anonBody.error.code, 'AUTH_REQUIRED');
+  // 401 信封过冻结 schema（W0 契约：api-error.schema.json 枚举信封）
+  const apiErrorSchema = loadSchema('api-error.schema.json', join(dirname(fileURLToPath(import.meta.url)), '../../../../contracts/agentic'));
+  const sv = validate(anonBody, apiErrorSchema);
+  assert.equal(sv.valid, true, JSON.stringify(sv.errors));
   // 405 方法不符
   const get = await fetch(`${f.origin}/api/captures`, { headers: { cookie: COOKIE } });
   assert.equal(get.status, 405);
-  assert.equal((await get.json()).error, 'method-rejected');
+  const getBody = await get.json();
+  assert.equal(getBody.error.code, 'CONTRACT_INVALID', '冻结枚举无 405 专属 code，缺口列待裁决（见 routes.mjs fail 注记）');
+  assert.equal(getBody.error.details.reason, 'method-not-allowed');
+  assert.equal(validate(getBody, apiErrorSchema).valid, true);
   // 415 非 multipart
   const jsonRes = await postCapture(f.origin, JSON.stringify({}), { cookie: COOKIE, 'content-type': 'application/json' });
   assert.equal(jsonRes.status, 415);
-  assert.equal((await jsonRes.json()).error, 'multipart-required');
+  assert.equal((await jsonRes.json()).error.code, 'CONTRACT_INVALID');
   // 400 坏 multipart（boundary 永不匹配）
   const bad = await postCapture(f.origin, 'garbage-bytes-not-multipart', multipartHeaders('nope'));
   assert.equal(bad.status, 400);
-  assert.equal((await bad.json()).error, 'multipart-invalid');
+  assert.equal((await bad.json()).error.code, 'CONTRACT_INVALID');
   // 415 白名单外媒体（文本字节 + .txt 扩展名）
   const evil = buildMultipart('w12b', [{ name: 'file', filename: 'note.txt', contentType: 'text/plain', data: TEXT_BYTES }]);
   const media = await json(await postCapture(f.origin, evil, multipartHeaders('w12b')));
   assert.equal(media.status, 415, JSON.stringify(media.body));
-  assert.equal(media.body.error, 'media-rejected');
+  assert.equal(media.body.error.code, 'CONTRACT_INVALID');
+  assert.equal(media.body.error.details.reason, 'media-rejected');
   assert.equal(f.pipelineStarts.length, 0, '拒绝的请求不入队');
 });
 
@@ -169,7 +181,9 @@ test('POST /api/captures: transport size cap rejects before touching disk', asyn
   const big = buildMultipart('w12b', [{ name: 'file', filename: 'clip.mp4', contentType: 'video/mp4', data: Buffer.alloc(2048 * 1024, 3) }]);
   const res = await fetch(`${origin}/api/captures`, { method: 'POST', headers: multipartHeaders('w12b'), body: big });
   assert.equal(res.status, 413, '超过 config.maxVideoBytes+余量直接 413');
-  assert.equal((await res.json()).error, 'body-too-large');
+  const bigBody = await res.json();
+  assert.equal(bigBody.error.code, 'CONTRACT_INVALID');
+  assert.equal(bigBody.error.details.reason, 'body-too-large');
   assert.equal(store.captures.size, 0, '未入库未落盘');
 });
 
@@ -235,7 +249,7 @@ test('GET events: 401 anonymous, 404 other owners（owner 隔离不泄露存在�
   f.store.captures.set('cap-bob', { id: 'cap-bob', ownerId: 'bob', kind: 'image' });
   const cross = await fetch(`${f.origin}/api/captures/cap-bob/events`, { headers: { cookie: COOKIE } });
   assert.equal(cross.status, 404);
-  assert.equal((await cross.json()).error, 'capture-not-found');
+  assert.equal((await cross.json()).error.code, 'NOT_FOUND');
 });
 
 test('POST /api/captures/:id/resolve settles ambiguity for the owner only', async t => {
@@ -246,7 +260,7 @@ test('POST /api/captures/:id/resolve settles ambiguity for the owner only', asyn
   assert.equal(f.store.captures.get('cap-1').blockId, 'b-b');
   const badBody = await fetch(`${f.origin}/api/captures/cap-1/resolve`, { method: 'POST', headers: { cookie: COOKIE, 'content-type': 'application/json' }, body: JSON.stringify({}) });
   assert.equal(badBody.status, 400);
-  assert.equal((await badBody.json()).error, 'invalid-input');
+  assert.equal((await badBody.json()).error.code, 'CONTRACT_INVALID');
   const unknown = await fetch(`${f.origin}/api/captures/nope/resolve`, { method: 'POST', headers: { cookie: COOKIE, 'content-type': 'application/json' }, body: JSON.stringify({ blockId: 'b' }) });
   assert.equal(unknown.status, 404);
   const anon = await fetch(`${f.origin}/api/captures/cap-1/resolve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ blockId: 'b' }) });
@@ -319,13 +333,14 @@ test('构造与补充分支：db 直建 store、缺 file 部件 400、events 非
   // 缺 file 部件 → 400 file-required
   const noFile = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'note', value: 'hi' }]), multipartHeaders('w12b')));
   assert.equal(noFile.status, 400);
-  assert.equal(noFile.body.error, 'file-required');
+  assert.equal(noFile.body.error.code, 'CONTRACT_INVALID');
+  assert.equal(noFile.body.error.details.reason, 'file-required');
 
   // events 非 GET → 405；resolve 非 POST → 405
   assert.equal((await fetch(`${origin}/api/captures/${captureId}/events`, { method: 'POST', headers: { cookie: COOKIE } })).status, 405);
   assert.equal((await fetch(`${origin}/api/captures/${captureId}/resolve`, { headers: { cookie: COOKIE } })).status, 405);
 
-  // pipeline.start 同步抛错 → 502（捕获已入库不炸进程）
+  // pipeline.start 同步抛错 → 503 UPSTREAM_UNAVAILABLE（冻结映射：UPSTREAM_UNAVAILABLE=503；旧 502 扁平码系不符契约，评审 HIGH）
   const bad = createPerceptionRoutes({
     auth, db, pipeline: { start: () => { throw new Error('boom'); } }, config: { dataDir, getBlocks: async () => [] },
   });
@@ -334,8 +349,9 @@ test('构造与补充分支：db 直建 store、缺 file 部件 400、events 非
   t.after(async () => { await new Promise(r => server2.close(r)); });
   const origin2 = `http://127.0.0.1:${server2.address().port}`;
   const boom = await json(await postCapture(origin2, buildMultipart('w12b', [{ name: 'file', filename: 'p2.jpg', contentType: 'image/jpeg', data: jpeg }]), multipartHeaders('w12b')));
-  assert.equal(boom.status, 502);
-  assert.equal(boom.body.error, 'pipeline-failed');
+  assert.equal(boom.status, 503);
+  assert.equal(boom.body.error.code, 'UPSTREAM_UNAVAILABLE');
+  assert.equal(boom.body.error.details.reason, 'pipeline-failed');
 });
 
 test('duration 钩子拒绝超长视频（≤60s 上限的可注入探测）', async t => {
@@ -351,7 +367,8 @@ test('duration 钩子拒绝超长视频（≤60s 上限的可注入探测）', a
   const origin = `http://127.0.0.1:${server.address().port}`;
   const out = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'file', filename: 'clip.mp4', contentType: 'video/mp4', data: MP4_BYTES }]), multipartHeaders('w12b')));
   assert.equal(out.status, 413, JSON.stringify(out.body));
-  assert.equal(out.body.error, 'duration-rejected');
+  assert.equal(out.body.error.code, 'CONTRACT_INVALID');
+  assert.equal(out.body.error.details.reason, 'duration-rejected');
   assert.equal(pipelineStarts.length, 0, '超长视频不入队');
 });
 
@@ -428,4 +445,79 @@ test('可注入 clock 与归属回退：config.now 生效、EXIF 时间非法走
   const plainRow = store.captures.get(plain.body.captureId);
   assert.equal(plainRow.capturedAt, clockNow, '无 EXIF → 上传时间');
   assert.equal(plainRow.exifStripped, true, 'JPEG 落盘副本保证无 GPS');
+});
+
+test('敏感命中（local 未配置，默认部署）：done=local-only → 落盘原图字节被删除，SSE 以 card.local_only 收流（PRD §6.8.4 L516 磁盘级断言）', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dataDir = join(tmpdir(), `w12-routes-${randomUUID()}`);
+  const db = new DatabaseSync(':memory:');
+  t.after(() => { try { db.close(); } catch { /* 已关 */ } try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* best effort */ } });
+  const pipeline = {
+    start(input) { // 敏感路径微任务时序：card.created → card.sensitive → 终态 card.local_only
+      const done = (async () => {
+        await input.emit('card.created', { captureId: input.captureId, blockId: null, level: 'fast', model: 'qwen3.5-omni-flash', ms: 900, seen: '桌上有身份证' });
+        await input.emit('card.sensitive', { captureId: input.captureId, blockId: null, category: 'identity-document', localOnly: true });
+        await input.emit('card.local_only', { captureId: input.captureId, blockId: null, localOnly: true, reason: 'local-vision-not-configured' });
+        return { status: 'local-only', keepOriginal: false, card: null };
+      })();
+      return { captureId: input.captureId, attribution: { status: 'none', reason: 'no-blocks' }, done };
+    },
+  };
+  const auth = { authenticate: () => ({ id: 'alice' }) };
+  const routes = createPerceptionRoutes({ db, auth, pipeline, config: { dataDir, getBlocks: async () => [] } });
+  const server = createServer((req, res) => {
+    routes(req, res, new URL(req.url, 'http://localhost').pathname)
+      .then(handled => { if (!handled && !res.writableEnded) res.writeHead(404).end(); })
+      .catch(() => { if (!res.headersSent) res.writeHead(500).end(); });
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { await new Promise(r => server.close(r)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  const jpeg = jpegWithExif({ dateTimeOriginal: '2026:10:26 19:05:00', withGps: false });
+  const posted = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'file', filename: 'id.jpg', contentType: 'image/jpeg', data: jpeg }]), multipartHeaders('w12b')));
+  assert.equal(posted.status, 202, JSON.stringify(posted.body));
+  const row = db.prepare('SELECT * FROM captures WHERE id = ?').get(posted.body.captureId);
+  assert.ok(existsSync(row.stored_path), '上传后文件先在（落盘先于入队）');
+  assert.equal(row.keep_original, 0, '敏感默认不保留原图（入库即 0）');
+  // 等待 done.then 的删除落定（rm 异步、尽力而为）
+  const deadline = Date.now() + 3000;
+  while (existsSync(row.stored_path) && Date.now() < deadline) await new Promise(r => setTimeout(r, 20));
+  assert.equal(existsSync(row.stored_path), false, 'done=local-only 后落盘字节已删（PRD §6.8.4 L516/BUILD-PLAN W12-5——此前仅 keepOriginal:false，字节留存，评审 HIGH）');
+  // SSE 重放：card.created → card.sensitive → card.local_only（终态）→ [DONE] 收流
+  const sse = await fetch(`${origin}/api/captures/${posted.body.captureId}/events`, { headers: { cookie: COOKIE } });
+  assert.equal(sse.status, 200);
+  const text = await sse.text();
+  const frames = text.split('\n\n').filter(Boolean).map(c => c.replace(/^data: /, ''));
+  const types = frames.filter(fr => fr !== '[DONE]').map(fr => JSON.parse(fr).type);
+  assert.deepEqual(types, ['card.created', 'card.sensitive', 'card.local_only'], `敏感+local未配置的终态序列：${JSON.stringify(frames)}`);
+  assert.equal(frames.at(-1), '[DONE]', 'card.local_only 是终态：重放后即收流（此前 card.sensitive 非终态 → 永不 [DONE]，评审 HIGH）');
+});
+
+test('非敏感路径不受影响：done=upgraded → 原图保留（对照，删字节只发生在 local-only）', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dataDir = join(tmpdir(), `w12-routes-${randomUUID()}`);
+  const db = new DatabaseSync(':memory:');
+  t.after(() => { try { db.close(); } catch { /* 已关 */ } try { rmSync(dataDir, { recursive: true, force: true }); } catch { /* best effort */ } });
+  const pipeline = {
+    start(input) {
+      const done = (async () => {
+        await input.emit('card.created', { captureId: input.captureId, level: 'fast', model: 'qwen3.5-omni-flash', ms: 800, seen: '木书架隔板已上胶' });
+        await input.emit('card.upgraded', { captureId: input.captureId, level: 'deep', model: 'qwen3-vl-plus', suggestion: '夹固 15 分钟' });
+        return { status: 'upgraded', card: { level: 'deep' } };
+      })();
+      return { captureId: input.captureId, attribution: { status: 'none', reason: 'no-blocks' }, done };
+    },
+  };
+  const routes = createPerceptionRoutes({ db, auth: { authenticate: () => ({ id: 'alice' }) }, pipeline, config: { dataDir, getBlocks: async () => [] } });
+  const server = createServer((req, res) => { routes(req, res, new URL(req.url, 'http://localhost').pathname).then(h => { if (!h && !res.writableEnded) res.writeHead(404).end(); }); });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { await new Promise(r => server.close(r)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const jpeg = jpegWithExif({ dateTimeOriginal: '2026:10:26 19:05:00', withGps: false });
+  const posted = await json(await postCapture(origin, buildMultipart('w12b', [{ name: 'file', filename: 'shelf.jpg', contentType: 'image/jpeg', data: jpeg }]), multipartHeaders('w12b')));
+  assert.equal(posted.status, 202);
+  const row = db.prepare('SELECT * FROM captures WHERE id = ?').get(posted.body.captureId);
+  await new Promise(r => setTimeout(r, 300)); // done 落定后仍应保留
+  assert.equal(existsSync(row.stored_path), true, '非敏感捕获原图保留（后续展示/审计用）');
 });

@@ -186,7 +186,9 @@ test('POST /api/captures heic：415 拒收且不落盘不入库（无法保证�
   const body = buildMultipart('pb', [{ name: 'file', filename: 'shot.heic', contentType: 'image/heic', data: heic }]);
   const res = await fetch(`${f.origin}/api/captures`, { method: 'POST', headers: { cookie: COOKIE, 'content-type': 'multipart/form-data; boundary=pb' }, body });
   assert.equal(res.status, 415);
-  assert.deepEqual(await res.json(), { error: 'media-rejected', reason: 'heic-metadata-stripping-unavailable' });
+  const out = await res.json();
+  assert.equal(out.error.code, 'CONTRACT_INVALID', '统一 api-error 信封（修复轮：扁平错误码不符冻结契约）');
+  assert.equal(out.error.details.reason, 'heic-metadata-stripping-unavailable', '语义 slug 保留在 details.reason');
   assert.equal(f.store.captures.size, 0, '未入库');
   const ownerDir = join(f.dataDir, 'alice');
   assert.ok(!existsSync(ownerDir) || readdirSync(ownerDir).length === 0, '未落盘（目录不存在或为空）');

@@ -46,7 +46,7 @@ const imageInput = over => ({
   ...over,
 });
 
-function harness({ fast, deep, local, classify = () => ({ sensitive: false, category: null, localOnly: false }), attribute, extractFrames, handoffAudio, clock } = {}) {
+function harness({ fast, deep, local, classify = () => ({ sensitive: false, category: null, localOnly: false }), attribute, probeVideo, extractFrames, handoffAudio, clock } = {}) {
   const events = [];
   const pipeline = createPerceptionPipeline({
     fast: fast ?? makeVision(fastResult()),
@@ -54,6 +54,7 @@ function harness({ fast, deep, local, classify = () => ({ sensitive: false, cate
     local,
     classifySensitive: classify,
     attribute: attribute ?? (() => ({ status: 'matched', blockId: 'b-shelf', confidence: 0.9 })),
+    probeVideo,
     extractFrames,
     handoffAudio,
     clock: clock ?? { now: () => 0 },
@@ -139,9 +140,13 @@ test('sensitive hit: no cloud deep call, localOnly card, original not kept（命
   });
   const done = await pipeline.start(imageInput({ emit })).done;
   assert.equal(deepCallsBefore(), 0, '深感知（云端）绝不调用');
-  assert.deepEqual(events.map(e => e.type), ['card.created', 'card.sensitive']);
+  // 修复轮断言更新：local 未配置（默认部署）时必须补发终态事件 card.local_only——
+  // 否则 SSE 客户端永远等不到 [DONE]（card.sensitive 是中间态，评审 HIGH）。
+  assert.deepEqual(events.map(e => e.type), ['card.created', 'card.sensitive', 'card.local_only']);
   assert.equal(events[1].payload.category, 'identity-document');
   assert.equal(events[1].payload.localOnly, true);
+  assert.equal(events[2].payload.localOnly, true);
+  assert.equal(events[2].payload.reason, 'local-vision-not-configured', '终态帧说明为何没有本地升级');
   assert.equal(done.status, 'local-only');
   assert.equal(done.keepOriginal, false, '默认不保存原图');
   assert.equal(done.card.localOnly, true);
@@ -176,16 +181,19 @@ const framesResult = (durationSec, frames = ['f1.jpg', 'f2.jpg', 'f3.jpg']) => (
   cleanup: async () => {},
 });
 
-test('video ≤30s: frames extracted, ONE deep call over the whole frame set（视频=帧集合一次深感知）', async () => {
+test('video ≤30s: probe first, frames extracted, ONE deep call over the whole frame set（视频=帧集合一次深感知）', async () => {
   const deep = makeVision(deepResult());
   const extractCalls = [];
+  const probeCalls = [];
   const handoff = async () => {};
   const { pipeline, events, emit } = harness({
     deep,
+    probeVideo: async path => { probeCalls.push(path); return { durationSec: 28, hasAudio: false }; },
     extractFrames: async input => { extractCalls.push(input); return framesResult(28); },
     handoffAudio: handoff,
   });
   const done = await pipeline.start(imageInput({ kind: 'video', path: '/data/alice/cap-9.mp4', mimeType: 'video/mp4', emit })).done;
+  assert.deepEqual(probeCalls, ['/data/alice/cap-9.mp4'], '先探时长（一次 probe）再决定抽帧');
   assert.equal(extractCalls.length, 1, '抽帧一次');
   assert.equal(extractCalls[0].handoffAudio, handoff, '语音管线留桩被传入抽帧');
   assert.equal(deep.calls.length, 1, '整个帧集合只发一次深感知');
@@ -194,13 +202,23 @@ test('video ≤30s: frames extracted, ONE deep call over the whole frame set（�
   assert.equal(events.at(-1).type, 'card.upgraded');
 });
 
-test('video >30s: goes pending, no deep call yet（更长后台处理，PRD L497-499）', async () => {
+test('video >30s: probe-first → goes pending without paying extraction, no dangling cleanup（更长后台处理，PRD L497-499）', async () => {
   const deep = makeVision(deepResult());
-  const { pipeline, events, emit } = harness({ deep, extractFrames: async () => framesResult(31) });
+  let extractCalled = 0;
+  const { pipeline, events, emit } = harness({
+    deep,
+    probeVideo: async () => ({ durationSec: 31, hasAudio: true }),
+    extractFrames: async () => { extractCalled++; return framesResult(31); },
+  });
   const done = await pipeline.start(imageInput({ kind: 'video', path: '/data/alice/cap-10.mp4', mimeType: 'video/mp4', emit })).done;
   assert.equal(done.status, 'pending');
+  assert.equal(done.durationSec, 31);
+  assert.equal(extractCalled, 0, '>30s 不付全量抽帧/音轨代价（评审 HIGH：5 分钟视频先抽 ≤15 JPEG+wav 再被搁置）');
+  assert.equal('cleanup' in done, false, 'pending 返回值不悬挂 cleanup（清理责任不跨模块悬空）');
   assert.equal(deep.calls.length, 0);
-  assert.ok(events.some(e => e.type === 'card.pending'), 'pending 事件让前端知道在后台跑');
+  const pending = events.find(e => e.type === 'card.pending');
+  assert.ok(pending, 'pending 事件让前端知道在后台跑');
+  assert.equal(pending.payload.durationSec, 31);
 });
 
 test('fast lane is never blocked by slow attribution input sizes: emit order is deterministic across runs', async () => {
@@ -279,19 +297,39 @@ test('video exactly MAX_SYNC_VIDEO_SEC stays synchronous and cleans up frame tem
   let cleaned = false;
   const fr = framesResult(MAX_SYNC_VIDEO_SEC);
   const extract = async input => ({ ...fr, cleanup: async () => { cleaned = true; throw new Error('cleanup boom'); } });
-  const { pipeline, emit } = harness({ deep, extractFrames: extract });
+  const { pipeline, emit } = harness({ deep, probeVideo: async () => ({ durationSec: MAX_SYNC_VIDEO_SEC, hasAudio: false }), extractFrames: extract });
   const done = await pipeline.start(imageInput({ kind: 'video', path: '/data/alice/cap-30.mp4', mimeType: 'video/mp4', emit })).done;
   assert.equal(done.status, 'upgraded', '30s（含）同步走完双路');
   assert.equal(deep.calls.length, 1);
   assert.equal(cleaned, true, '深路结束后抽帧临时目录被清理（清理自身报错不拖垮结果）');
 });
 
-test('extractFrames failure: done settles to status error with card.error event（done 永不 reject）', async () => {
+test('probe failure: done settles to status error with card.error event（fail-closed，done 永不 reject）', async () => {
   const deep = makeVision(deepResult());
-  const { pipeline, events, emit } = harness({ deep, extractFrames: async () => { throw new Error('ffprobe probe failed: no video stream'); } });
-  const done = await pipeline.start(imageInput({ kind: 'video', path: '/data/alice/cap-x.mp4', mimeType: 'video/mp4', emit })).done;
+  let extractCalled = 0;
+  const { pipeline, events, emit } = harness({
+    deep,
+    probeVideo: async () => { throw new Error('ffprobe probe failed: no video stream'); },
+    extractFrames: async () => { extractCalled++; return framesResult(10); },
+  });
+  const done = await pipeline.start(imageInput({ kind: 'video', path: '/data/alice/cap-p.mp4', mimeType: 'video/mp4', emit })).done;
   assert.equal(done.status, 'error');
   assert.match(String(done.error), /no video stream/);
+  assert.deepEqual(events.map(e => e.type), ['card.error']);
+  assert.equal(extractCalled, 0, 'probe 失败不抽帧');
+  assert.equal(deep.calls.length, 0);
+});
+
+test('extractFrames failure: done settles to status error with card.error event（done 永不 reject）', async () => {
+  const deep = makeVision(deepResult());
+  const { pipeline, events, emit } = harness({
+    deep,
+    probeVideo: async () => ({ durationSec: 10, hasAudio: false }),
+    extractFrames: async () => { throw new Error('frame extraction failed: ffmpeg exit 1'); },
+  });
+  const done = await pipeline.start(imageInput({ kind: 'video', path: '/data/alice/cap-x.mp4', mimeType: 'video/mp4', emit })).done;
+  assert.equal(done.status, 'error');
+  assert.match(String(done.error), /ffmpeg exit 1/);
   assert.deepEqual(events.map(e => e.type), ['card.error']);
   assert.equal(deep.calls.length, 0);
 });

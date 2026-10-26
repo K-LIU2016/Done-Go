@@ -438,7 +438,7 @@ export async function smokeCaptureOverHttp({ origin, imagePath, token = 'smoke-u
   const frames = [];
   let tFirst = null;
   let tTerminal = null;
-  const TERMINALS = new Set(['card.upgraded', 'card.deep_failed', 'card.pending', 'card.local_failed', 'card.error']);
+  const TERMINALS = new Set(['card.upgraded', 'card.deep_failed', 'card.pending', 'card.local_failed', 'card.local_only', 'card.error']);
   await readSse(sse.body, frame => {
     frames.push(frame);
     if (frame.type === 'card.created' && tFirst === null) tFirst = now();

@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { attributeCapture } from './attribution.mjs';
 import { classifySensitive } from './sensitive.mjs';
-import { extractFrames as extractFramesImpl } from './frames.mjs';
+import { extractFrames as extractFramesImpl, probeVideo as probeVideoImpl } from './frames.mjs';
 import { createFastVisionClient, createDeepVisionClient, createLocalVisionAdapter } from './vision.mjs';
 import { fastPrompt, deepPrompt } from './prompts.mjs';
 import { buildContextDelta, buildSuggestionCard } from './context-delta.mjs';
@@ -54,6 +54,8 @@ const safeRun = async fn => { if (typeof fn === 'function') { try { await fn(); 
  *   （敏感命中才用；未配置 configured:false → 只标记 localOnly 不升级，PRD §6.8.4 L516）
  * @param {Function} [deps.classifySensitive] 敏感快判（默认 sensitive.mjs，扫快感知结果文本）
  * @param {Function} [deps.attribute] 归属（默认 attribution.mjs）
+ * @param {Function} [deps.probeVideo] 视频时长探测（默认 frames.mjs probeVideo；先探时长
+ *   再决定是否抽帧——>30s 直接 pending，不付全量抽帧/音轨代价，也不产生待清理的临时目录）
  * @param {Function} [deps.extractFrames] 视频抽帧（默认 frames.mjs）
  * @param {Function|null} [deps.handoffAudio] 音轨留桩，透传 extractFrames
  * @param {{now:Function}} [deps.clock] 可注入时钟（测时序/耗时）
@@ -67,6 +69,7 @@ export function createPerceptionPipeline({
   local = createLocalVisionAdapter({}),
   classifySensitive: classify = classifySensitive,
   attribute = attributeCapture,
+  probeVideo = probeVideoImpl,
   extractFrames = extractFramesImpl,
   handoffAudio = null,
   clock = { now: () => Date.now() },
@@ -94,16 +97,22 @@ export function createPerceptionPipeline({
       return { captureId, attribution, done };
 
       async function run() {
-        // ---- 媒体准备：照片单图；视频抽帧（每 2s ∪ 场景切换 ≤15 帧 + 音轨留桩，PRD L497）----
+        // ---- 媒体准备：照片单图；视频先探时长（fail-closed）再决定是否抽帧 ----
+        // 先 probe 后 extract：>30s 直接 pending，不付全量抽帧/音轨代价，也不产生待清理的
+        // 临时目录（cleanup 责任不再跨模块悬空——临时目录只在真正抽帧时产生，且由本函数
+        // 各返回路径统一 safeRun 清理）。probe 失败（无 ffprobe/无视频流）与旧接线同收敛
+        // 为 card.error。≤30s 时 extractFrames 内部会再 probe 一次（一次廉价 ffprobe JSON
+        // 调用，换取 pending 路径零抽帧代价）。
         let entries;
         let cleanup = null;
         if (input.kind === 'video') {
+          const pr = await probeVideo(input.path);
+          if (!(pr.durationSec <= MAX_SYNC_VIDEO_SEC)) { // NaN/超长都进后台分支（fail-safe）
+            emit('card.pending', { captureId, blockId, durationSec: pr.durationSec });
+            return { status: 'pending', durationSec: pr.durationSec };
+          }
           const fr = await extractFrames({ captureId, videoPath: input.path, tmpRoot, handoffAudio });
           cleanup = typeof fr.cleanup === 'function' ? fr.cleanup : null;
-          if (!(fr.durationSec <= MAX_SYNC_VIDEO_SEC)) { // NaN/超长都进后台分支（fail-safe）
-            emit('card.pending', { captureId, blockId, durationSec: fr.durationSec });
-            return { status: 'pending', durationSec: fr.durationSec, frames: fr.frames, cleanup };
-          }
           entries = fr.frames.map(p => ({ path: p, mimeType: 'image/jpeg' }));
         } else {
           entries = [{ path: input.path, mimeType: input.mimeType || mimeOf(input.path) }];
@@ -164,9 +173,15 @@ export function createPerceptionPipeline({
               await safeRun(cleanup);
               return { status: 'local-only', keepOriginal: false, card: upgraded };
             } catch (err) {
-              emit('card.local_failed', { captureId, blockId, error: errText(err) });
+              emit('card.local_failed', { captureId, blockId, error: errText(err) }); // 终态：SSE 收流
+              await safeRun(cleanup);
+              return { status: 'local-only', keepOriginal: false, card: fastCard ? { ...fastCard, localOnly: true } : null };
             }
           }
+          // 本地 minicpm-v 未配置（默认部署即如此）：card.sensitive 是中间态，必须补发终态
+          // 事件 card.local_only——否则 SSE 客户端永远等不到 [DONE]（连接/keepalive/订阅泄漏，
+          // 断线重放同样无限等待）。done 状态仍是 local-only，routes 据此删原图字节。
+          emit('card.local_only', { captureId, blockId, localOnly: true, reason: 'local-vision-not-configured' });
           await safeRun(cleanup);
           return { status: 'local-only', keepOriginal: false, card: fastCard ? { ...fastCard, localOnly: true } : null };
         }

@@ -7,12 +7,14 @@
 //                                 （card.upgraded/card.deep_failed/…）后发 data: [DONE] 并结束流；
 //                                 帧写法仿 serve-tango.mjs:165-178（data: JSON\n\n + keepalive + unref）
 //   POST /api/captures/:id/resolve 歧义裁决：仅 owner，拍板 blockId（store.resolveCapture）
-// 未登录 401（仿 collaboration.authenticate 抛错 → 401，serve-tango.mjs:99）；跨 owner 一律
-// 404 capture-not-found（不泄露存在性）。安全基线：auth 先于一切处理；上传文件名不参与
-// 落盘路径（随机 id + 白名单扩展名）；ownerId 净化成单段目录名；请求体传输上限在读体前/中
-// 双重拦截（413），不触盘。
+// 错误响应统一冻结信封 contracts/agentic/api-error.schema.json：{error:{code,message,details?}}，
+// code 取 10 值枚举（401=AUTH_REQUIRED、404=NOT_FOUND、503=UPSTREAM_UNAVAILABLE；400/405/413/415
+// = CONTRACT_INVALID + details.reason 语义 slug——冻结枚举无 405/413/415 专属 code，缺口列终报
+// 待裁决）。未登录 401（仿 collaboration.authenticate 抛错 → 401）；跨 owner 一律 404（不泄露
+// 存在性）。安全基线：auth 先于一切处理；上传文件名不参与落盘路径（随机 id + 白名单扩展名）；
+// ownerId 净化成单段目录名；请求体传输上限在读体前/中双重拦截（413），不触盘。
 'use strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { parseMultipart } from './multipart.mjs';
@@ -26,9 +28,11 @@ const BODY_OVERHEAD_BYTES = 64 * 1024;
 const RESOLVE_MAX_BYTES = 4096;
 /** SSE keepalive 间隔（对齐 serve-tango.mjs:168）。 */
 const KEEPALIVE_MS = 15000;
-/** 终态事件：pipeline.run() 结束前 emit 的最后一种事件（pipeline.mjs L163-185）——
- *  SSE 收到即 [DONE] 收流。card.created/fast_failed/sensitive 是中间态，继续等。 */
-const TERMINAL_EVENT_TYPES = new Set(['card.upgraded', 'card.deep_failed', 'card.pending', 'card.local_failed', 'card.error']);
+/** 终态事件：pipeline.run() 结束前 emit 的最后一种事件（pipeline.mjs 各返回路径）——
+ *  SSE 收到即 [DONE] 收流。card.created/fast_failed/sensitive 是中间态，继续等。
+ *  card.local_only = 敏感命中且本地 minicpm-v 未配置（默认部署）时的终态——
+ *  没有它 SSE 永不收流（连接/keepalive/订阅泄漏，重放同样无限等待）。 */
+const TERMINAL_EVENT_TYPES = new Set(['card.upgraded', 'card.deep_failed', 'card.pending', 'card.local_failed', 'card.local_only', 'card.error']);
 /** 魔数格式 → 落盘扩展名（文件名不信任客户端，扩展名由白名单格式推导）。 */
 const FORMAT_EXT = { jpeg: '.jpg', png: '.png', webp: '.webp', heic: '.heic', mp4: '.mp4', webm: '.webm', mov: '.mov' };
 const EXIF_DT_RE = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
@@ -100,33 +104,47 @@ export function createPerceptionRoutes({ db, auth, store, pipeline, config = {} 
     res.end(JSON.stringify(obj));
   };
 
+  /** 统一错误信封（冻结契约 contracts/agentic/api-error.schema.json + README 错误码表，PRD §10.4）：
+   *  {error:{code,message,details?}}，code 必须取 10 值枚举。405/413/415 是语义正确的
+   *  HTTP 状态但冻结枚举无对应 code（无 METHOD_NOT_ALLOWED/PAYLOAD_TOO_LARGE/
+   *  UNSUPPORTED_MEDIA_TYPE）——就近取 CONTRACT_INVALID（请求不符 API 约定），原语义
+   *  slug 放 details.reason；此表达力缺口列终报待裁决，不静默另起错误码体系。 */
+  const fail = (res, status, code, message, details) =>
+    json(res, status, { error: { code, message, ...(details ? { details } : {}) } });
+  const CODE = {
+    authRequired: 'AUTH_REQUIRED',
+    notFound: 'NOT_FOUND',
+    contractInvalid: 'CONTRACT_INVALID',
+    upstreamUnavailable: 'UPSTREAM_UNAVAILABLE',
+  };
+
   /** 鉴权（仿 collaboration.authenticate：auth 抛错 → 401，先于一切处理）。 */
   const authenticate = (req, res) => {
     try { return auth.authenticate(req); }
-    catch { json(res, 401, { error: 'unauthorized' }); req.resume(); return null; }
+    catch { fail(res, 401, CODE.authRequired, 'authentication required'); req.resume(); return null; }
   };
 
   async function handleCapture(req, res, user) {
-    if (req.method !== 'POST') { json(res, 405, { error: 'method-rejected' }); req.resume(); return; }
+    if (req.method !== 'POST') { fail(res, 405, CODE.contractInvalid, 'method not allowed', { reason: 'method-not-allowed' }); req.resume(); return; }
     const contentType = req.headers['content-type'] || '';
-    if (!/^multipart\/form-data/i.test(contentType)) { json(res, 415, { error: 'multipart-required' }); req.resume(); return; }
+    if (!/^multipart\/form-data/i.test(contentType)) { fail(res, 415, CODE.contractInvalid, 'multipart/form-data required', { reason: 'multipart-required' }); req.resume(); return; }
     // 传输上限：Content-Length 预检 + 流式累计双保险，超限不触盘（413）
     const declared = Number(req.headers['content-length']);
-    if (Number.isFinite(declared) && declared > maxBodyBytes) { json(res, 413, { error: 'body-too-large' }); req.resume(); return; }
+    if (Number.isFinite(declared) && declared > maxBodyBytes) { fail(res, 413, CODE.contractInvalid, 'request body too large', { reason: 'body-too-large', maxBytes: maxBodyBytes }); req.resume(); return; }
     const parts = []; let size = 0;
     for await (const chunk of req) {
       size += chunk.length;
-      if (size > maxBodyBytes) { json(res, 413, { error: 'body-too-large' }); req.resume(); return; }
+      if (size > maxBodyBytes) { fail(res, 413, CODE.contractInvalid, 'request body too large', { reason: 'body-too-large', maxBytes: maxBodyBytes }); req.resume(); return; }
       parts.push(chunk);
     }
     let parsed;
     try { parsed = parseMultipart(Buffer.concat(parts), contentType, { maxBytes: maxBodyBytes }); }
-    catch { json(res, 400, { error: 'multipart-invalid' }); return; }
+    catch { fail(res, 400, CODE.contractInvalid, 'malformed multipart body', { reason: 'multipart-invalid' }); return; }
     const file = parsed.files.find(f => f.name === 'file') || parsed.files[0];
-    if (!file) { json(res, 400, { error: 'file-required' }); return; }
+    if (!file) { fail(res, 400, CODE.contractInvalid, 'file part required', { reason: 'file-required' }); return; }
     let checked;
     try { checked = checkUpload({ data: file.data, filename: file.filename }); } // 魔数白名单+体积
-    catch { json(res, 415, { error: 'media-rejected' }); return; }
+    catch { fail(res, 415, CODE.contractInvalid, 'media type not allowed', { reason: 'media-rejected' }); return; }
 
     // ---- 时间与隐私：EXIF 拍摄时间（Asia/Shanghai）+ 元数据默认剥离（PRD §6.8.4 L517）----
     // 剥离按格式分派：jpeg=GPS IFD 清零；png=eXIf 块摘除；webp=EXIF 块摘除；
@@ -148,7 +166,7 @@ export function createPerceptionRoutes({ db, auth, store, pipeline, config = {} 
       data = stripWebpExif(data);
       exifStripped = true;
     } else if (checked.kind === 'image' && checked.format === 'heic') {
-      json(res, 415, { error: 'media-rejected', reason: 'heic-metadata-stripping-unavailable' });
+      fail(res, 415, CODE.contractInvalid, 'media type not allowed: HEIC metadata cannot be safely stripped', { reason: 'heic-metadata-stripping-unavailable' });
       return;
     }
 
@@ -162,7 +180,7 @@ export function createPerceptionRoutes({ db, auth, store, pipeline, config = {} 
       // ≤60s 上限的显式探测是可注入钩子；默认不探测——时长由 pipeline 侧 frames.mjs
       // 的 fail-closed probe + ≤30s 同步界兜底（PRD L497），假件/无 ffprobe 环境不阻塞上传。
       try { await config.checkVideoDuration(storedPath); }
-      catch { json(res, 413, { error: 'duration-rejected' }); return; }
+      catch { fail(res, 413, CODE.contractInvalid, 'video duration exceeds the limit', { reason: 'duration-rejected' }); return; }
     }
 
     // ---- 入库（先于 pipeline：真实库 perception_events 有 capture 外键）→ 入队 ----
@@ -182,7 +200,18 @@ export function createPerceptionRoutes({ db, auth, store, pipeline, config = {} 
         captureId: row.id, ownerId: user.id, kind: checked.kind, path: storedPath,
         mimeType: checked.mime, capturedAt, uploadedAt, blocks, emit,
       });
-    } catch { json(res, 502, { error: 'pipeline-failed' }); return; }
+    } catch { fail(res, 503, CODE.upstreamUnavailable, 'perception pipeline unavailable', { reason: 'pipeline-failed' }); return; }
+    // 敏感画面默认不保存原图（PRD §6.8.4 L516 / BUILD-PLAN W12-5）：done 结算为
+    // local-only（敏感命中，无论本地 minicpm-v 是否配置）即删除落盘字节。文件由本
+    // 模块写入，删除责任也在本模块（pipeline 只判敏感不碰 owner 目录）；done 永不
+    // reject，删除尽力而为、不阻塞 202 回包。
+    if (result && result.done && typeof result.done.then === 'function') {
+      result.done.then(done => {
+        if (done && done.status === 'local-only' && done.keepOriginal === false) {
+          rm(storedPath, { force: true }).catch(() => { /* 尽力而为 */ });
+        }
+      }).catch(() => { /* done 永不 reject，双保险 */ });
+    }
     if (typeof store.updateAttribution === 'function') { // 持久化归属结果/候选（真实 store 有，fake 可无）
       const a = result && result.attribution;
       if (a && a.status === 'matched') {
@@ -201,9 +230,9 @@ export function createPerceptionRoutes({ db, auth, store, pipeline, config = {} 
   };
 
   async function handleEvents(req, res, user, captureId) {
-    if (req.method !== 'GET') { json(res, 405, { error: 'method-rejected' }); req.resume(); return; }
+    if (req.method !== 'GET') { fail(res, 405, CODE.contractInvalid, 'method not allowed', { reason: 'method-not-allowed' }); req.resume(); return; }
     const capture = await store.getCapture(user.id, captureId);
-    if (!capture) { json(res, 404, { error: 'capture-not-found' }); req.resume(); return; }
+    if (!capture) { fail(res, 404, CODE.notFound, 'capture not found'); req.resume(); return; }
     res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
     res.flushHeaders?.();
     // 先订阅再重放：重放期间到达的实时帧入队，按 seq 去重后补发（不丢帧也不重帧）
@@ -249,24 +278,24 @@ export function createPerceptionRoutes({ db, auth, store, pipeline, config = {} 
   }
 
   async function handleResolve(req, res, user, captureId) {
-    if (req.method !== 'POST') { json(res, 405, { error: 'method-rejected' }); req.resume(); return; }
+    if (req.method !== 'POST') { fail(res, 405, CODE.contractInvalid, 'method not allowed', { reason: 'method-not-allowed' }); req.resume(); return; }
     const capture = await store.getCapture(user.id, captureId);
-    if (!capture) { json(res, 404, { error: 'capture-not-found' }); req.resume(); return; }
+    if (!capture) { fail(res, 404, CODE.notFound, 'capture not found'); req.resume(); return; }
     const declared = Number(req.headers['content-length']);
-    if (Number.isFinite(declared) && declared > RESOLVE_MAX_BYTES) { json(res, 413, { error: 'body-too-large' }); req.resume(); return; }
+    if (Number.isFinite(declared) && declared > RESOLVE_MAX_BYTES) { fail(res, 413, CODE.contractInvalid, 'request body too large', { reason: 'body-too-large', maxBytes: RESOLVE_MAX_BYTES }); req.resume(); return; }
     const chunks = []; let size = 0;
     for await (const chunk of req) {
       size += chunk.length;
-      if (size > RESOLVE_MAX_BYTES) { json(res, 413, { error: 'body-too-large' }); req.resume(); return; }
+      if (size > RESOLVE_MAX_BYTES) { fail(res, 413, CODE.contractInvalid, 'request body too large', { reason: 'body-too-large', maxBytes: RESOLVE_MAX_BYTES }); req.resume(); return; }
       chunks.push(chunk);
     }
     let input;
     try { input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); }
-    catch { json(res, 400, { error: 'invalid-input' }); return; }
+    catch { fail(res, 400, CODE.contractInvalid, 'invalid JSON body', { reason: 'invalid-input' }); return; }
     const blockId = input && typeof input === 'object' && !Array.isArray(input) ? input.blockId : null;
-    if (typeof blockId !== 'string' || blockId.trim() === '') { json(res, 400, { error: 'invalid-input' }); return; }
+    if (typeof blockId !== 'string' || blockId.trim() === '') { fail(res, 400, CODE.contractInvalid, 'blockId (non-empty string) required', { reason: 'invalid-input' }); return; }
     const updated = await store.resolveCapture(user.id, captureId, blockId);
-    if (!updated) { json(res, 404, { error: 'capture-not-found' }); return; }
+    if (!updated) { fail(res, 404, CODE.notFound, 'capture not found'); return; }
     json(res, 200, { capture: updated });
   }
 
