@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "id",
+    "layout",
+    "page",
+    "text",
+    "image",
+    "watermark"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "layout": {
+      "type": "string",
+      "minLength": 1
+    },
+    "page": {
+      "type": "string",
+      "minLength": 1
+    },
+    "text": {
+      "type": "object",
+      "required": [
+        "title",
+        "bullets"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bullets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "prompt",
+        "model",
+        "status"
+      ],
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "enum": [
+            "z-image-turbo",
+            "qwen-image-2.0"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "generating",
+            "ready",
+            "failed"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "watermark": {
+      "type": "string",
+      "const": "示意"
+    }
+  },
+  "additionalProperties": false,
+  "description": "代码排版文字与生成配图混合样张。PRD §10.3。",
+  "$id": "preview-sample.schema.json",
+  "title": "PreviewSample"
+}

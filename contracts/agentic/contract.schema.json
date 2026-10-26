@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "id",
+    "missionId",
+    "version",
+    "hash",
+    "goal",
+    "deliverables",
+    "definitionOfDone",
+    "autonomy",
+    "will",
+    "wont",
+    "needs",
+    "capabilities",
+    "dataDisclosure",
+    "budget",
+    "window",
+    "interruption"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "missionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deliverables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "shape",
+          "location"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "report",
+              "document",
+              "slides",
+              "code-diff",
+              "checklist",
+              "route-card",
+              "brief",
+              "message-draft",
+              "artifact",
+              "other"
+            ]
+          },
+          "shape": {
+            "type": "string",
+            "minLength": 1
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "definitionOfDone": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "autonomy": {
+      "type": "string",
+      "enum": [
+        "A1",
+        "A2",
+        "A3"
+      ]
+    },
+    "will": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "wont": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "needs": {
+      "type": "array",
+      "items": {
+        "$ref": "need.schema.json"
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "capability",
+          "scope"
+        ],
+        "properties": {
+          "capability": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "dataDisclosure": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "dataClass",
+          "to",
+          "fields"
+        ],
+        "properties": {
+          "dataClass": {
+            "type": "string",
+            "enum": [
+              "public",
+              "personal",
+              "sensitive",
+              "secret"
+            ]
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^(local|cloud-model|plugin:.+)$"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "modelCalls",
+        "tokens",
+        "costCap",
+        "localSlots"
+      ],
+      "properties": {
+        "modelCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costCap": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "localSlots": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "window": {
+      "type": "object",
+      "required": [
+        "prepStart",
+        "start",
+        "end",
+        "overrun"
+      ],
+      "properties": {
+        "prepStart": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "overrun": {
+          "type": "string",
+          "enum": [
+            "deliver_best",
+            "ask_extend",
+            "stop"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "interruption": {
+      "type": "string",
+      "enum": [
+        "needs_only",
+        "milestones",
+        "silent"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "description": "用户签约的边界合同。PRD §8.1。",
+  "$id": "contract.schema.json",
+  "title": "Contract"
+}

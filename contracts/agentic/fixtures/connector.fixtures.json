@@ -1,0 +1,38 @@
+{
+  "valid": [
+    {
+      "id": "connector-1",
+      "ownerId": "u1",
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    },
+    {
+      "id": "connector-2",
+      "ownerId": "u1",
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    }
+  ],
+  "invalid": [
+    {
+      "ownerId": "u1",
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    }
+  ]
+}

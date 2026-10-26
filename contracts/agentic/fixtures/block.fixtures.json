@@ -1,0 +1,54 @@
+{
+  "valid": [
+    {
+      "id": "b1",
+      "ownerId": "u1",
+      "revision": 1,
+      "schemaVersion": 1,
+      "date": "2026-10-26",
+      "start": "14:00",
+      "end": "15:00",
+      "title": "研究",
+      "kind": "necessary",
+      "done": false,
+      "source": "manual",
+      "createdAt": "2026-10-26T10:00:00Z",
+      "updatedAt": "2026-10-26T10:00:00Z"
+    },
+    {
+      "id": "b2",
+      "ownerId": "u1",
+      "revision": 2,
+      "schemaVersion": 1,
+      "date": "2026-10-27",
+      "start": "23:00",
+      "end": "24:00",
+      "title": "休息",
+      "kind": "stillness",
+      "done": true,
+      "source": "voice",
+      "tz": "Asia/Shanghai",
+      "deletedAt": null,
+      "createdAt": "2026-10-26T10:00:00+08:00",
+      "updatedAt": "2026-10-26T10:00:00+08:00"
+    }
+  ],
+  "invalid": [
+    {
+      "id": "b1",
+      "ownerId": "u1",
+      "revision": 1,
+      "schemaVersion": 1,
+      "date": "2026-10-26",
+      "start": "14:00",
+      "end": "15:00",
+      "title": "研究",
+      "kind": "necessary",
+      "done": false,
+      "source": "manual",
+      "createdAt": "2026-10-26T10:00:00Z",
+      "updatedAt": "2026-10-26T10:00:00Z",
+      "unexpected": true
+    }
+  ]
+}

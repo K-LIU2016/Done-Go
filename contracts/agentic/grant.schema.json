@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "id",
+    "ownerId",
+    "contractHash",
+    "actor",
+    "capabilities",
+    "dataDisclosure",
+    "expiresAt",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ownerId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contractHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "dataDisclosure": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "active",
+        "consumed",
+        "revoked",
+        "expired",
+        "invalidated"
+      ]
+    },
+    "consumedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "description": "有限能力授权。PRD §4.1、§8.4。",
+  "$id": "grant.schema.json",
+  "title": "Grant"
+}

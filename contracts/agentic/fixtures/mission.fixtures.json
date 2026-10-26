@@ -1,0 +1,45 @@
+{
+  "valid": [
+    {
+      "id": "m1",
+      "ownerId": "u1",
+      "revision": 1,
+      "schemaVersion": 1,
+      "blockId": "b1",
+      "goal": "研究",
+      "state": "draft",
+      "autonomy": "A1",
+      "createdAt": "2026-10-26T10:00:00Z",
+      "updatedAt": "2026-10-26T10:00:00Z"
+    },
+    {
+      "id": "m2",
+      "ownerId": "u1",
+      "revision": 2,
+      "schemaVersion": 1,
+      "blockId": "b2",
+      "goal": "课程",
+      "state": "contracted",
+      "autonomy": "A2",
+      "deliveryClass": "D2",
+      "createdAt": "2026-10-26T10:00:00Z",
+      "updatedAt": "2026-10-26T11:00:00Z"
+    }
+  ],
+  "invalid": [
+    [
+      {
+        "id": "m1",
+        "ownerId": "u1",
+        "revision": 1,
+        "schemaVersion": 1,
+        "blockId": "b1",
+        "goal": "x",
+        "state": "unknown",
+        "autonomy": "A1",
+        "createdAt": "bad",
+        "updatedAt": "bad"
+      }
+    ]
+  ]
+}

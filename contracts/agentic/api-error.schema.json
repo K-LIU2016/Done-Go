@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "error"
+  ],
+  "properties": {
+    "error": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "AUTH_REQUIRED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "CONTRACT_INVALID",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "BUDGET_EXCEEDED",
+            "NEED_HUMAN",
+            "UPSTREAM_UNAVAILABLE",
+            "INTERNAL_ERROR"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "details": {
+          "type": "object"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "description": "统一 API 错误信封。PRD §10.4。",
+  "$id": "api-error.schema.json",
+  "title": "ApiError"
+}

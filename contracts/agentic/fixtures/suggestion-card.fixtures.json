@@ -1,0 +1,44 @@
+{
+  "valid": [
+    {
+      "id": "suggestion-card-1",
+      "blockId": "x",
+      "text": "x",
+      "actions": [
+        {
+          "id": "x",
+          "label": "x",
+          "kind": "remember"
+        }
+      ],
+      "status": "instant"
+    },
+    {
+      "id": "suggestion-card-2",
+      "blockId": "x",
+      "text": "x",
+      "actions": [
+        {
+          "id": "x",
+          "label": "x",
+          "kind": "remember"
+        }
+      ],
+      "status": "instant"
+    }
+  ],
+  "invalid": [
+    {
+      "blockId": "x",
+      "text": "x",
+      "actions": [
+        {
+          "id": "x",
+          "label": "x",
+          "kind": "remember"
+        }
+      ],
+      "status": "instant"
+    }
+  ]
+}

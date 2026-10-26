@@ -1,0 +1,26 @@
+{
+  "valid": [
+    {
+      "id": "span-1",
+      "name": "x",
+      "kind": "invoke_agent",
+      "startedAt": "2026-10-26T10:00:00Z",
+      "status": "running"
+    },
+    {
+      "id": "span-2",
+      "name": "x",
+      "kind": "invoke_agent",
+      "startedAt": "2026-10-26T10:00:00Z",
+      "status": "running"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "x",
+      "kind": "invoke_agent",
+      "startedAt": "2026-10-26T10:00:00Z",
+      "status": "running"
+    }
+  ]
+}

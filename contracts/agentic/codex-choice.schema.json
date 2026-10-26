@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "model",
+    "effort",
+    "reason",
+    "rateLimit"
+  ],
+  "properties": {
+    "model": {
+      "type": "string",
+      "enum": [
+        "gpt-6-luna",
+        "gpt-6-sol",
+        "gpt-6.1-sol"
+      ]
+    },
+    "effort": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rateLimit": {
+      "type": "object",
+      "required": [
+        "weeklyUsed"
+      ],
+      "properties": {
+        "weeklyUsed": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "spendControlReached": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "description": "Codex 执行的自适应选模决定。PRD §6.5.1。",
+  "$id": "codex-choice.schema.json",
+  "title": "CodexChoice"
+}
