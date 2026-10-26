@@ -1,0 +1,23 @@
+{
+  "valid": [
+    {
+      "composition": "x",
+      "durationSec": 1,
+      "narrationAudio": "x",
+      "mp4": null
+    },
+    {
+      "composition": "x",
+      "durationSec": 1,
+      "narrationAudio": "x",
+      "mp4": null
+    }
+  ],
+  "invalid": [
+    {
+      "durationSec": 1,
+      "narrationAudio": "x",
+      "mp4": null
+    }
+  ]
+}

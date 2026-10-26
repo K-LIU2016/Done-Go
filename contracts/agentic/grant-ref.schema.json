@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "grant-ref.schema.json",
+  "title": "GrantRef",
+  "description": "工单继承的授权引用（只继承父 Grant 的最小子集）。PRD §6.4（WorkOrder.grants）。",
+  "type": "object",
+  "required": ["grantId"],
+  "properties": {
+    "grantId": { "type": "string", "minLength": 1 },
+    "scope": { "type": "string", "minLength": 1, "description": "继承的能力范围，必须是父 Grant scope 的子集" }
+  },
+  "additionalProperties": false
+}

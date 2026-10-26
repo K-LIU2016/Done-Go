@@ -1,0 +1,50 @@
+{
+  "valid": [
+    {
+      "id": "connector-1",
+      "ownerId": "u1",
+      "revision": 1,
+      "schemaVersion": 1,
+      "createdAt": "2026-10-26T08:00:00Z",
+      "updatedAt": "2026-10-26T08:00:00Z",
+      "deletedAt": null,
+      "source": "demo",
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    },
+    {
+      "id": "connector-2",
+      "ownerId": "u1",
+      "revision": 1,
+      "schemaVersion": 1,
+      "createdAt": "2026-10-26T08:00:00Z",
+      "updatedAt": "2026-10-26T08:00:00Z",
+      "deletedAt": null,
+      "source": "demo",
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    }
+  ],
+  "invalid": [
+    {
+      "ownerId": "u1",
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    }
+  ]
+}

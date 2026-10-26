@@ -1,0 +1,30 @@
+{
+  "valid": [
+    {
+      "blockId": "x",
+      "seen": "x",
+      "change": "x",
+      "risk": "none",
+      "evidence": {
+        "imageRef": "capture-1"
+      }
+    },
+    {
+      "blockId": "x",
+      "seen": "x",
+      "change": "x",
+      "risk": "none",
+      "evidence": {
+        "imageRef": "capture-1"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "seen": "x",
+      "change": "x",
+      "risk": "none",
+      "evidence": []
+    }
+  ]
+}

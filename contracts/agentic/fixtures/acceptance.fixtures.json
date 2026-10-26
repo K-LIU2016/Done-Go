@@ -1,0 +1,27 @@
+{
+  "valid": [
+    {
+      "id": "acceptance-1",
+      "artifactId": "x",
+      "actor": "x",
+      "decision": "accepted",
+      "createdAt": "2026-10-26T10:00:00Z"
+    },
+    {
+      "id": "acceptance-2",
+      "artifactId": "x",
+      "actor": "x",
+      "decision": "accepted",
+      "createdAt": "2026-10-26T10:00:00Z"
+    }
+  ],
+  "invalid": [
+    {
+      "id": "acceptance-bad",
+      "artifactId": "x",
+      "actor": "x",
+      "decision": "not-a-decision",
+      "createdAt": "2026-10-26T10:00:00Z"
+    }
+  ]
+}

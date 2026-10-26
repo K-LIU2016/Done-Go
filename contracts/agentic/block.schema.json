@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "block.schema.json",
+  "title": "Block",
+  "description": "日程块：现有 web entry 的服务端权威副本。kind 与 start/end 格式对齐现有代码（web/index.html 的 KINDS 与 minute()：HH:MM，end 允许 24:00）。PRD §4.1、§11.1。",
+  "type": "object",
+  "required": ["id", "ownerId", "revision", "schemaVersion", "date", "start", "end", "title", "kind", "done", "source", "createdAt", "updatedAt"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "ownerId": { "type": "string", "minLength": 1, "description": "服务端派生，客户端不可写" },
+    "revision": { "type": "integer", "minimum": 1, "description": "乐观并发修订号；同步冲突以它判定" },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "date": { "type": "string", "format": "date", "description": "YYYY-MM-DD" },
+    "start": { "type": "string", "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$" },
+    "end": { "type": "string", "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$" },
+    "title": { "type": "string", "minLength": 1 },
+    "kind": { "type": "string", "enum": ["necessary", "restore", "create", "connect", "explore", "stillness"], "description": "与 web 端 KINDS 一致；stillness = 自己的时间，零打扰（P6）" },
+    "prio": { "type": "string", "enum": ["low", "normal", "high"] },
+    "note": { "type": "string" },
+    "done": { "type": "boolean" },
+    "source": { "type": "string", "enum": ["voice", "manual", "agent", "sync", "import", "system"] },
+    "tz": { "type": "string", "pattern": "^[A-Za-z]+(/[A-Za-z0-9_+-]+)+$", "description": "IANA 时区名，缺省 Asia/Shanghai" },
+    "deletedAt": { "type": ["string", "null"], "format": "date-time", "description": "软删除标记；非空即视为已删除" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

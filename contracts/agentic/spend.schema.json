@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "spend.schema.json",
+  "title": "Spend",
+  "description": "一次工单/步骤的实际花费。PRD §6.4（WorkResult.spent）。免费模型 costCny 记 0（P5：未知显示未知，不虚报）。",
+  "type": "object",
+  "required": ["calls", "tokens"],
+  "properties": {
+    "calls": { "type": "integer", "minimum": 0 },
+    "tokens": { "type": "integer", "minimum": 0 },
+    "costCny": { "type": "number", "minimum": 0 },
+    "localShare": { "type": "number", "minimum": 0, "maximum": 1, "description": "本地模型占比 0–1" }
+  },
+  "additionalProperties": false
+}
