@@ -107,9 +107,9 @@ test('M02 script：执行剧本 15 条（prototype L306-322），need/seg/delive
   assert.ok(script.some((s) => s.deliver === 'r') && script.some((s) => s.deliver === 'c'), '两块都要有交付节点');
 });
 
-test('M02 storyEvents：8 条、you 触点在索引 1/4（prototype L415-418）', () => {
+test('M02 storyEvents：8 条、you 触点在索引 1/5（prototype L415-418 实测：13:55 与 15:28；M21 修正原 1/4 笔误）', () => {
   assert.equal(storyEvents.length, 8);
-  assert.deepEqual(storyEvents.map((e) => e[3] ? 'you' : ''), ['', 'you', '', '', 'you', '', '', '']);
+  assert.deepEqual(storyEvents.map((e) => e[3] ? 'you' : ''), ['', 'you', '', '', '', 'you', '', '']);
   for (const e of storyEvents) {
     assert.match(e[0], /^\d{2}:\d{2}$/);
     assert.equal(typeof e[1], 'string'); // 图标
