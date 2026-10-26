@@ -50,6 +50,8 @@ export const SIGN_NOTE = '签的是这份合同本身；之后任何改动都会
 
 /** 条目归一：只留非空字符串项；非数组一律 []（宁缺勿假，不渲染 [object Object]） */
 export function normalizeItems(v) {
+  // 契约容忍（M21）：W0 preview.boundary.budget 是整段串（PRD §10.3），单串收为单元素数组
+  if (typeof v === 'string') return v.trim().length > 0 ? [v.trim()] : [];
   if (!Array.isArray(v)) return [];
   return v.filter((s) => typeof s === 'string' && s.trim().length > 0);
 }

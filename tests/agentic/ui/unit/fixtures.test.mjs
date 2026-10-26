@@ -52,13 +52,24 @@ test('M02 preview：字段名对齐 PRD §10.3（missionId/version/confidence/sh
   }
 });
 
-test('M02 preview：patched 两态（prototype L260-294）——置信度/标题/差异类都变', () => {
+test('M02 preview：patched 两态（prototype L260-294）——置信度/大纲差异类都变；契约段 schema-true（M21 对齐 W0 FROZEN v1）', () => {
   const base = preview('r');
   const patched = preview('r', { patched: true });
-  assert.equal(base.confidence, 64);
-  assert.equal(patched.confidence, 78);
-  assert.notEqual(base.title, patched.title);
-  assert.equal(patched.title, '国内 K12 的 AI 教育：政策、课堂与教师准备度');
+  assert.equal(base.confidence, 0.64); // PRD §10.3/W0 schema 口径 0–1（M21 契约对齐）
+  assert.equal(patched.confidence, 0.78);
+  assert.equal(typeof base.narration, 'string', '契约 narration 是整段串（PRD L753）');
+  assert.ok(patched.narration.includes('四课时工作坊'));
+  assert.equal(typeof base.boundary.budget, 'string', '契约 boundary.budget 是整段串（PRD L754）');
+  assert.ok(base.boundary.will.length > 0 && base.boundary.wont.length > 0);
+  assert.deepEqual(Object.keys(patched.diff || {}), ['changed', 'reason'], '契约 diff = {changed, reason}');
+  assert.equal(base.diff, null, '初始态无 diff');
+  assert.equal(base.scene.status, 'off'); // D-9：场景片默认关
+  assert.ok(['happyhorse-1.1-t2v', 'wan2.7-t2v'].includes(base.scene.model), 'scene.model 枚举');
+  assert.equal(base.reel.durationSec, 42);
+  for (const ev of base.storyboard) {
+    assert.deepEqual(Object.keys(ev).sort(), ['actor', 'at', 'text'], 'storyboard 条目仅 at/actor/text（schema additionalProperties:false）');
+  }
+  assert.ok(base.storyboard.some((e) => e.actor === 'you'), 'you 触点以 actor 标记');
   const outlineBase = base.shape.blocks.find((b) => b.type === 'outline');
   const outlinePatched = patched.shape.blocks.find((b) => b.type === 'outline');
   const dClasses = outlinePatched.items.map((it) => it.d || '');

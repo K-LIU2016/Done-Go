@@ -101,13 +101,14 @@ test('M18 getData：提供黄金场景全套访问面（M02 fixtures.js 落地�
   assert.ok(Array.isArray(d.examples) && d.examples.length === 2, '讨论例句常在（app 侧补充数据）');
 });
 
-test('M18 preview 两态：r 块置信度 64→78、标题变、patched 大纲带 add/del/chg（prototype L260-275）', () => {
+test('M18 preview 两态：r 块置信度 0.64→0.78、契约段 schema-true、patched 大纲带 add/del/chg（prototype L260-275；M21 对齐 W0 FROZEN v1）', () => {
   const data = getData();
   const base = data.preview('r');
   const patched = data.preview('r', { patched: true });
-  assert.equal(base.confidence, 64);
-  assert.equal(patched.confidence, 78);
-  assert.equal(patched.title, '国内 K12 的 AI 教育：政策、课堂与教师准备度');
+  assert.equal(base.confidence, 0.64); // PRD §10.3/W0 schema 口径 0–1（M21 契约对齐；屏显 64% 由 confPct ×100 还原）
+  assert.equal(patched.confidence, 0.78);
+  assert.equal(typeof base.narration, 'string'); // 契约 narration 整段串；屏显 h2 由 titleFor 提供
+  assert.deepEqual(Object.keys(patched.diff), ['changed', 'reason']);
   const outlinePatched = patched.shape.blocks.find((b) => b.type === 'outline');
   const ds = outlinePatched.items.map((it) => it.d || '');
   assert.ok(ds.includes('add') && ds.includes('del') && ds.includes('chg'));

@@ -84,7 +84,26 @@ export const needs = script.filter((s) => s.need).map((s) => ({ ...s.need, b: s.
 /** 追踪层纯文本（OTel GenAI 命名 span 树；prototype L493-504 / PRD §10.5） */
 export const traceText = 'invoke_agent block            mission=m_r  contract={{contract}}  13:30–14:58\n├─ invoke_agent researcher#1  order=wo_1  budget 8 calls      13:30–13:52\n│  ├─ execute_tool web.search  grant=g_web  ✓ 11 results       0.8s\n│  └─ chat deepseek-v4.1-flash-fast  in 3.1k / out 0.6k       2.9s\n├─ invoke_agent researcher#2  …                               13:30–13:50\n├─ invoke_agent researcher#3  …                               13:31–13:49\n├─ donego.need n1  受众确认  waited 4m  → 「对」\n├─ invoke_agent writer        order=wo_4  budget 14 calls     14:05–14:46\n│  └─ chat kimi-k3  in 18.2k / out 4.4k                       41.0s\n├─ invoke_agent verifier      order=wo_5  (异构模型)           14:30–14:46\n│  └─ execute_tool cite.check  ✓ 8  ✗ 1 → 退回 writer\n└─ merge artifact a_r v1  → ready                              14:52';
 
-/** 预演 JSON（prototype L260-294 → PRD §10.3 字段名；patched 两态） */
+
+// ---- 契约段（M21 对齐 W0 FROZEN v1 / PRD §10.3）：schema-true 构子 ----
+// storyboard：at/actor/text（you 事件以 actor:'you' 标记，schema additionalProperties:false 不收 you 布尔）
+const STORYBOARD = storyEvents.map(([at, icon, text, you]) => (you ? { at, actor: 'you', text } : { at, actor: icon, text }));
+// narration：契约是整段散文串（PRD L753 样例）；demo 的逐句数组仍由顶层 narration() 提供（TTS 用）
+const narrOf = (patched) => narration(patched).join('');
+// boundary：will/wont/needs 字符串数组 + budget 整段串（PRD L754）
+const boundaryOf = (id) => {
+  const { will, wont, needs, budget } = boundaries[id];
+  return { will, wont, needs, budget: budget.join('；') };
+};
+const reelOf = (id) => ({ composition: `/api/previews/m_${id}/v1/reel.html`, durationSec: 42, narrationAudio: `/api/previews/m_${id}/v1/narration.mp3`, mp4: null });
+const SCENE = { status: 'off', model: 'happyhorse-1.1-t2v', url: null }; // D-9 场景片默认关
+
+/**
+ * 预演 JSON（prototype L260-294 → PRD §10.3 字段名；patched 两态）。
+ * confidence 为 PRD §10.3 口径 0–1（L742 样例 0.72；W0 preview.schema.json minimum 0 maximum 1）；
+ * prototype 屏显 64%/78% 由 app.js 显示层 ×100 取整还原（M21 契约对齐）。
+ */
+
 export const preview = (id, opts = {}) => {
   const patched = !!(opts && opts.patched);
   const outlineItems = patched ? [
@@ -102,22 +121,19 @@ export const preview = (id, opts = {}) => {
   const kv = (pairs) => pairs.map(([k, v]) => ({ k, v }));
   if (id === 'r') return {
     missionId: 'm_r', version: 1,
-    confidence: patched ? 78 : 64,
-    title: patched ? '国内 K12 的 AI 教育：政策、课堂与教师准备度' : 'AI 教育现状与趋势',
+    confidence: patched ? 0.78 : 0.64,
     shape: { kind: 'report', title: '研究报告 · 目录骨架', blocks: [
       { type: 'outline', items: outlineItems },
       { type: 'facts', items: kv([['来源范围', patched ? '教育部及省市官网、公开论文、主流媒体（仅国内）' : '公开网页、论文、媒体（国内外）'], ['预计篇幅', '约 3000 字 · 7–12 个引用'], ['可信度', '每条结论标注来源与可信度']]) },
       { type: 'caveat', text: '无法访问付费数据库（知网全文等），改用公开来源；实际引用数取决于检索结果。' },
     ] },
-    storyboard: storyEvents.map(([at, icon, text, you]) => ({ at, actor: you ? 'you' : icon, text, you: !!you })),
-    narration: narration(patched), boundary: boundaries.r,
-    diff: patched ? { added: ['课堂实践', '教师准备度', '可落地建议'], removed: ['海外案例'], changed: ['来源范围仅国内'] } : null,
-    samples: samplesFor('r'), reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: STORYBOARD, narration: narrOf(patched), boundary: boundaryOf('r'),
+    diff: patched ? { changed: ['shape.blocks[0]', 'shape.blocks[1]'], reason: '你说只看国内 K12：新增课堂实践与教师准备度，删除海外案例，来源范围仅国内' } : null,
+    samples: [], reel: reelOf('r'), scene: SCENE,
   };
   if (id === 'c') return {
     missionId: 'm_c', version: 1,
-    confidence: patched ? 70 : 48,
-    title: patched ? '「AI 进课堂」初中教师工作坊 · 4 课时' : '课程设计（受众与课时待定）',
+    confidence: patched ? 0.7 : 0.48,
     shape: { kind: 'course', title: '课程方案 · 课时表与样张', blocks: [
       { type: 'table', head: ['课时', '目标', '活动', '评估'], rows: patched ? [
         ['1', '认识生成式 AI：能做什么、不能做什么', '人机对比小实验', '课堂小测'],
@@ -128,36 +144,35 @@ export const preview = (id, opts = {}) => {
       ...(patched ? [{ type: 'sample', text: '第 2 课时活动卡（样张）：**15 分钟改教案** —— 每组拿一份真实七年级物理教案，用 AI 生成 3 个导入问题；对照课标逐条核对，删掉不准确的；最后每组用 1 分钟说"AI 帮了哪、错在哪"。' }] : []),
       { type: 'caveat', text: patched ? '课程将引用 14:00 研究报告的结论；如研究延期，课程设计顺延开始。' : '需要你告诉我：学员是谁、几课时、什么形式。' },
     ] },
-    storyboard: storyEvents.map(([at, icon, text, you]) => ({ at, actor: you ? 'you' : icon, text, you: !!you })),
-    narration: narration(patched), boundary: boundaries.c,
-    diff: patched ? { added: ['4 课时工作坊结构'], removed: [], changed: ['样张：15 分钟改教案'] } : null,
-    samples: samplesFor('c'), reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: STORYBOARD, narration: narrOf(patched), boundary: boundaryOf('c'),
+    diff: patched ? { changed: ['shape.blocks[0]', 'shape.blocks[1]'], reason: '课程改为 4 课时工作坊（样张：15 分钟改教案）' } : null,
+    samples: [], reel: reelOf('c'), scene: SCENE,
   };
   if (id === 'f') return {
-    missionId: 'm_f', version: 1, confidence: 82, title: '和小王吃饭 · 行前准备',
+    missionId: 'm_f', version: 1, confidence: 0.82,
     shape: { kind: 'brief', title: '交付内容', blocks: [
       { type: 'facts', items: kv([['出发', '18:25 从家出发（地铁 32 分钟，按当前路况）'], ['要点', '他上周说在找新工作；你想聊 Argus 的合作'], ['带什么', '上次借的书']]) },
       { type: 'caveat', text: '不会替你订位或付款；餐厅只给 2 个备选。' },
     ] },
-    storyboard: [], narration: [], boundary: boundaries.f, diff: null,
-    samples: samplesFor('f'), reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: [], narration: '', boundary: boundaryOf('f'), diff: null,
+    samples: [], reel: reelOf('f'), scene: SCENE,
   };
   if (id === 'b') return {
-    missionId: 'm_b', version: 1, confidence: 76, title: '三层原木小书架 · 第一次做',
+    missionId: 'm_b', version: 1, confidence: 0.76,
     shape: { kind: 'guide', title: '步骤与物料', blocks: [
       { type: 'facts', items: kv([['物料', '侧板 2 · 隔板 3 · 螺丝 12 · 木胶 · 夹子 2'], ['步骤', '7 步，预计 45 分钟（第一次做 +15 分钟余量）'], ['关键点', '第 3 步上胶后要夹紧固化 15 分钟再拧螺丝']]) },
       { type: 'caveat', text: '效果图是示意；实际木纹与尺寸以你的套件为准。' },
     ] },
-    storyboard: [], narration: [], boundary: boundaries.b, diff: null,
-    samples: samplesFor('b'), reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: [], narration: '', boundary: boundaryOf('b'), diff: null,
+    samples: [], reel: reelOf('b'), scene: SCENE,
   };
   return { // s：零打扰
-    missionId: 'm_s', version: 1, confidence: 100, title: '自己的时间',
+    missionId: 'm_s', version: 1, confidence: 1,
     shape: { kind: 'stillness', title: '交付内容', blocks: [
       { type: 'facts', items: kv([['agent 行为', '无。这段时间不推送、不安排任务。']]) },
       { type: 'caveat', text: '这是你的时间。' },
     ] },
-    storyboard: [], narration: [], boundary: boundaries.s, diff: null,
-    samples: [], reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: [], narration: '', boundary: boundaryOf('s'), diff: null,
+    samples: [], reel: reelOf('s'), scene: SCENE,
   };
 };

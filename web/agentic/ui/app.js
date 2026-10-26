@@ -77,6 +77,17 @@ export const NARR_MAP = [0, 1, 2, 4, 5, 7]; // prototype L437：字幕行 → �
 
 // ---------- 黄金场景数据兜底（M02 fixtures.js 落地后同名自动覆盖） ----------
 
+/** 抽屉 h2 屏显标题（prototype L260-294 文案；契约 Preview 无顶层 title，屏显由 app 侧提供） */
+const UI_TITLES = {
+  r: ['AI 教育现状与趋势', '国内 K12 的 AI 教育：政策、课堂与教师准备度'],
+  c: ['课程设计（受众与课时待定）', '「AI 进课堂」初中教师工作坊 · 4 课时'],
+  f: ['和小王吃饭 · 行前准备'], b: ['三层原木小书架 · 第一次做'], s: ['自己的时间'],
+};
+export function titleFor(state) {
+  const pair = UI_TITLES[state.sel] || UI_TITLES.r;
+  return pair[state.patched && pair.length > 1 ? 1 : 0] || pair[0];
+}
+
 const BASE_BLOCKS = [
   { id: 'r', start: '14:00', end: '15:00', title: 'AI 教育的深度研究', kind: 'explore', type: '研究报告', feas: ['hi', '可交付度 高'], needs: 1 },
   { id: 'c', start: '15:00', end: '17:00', title: '课程设计', kind: 'create', type: '课程方案', feas: ['mid', '可交付度 中 · 缺学员与课时'], needs: 2 },
@@ -138,7 +149,12 @@ const baseSamplesFor = (id) => { // prototype L354-364
   return [];
 };
 
-const basePreview = (id, opts = {}) => { // prototype L260-294 → PRD §10.3 字段名
+const CONTRACT_STORYBOARD = BASE_STORY_EVENTS.map(([at, icon, text, you]) => (you ? { at, actor: 'you', text } : { at, actor: icon, text }));
+const contractBoundary = (id) => { const { will, wont, needs, budget } = BASE_BOUNDARIES[id]; return { will, wont, needs, budget: budget.join('；') }; };
+const contractReel = (id) => ({ composition: `/api/previews/m_${id}/v1/reel.html`, durationSec: 42, narrationAudio: `/api/previews/m_${id}/v1/narration.mp3`, mp4: null });
+const CONTRACT_SCENE = { status: 'off', model: 'happyhorse-1.1-t2v', url: null }; // D-9 默认关
+
+const basePreview = (id, opts = {}) => { // prototype L260-294 → PRD §10.3 字段名（M21 对齐 W0 FROZEN v1）
   const patched = !!(opts && opts.patched);
   const outlineItems = patched ? [
     { h: '政策与标准', q: '2024–2026 国家与地方对中小学 AI 教育提出了什么要求？', d: 'chg' },
@@ -155,22 +171,19 @@ const basePreview = (id, opts = {}) => { // prototype L260-294 → PRD §10.3 �
   const kv = (pairs) => pairs.map(([k, v]) => ({ k, v }));
   if (id === 'r') return {
     missionId: 'm_r', version: 1,
-    confidence: patched ? 78 : 64,
-    title: patched ? '国内 K12 的 AI 教育：政策、课堂与教师准备度' : 'AI 教育现状与趋势',
+    confidence: patched ? 0.78 : 0.64,
     shape: { kind: 'report', title: '研究报告 · 目录骨架', blocks: [
       { type: 'outline', items: outlineItems },
       { type: 'facts', items: kv([['来源范围', patched ? '教育部及省市官网、公开论文、主流媒体（仅国内）' : '公开网页、论文、媒体（国内外）'], ['预计篇幅', '约 3000 字 · 7–12 个引用'], ['可信度', '每条结论标注来源与可信度']]) },
       { type: 'caveat', text: '无法访问付费数据库（知网全文等），改用公开来源；实际引用数取决于检索结果。' },
     ] },
-    storyboard: BASE_STORY_EVENTS.map(([at, icon, text, you]) => ({ at, actor: you ? 'you' : icon, text, you: !!you })),
-    narration: baseNarration(patched), boundary: BASE_BOUNDARIES.r,
-    diff: patched ? { added: ['课堂实践', '教师准备度', '可落地建议'], removed: ['海外案例'], changed: ['来源范围仅国内'] } : null,
-    samples: baseSamplesFor('r'), reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: CONTRACT_STORYBOARD, narration: baseNarration(patched).join(''), boundary: contractBoundary('r'),
+    diff: patched ? { changed: ['shape.blocks[0]', 'shape.blocks[1]'], reason: '你说只看国内 K12：新增课堂实践与教师准备度，删除海外案例，来源范围仅国内' } : null,
+    samples: [], reel: contractReel('r'), scene: CONTRACT_SCENE,
   };
   if (id === 'c') return {
     missionId: 'm_c', version: 1,
-    confidence: patched ? 70 : 48,
-    title: patched ? '「AI 进课堂」初中教师工作坊 · 4 课时' : '课程设计（受众与课时待定）',
+    confidence: patched ? 0.7 : 0.48,
     shape: { kind: 'course', title: '课程方案 · 课时表与样张', blocks: [
       { type: 'table', head: ['课时', '目标', '活动', '评估'], rows: patched ? [
         ['1', '认识生成式 AI：能做什么、不能做什么', '人机对比小实验', '课堂小测'],
@@ -181,37 +194,36 @@ const basePreview = (id, opts = {}) => { // prototype L260-294 → PRD §10.3 �
       ...(patched ? [{ type: 'sample', text: '第 2 课时活动卡（样张）：**15 分钟改教案** —— 每组拿一份真实七年级物理教案，用 AI 生成 3 个导入问题；对照课标逐条核对，删掉不准确的；最后每组用 1 分钟说"AI 帮了哪、错在哪"。' }] : []),
       { type: 'caveat', text: patched ? '课程将引用 14:00 研究报告的结论；如研究延期，课程设计顺延开始。' : '需要你告诉我：学员是谁、几课时、什么形式。' },
     ] },
-    storyboard: BASE_STORY_EVENTS.map(([at, icon, text, you]) => ({ at, actor: you ? 'you' : icon, text, you: !!you })),
-    narration: baseNarration(patched), boundary: BASE_BOUNDARIES.c,
-    diff: patched ? { added: ['4 课时工作坊结构'], removed: [], changed: ['样张：15 分钟改教案'] } : null,
-    samples: baseSamplesFor('c'), reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: CONTRACT_STORYBOARD, narration: baseNarration(patched).join(''), boundary: contractBoundary('c'),
+    diff: patched ? { changed: ['shape.blocks[0]', 'shape.blocks[1]'], reason: '课程改为 4 课时工作坊（样张：15 分钟改教案）' } : null,
+    samples: [], reel: contractReel('c'), scene: CONTRACT_SCENE,
   };
   if (id === 'f') return {
-    missionId: 'm_f', version: 1, confidence: 82, title: '和小王吃饭 · 行前准备',
+    missionId: 'm_f', version: 1, confidence: 0.82,
     shape: { kind: 'brief', title: '交付内容', blocks: [
       { type: 'facts', items: kv([['出发', '18:25 从家出发（地铁 32 分钟，按当前路况）'], ['要点', '他上周说在找新工作；你想聊 Argus 的合作'], ['带什么', '上次借的书']]) },
       { type: 'caveat', text: '不会替你订位或付款；餐厅只给 2 个备选。' },
     ] },
-    storyboard: [], narration: [], boundary: BASE_BOUNDARIES.f, diff: null,
-    samples: baseSamplesFor('f'), reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: [], narration: '', boundary: contractBoundary('f'), diff: null,
+    samples: [], reel: contractReel('f'), scene: CONTRACT_SCENE,
   };
   if (id === 'b') return {
-    missionId: 'm_b', version: 1, confidence: 76, title: '三层原木小书架 · 第一次做',
+    missionId: 'm_b', version: 1, confidence: 0.76,
     shape: { kind: 'guide', title: '步骤与物料', blocks: [
       { type: 'facts', items: kv([['物料', '侧板 2 · 隔板 3 · 螺丝 12 · 木胶 · 夹子 2'], ['步骤', '7 步，预计 45 分钟（第一次做 +15 分钟余量）'], ['关键点', '第 3 步上胶后要夹紧固化 15 分钟再拧螺丝']]) },
       { type: 'caveat', text: '效果图是示意；实际木纹与尺寸以你的套件为准。' },
     ] },
-    storyboard: [], narration: [], boundary: BASE_BOUNDARIES.b, diff: null,
-    samples: baseSamplesFor('b'), reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: [], narration: '', boundary: contractBoundary('b'), diff: null,
+    samples: [], reel: contractReel('b'), scene: CONTRACT_SCENE,
   };
   return { // s：零打扰
-    missionId: 'm_s', version: 1, confidence: 100, title: '自己的时间',
+    missionId: 'm_s', version: 1, confidence: 1,
     shape: { kind: 'stillness', title: '交付内容', blocks: [
       { type: 'facts', items: kv([['agent 行为', '无。这段时间不推送、不安排任务。']]) },
       { type: 'caveat', text: '这是你的时间。' },
     ] },
-    storyboard: [], narration: [], boundary: BASE_BOUNDARIES.s, diff: null,
-    samples: [], reel: { secs: '42s' }, scene: { status: 'off' },
+    storyboard: [], narration: '', boundary: contractBoundary('s'), diff: null,
+    samples: [], reel: contractReel('s'), scene: CONTRACT_SCENE,
   };
 };
 
@@ -524,13 +536,15 @@ export function gallerySamples(state, data = getData()) {
 /** 抽屉五段 HTML：bound/live/art/trace 恒为常量串（子组件 DOM 跨 render 保活的根基） */
 export function sectionsFor(state, data = getData()) {
   const p = data.preview(state.sel, { patched: state.patched });
+  /** 把握度屏显：Preview JSON confidence 为 PRD §10.3 的 0–1，原型 64%/78% 由 ×100 取整还原 */
+  const confPct = (pv) => Math.round((Number(pv.confidence) || 0) * 100);
   const heading = state.sel === 'r' ? '研究报告 · 目录骨架'
     : state.sel === 'c' ? '课程方案 · 课时表与样张'
       : state.sel === 'b' ? '步骤与物料' : '交付内容';
   const samples = gallerySamples(state, data);
   const isRC = state.sel === 'r' || state.sel === 'c';
-  const preview = `<h2>${esc(p.title)}</h2>`
-    + `<div class="conf">把握 <i style="--v:${Number(p.confidence) || 0}%"></i> ${Number(p.confidence) || 0}% · 这是交付物大致的样子，不是成品</div>`
+  const preview = `<h2>${esc(titleFor(state))}</h2>`
+    + `<div class="conf">把握 <i style="--v:${confPct(p)}%"></i> ${confPct(p)}% · 这是交付物大致的样子，不是成品</div>`
     + (state.sel !== 's' ? '<div data-slot="tiers"></div>' : '')
     + `<div class="shape"><h3>${esc(heading)}</h3>${p.shape.blocks.map((b) => renderShape(b)).join('')}</div>`
     + (samples.length ? `<div class="gallery">${figuresHTML(samples)}</div>` : '')

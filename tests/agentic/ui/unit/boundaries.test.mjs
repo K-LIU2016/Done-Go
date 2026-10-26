@@ -38,12 +38,13 @@ test('M11 常量：SYS_WONT/打扰策略脚注/签约小字 = prototype L305/L46
   assert.equal(SIGN_NOTE, '签的是这份合同本身；之后任何改动都会让你重新确认');
 });
 
-test('M11 normalizeItems：只留非空字符串项；非数组一律 []（宁缺勿假）', () => {
+test('M11 normalizeItems：只留非空字符串项；非数组一律 []，单串收为单元素（M21 契约容忍：W0 boundary.budget 为整段串）', () => {
   assert.deepEqual(normalizeItems(['a', '', '  ', 'b']), ['a', 'b']);
   assert.deepEqual(normalizeItems([]), []);
   assert.deepEqual(normalizeItems(undefined), []);
   assert.deepEqual(normalizeItems(null), []);
-  assert.deepEqual(normalizeItems('x'), []);
+  assert.deepEqual(normalizeItems('x'), ['x'], '单串 → 单元素数组（契约 budget 串）');
+  assert.deepEqual(normalizeItems('  '), [], '空白串丢弃');
   assert.deepEqual(normalizeItems({ 0: 'x', length: 1 }), []);
   assert.deepEqual(normalizeItems(['ok', 42, null, { s: 1 }, ['nested']]), ['ok'], '非字符串项丢弃');
 });
