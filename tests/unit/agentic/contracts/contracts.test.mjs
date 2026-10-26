@@ -47,6 +47,14 @@ test('every valid fixture passes and every invalid fixture fails its schema', ()
   }
 });
 
+test('every schema has a matching fixture file', () => {
+  const schemaNames = readdirSync(contractDir).filter(name => name.endsWith('.schema.json')).sort();
+  assert.deepEqual(
+    schemaNames.map(name => name.replace('.schema.json', '.fixtures.json')),
+    fixtureNames,
+  );
+});
+
 test('validator handles required, properties and additionalProperties', () => {
   const schema = { type: 'object', required: ['name'], properties: { name: { type: 'string' } }, additionalProperties: false };
   assert.equal(validate({ name: 'ok' }, schema).valid, true);
@@ -70,6 +78,27 @@ test('validator resolves same-directory refs', () => {
   assert.equal(validate({ ref: {} }, schema, { schemaDir: contractDir }).valid, false);
 });
 
+test('date-time format rejects impossible calendar dates', () => {
+  const schema = { type: 'string', format: 'date-time' };
+  assert.equal(validate('2026-10-26T12:30:00Z', schema).valid, true);
+  assert.equal(validate('2026-02-30T12:30:00Z', schema).valid, false);
+});
+
+test('assertValid throws the public CONTRACT_INVALID error code', async () => {
+  const { assertValid } = await import('../../../../scripts/agentic/contracts.mjs');
+  assert.throws(
+    () => assertValid({}, { type: 'object', required: ['id'] }),
+    error => error.code === 'CONTRACT_INVALID' && Array.isArray(error.errors),
+  );
+});
+
+test('contract README documents the W0 API and security boundary', () => {
+  const readme = readFileSync(join(contractDir, 'README.md'), 'utf8');
+  for (const term of ['状态机', '错误码', 'API 列表', 'owner', 'W0 不把路由挂到', 'contractHash']) {
+    assert.match(readme, new RegExp(term));
+  }
+});
+
 test('canonicalJson sorts object keys recursively but preserves array order', () => {
   assert.equal(canonicalJson({ b: 1, a: { d: 2, c: 3 }, list: [{ z: 1, y: 2 }] }), '{"a":{"c":3,"d":2},"b":1,"list":[{"y":2,"z":1}]}');
 });
@@ -79,4 +108,11 @@ test('contract hash ignores field order and changes when a field changes', async
   const b = { budget: { calls: 2, tokens: 100 }, goal: 'research', version: 1, missionId: 'm1' };
   assert.equal(await contractHash(a), await contractHash(b));
   assert.notEqual(await contractHash(a), await contractHash({ ...a, goal: 'different' }));
+  assert.equal(await contractHash({ ...a, hash: 'stale' }), await contractHash(a));
+});
+
+test('validator rejects an unresolvable same-directory ref', () => {
+  const result = validate({ ref: true }, { type: 'object', properties: { ref: { $ref: 'missing.schema.json' } } }, { schemaDir: contractDir });
+  assert.equal(result.valid, false);
+  assert.match(result.errors[0].message, /unresolvable/);
 });
