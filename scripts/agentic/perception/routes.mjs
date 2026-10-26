@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { parseMultipart } from './multipart.mjs';
 import { checkUpload, VIDEO_MAX_BYTES } from './media-guard.mjs';
-import { readExif, parseExifDateTime, stripGps } from './exif.mjs';
+import { readExif, parseExifDateTime, stripGps, stripPngExif, stripWebpExif } from './exif.mjs';
 import { createPerceptionStore } from './store.mjs';
 
 /** multipart 传输开销余量（边界/部件头）；整包上限 = maxVideoBytes + 余量。 */
@@ -128,7 +128,9 @@ export function createPerceptionRoutes({ db, auth, store, pipeline, config = {} 
     try { checked = checkUpload({ data: file.data, filename: file.filename }); } // 魔数白名单+体积
     catch { json(res, 415, { error: 'media-rejected' }); return; }
 
-    // ---- 时间与隐私：EXIF 拍摄时间（Asia/Shanghai）+ GPS 默认剥离（PRD §6.8.4 L517）----
+    // ---- 时间与隐私：EXIF 拍摄时间（Asia/Shanghai）+ 元数据默认剥离（PRD §6.8.4 L517）----
+    // 剥离按格式分派：jpeg=GPS IFD 清零；png=eXIf 块摘除；webp=EXIF 块摘除；
+    // heic=元数据结构无法安全手剥 → 宁拒不存（privacy-first，待第 3 批接转码/专业工具后放开）。
     const uploadedAt = now();
     let capturedAt = uploadedAt;
     let exifStripped = false;
@@ -139,6 +141,15 @@ export function createPerceptionRoutes({ db, auth, store, pipeline, config = {} 
       if (local) capturedAt = local;
       data = stripGps(data);
       exifStripped = true; // 落盘副本保证无 GPS（原本没有也视为已剥离）
+    } else if (checked.kind === 'image' && checked.format === 'png') {
+      data = stripPngExif(data);
+      exifStripped = true;
+    } else if (checked.kind === 'image' && checked.format === 'webp') {
+      data = stripWebpExif(data);
+      exifStripped = true;
+    } else if (checked.kind === 'image' && checked.format === 'heic') {
+      json(res, 415, { error: 'media-rejected', reason: 'heic-metadata-stripping-unavailable' });
+      return;
     }
 
     // ---- 落盘：owner 私有目录 + 随机文件名（客户端文件名只用于校验，不进路径）----

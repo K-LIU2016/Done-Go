@@ -185,3 +185,53 @@ export function stripGps(buf) {
   }
   return out;
 }
+
+/**
+ * PNG 元数据剥离（PRD §6.8.4 默认剥离在非 JPEG 上的延伸）：物理移除全部 eXIf 块
+ * （PNG 规范 chunk 自带长度与 CRC、彼此独立，摘除不影响其余结构）。无 eXIf 或结构
+ * 异常（截断/长度越界）时原样返回（fail-safe，宁可拒绝处理也不产出坏文件）。
+ */
+export function stripPngExif(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 8) return buf;
+  if (buf.readUInt32BE(0) !== 0x89504e47 || buf.readUInt32BE(4) !== 0x0d0a1a0a) return buf;
+  const keep = [buf.subarray(0, 8)];
+  let off = 8;
+  let removed = false;
+  while (off + 8 <= buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('latin1', off + 4, off + 8);
+    if (off + 12 + len > buf.length) return buf; // 截断：不动原件
+    if (type === 'eXIf') removed = true;
+    else keep.push(buf.subarray(off, off + 12 + len));
+    off += 12 + len;
+  }
+  return removed ? Buffer.concat(keep) : buf;
+}
+
+/**
+ * WebP 元数据剥离：RIFF 容器里物理移除 EXIF 块（含奇长填充位）并回写 RIFF 总长；
+ * XMP 块保留（承载非位置类元数据，摘除过度）。非 WebP / 无 EXIF / 结构异常原样返回。
+ */
+export function stripWebpExif(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 12) return buf;
+  if (buf.toString('latin1', 0, 4) !== 'RIFF' || buf.toString('latin1', 8, 12) !== 'WEBP') return buf;
+  const keep = [];
+  let off = 12;
+  let removed = false;
+  while (off + 8 <= buf.length) {
+    const fourcc = buf.toString('latin1', off, off + 4);
+    const size = buf.readUInt32LE(off + 4);
+    const padded = size + (size % 2); // RIFF 每块按 2 字节对齐填充
+    if (off + 8 + padded > buf.length) return buf; // 截断：不动原件
+    if (fourcc === 'EXIF') removed = true;
+    else keep.push(buf.subarray(off, off + 8 + padded));
+    off += 8 + padded;
+  }
+  if (!removed) return buf;
+  const body = Buffer.concat(keep);
+  const out = Buffer.concat([Buffer.alloc(12), body]);
+  out.write('RIFF', 0, 'latin1');
+  out.writeUInt32LE(out.length - 8, 4); // RIFF size = 总长 − 'RIFF'+size 字段
+  out.write('WEBP', 8, 'latin1');
+  return out;
+}
