@@ -43,7 +43,8 @@ test('M12 条目倒序渲染、最新条带 .new（prototype L476）', async ({ 
 
 test('M12 「为什么」用 details 原生展开（prototype L121）', async ({ page }) => {
   await mount(page);
-  const why = page.locator('.feed .it details').first();
+  // 倒序渲染下首个带 details 的是 13:44 行（why=规则…）；断言文案属于 13:30 行 → 取 .last()
+  const why = page.locator('.feed .it details').last();
   await expect(why.locator('.why')).toBeHidden();
   await why.locator('summary').click();
   await expect(why.locator('.why')).toBeVisible();
