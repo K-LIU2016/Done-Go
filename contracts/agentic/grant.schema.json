@@ -4,6 +4,12 @@
   "required": [
     "id",
     "ownerId",
+    "revision",
+    "schemaVersion",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "source",
     "contractHash",
     "actor",
     "capabilities",
@@ -19,6 +25,37 @@
     "ownerId": {
       "type": "string",
       "minLength": 1
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deletedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "real",
+        "demo",
+        "imported"
+      ]
     },
     "contractHash": {
       "type": "string",

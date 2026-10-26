@@ -3,6 +3,13 @@
   "type": "object",
   "required": [
     "id",
+    "ownerId",
+    "revision",
+    "schemaVersion",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "source",
     "missionId",
     "version",
     "hash",
@@ -23,6 +30,42 @@
     "id": {
       "type": "string",
       "minLength": 1
+    },
+    "ownerId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "服务端派生，客户端不可写"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deletedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "real",
+        "demo",
+        "imported"
+      ]
     },
     "missionId": {
       "type": "string",
@@ -66,12 +109,14 @@
             ]
           },
           "shape": {
-            "type": "string",
-            "minLength": 1
+            "type": "object",
+            "description": "PreviewRef：预演产出的结构化引用",
+            "additionalProperties": true
           },
           "location": {
-            "type": "string",
-            "minLength": 1
+            "type": "object",
+            "description": "Location：交付物的结构化位置引用",
+            "additionalProperties": true
           }
         },
         "additionalProperties": false

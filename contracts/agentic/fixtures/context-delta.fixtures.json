@@ -5,18 +5,18 @@
       "seen": "x",
       "change": "x",
       "risk": "none",
-      "evidence": [
-        "item"
-      ]
+      "evidence": {
+        "imageRef": "capture-1"
+      }
     },
     {
       "blockId": "x",
       "seen": "x",
       "change": "x",
       "risk": "none",
-      "evidence": [
-        "item"
-      ]
+      "evidence": {
+        "imageRef": "capture-1"
+      }
     }
   ],
   "invalid": [

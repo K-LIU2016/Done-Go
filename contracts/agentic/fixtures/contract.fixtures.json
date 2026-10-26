@@ -2,6 +2,13 @@
   "valid": [
     {
       "id": "contract-1",
+      "ownerId": "u1",
+      "revision": 1,
+      "schemaVersion": 1,
+      "createdAt": "2026-10-26T08:00:00Z",
+      "updatedAt": "2026-10-26T08:00:00Z",
+      "deletedAt": null,
+      "source": "demo",
       "missionId": "m1",
       "version": 1,
       "hash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -9,8 +16,8 @@
       "deliverables": [
         {
           "type": "report",
-          "shape": "x",
-          "location": "x"
+          "shape": { "kind": "document", "title": "Report" },
+          "location": { "kind": "artifact", "uri": "artifact://contract/report" }
         }
       ],
       "definitionOfDone": [
@@ -42,6 +49,13 @@
     },
     {
       "id": "contract-2",
+      "ownerId": "u1",
+      "revision": 1,
+      "schemaVersion": 1,
+      "createdAt": "2026-10-26T08:00:00Z",
+      "updatedAt": "2026-10-26T08:00:00Z",
+      "deletedAt": null,
+      "source": "demo",
       "missionId": "m2",
       "version": 1,
       "hash": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -49,8 +63,8 @@
       "deliverables": [
         {
           "type": "report",
-          "shape": "x",
-          "location": "x"
+          "shape": { "kind": "document", "title": "Report" },
+          "location": { "kind": "artifact", "uri": "artifact://contract/report" }
         }
       ],
       "definitionOfDone": [
@@ -90,8 +104,8 @@
       "deliverables": [
         {
           "type": "report",
-          "shape": "x",
-          "location": "x"
+          "shape": { "kind": "document", "title": "Report" },
+          "location": { "kind": "artifact", "uri": "artifact://contract/report" }
         }
       ],
       "definitionOfDone": [],

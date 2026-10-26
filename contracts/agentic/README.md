@@ -24,7 +24,7 @@ const hash = await contractHash(contract); // 64 位小写 SHA-256 hex
 
 ## 对象目录与字段边界
 
-字段名以 schema 为准；服务端产生的 `ownerId` 不由客户端提交来取得权限。
+字段名以 schema 为准；持久化业务对象统一包含 `id`、服务端派生的 `ownerId`、`revision`、`schemaVersion`、`createdAt`、`updatedAt`、可空 `deletedAt` 与 `source`（`real` / `demo` / `imported`）。服务端产生的 `ownerId` 不由客户端提交来取得权限。Contract、Grant、Connector 的这些共有字段是其持久化边界的一部分。
 
 | Schema | 主要字段 / 职责 |
 |---|---|
@@ -34,14 +34,14 @@ const hash = await contractHash(contract); // 64 位小写 SHA-256 hex
 | `preview` | 版本、置信度、声明式 `shape`、`storyboard`、旁白、边界、样张、预演片和场景 |
 | `preview-sample` | 样张 `id`、布局、页标题、由 Shape 派生的文本、生图信息和水印 |
 | `preview-reel` / `preview-scene` | HTML 组合物/时长/旁白音频/MP4；场景 `off`、排队、生成中或就绪 |
-| `contract` | 目标、交付物、DoD、A1–A3 自治、will/wont、Need、能力范围、数据披露、预算、时间窗和打扰策略 |
+| `contract` | 目标、交付物（`shape: PreviewRef`、`location: Location`）、DoD、A1–A3 自治、will/wont、Need、能力范围、数据披露、预算、时间窗和打扰策略 |
 | `grant` / `grant-ref` | 绑定 `ownerId`、`contractHash`、actor、能力/数据范围、过期时间、消费状态；工单只传最小引用 |
 | `need` | 决定、数据、授权、到场或验收问题；截止时间、默认动作和处理状态 |
 | `run` / `step` | 一次执行及其 plan/schedule/execute/verify/merge 步骤、检查点、重试和状态 |
 | `artifact` / `acceptance` / `evidence` | 版本化交付物、用户验收决定和可核验来源/测试/差异等证据 |
 | `work-order` / `work-result` | 父子 agent 的结构化通信；只传材料引用、验收标准、约束、预算、Grant 引用和结构化产出，不传聊天记录 |
 | `artifact-ref` / `spend` | 工单输入/输出的交付物引用，以及调用次数、token、成本和本地占比 |
-| `context-delta` / `suggestion-card` | §6.8.2 快慢双路感知的变化/风险证据与可点击建议动作 |
+| `context-delta` / `suggestion-card` | §6.8.2 快慢双路感知的变化/风险证据（`evidence: { imageRef }`）与可点击建议动作 |
 | `span` | OTel GenAI 对齐的 `invoke_agent`、`execute_tool`、`chat`、`donego.need` 追踪单元；正文不写入 span |
 | `codex-plan` / `codex-choice` | Codex 只读规划产出和按复杂度/额度选择模型与 effort |
 | `fact` / `playbook` / `connector` | 用户事实、交付配方和 MCP 能力/数据处理声明 |
