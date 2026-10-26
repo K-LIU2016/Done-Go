@@ -8,8 +8,9 @@
 //
 // 配额（BUILD-PLAN §2.3 红线）：生图 ≤20、生视频 ≤2。SMOKE_BUDGET 是冒烟自己的约束，
 // 与产品每日预算（quota.mjs 默认 30/3）是两组数字；真实调用次数/耗时/模型全部记入
-// 台账 ledger.json（summarizeLedger 汇总），key 只经注入或 env DONEGO_GATEWAY_KEY
-// 运行时读取，绝不打印/落盘。
+// 台账 ledger.json（summarizeLedger 汇总），key 只经注入（测试）或
+// scripts/agentic/gateway-key.mjs 运行时读取（BUILD-PLAN §2.3 红线2，W0 已合入），
+// 绝不打印/落盘。
 import { spawn as spawnAsync } from 'node:child_process';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -409,7 +410,7 @@ export async function runGoldenSmoke(opts = {}) {
     outDir = join(root, 'design/schedule-to-delivery/shots/w11'),
     workDir = join(root, '.w11-smoke'),
     gatewayBaseUrl = process.env.DONEGO_GATEWAY_BASE_URL ?? 'http://127.0.0.1:4000',
-    key = null, // 缺省走 env DONEGO_GATEWAY_KEY（W0 合入后换 gateway-key.mjs）
+    key = null, // 缺省经 scripts/agentic/gateway-key.mjs 运行时读取（红线2；测试注入 key）
     fetch: fetchImpl = globalThis.fetch,
     imageClientFactory = ({ cache, quota }) => createImageClient({ baseUrl: gatewayBaseUrl, key, fetch: fetchImpl, cache, quota, allowDomains: smokeAllowDomains(gatewayBaseUrl) }),
     videoClientFactory = ({ cache, quota }) => createVideoClient({ baseUrl: gatewayBaseUrl, key, fetch: fetchImpl, cache, quota, timeoutMs: opts.videoTimeoutMs ?? SMOKE_VIDEO_TIMEOUT_MS }),
@@ -518,7 +519,8 @@ export const cliErr = s => process.stderr.write(s);
 export const cliExit = code => process.exit(code);
 
 /** CLI 入口（可注入，单测覆盖接线逻辑；默认才碰真实世界）。
- *  用法：DONEGO_GATEWAY_KEY=… node scripts/agentic/media/smoke.mjs [--with-video] */
+ *  用法：node scripts/agentic/media/smoke.mjs [--with-video]（key 经
+ *  scripts/agentic/gateway-key.mjs 读 ~/.config/llm-gateway/endpoint.json，红线2） */
 export async function cliMain({ run = runGoldenSmoke, argv = process.argv, write = cliOut, writeErr = cliErr, exit = cliExit } = {}) {
   try {
     const r = await run({ withVideo: argv.includes('--with-video'), log: m => write(m + '\n') });

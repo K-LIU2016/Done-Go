@@ -3,9 +3,12 @@
 // 只出纯画面、文字由代码排版；qwen-image-2.0 中文排版准确 → 图中需要文字时用。
 // PRD §10.3 字段约束：纯画面 prompt 必须声明「不要出现任何文字」。
 // 响应 url 与 b64_json 两种都支持并落本地缓存；按 Mission 版本缓存；每日配额。
-// 安全：远程 URL 只允许网关域（allowlist）、下载大小上限、key 只经 env DONEGO_GATEWAY_KEY
-// 运行时读取（W0 交付后换 scripts/agentic/gateway-key.mjs）、绝不打印/落盘。
+// 安全：远程 URL 只允许网关域（allowlist）、下载大小上限、key 只经
+// scripts/agentic/gateway-key.mjs 运行时读取（BUILD-PLAN §2.3 红线2，W0 已合入）、
+// 绝不打印/落盘。
 // 风格：注入 fetch、Bearer 头、类型化错误（照 scripts/voice-pipeline/llm.mjs:51-99）。
+import { gatewayKey } from '../gateway-key.mjs';
+
 export const PURE_IMAGE_MODEL = 'z-image-turbo';
 export const TEXT_IMAGE_MODEL = 'qwen-image-2.0';
 
@@ -31,11 +34,16 @@ function typedError(code, message) {
   return Object.assign(new Error(message), { code });
 }
 
-/** 运行时解析网关 key：只从注入参数或 env DONEGO_GATEWAY_KEY 读，缺失抛类型化错误。 */
+/** 运行时解析网关 key：注入参数优先（测试 mock），缺省经 W0 冻结的唯一入口
+ *  scripts/agentic/gateway-key.mjs 读 endpoint.json（BUILD-PLAN §2.3 红线2，env 不再是通道），
+ *  缺失抛类型化错误（不含 key 值）。 */
 function resolveGatewayKey(injected) {
-  const key = injected ?? process.env.DONEGO_GATEWAY_KEY;
-  if (!key) throw typedError('GATEWAY_KEY_MISSING', '缺少网关 key：请设置 DONEGO_GATEWAY_KEY（W0 后经 gateway-key.mjs 运行时读取）');
-  return key;
+  if (injected) return injected;
+  try {
+    return gatewayKey();
+  } catch {
+    throw typedError('GATEWAY_KEY_MISSING', '缺少网关 key：经 scripts/agentic/gateway-key.mjs 读取 ~/.config/llm-gateway/endpoint.json 的 keys.donego（BUILD-PLAN §2.3 红线2）');
+  }
 }
 
 /**

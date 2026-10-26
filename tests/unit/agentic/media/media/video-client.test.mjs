@@ -3,7 +3,7 @@
 // → 就绪后拉 /content 落盘；超时、失败、取消三路径显式测试。PRD §5.2（场景片异步、
 // 默认 ≤3 段/天）。全程 mock fetch/sleep，绝不真实外呼。
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -173,18 +173,25 @@ test('defaults work too: real timers with a 1ms poll interval finish promptly (d
   assert.ok(Buffer.from(out.bytes).length > 0);
 });
 
-test('video requests carry the Bearer key from DONEGO_GATEWAY_KEY when not injected', async () => {
+test('video requests carry the Bearer key from gateway-key.mjs (endpoint.json) when not injected; env is not a channel', async () => {
   const { fetch, clock } = harness({ statuses: ['succeeded'] });
-  const d = mkdtempSync(join(tmpdir(), 'w11-vk-'));
-  process.env.DONEGO_GATEWAY_KEY = 'env-key-7';
+  const home = mkdtempSync(join(tmpdir(), 'w11-vk-home-'));
+  const configDir = join(home, '.config', 'llm-gateway');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'endpoint.json'), JSON.stringify({ keys: { donego: 'endpoint-key-7' } }));
+  const savedHome = process.env.HOME;
+  const savedEnvKey = process.env.DONEGO_GATEWAY_KEY;
+  process.env.HOME = home;
+  process.env.DONEGO_GATEWAY_KEY = 'env-must-be-ignored'; // 红线2：env 不再是密钥通道
   let auth = null;
   const spying = async (url, init) => { if (url === BASE + '/v1/videos') auth = init.headers.authorization; return fetch(url, init); };
   try {
     const client = createVideoClient({ baseUrl: BASE, fetch: spying, now: clock.now, sleep: clock.sleep, pollIntervalMs: 100, timeoutMs: 60_000 });
     await client.generateVideo({ model: 'm', prompt: 'p' });
-    assert.equal(auth, 'Bearer env-key-7');
+    assert.equal(auth, 'Bearer endpoint-key-7', 'Bearer 用 endpoint.json 的 keys.donego，而非 env');
   } finally {
-    delete process.env.DONEGO_GATEWAY_KEY;
-    rmSync(d, { recursive: true, force: true });
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
+    if (savedEnvKey === undefined) delete process.env.DONEGO_GATEWAY_KEY; else process.env.DONEGO_GATEWAY_KEY = savedEnvKey;
+    rmSync(home, { recursive: true, force: true });
   }
 });

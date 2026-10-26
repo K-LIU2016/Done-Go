@@ -1,12 +1,12 @@
 // W11 media-gen · 生图客户端先行单测（RED 契约）。
 // 依据：BUILD-PLAN §3 W11.1（POST /v1/images/generations；纯画面 z-image-turbo、
 // 图中文字 qwen-image-2.0；url/b64 皆支持+落本地缓存；按 Mission 版本缓存；每日配额；
-// 安全：allowlist/大小上限/key 只经 env DONEGO_GATEWAY_KEY）；PRD §2.4（turbo 中文
+// 安全：allowlist/大小上限/key 只经 scripts/agentic/gateway-key.mjs，BUILD-PLAN §2.3 红线2）；PRD §2.4（turbo 中文
 // 错字 → 纯画面）、§10.3 字段约束（prompt 必须声明"不要出现任何文字"）。
 // 风格：注入 fetch、Bearer 头、类型化错误（照 scripts/voice-pipeline/llm.mjs:51-99）。
 // 全程 mock fetch，绝不真实外呼。
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -210,31 +210,42 @@ test('a response carrying neither url nor b64_json is a typed bad-shape error', 
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('the gateway key comes from DONEGO_GATEWAY_KEY when not injected, and its absence is typed', async () => {
+test('the gateway key comes from gateway-key.mjs (endpoint.json) when not injected; env is not a channel, and its absence is typed', async () => {
   const calls = [];
   const fetch = async (url, init) => { calls.push(init.headers.authorization); return resJson({ data: [{ b64_json: PNG.toString('base64') }] }); };
-  const dir = mkdtempSync(join(tmpdir(), 'w11-env-'));
-  process.env.DONEGO_GATEWAY_KEY = 'env-key-42';
+  const dir = mkdtempSync(join(tmpdir(), 'w11-key-'));
+  const home = mkdtempSync(join(tmpdir(), 'w11-key-home-'));
+  const configDir = join(home, '.config', 'llm-gateway');
+  mkdirSync(configDir, { recursive: true });
+  const endpoint = join(configDir, 'endpoint.json');
+  writeFileSync(endpoint, JSON.stringify({ keys: { donego: 'endpoint-key-42' } }));
+  const savedHome = process.env.HOME;
+  const savedEnvKey = process.env.DONEGO_GATEWAY_KEY;
+  process.env.HOME = home;
+  process.env.DONEGO_GATEWAY_KEY = 'env-must-be-ignored'; // 红线2：env 不再是密钥通道
+  const quotaNow = () => new Date('2026-10-26T10:00:00+08:00');
   try {
-    const envClient = createImageClient({
+    const keyClient = createImageClient({
       baseUrl: BASE, fetch, cache: createMediaCache({ dir: join(dir, 'a') }),
-      quota: createDailyQuota({ file: join(dir, 'qa.json'), now: () => new Date('2026-10-26T10:00:00+08:00') }),
+      quota: createDailyQuota({ file: join(dir, 'qa.json'), now: quotaNow }),
     });
-    await envClient.generateImage({ missionId: 'm1', version: 1, prompt: 'p', textInImage: false });
-    assert.equal(calls[0], 'Bearer env-key-42');
+    await keyClient.generateImage({ missionId: 'm1', version: 1, prompt: 'p', textInImage: false });
+    assert.equal(calls[0], 'Bearer endpoint-key-42', 'Bearer 用 endpoint.json 的 keys.donego，而非 env');
 
-    delete process.env.DONEGO_GATEWAY_KEY;
+    rmSync(endpoint, { force: true });
     const noKey = createImageClient({
       baseUrl: BASE, fetch, cache: createMediaCache({ dir: join(dir, 'b') }),
-      quota: createDailyQuota({ file: join(dir, 'qb.json'), now: () => new Date('2026-10-26T10:00:00+08:00') }),
+      quota: createDailyQuota({ file: join(dir, 'qb.json'), now: quotaNow }),
     });
     await assert.rejects(
       () => noKey.generateImage({ missionId: 'm1', version: 1, prompt: 'p', textInImage: false }),
-      err => err.code === 'GATEWAY_KEY_MISSING',
+      err => err.code === 'GATEWAY_KEY_MISSING' && !String(err.message).includes('endpoint-key'),
     );
     assert.equal(calls.length, 1, '缺 key 时不发请求');
   } finally {
-    delete process.env.DONEGO_GATEWAY_KEY;
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
+    if (savedEnvKey === undefined) delete process.env.DONEGO_GATEWAY_KEY; else process.env.DONEGO_GATEWAY_KEY = savedEnvKey;
     rmSync(dir, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   }
 });

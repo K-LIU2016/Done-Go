@@ -4,7 +4,10 @@
 // 流程：POST /v1/videos 建任务 → 轮询 GET /v1/videos/{id}（可注入时钟 + 指数退避，
 // 封顶 8× 间隔）→ 就绪后拉 GET /v1/videos/{id}/content 落盘。
 // 超时（VIDEO_TIMEOUT）、失败（VIDEO_FAILED，带上游 error）、取消（VIDEO_CANCELLED，
-// AbortSignal）三条路径都显式抛类型化错误；下载大小上限；key 只经 env DONEGO_GATEWAY_KEY。
+// AbortSignal）三条路径都显式抛类型化错误；下载大小上限；key 只经
+// scripts/agentic/gateway-key.mjs 运行时读取（BUILD-PLAN §2.3 红线2，W0 已合入）。
+import { gatewayKey } from '../gateway-key.mjs';
+
 export const DEFAULT_MAX_VIDEO_BYTES = 256 * 1024 * 1024;
 export const DEFAULT_POLL_INTERVAL_MS = 5000;
 export const DEFAULT_VIDEO_TIMEOUT_MS = 10 * 60 * 1000;
@@ -14,10 +17,16 @@ function typedError(code, message) {
   return Object.assign(new Error(message), { code });
 }
 
+/** 运行时解析网关 key：注入参数优先（测试 mock），缺省经 W0 冻结的唯一入口
+ *  scripts/agentic/gateway-key.mjs 读 endpoint.json（BUILD-PLAN §2.3 红线2，env 不再是通道），
+ *  缺失抛类型化错误（不含 key 值）。 */
 function resolveGatewayKey(injected) {
-  const key = injected ?? process.env.DONEGO_GATEWAY_KEY;
-  if (!key) throw typedError('GATEWAY_KEY_MISSING', '缺少网关 key：请设置 DONEGO_GATEWAY_KEY（W0 后经 gateway-key.mjs 运行时读取）');
-  return key;
+  if (injected) return injected;
+  try {
+    return gatewayKey();
+  } catch {
+    throw typedError('GATEWAY_KEY_MISSING', '缺少网关 key：经 scripts/agentic/gateway-key.mjs 读取 ~/.config/llm-gateway/endpoint.json 的 keys.donego（BUILD-PLAN §2.3 红线2）');
+  }
 }
 
 /**

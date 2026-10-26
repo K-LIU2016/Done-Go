@@ -311,9 +311,10 @@ test('runGoldenSmoke 全链路（mock 网关 + mock TTS + stub 截图）：产�
 
 test('runGoldenSmoke 生图失败不吞错：GATEWAY_KEY_MISSING 时抛出且不截图', async () => {
   const work = mkdtempSync(join(tmpdir(), 'w11-smoke-key-'));
+  const home = mkdtempSync(join(tmpdir(), 'w11-smoke-key-home-')); // 无 endpoint.json → gateway-key.mjs 抛 GATEWAY_KEY_MISSING
   const fetches = [];
-  const savedKey = process.env.DONEGO_GATEWAY_KEY;
-  delete process.env.DONEGO_GATEWAY_KEY; // 缺省 key 解析路径 = env 注入（BUILD-PLAN §2.3）
+  const savedHome = process.env.HOME;
+  process.env.HOME = home; // 缺省 key 解析路径 = gateway-key.mjs（BUILD-PLAN §2.3 红线2）
   try {
     await assert.rejects(
       () => runGoldenSmoke({
@@ -331,8 +332,9 @@ test('runGoldenSmoke 生图失败不吞错：GATEWAY_KEY_MISSING 时抛出且不
     );
     assert.equal(fetches.length, 0, '缺 key 零外呼');
   } finally {
-    if (savedKey !== undefined) process.env.DONEGO_GATEWAY_KEY = savedKey;
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
     rmSync(work, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   }
 });
 
