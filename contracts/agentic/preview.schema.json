@@ -94,6 +94,27 @@
     "narration": {
       "type": "string"
     },
+    "diff": {
+      "type": "object",
+      "required": [
+        "changed",
+        "reason"
+      ],
+      "properties": {
+        "changed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
     "boundary": {
       "type": "object",
       "required": [
