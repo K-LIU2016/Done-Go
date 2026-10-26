@@ -72,7 +72,7 @@ function fakeSpeech(available = true) {
 
 test('M17 reelHTML：.reel[role=dialog][aria-label=今日预演片] > div > .stage + .ctl 全结构（L553-560）', () => {
   const html = reelHTML(SHOTS);
-  assert.ok(html.startsWith('<div class="reel" role="dialog" aria-label="今日预演片">'), '遮罩根 + role + aria-label');
+  assert.ok(html.startsWith(`<div class="reel" role="dialog" aria-label="${DIALOG_LABEL}">`), '遮罩根 + role + aria-label');
   assert.ok(html.includes('<div class="stage">'), '16:9 舞台（比例本体在 REEL_CSS）');
   assert.ok(html.includes('<div class="prog"></div>'), '顶部进度条先于镜头（L558）');
   assert.equal((html.match(/<div class="shot" data-i=/g) || []).length, 3, '三镜 data-i 0..2');
@@ -93,6 +93,9 @@ test('M17 reelHTML 容错：空 shots 不炸、cap 空壳仍渲染、零镜', ()
   assert.equal(reelHTML(undefined), reelHTML([]), '非数组容忍为空');
   const holes = reelHTML([null, SHOTS[0], undefined]);
   assert.equal((holes.match(/<div class="shot"/g) || []).length, 1, 'null/undefined 镜过滤');
+  const sink = { _h: undefined, _v: '', get innerHTML() { return this._v; }, set innerHTML(v) { this._v = v; } };
+  assert.equal(setHTML(sink, 'x'), true, 'setHTML 兜底：新内容写一次');
+  assert.equal(setHTML(sink, 'x'), false, '同内容零写（prototype L328 增量基石）');
 });
 
 test('M17 shotHTML：data-i + body 外部合成 HTML 原样入镜（W11 薄接缝，plan §1.5）', () => {
@@ -158,7 +161,7 @@ test('M17 ensureStyles：幂等注入、无 document 安全跳过（boundaries e
   const doc = {
     _tag: null,
     querySelector: (sel) => doc._tag && sel === 'style[data-agentic-reel]' ? doc._tag : null,
-    createElement: () => ({ ...styleStub, setAttribute(k, v) { if (k === 'data-agentic-reel') doc._tag = this; } }),
+    createElement: () => ({ ...styleStub, setAttribute(k) { if (k === 'data-agentic-reel') doc._tag = this; } }),
     head: { appendChild: () => { appended += 1; return null; } },
   };
   assert.equal(ensureStyles(doc), true);
@@ -300,7 +303,8 @@ test('M17 defaultSchedule/defaultSpeech：node 无 window 的安全退化', () =
   cancel();
   const none = defaultSpeech(undefined);
   assert.equal(none.available, false);
-  assert.equal(typeof none.speak, 'function' && typeof none.cancel, 'function');
+  assert.equal(typeof none.speak, 'function');
+  assert.equal(typeof none.cancel, 'function');
 });
 
 test('M17 defaultSpeech 浏览器分支：逐句装配 zh-CN/rate1.1、onend/onerror 透传、cancel 直达（L564-569）', () => {
@@ -362,8 +366,12 @@ function stubHost() {
 
 /** 装配与 reelHTML 同构的节点桩（mount 首写后由测试布防，壳懒查询） */
 function rigHost(host, n = SHOTS.length) {
-  const shots = Array.from({ length: n }, (_, i) => stubNode('div', 'shot'));
-  shots.forEach((s, i) => { s.dataset.i = String(i); });
+  const shots = [];
+  for (let i = 0; i < n; i += 1) {
+    const s = stubNode('div', 'shot');
+    s.dataset.i = String(i);
+    shots.push(s);
+  }
   host.map = {
     '.reel .cap small': stubNode('small', ''),
     '.reel .cap span': stubNode('span', ''),
