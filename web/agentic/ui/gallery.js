@@ -17,28 +17,13 @@
 // 分层：纯核（HTML 字符串纯函数，node --test 可测）+ DOM 壳 mount/update。
 // 增量（PRD §5.2 末教训 + DAG M08「update 换样张不整绘」）：
 //   同内容 update 零写；同数量换内容只逐 figure 打补丁（figure 节点身份保留）；
-//   变数量/补不了才整绘。esc/setHTML 探测 M01 utils.js，未落地本地兜底（同 M03-M05 模式）。
-let escShared = null;
-let setHTMLShared = null;
-try {
-  const utils = await import('./utils.js');
-  if (typeof utils.esc === 'function') escShared = utils.esc;
-  if (typeof utils.setHTML === 'function') setHTMLShared = utils.setHTML;
-} catch {
-  // utils.js 不存在（M01 未落地）：走本地兜底，规则与 prototype L328-329 + 五实体一致
-}
+//   变数量/补不了才整绘。
 
-const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-/** 五实体转义：& < > " '（M01 XSS 基线，所有外部字符串必经） */
-export const esc = escShared ?? ((s) => String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]));
+// M01 utils.js 已落地为硬依赖：esc/setHTML 直引共享实现，单一来源
+//（并行落地期的「动态探测 + 本地同规则兜底」已收编，组件顶层 await 随之移除）。
+import { esc, setHTML } from './utils.js';
 
-/** 内容没变就不重写 DOM（prototype L328：增量更新基石） */
-export const setHTML = setHTMLShared ?? ((el, html) => {
-  if (el._h === html) return false;
-  el._h = html;
-  el.innerHTML = html;
-  return true;
-});
+export { esc, setHTML }; // 保持既有 re-export 导入面（单测/组件页按组件模块导入）
 
 const arr = (v) => (Array.isArray(v) ? v : []);
 
@@ -161,7 +146,7 @@ export function frameHTML(sample) {
  * 孤立/非白名单的 </b> 保持转义，绝不从非白名单输入产出真实标记。
  */
 export function capHTML(sample) {
-  const escaped = String(sample?.cap ?? '').replace(/[&<>"']/g, (c) => ESC_MAP[c]);
+  const escaped = esc(sample?.cap ?? ''); // 五实体转义同 ESC_MAP（共享 esc，单一来源）
   let out = '';
   let open = false;
   let i = 0;

@@ -13,10 +13,11 @@ const ITEMS = [
 
 async function mount(page: import('@playwright/test').Page, extra: Record<string, unknown> = {}) {
   await page.goto('/component.html?c=activity-feed');
-  await page.evaluate((patch) => {
-    const props = { signed: true, cost: COST, items: ITEMS, ...patch } as Record<string, unknown>;
+  // COST/ITEMS 必须经 evaluate 入参进入页面上下文（Node 常量不会随闭包序列化）
+  await page.evaluate(([patch, cost, items]) => {
+    const props = { signed: true, cost, items, ...patch } as Record<string, unknown>;
     window.__mount('activity-feed', props);
-  }, extra);
+  }, [extra, COST, ITEMS] as const);
 }
 
 test('M12 未签约空态文案（prototype L474）', async ({ page }) => {
@@ -53,17 +54,17 @@ test('M12 「为什么」用 details 原生展开（prototype L121）', async ({
 
 test('M12 追加新条目：旧行不重排、.new 转移（增量约束，DAG M12）', async ({ page }) => {
   await mount(page);
-  await page.evaluate(() => {
+  await page.evaluate((cost) => {
     document.querySelectorAll('.feed .it')[2].setAttribute('data-marker', 'keep'); // 最旧一条
     window.__update({
-      signed: true, cost: COST,
+      signed: true, cost,
       items: [...[
         { t: '13:30', icon: '🔎', text: '研究员 ×3 开始检索', why: '合同允许提前 30 分钟准备' },
         { t: '13:44', icon: '🗂', text: '找到 23 个来源，保留 9 个' },
         { t: '14:05', icon: '✍️', text: '写作者开始合成第 1–5 节' },
       ], { t: '14:30', icon: '🧪', text: '校对员核验引用', why: '验证与写作使用不同模型' }],
     });
-  });
+  }, COST);
   await expect(page.locator('.feed .it')).toHaveCount(4);
   await expect(page.locator('.feed .it time').first()).toHaveText('14:30');
   expect(await page.locator('.feed .it.new').count()).toBe(1);

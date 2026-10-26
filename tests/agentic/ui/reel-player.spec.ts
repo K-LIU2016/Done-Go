@@ -95,7 +95,7 @@ test('M17 播完变「重播」，点击从头（prototype L565/L623）', async 
 test('M17 关闭按钮与 Esc 都触发 onClose 并移除遮罩（prototype L579/L648）', async ({ page }) => {
   await mount(page);
   await page.locator('.reel .ctl button:has-text("关闭")').click();
-  await page.evaluate(() => window.__mount('reel-player', { shots: SHOTS, onClose: () => window.__calls!.push(['close']) }));
+  await page.evaluate((shots) => window.__mount('reel-player', { shots, onClose: () => window.__calls!.push(['close']) }), SHOTS);
   await page.keyboard.press('Escape');
   expect(await page.evaluate(() => window.__calls)).toEqual([['close'], ['close']]);
   expect(await page.locator('.reel').count()).toBe(0);

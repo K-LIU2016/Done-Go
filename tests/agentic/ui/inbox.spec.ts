@@ -16,13 +16,14 @@ const NEEDS = [
 
 async function mountInbox(page: import('@playwright/test').Page, needs = NEEDS) {
   await page.goto('/component.html?c=inbox');
-  await page.evaluate((n) => {
+  // blocks 必须经 evaluate 入参进入页面上下文（Node 常量不会随闭包序列化）
+  await page.evaluate(([n, blocks]) => {
     window.__calls = [];
-    const props = { needs: n, blocks: BLOCKS } as Record<string, unknown>;
+    const props = { needs: n, blocks } as Record<string, unknown>;
     props.onAnswer = (id: string, value: string) => window.__calls!.push(['answer', id, value]);
     props.onClose = () => window.__calls!.push(['close']);
     window.__mount('inbox', props);
-  }, needs);
+  }, [needs, BLOCKS] as const);
 }
 
 test('M14 need 卡：标题/正文/所属块/截止/超时默认（PRD §5.5 规则）', async ({ page }) => {

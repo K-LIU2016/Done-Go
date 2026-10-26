@@ -101,6 +101,26 @@ test('M18 getData：提供黄金场景全套访问面（M02 fixtures.js 落地�
   assert.ok(Array.isArray(d.examples) && d.examples.length === 2, '讨论例句常在（app 侧补充数据）');
 });
 
+test('M18 数据单一来源：黄金数据与 fixtures.js 同引用（镜像双份回归护栏；原报告『镜像等价 10/10』入库固化）', async () => {
+  const fx = await import('../../../../web/agentic/ui/fixtures.js');
+  const d = getData();
+  // 同一引用：任何人重新引入 app 侧逐字双份（LOCAL_FIXTURES 自带第二份数据）在此即红
+  assert.equal(d.blocks, fx.blocks, 'blocks 必须来自 fixtures.js（不得有第二份）');
+  assert.equal(d.preview, fx.preview, 'preview 必须来自 fixtures.js');
+  assert.equal(d.script, fx.script, 'script 必须来自 fixtures.js');
+  assert.equal(d.boundaries, fx.boundaries, 'boundaries 必须来自 fixtures.js');
+  assert.equal(d.narration, fx.narration, 'narration 必须来自 fixtures.js');
+  assert.equal(d.samplesFor, fx.samplesFor, 'samplesFor 必须来自 fixtures.js');
+  assert.equal(d.storyEvents, fx.storyEvents, 'storyEvents 必须来自 fixtures.js');
+  assert.equal(d.SYS_WONT, fx.SYS_WONT, 'SYS_WONT 必须来自 fixtures.js');
+  assert.equal(d.traceText, fx.traceText, 'traceText 必须来自 fixtures.js');
+  // 原人工核对的「镜像等价 10/10」：5 块 × patched 两态 = 10 个 Preview 对象逐个 deepEqual
+  for (const id of ['r', 'c', 'f', 'b', 's']) {
+    assert.deepEqual(d.preview(id), fx.preview(id), `preview(${id}) 等价`);
+    assert.deepEqual(d.preview(id, { patched: true }), fx.preview(id, { patched: true }), `preview(${id}, patched) 等价`);
+  }
+});
+
 test('M18 preview 两态：r 块置信度 0.64→0.78、契约段 schema-true、patched 大纲带 add/del/chg（prototype L260-275；M21 对齐 W0 FROZEN v1）', () => {
   const data = getData();
   const base = data.preview('r');

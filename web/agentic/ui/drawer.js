@@ -12,27 +12,12 @@
 //   （由各渲染器产出，内容属受控白名单，本壳不做二次转义）。
 // 键盘可达：tablist 方向键 ←→ 循环 + Home/End（roving tabindex，选中即聚焦）；
 //   Esc（document 级）→ onClose()，≤720px 底部抽屉（上滑把手，见 DRAWER_CSS）。
-// esc/setHTML 探测 M01 web/agentic/ui/utils.js（同 registry.js 并行落地模式），未落地时本地兜底。
-let escShared = null;
-let setHTMLShared = null;
-try {
-  const utils = await import('./utils.js');
-  if (typeof utils.esc === 'function') escShared = utils.esc;
-  if (typeof utils.setHTML === 'function') setHTMLShared = utils.setHTML;
-} catch {
-  // utils.js 不存在（M01 未落地）：本地兜底，规则与 prototype L328-329 一致（五实体 + 内容比对跳过）
-}
 
-const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-/** 五实体转义（M01 XSS 基线）：外部字符串入 HTML/属性必经 */
-export const esc = escShared ?? ((s) => String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]));
-/** 内容没变就不重写 DOM（prototype L328：执行中的按钮/展开的为什么/字幕保持稳定） */
-export const setHTML = setHTMLShared ?? ((el, html) => {
-  if (!el || el._h === html) return false;
-  el._h = html;
-  el.innerHTML = html;
-  return true;
-});
+// M01 utils.js 已落地为硬依赖：esc/setHTML 直引共享实现，单一来源
+//（并行落地期的「动态探测 + 本地同规则兜底」已收编，组件顶层 await 随之移除）。
+import { esc, setHTML } from './utils.js';
+
+export { esc, setHTML }; // 保持既有 re-export 导入面（单测/组件页按组件模块导入）
 
 // ---------- 常量（prototype L199 / L211-218 原文） ----------
 export const STAGE_ORDER = ['say', 'see', 'sign', 'run'];

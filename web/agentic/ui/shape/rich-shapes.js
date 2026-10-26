@@ -6,7 +6,7 @@
 //   纯核：richShapes.checklist/timeline/slides/diffSummary/mapRoute/personCard/sample(block) → html string
 //   壳：mount(el, { blocks }) → handle；handle.update({ blocks }) 增量（内容未变不重写，prototype L328 语义）
 //   自注册：import 本模块即把七个类型 registerShape 进 registry（M03），renderShape 可直接分发。
-// esc/setHTML 经 registry 共享（registry 自身探测 M01 utils.js，未落地时本地兜底，同 M03 模式）。
+// esc/setHTML 经 registry re-export 共享（M01 utils.js 单一来源）。
 import { esc, setHTML, registerShape, renderShape } from './registry.js';
 
 const arr = (v) => (Array.isArray(v) ? v : []);

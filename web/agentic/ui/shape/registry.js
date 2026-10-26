@@ -2,30 +2,13 @@
 // 契约（tests/agentic/ui/unit/shape-text.test.mjs）：
 //   registerShape(type, fn)  注册某 block.type 的渲染器（后者覆盖前者）
 //   renderShape(block, ctx)  按 block.type 分发；未知类型降级为纯文本（PRD §10.3 末行）
-// 依赖：M01 web/agentic/ui/utils.js 的 esc/setHTML（五实体转义 / 增量重写跳过，
-// prototype.html L328-329 模式）。M01 与本模块并行开发：utils.js 尚未落地时用
-// 本地同规则兜底，落地后自动改走共享实现（下方动态 import 探测，只探测一次）。
-let escShared = null;
-let setHTMLShared = null;
-try {
-  const utils = await import('../utils.js');
-  if (typeof utils.esc === 'function') escShared = utils.esc;
-  if (typeof utils.setHTML === 'function') setHTMLShared = utils.setHTML;
-} catch {
-  // utils.js 不存在（M01 未落地）：走本地兜底，规则与 prototype L329 + 五实体一致
-}
+// 依赖：M01 web/agentic/ui/utils.js 的 esc/setHTML（五实体转义 / 增量重写跳过，prototype.html L328-329 模式）。
 
-const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-/** 五实体转义：& < > " '（M01 XSS 基线，所有外部字符串必经） */
-export const esc = escShared ?? ((s) => String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]));
+// M01 utils.js 已落地为硬依赖：esc/setHTML 直引共享实现，单一来源
+//（并行落地期的「动态探测 + 本地同规则兜底」已收编，组件顶层 await 随之移除）。
+import { esc, setHTML } from '../utils.js';
 
-/** 内容没变就不重写 DOM（prototype L328：增量更新基石，保住按钮/展开态/字幕） */
-export const setHTML = setHTMLShared ?? ((el, html) => {
-  if (el._h === html) return false;
-  el._h = html;
-  el.innerHTML = html;
-  return true;
-});
+export { esc, setHTML }; // 保持既有 re-export 导入面（单测/组件页按组件模块导入）
 
 const shapes = new Map();
 

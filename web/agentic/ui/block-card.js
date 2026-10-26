@@ -9,28 +9,12 @@
 // 分层：纯核（HTML 字符串纯函数，node --test 可测）+ DOM 壳 mount/update（增量逐卡打补丁，
 // PRD §5.2 末教训：整块重绘会丢按钮/展开态——块集合不变时绝不重写容器）。
 // 依赖：M01 web/agentic/ui/utils.js 的 esc/setHTML（五实体转义 / 内容比对跳过重写）。
-// M01 未落地时本地同规则兜底，落地后自动切共享实现（与 shape/registry.js 同款探测，只探测一次）。
-let escShared = null;
-let setHTMLShared = null;
-try {
-  const utils = await import('./utils.js');
-  if (typeof utils.esc === 'function') escShared = utils.esc;
-  if (typeof utils.setHTML === 'function') setHTMLShared = utils.setHTML;
-} catch {
-  // utils.js 不存在（M01 未落地）：走本地兜底，规则与 prototype L328-329 + 五实体一致
-}
 
-const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-/** 五实体转义：& < > " '（M01 XSS 基线，所有外部字符串必经） */
-export const esc = escShared ?? ((s) => String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]));
+// M01 utils.js 已落地为硬依赖：esc/setHTML 直引共享实现，单一来源
+//（并行落地期的「动态探测 + 本地同规则兜底」已收编，组件顶层 await 随之移除）。
+import { esc, setHTML } from './utils.js';
 
-/** 内容没变就不重写 DOM（prototype L328：增量更新基石） */
-export const setHTML = setHTMLShared ?? ((el, html) => {
-  if (el._h === html) return false;
-  el._h = html;
-  el.innerHTML = html;
-  return true;
-});
+export { esc, setHTML }; // 保持既有 re-export 导入面（单测/组件页按组件模块导入）
 
 const txt = (v) => esc(v ?? '');
 

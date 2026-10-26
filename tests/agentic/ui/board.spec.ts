@@ -16,16 +16,17 @@ const SEGS = [
 
 async function mount(page: import('@playwright/test').Page, extra: Record<string, unknown> = {}) {
   await page.goto('/component.html?c=board');
-  await page.evaluate((patch) => {
+  // BLOCKS/SEGS 必须经 evaluate 入参进入页面上下文（Node 常量不会随闭包序列化）
+  await page.evaluate(([patch, blocks, segs]) => {
     window.__calls = [];
     const props = {
-      blocks: BLOCKS, segs: SEGS, now: 840, running: true, paused: false, speed: 1,
+      blocks, segs, now: 840, running: true, paused: false, speed: 1,
       simState: '执行中（模拟时钟）', ...patch,
     } as Record<string, unknown>;
     props.onPauseAll = () => window.__calls!.push(['pauseAll']);
     props.onSpeed = () => window.__calls!.push(['speed']);
     window.__mount('board', props);
-  }, extra);
+  }, [extra, BLOCKS, SEGS] as const);
 }
 
 test('M15 每块一条泳道：name + track（prototype L509）', async ({ page }) => {
@@ -70,11 +71,11 @@ test('M15 toolbar：全部暂停（未运行禁用/暂停态文案「继续」�
 
 test('M15 update 只挪样式不重建行（50 块 60fps 约束，DAG M15）', async ({ page }) => {
   await mount(page);
-  await page.evaluate(() => {
+  await page.evaluate(([blocks, segs]) => {
     document.querySelector('.lane .track .seg')!.setAttribute('data-marker', 'keep');
     document.querySelector('.nowline')!.setAttribute('data-marker', 'nl');
-    window.__update({ blocks: BLOCKS, segs: SEGS, now: 900, running: true, paused: false, speed: 1, simState: '执行中' });
-  });
+    window.__update({ blocks, segs, now: 900, running: true, paused: false, speed: 1, simState: '执行中' });
+  }, [BLOCKS, SEGS] as const);
   expect(await page.getAttribute('.lane .track .seg', 'data-marker')).toBe('keep');
   expect(await page.getAttribute('.nowline', 'data-marker')).toBe('nl');
   const left = await page.evaluate(() => parseFloat((document.querySelector('.nowline') as HTMLElement).style.left));
