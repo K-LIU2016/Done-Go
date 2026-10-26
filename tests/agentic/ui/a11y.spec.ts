@@ -125,6 +125,7 @@ test('M19 a11y · reduced-motion：reel Ken Burns 与 capcard 升级动画全禁
   await openDemo(page);
   // reel：.on 镜头动画名 none（reel-player REEL_CSS rm 段）
   await page.locator('[data-reel]').first().click();
+  const reel = page.locator('.reel[role=dialog]');
   const reelShot = page.locator('.reel .shot.on').first();
   await expect(reelShot).toBeVisible({ timeout: 10_000 });
   const shotAnim = await page.evaluate(() => {
@@ -135,6 +136,8 @@ test('M19 a11y · reduced-motion：reel Ken Burns 与 capcard 升级动画全禁
   });
   expect(shotAnim).not.toBeNull();
   expect(shotAnim!.name).toBe('none');
+  await page.keyboard.press('Escape'); // 关播放器再走拍一下（全屏遮罩会拦截后续点击）
+  await expect(reel).toHaveCount(0);
   // capcard：快→深升级 capup 动画禁（capture-card rm 段 + 内联 motionApply）
   await page.locator('button.block[data-b="b"]').click();
   await page.locator('[data-capture]').first().click();
@@ -148,29 +151,25 @@ test('M19 a11y · reduced-motion：reel Ken Burns 与 capcard 升级动画全禁
 });
 
 test('M19 a11y · 深色两路：?theme=dark 参数路 + prefers-color-scheme 媒体路（plan.md M01/M18 深色双路）', async ({ page }) => {
+  // 深色 token 挂在 .ag-app（APP_CSS :root[data-theme=dark] .ag-app 作用域），探测该容器底色
+  const bgOf = () => page.evaluate(() => {
+    const el = document.querySelector('.ag-app');
+    return el ? getComputedStyle(el).backgroundColor : '';
+  });
   // 基准浅色
   await openDemo(page);
-  const light = await page.evaluate(() => ({
-    theme: document.documentElement.dataset.theme ?? '',
-    body: getComputedStyle(document.body).backgroundColor,
-    html: getComputedStyle(document.documentElement).backgroundColor,
-  }));
+  const light = await bgOf();
   // 路一：[data-theme] 参数（demo.html?theme=dark 契约）
   await openDemo(page, 'theme=dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  const darkParam = await page.evaluate(() => ({
-    body: getComputedStyle(document.body).backgroundColor,
-    html: getComputedStyle(document.documentElement).backgroundColor,
-  }));
-  expect(darkParam.body !== light.body || darkParam.html !== light.html, '深色参数路应改变底色').toBe(true);
-  // 路二：媒体查询（无参数，仅 emulateMedia）
+  const darkParam = await bgOf();
+  expect(darkParam !== light, '深色参数路应改变底色').toBe(true);
+  // 路二：媒体查询（无参数，仅 emulateMedia；:root:not([data-theme=light]) 媒体段）
   await page.emulateMedia({ colorScheme: 'dark' });
   await openDemo(page);
-  const darkMedia = await page.evaluate(() => ({
-    body: getComputedStyle(document.body).backgroundColor,
-    html: getComputedStyle(document.documentElement).backgroundColor,
-  }));
-  expect(darkMedia.body !== light.body || darkMedia.html !== light.html, 'prefers-color-scheme 深色路应改变底色').toBe(true);
+  const darkMedia = await bgOf();
+  expect(darkMedia !== light, 'prefers-color-scheme 深色路应改变底色').toBe(true);
+  expect(darkMedia).toBe(darkParam); // 两路收敛到同一套深色 token
 });
 
 test('M19 a11y · 拍一下快→深：原地升级同一张卡 + 动作反馈（PRD §6.8.2，prototype L586-589/626）', async ({ page }) => {
@@ -182,7 +181,7 @@ test('M19 a11y · 拍一下快→深：原地升级同一张卡 + 动作反馈�
   await expect(cap.first()).toContainText('即时'); // 快卡 1.5s：一句话看到了什么
   // 原地升级：节点保活（增量约束——标记不因升级丢失）
   await cap.first().evaluate((el) => el.setAttribute('data-marker', 'keep'));
-  await expect(cap.deep()).toBeVisible({ timeout: 15_000 }); // 深感知 6s：具体建议
+  await expect(page.locator('.capcard.deep')).toBeVisible({ timeout: 15_000 }); // 深感知 6s：具体建议
   await expect(cap.first()).toContainText('已升级');
   await expect(cap.first()).toContainText('建议');
   await expect(cap.first()).toHaveAttribute('data-marker', 'keep');
@@ -199,7 +198,7 @@ test('M19 a11y · reel：role=dialog 打开、首镜字幕即达、Esc 关闭（
   await expect(reel).toHaveAttribute('aria-label', '今日预演片');
   await expect(reel.locator('.shot.on')).toHaveCount(1);
   await expect(reel.locator('.cap')).not.toBeEmpty(); // 首镜字幕同步入（aria-live 常驻）
-  await expect(reel.locator('.wm')).toHaveText('示意'); // 示意水印（PRD §5.2.1）
+  await expect(reel.locator('.wm').first()).toHaveText('示意'); // 示意水印（PRD §5.2.1；镜身样张亦各自带 .wm）
   await page.keyboard.press('Escape');
   await expect(reel).toHaveCount(0);
 });

@@ -128,7 +128,7 @@ test('M19 黄金场景 · 全链：签约 hash → 执行可观测 → need 作�
   await showTab(page, 'art');
   await expect(page.locator('.artifact .evidence')).toBeVisible({ timeout: 200_000 });
   await expect(page.locator('.artifact h3')).toContainText('v1');
-  await page.locator('.artifact [data-acc]').click();
+  await page.locator('[data-acc]').click();
   await expect(page.locator('.gain')).toContainText('计入为你腾出的时间');
   await expect(page.locator('button.block[data-b="r"]')).toContainText('已交付', { timeout: 30_000 });
 
@@ -136,17 +136,22 @@ test('M19 黄金场景 · 全链：签约 hash → 执行可观测 → need 作�
   await openInbox(page);
   const firstOpt = page.locator('.need .acts [data-ans]').first();
   await expect(firstOpt).toBeVisible({ timeout: 150_000 });
-  const firstNeed = page.locator('.need').filter({ has: firstOpt });
+  const needId = (await firstOpt.getAttribute('data-ans')) ?? '';
+  expect(needId).not.toBe('');
+  const firstNeed = page.locator(`.need[data-need="${needId}"]`);
   const needTitle = ((await firstNeed.locator('b').first().textContent()) ?? '').trim();
   expect(needTitle).not.toBe('');
   await firstOpt.click();
   await expect(firstNeed).toContainText('已处理：你选了「', { timeout: 15_000 });
+  // 关面板再切块（移动端收件箱 fixed 卡片近全宽，会拦截块卡点击）
+  const closeBtn = page.locator('[data-inbox-close]').first();
+  if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click();
 
   // ---- 交 · 要求修改 c：意见 → 新一轮 Run（保留旧版本语义，PRD §5.6，prototype L642）
   await page.locator('button.block[data-b="c"]').click();
   await showTab(page, 'art');
   await expect(page.locator('.artifact .evidence')).toBeVisible({ timeout: 240_000 });
-  await page.locator('.artifact [data-rev]').click();
+  await page.locator('[data-rev]').click();
   const opinion = page.locator('.opinion');
   await expect(opinion).toBeVisible();
   await opinion.fill('第 4 节再短一点');

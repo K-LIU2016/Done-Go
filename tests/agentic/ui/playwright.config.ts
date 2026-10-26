@@ -2,7 +2,7 @@
 // desktop 1280×900 + mobile 390×844（isMobile/hasTouch）双 project（plan.md M02 / BUILD-PLAN §2.4.5）；
 // 时区 Asia/Shanghai（黄金场景时刻表）；reducedMotion 由 spec 内 page.emulateMedia 切换（M19 a11y）。
 // 运行：flock -w 900 /tmp/donego-s2d-pw.lock npx playwright test -c tests/agentic/ui/playwright.config.ts <spec...>
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: '.',
@@ -19,8 +19,12 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { viewport: { width: 1280, height: 900 } } },
-    // iPhone 12 Pro = 390×844 · isMobile · hasTouch（plan.md M02 移动端断点口径）
-    { name: 'mobile', use: { ...devices['iPhone 12 Pro'] } },
+    // 390×844 · isMobile · hasTouch（plan.md M02 移动端口径）。不用 devices['iPhone *'] 预设——
+    // 那会绑定 WebKit，本机 ms-playwright 只装了 Chromium（无需下载浏览器）。
+    {
+      name: 'mobile',
+      use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
+    },
   ],
   webServer: {
     command: 'node helpers/serve.mjs --port 17621',
