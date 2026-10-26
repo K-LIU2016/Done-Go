@@ -38,7 +38,7 @@ test('loadDeviceConfig：无文件 → null；损坏 → CONFIG_CORRUPT', () => 
 // ── cli.mjs ─────────────────────────────────────────────────
 class FakeWebSocket extends EventEmitter {
   static created = [];
-  constructor(url) { super(); this.url = url; FakeWebSocket.created.push(this); }
+  constructor(url, options) { super(); this.url = url; this.options = options; FakeWebSocket.created.push(this); }
   send() {} ping() {} close() { this.emit('close', 1000, ''); } terminate() {}
 }
 
@@ -108,7 +108,8 @@ test('start：已配对 → 用存的 token/hubUrl 发起出站 WSS（不读密�
     assert.equal(FakeWebSocket.created.length, 1, '恰一条出站连接');
     const url = FakeWebSocket.created[0].url;
     assert.ok(url.startsWith('wss://hub.example/api/bridge'), url);
-    assert.ok(url.includes('tok'.repeat(20)), '带设备令牌');
+    assert.equal(url.includes('tok'.repeat(20)), false, '令牌不得进入 URL');
+    assert.equal(FakeWebSocket.created[0].options.headers.authorization, `Bearer ${'tok'.repeat(20)}`);
   } finally { t.cleanup(); }
 });
 
