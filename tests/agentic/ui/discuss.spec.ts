@@ -12,12 +12,13 @@ const NOTE = {
 
 async function mount(page: import('@playwright/test').Page, extra: Record<string, unknown> = {}) {
   await page.goto('/component.html?c=discuss');
-  await page.evaluate((patch) => {
+  // examples 经 evaluate 参数穿透进浏览器侧（自由变量在 page 上下文不可见，M02 harness 落地即抛）
+  await page.evaluate(([patch, examples]) => {
     window.__calls = [];
-    const props = { examples: EXAMPLES, ...patch } as Record<string, unknown>;
+    const props = { examples, ...patch } as Record<string, unknown>;
     props.onSay = (text: string) => window.__calls!.push(['say', text]);
     window.__mount('discuss', props);
-  }, extra);
+  }, [extra, EXAMPLES] as const);
 }
 
 test('M10 例句 chips 渲染且点击触发 onSay（prototype L410）', async ({ page }) => {
