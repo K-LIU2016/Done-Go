@@ -4,7 +4,7 @@
 //   richShapes = { checklist, timeline, slides, diffSummary, mapRoute, personCard, sample }（纯函数 block → html）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { richShapes } from '../../../../web/agentic/ui/shape/rich-shapes.js';
+import { richShapes, mount } from '../../../../web/agentic/ui/shape/rich-shapes.js';
 import { renderShape } from '../../../../web/agentic/ui/shape/registry.js';
 
 const { checklist, timeline, slides, diffSummary, mapRoute, personCard, sample } = richShapes;
@@ -172,4 +172,71 @@ test('M04 registry：六个富类型都能经 renderShape 出非空 HTML', () =>
     assert.equal(typeof html, 'string');
     assert.ok(html.length > 0, `${blk.type} 不应渲染为空`);
   }
+});
+
+// ---- 边界收敛（空/缺字段不炸、空数组出空容器）----
+test('M04 边界：缺省字段与空数组不抛错', () => {
+  for (const fn of [checklist, timeline, slides, diffSummary, mapRoute, personCard, sample]) {
+    assert.equal(typeof fn({}), 'string');
+    assert.equal(typeof fn(null), 'string', `${fn.name} 需容忍 null block`);
+  }
+  assert.ok(checklist({}).includes('<ul class="checklist"></ul>'));
+  assert.ok(diffSummary({}).includes('class="diffSummary"'));
+  assert.ok(!diffSummary({}).includes('class="reason"'), '无 reason 不输出空段落');
+});
+
+test('M04 slides 图片白名单：仅相对路径放行，协议/遍历一律剔除', () => {
+  const safe = slides({ pages: [{ title: 'T', image: 'assets/illus-lesson.jpg' }] });
+  assert.ok(safe.includes('class="pic"'), '相对白名单路径应渲染配图栏');
+  for (const evil of ['http://x/x.jpg', '//x/x.jpg', '/etc/passwd', '../secrets/x.jpg', 'a/../b.jpg', 'data:image/png;base64,xxx']) {
+    const html = slides({ pages: [{ title: 'T', image: evil }] });
+    assert.ok(!html.includes('class="pic"'), `${evil} 不得成为配图`);
+    assert.ok(!html.includes(evil), '原串不得出现在 HTML 里');
+  }
+});
+
+test('M04 timeline：非 you 事件无 you 类；data-at 保留时刻供横向刻度定位', () => {
+  const html = timeline({ items: [{ at: '14:52', text: '交付' }] });
+  assert.ok(!html.includes('class="ev you'));
+  assert.ok(html.includes('data-at="14:52"'));
+});
+
+test('M04 sample：列表分组/空行分段/空文本', () => {
+  const html = sample({ text: '段一\n\n- a\n- b\n\n段二\n- c' });
+  assert.ok(html.includes('<p>段一</p>'));
+  assert.ok((html.match(/<ul>/g) || []).length === 2, '不连续的 - 行分成两个列表');
+  assert.ok(html.includes('<li>c</li>'));
+  assert.equal(sample({ text: '' }), '<div class="sample"></div>');
+  assert.ok(!sample({ text: '**未闭合' }).includes('<b>'), '未闭合 ** 不产生标签');
+});
+
+// ---- 组件壳 mount/update（DOM 桩，同 M01 stubEl 模式）----
+function stubEl() {
+  return {
+    _h: undefined,
+    _html: '',
+    writes: 0,
+    get innerHTML() { return this._html; },
+    set innerHTML(v) { this.writes += 1; this._html = v; },
+  };
+}
+
+test('M04 mount：blocks 渲染进 el；update 内容未变不重写（增量更新基石）', () => {
+  const el = stubEl();
+  const props = { blocks: [
+    { type: 'checklist', items: [{ text: 'a', done: true }] },
+    { type: 'hologram', text: '未知 <b>危险</b>' },
+  ] };
+  const handle = mount(el, props);
+  assert.equal(el.writes, 1);
+  assert.ok(el.innerHTML.includes('class="checklist"'));
+  assert.ok(el.innerHTML.includes('&lt;b&gt;危险&lt;/b&gt;'), '未知类型经 registry 降级为转义纯文本');
+  handle.update(props);                       // 同内容
+  assert.equal(el.writes, 1, '内容未变不得重写 DOM');
+  handle.update({ blocks: [{ type: 'mapRoute', title: 'T', lines: ['l'] }] });
+  assert.equal(el.writes, 2, '内容变化应重写');
+  assert.ok(el.innerHTML.includes('class="route"'));
+  handle.update({});                          // 无 blocks → 空
+  assert.equal(el.writes, 3);
+  assert.equal(el.innerHTML, '');
 });
