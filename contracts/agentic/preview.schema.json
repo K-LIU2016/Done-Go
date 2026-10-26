@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "missionId",
+    "version",
+    "confidence",
+    "shape",
+    "storyboard",
+    "narration",
+    "boundary",
+    "samples",
+    "reel",
+    "scene"
+  ],
+  "properties": {
+    "missionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "shape": {
+      "type": "object",
+      "required": [
+        "kind",
+        "title",
+        "blocks"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "storyboard": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "at",
+          "actor",
+          "text"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "minLength": 1
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "need": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "narration": {
+      "type": "string"
+    },
+    "boundary": {
+      "type": "object",
+      "required": [
+        "will",
+        "wont",
+        "needs",
+        "budget"
+      ],
+      "properties": {
+        "will": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "wont": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "budget": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "samples": {
+      "type": "array",
+      "items": {
+        "$ref": "preview-sample.schema.json"
+      }
+    },
+    "reel": {
+      "$ref": "preview-reel.schema.json"
+    },
+    "scene": {
+      "$ref": "preview-scene.schema.json"
+    }
+  },
+  "additionalProperties": false,
+  "description": "声明式 A2UI 式预演 JSON。PRD §10.3。",
+  "$id": "preview.schema.json",
+  "title": "Preview"
+}

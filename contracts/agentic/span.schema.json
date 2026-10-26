@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "kind",
+    "startedAt",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "invoke_agent",
+        "execute_tool",
+        "chat",
+        "donego.need"
+      ]
+    },
+    "parentId": {
+      "type": "string"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "endedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "running",
+        "ok",
+        "error"
+      ]
+    },
+    "attributes": {
+      "type": "object"
+    },
+    "inputRef": {
+      "type": "string"
+    },
+    "outputRef": {
+      "type": "string"
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "OTel GenAI 对齐的追踪 span。PRD §10.5。",
+  "$id": "span.schema.json",
+  "title": "Span"
+}

@@ -1,0 +1,35 @@
+{
+  "valid": [
+    {
+      "id": "connector-1",
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    },
+    {
+      "id": "connector-2",
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "x",
+      "transport": "mcp-http",
+      "reads": [],
+      "writes": [],
+      "risk": "low",
+      "processing": "local",
+      "retention": "x"
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "valid": [
+    {
+      "id": "work-order-1",
+      "parentStepId": "x",
+      "role": "researcher",
+      "objective": "x",
+      "inputs": [
+        {
+          "artifactId": "a"
+        }
+      ],
+      "acceptance": [
+        "item"
+      ],
+      "constraints": {
+        "mustNot": []
+      },
+      "budget": {
+        "calls": 1,
+        "tokens": 1,
+        "deadline": "2026-10-26T10:00:00Z"
+      },
+      "grants": [
+        {
+          "grantId": "g"
+        }
+      ],
+      "output": {
+        "schema": {}
+      }
+    },
+    {
+      "id": "work-order-2",
+      "parentStepId": "x",
+      "role": "researcher",
+      "objective": "x",
+      "inputs": [
+        {
+          "artifactId": "a"
+        }
+      ],
+      "acceptance": [
+        "item"
+      ],
+      "constraints": {
+        "mustNot": []
+      },
+      "budget": {
+        "calls": 1,
+        "tokens": 1,
+        "deadline": "2026-10-26T10:00:00Z"
+      },
+      "grants": [
+        {
+          "grantId": "g"
+        }
+      ],
+      "output": {
+        "schema": {}
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "parentStepId": "x",
+      "role": "researcher",
+      "objective": "x",
+      "inputs": [],
+      "acceptance": [],
+      "constraints": {
+        "mustNot": []
+      },
+      "budget": {
+        "calls": 1,
+        "tokens": 1,
+        "deadline": "x"
+      },
+      "grants": [],
+      "output": {
+        "schema": "x"
+      }
+    }
+  ]
+}

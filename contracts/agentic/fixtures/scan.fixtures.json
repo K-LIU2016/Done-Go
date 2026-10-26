@@ -1,0 +1,48 @@
+{
+  "valid": [
+    {
+      "id": "s1",
+      "missionId": "m1",
+      "version": 1,
+      "classification": "D1",
+      "confidence": 0.9,
+      "resources": [],
+      "missing": [],
+      "feasibility": "high",
+      "createdAt": "2026-10-26T10:00:00Z"
+    },
+    {
+      "id": "s2",
+      "missionId": "m2",
+      "version": 2,
+      "classification": "R3",
+      "confidence": 0.5,
+      "resources": [
+        {
+          "name": "camera",
+          "status": "available"
+        }
+      ],
+      "missing": [
+        "time"
+      ],
+      "feasibility": "medium",
+      "createdAt": "2026-10-26T11:00:00Z"
+    }
+  ],
+  "invalid": [
+    [
+      {
+        "id": "s1",
+        "missionId": "m1",
+        "version": 1,
+        "classification": "D1",
+        "confidence": 2,
+        "resources": [],
+        "missing": [],
+        "feasibility": "high",
+        "createdAt": "bad"
+      }
+    ]
+  ]
+}

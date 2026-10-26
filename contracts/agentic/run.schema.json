@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "id",
+    "missionId",
+    "contractHash",
+    "state",
+    "startedAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "missionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contractHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "verifying",
+        "succeeded",
+        "partial",
+        "failed",
+        "unknown",
+        "cancelled"
+      ]
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finishedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "currentStepId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "一次 Mission 执行及其 Step 树。PRD §4.1、§6.3。",
+  "$id": "run.schema.json",
+  "title": "Run"
+}

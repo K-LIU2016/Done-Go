@@ -1,0 +1,56 @@
+{
+  "valid": [
+    {
+      "orderId": "x",
+      "status": "done",
+      "artifacts": [
+        {
+          "artifactId": "a"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "test-run",
+          "title": "ok"
+        }
+      ],
+      "spent": {
+        "calls": 1,
+        "tokens": 2
+      },
+      "notes": "x"
+    },
+    {
+      "orderId": "x",
+      "status": "done",
+      "artifacts": [
+        {
+          "artifactId": "a"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "test-run",
+          "title": "ok"
+        }
+      ],
+      "spent": {
+        "calls": 1,
+        "tokens": 2
+      },
+      "notes": "x"
+    }
+  ],
+  "invalid": [
+    {
+      "status": "done",
+      "artifacts": [],
+      "evidence": [],
+      "spent": {
+        "calls": 1,
+        "tokens": 2
+      },
+      "notes": "x"
+    }
+  ]
+}

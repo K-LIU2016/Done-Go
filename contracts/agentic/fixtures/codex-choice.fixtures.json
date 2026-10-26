@@ -1,0 +1,29 @@
+{
+  "valid": [
+    {
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "reason": "x",
+      "rateLimit": {
+        "weeklyUsed": 1
+      }
+    },
+    {
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "reason": "x",
+      "rateLimit": {
+        "weeklyUsed": 1
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "effort": "low",
+      "reason": "x",
+      "rateLimit": {
+        "weeklyUsed": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "valid": [
+    {
+      "calls": 0,
+      "tokens": 0
+    },
+    {
+      "calls": 3,
+      "tokens": 1200,
+      "costCny": 0,
+      "localShare": 1
+    }
+  ],
+  "invalid": [
+    [
+      {
+        "calls": -1,
+        "tokens": 2
+      }
+    ]
+  ]
+}

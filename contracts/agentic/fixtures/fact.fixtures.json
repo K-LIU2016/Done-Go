@@ -1,0 +1,35 @@
+{
+  "valid": [
+    {
+      "id": "fact-1",
+      "ownerId": "x",
+      "subject": "x",
+      "predicate": "x",
+      "object": "x",
+      "source": "x",
+      "confidence": 1,
+      "learnedAt": "2026-10-26T10:00:00Z"
+    },
+    {
+      "id": "fact-2",
+      "ownerId": "x",
+      "subject": "x",
+      "predicate": "x",
+      "object": "x",
+      "source": "x",
+      "confidence": 1,
+      "learnedAt": "2026-10-26T10:00:00Z"
+    }
+  ],
+  "invalid": [
+    {
+      "ownerId": "x",
+      "subject": "x",
+      "predicate": "x",
+      "object": "x",
+      "source": "x",
+      "confidence": 1,
+      "learnedAt": "2026-10-26T10:00:00Z"
+    }
+  ]
+}
