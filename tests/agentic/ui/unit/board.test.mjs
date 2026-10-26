@@ -119,7 +119,7 @@ test('M15 normalizeBlocks：{id,start,end,title,status?} 四必填（start/end �
 test('M15 normalizeBlocks：status 非白名单/非字符串归空串（保留块，不渲染状态点）', () => {
   assert.equal(normalizeBlocks([{ ...BLOCKS[0], status: 'weird' }])[0].status, '');
   assert.equal(normalizeBlocks([{ ...BLOCKS[0], status: 7 }])[0].status, '');
-  assert.equal(normalizeBlocks([{ ...BLOCKS[0] }])[0].status, '', '缺省空串');
+  assert.equal(normalizeBlocks([{ id: 'r', start: '14:00', end: '15:00', title: 't' }])[0].status, '', '缺省空串');
   assert.equal(normalizeBlocks([{ ...BLOCKS[0], status: ' prep ' }])[0].status, 'prep');
 });
 
