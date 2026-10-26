@@ -1139,7 +1139,8 @@ test('integration: quest progress counts only batons the receiver completed (PRD
     const mod = await import('../../scripts/social-service.mjs');
     createService = mod.createSocialService;
   }
-  const store = createSocialStore({ databaseFile: ':memory:' });
+  // store 与 service 用同一个注入时钟，否则棒的时间按真实日期落周，跨周（如周一）时计数为 0
+  const store = createSocialStore({ databaseFile: ':memory:', now: () => '2026-10-21T08:00:00.000Z' });
   try {
     const service = createService({
       store,
