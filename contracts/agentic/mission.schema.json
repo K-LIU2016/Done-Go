@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mission.schema.json",
+  "title": "Mission",
+  "description": "一个 Block 的交付任务（1 Block : 0..1 Mission；M 混合类可有子 Mission）。状态机见 README §状态机。PRD §4.1–§4.3。",
+  "type": "object",
+  "required": ["id", "ownerId", "revision", "schemaVersion", "blockId", "goal", "state", "autonomy", "createdAt", "updatedAt"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "ownerId": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 1 },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "blockId": { "type": "string", "minLength": 1 },
+    "parentMissionId": { "type": ["string", "null"], "description": "M 混合类拆出的子 Mission 指向父" },
+    "goal": { "type": "string", "minLength": 1, "description": "一句话目标" },
+    "deliveryClass": { "type": "string", "enum": ["D1", "D2", "D3", "D4", "R1", "R2", "R3", "R4", "S", "M"], "description": "场景分类，见 PRD §3.3" },
+    "state": {
+      "type": "string",
+      "enum": ["draft", "scanned", "previewed", "discussing", "contracted", "prepping", "live", "reviewing", "delivered", "blocked", "paused", "cancelled", "failed", "expired"]
+    },
+    "blockedReason": { "type": "string", "description": "state=blocked 时必填的原因（如 need:打开本机桥）" },
+    "autonomy": { "type": "string", "enum": ["A0", "A1", "A2", "A3", "A4", "A5"], "description": "本 Mission 自治上限；A4/A5 不进合同默认值，只能逐次确认（PRD §4.3）" },
+    "scanId": { "type": ["string", "null"] },
+    "previewId": { "type": ["string", "null"] },
+    "contractId": { "type": ["string", "null"] },
+    "subMissionIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "deletedAt": { "type": ["string", "null"], "format": "date-time" }
+  },
+  "additionalProperties": false
+}

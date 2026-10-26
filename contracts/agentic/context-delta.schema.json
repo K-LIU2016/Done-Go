@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "blockId",
+    "seen",
+    "change",
+    "risk",
+    "evidence"
+  ],
+  "properties": {
+    "blockId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seen": {
+      "type": "string",
+      "minLength": 1
+    },
+    "change": {
+      "type": "string",
+      "minLength": 1
+    },
+    "risk": {
+      "type": "string",
+      "enum": [
+        "none",
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false,
+  "description": "现场感知对当前日程的变化。PRD §6.8.2。",
+  "$id": "context-delta.schema.json",
+  "title": "ContextDelta"
+}

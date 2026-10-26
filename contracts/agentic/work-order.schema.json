@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "id",
+    "parentStepId",
+    "role",
+    "objective",
+    "inputs",
+    "acceptance",
+    "constraints",
+    "budget",
+    "grants",
+    "output"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parentStepId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "researcher",
+        "writer",
+        "coder",
+        "verifier",
+        "designer",
+        "analyst",
+        "planner",
+        "guide",
+        "summarizer",
+        "other"
+      ]
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "artifact-ref.schema.json"
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "constraints": {
+      "type": "object",
+      "required": [
+        "mustNot"
+      ],
+      "properties": {
+        "mustNot": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "calls",
+        "tokens",
+        "deadline"
+      ],
+      "properties": {
+        "calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "grants": {
+      "type": "array",
+      "items": {
+        "$ref": "grant-ref.schema.json"
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": [
+        "schema"
+      ],
+      "properties": {
+        "schema": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "description": "父子 agent 只通过结构化工单通信。PRD §6.4。",
+  "$id": "work-order.schema.json",
+  "title": "WorkOrder"
+}

@@ -1,0 +1,36 @@
+{
+  "valid": [
+    {
+      "missionId": "m1",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "files": [],
+      "steps": [
+        "inspect"
+      ],
+      "risks": [],
+      "tests": []
+    },
+    {
+      "missionId": "m2",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "files": [],
+      "steps": [
+        "inspect"
+      ],
+      "risks": [],
+      "tests": []
+    }
+  ],
+  "invalid": [
+    {
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "files": [],
+      "steps": [],
+      "risks": [],
+      "tests": []
+    }
+  ]
+}
