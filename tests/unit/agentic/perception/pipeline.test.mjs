@@ -5,7 +5,10 @@
 // 对应实现：scripts/agentic/perception/pipeline.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPerceptionPipeline } from '../../../../scripts/agentic/perception/pipeline.mjs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createPerceptionPipeline, MAX_SYNC_VIDEO_SEC } from '../../../../scripts/agentic/perception/pipeline.mjs';
 
 const BLOCKS = [{ id: 'b-shelf', title: '做木书架', kind: 'craft', start: '2026-10-26T19:00:00+08:00', end: '2026-10-26T21:00:00+08:00' }];
 
@@ -43,11 +46,12 @@ const imageInput = over => ({
   ...over,
 });
 
-function harness({ fast, deep, classify = () => ({ sensitive: false, category: null, localOnly: false }), attribute, extractFrames, handoffAudio, clock } = {}) {
+function harness({ fast, deep, local, classify = () => ({ sensitive: false, category: null, localOnly: false }), attribute, extractFrames, handoffAudio, clock } = {}) {
   const events = [];
   const pipeline = createPerceptionPipeline({
     fast: fast ?? makeVision(fastResult()),
     deep: deep ?? makeVision(deepResult()),
+    local,
     classifySensitive: classify,
     attribute: attribute ?? (() => ({ status: 'matched', blockId: 'b-shelf', confidence: 0.9 })),
     extractFrames,
@@ -60,7 +64,6 @@ function harness({ fast, deep, classify = () => ({ sensitive: false, category: n
 
 test('happy path: attribution → fast card.created → deep card.upgraded with ContextDelta, ms measured by injected clock', async () => {
   const clock = makeClock();
-  clockRef = clock;
   const fast = { model: 'qwen3.5-omni-flash', analyze: async () => { clock.advance(1500); return fastResult(); } };
   const deep = { model: 'qwen3-vl-plus', analyze: async () => { clock.advance(6000); return deepResult(); } };
   const { pipeline, events, emit } = harness({ fast, deep, clock });
@@ -206,4 +209,131 @@ test('fast lane is never blocked by slow attribution input sizes: emit order is 
     await pipeline.start(imageInput({ captureId: `cap-r${i}`, emit })).done;
     assert.deepEqual(events.map(e => e.type), ['card.created', 'card.upgraded'], `run ${i}`);
   }
+});
+
+// ---- 补测（实现期追加，无删改先行断言）：快路失败降级 / 本地敏感路径 / 边界与兜底 ----
+
+test('fast failure degrades: card.fast_failed emitted, deep lane still upgrades（快路失败不陪葬深路）', async () => {
+  const fast = { model: 'qwen3.5-omni-flash', analyze: async () => { throw new Error('vision-timeout'); } };
+  const { pipeline, events, emit } = harness({ fast });
+  const done = await pipeline.start(imageInput({ emit })).done;
+  assert.deepEqual(events.map(e => e.type), ['card.fast_failed', 'card.upgraded']);
+  assert.equal(done.status, 'upgraded');
+  assert.equal(done.card.seen, deepResult().seen, '深感知的 seen 直接成卡');
+  assert.equal(done.card.contextDelta.seen, deepResult().seen, '快卡缺失时 ContextDelta 回退深感知 seen');
+});
+
+test('both lanes fail: done settles (never rejects) with status failed', async () => {
+  const fast = { model: 'qwen3.5-omni-flash', analyze: async () => { throw new Error('vision-timeout'); } };
+  const deep = { model: 'qwen3-vl-plus', analyze: async () => { throw new Error('vision-http-503'); } };
+  const { pipeline, events, emit } = harness({ fast, deep });
+  const done = await pipeline.start(imageInput({ emit })).done;
+  assert.deepEqual(events.map(e => e.type), ['card.fast_failed', 'card.deep_failed']);
+  assert.equal(done.status, 'failed');
+  assert.equal(done.card, null);
+});
+
+test('sensitive hit with configured local adapter: upgraded locally via minicpm-v, cloud deep never called', async () => {
+  const deep = makeVision(deepResult());
+  const localCalls = [];
+  const local = {
+    model: 'minicpm-v',
+    configured: true,
+    analyze: async input => { localCalls.push(input); return deepResult(); },
+  };
+  const { pipeline, events, emit } = harness({
+    deep,
+    local,
+    classify: () => ({ sensitive: true, category: 'bank-card', localOnly: true }),
+  });
+  const done = await pipeline.start(imageInput({ emit })).done;
+  assert.equal(deep.calls.length, 0, '云端深感知绝不调用');
+  assert.equal(localCalls.length, 1, '本地 minicpm-v 跑一次深分析');
+  assert.deepEqual(events.map(e => e.type), ['card.created', 'card.sensitive', 'card.upgraded']);
+  assert.equal(events[2].payload.model, 'minicpm-v');
+  assert.equal(events[2].payload.localOnly, true);
+  assert.equal(events[2].payload.contextDelta.evidence.imageRef, 'cap-1');
+  assert.equal(done.status, 'local-only');
+  assert.equal(done.keepOriginal, false);
+  assert.equal(done.card.model, 'minicpm-v');
+  assert.equal(done.card.localOnly, true);
+});
+
+test('sensitive hit but local adapter fails: card.local_failed, fast card retained local-only', async () => {
+  const local = { model: 'minicpm-v', configured: true, analyze: async () => { throw new Error('local endpoint down'); } };
+  const { pipeline, events, emit } = harness({
+    local,
+    classify: () => ({ sensitive: true, category: 'medical-record', localOnly: true }),
+  });
+  const done = await pipeline.start(imageInput({ emit })).done;
+  assert.deepEqual(events.map(e => e.type), ['card.created', 'card.sensitive', 'card.local_failed']);
+  assert.match(String(events[2].payload.error), /local endpoint down/);
+  assert.equal(done.status, 'local-only');
+  assert.equal(done.keepOriginal, false);
+  assert.equal(done.card.level, 'fast', '快卡保留');
+  assert.equal(done.card.localOnly, true);
+});
+
+test('video exactly MAX_SYNC_VIDEO_SEC stays synchronous and cleans up frame tempdir after deep', async () => {
+  const deep = makeVision(deepResult());
+  let cleaned = false;
+  const fr = framesResult(MAX_SYNC_VIDEO_SEC);
+  const extract = async input => ({ ...fr, cleanup: async () => { cleaned = true; throw new Error('cleanup boom'); } });
+  const { pipeline, emit } = harness({ deep, extractFrames: extract });
+  const done = await pipeline.start(imageInput({ kind: 'video', path: '/data/alice/cap-30.mp4', mimeType: 'video/mp4', emit })).done;
+  assert.equal(done.status, 'upgraded', '30s（含）同步走完双路');
+  assert.equal(deep.calls.length, 1);
+  assert.equal(cleaned, true, '深路结束后抽帧临时目录被清理（清理自身报错不拖垮结果）');
+});
+
+test('extractFrames failure: done settles to status error with card.error event（done 永不 reject）', async () => {
+  const deep = makeVision(deepResult());
+  const { pipeline, events, emit } = harness({ deep, extractFrames: async () => { throw new Error('ffprobe probe failed: no video stream'); } });
+  const done = await pipeline.start(imageInput({ kind: 'video', path: '/data/alice/cap-x.mp4', mimeType: 'video/mp4', emit })).done;
+  assert.equal(done.status, 'error');
+  assert.match(String(done.error), /no video stream/);
+  assert.deepEqual(events.map(e => e.type), ['card.error']);
+  assert.equal(deep.calls.length, 0);
+});
+
+test('defaults wire the real Group1 modules: attributeCapture/classifySensitive/disk readImage; no emit still safe', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'w12-pipe-'));
+  t.after(() => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ } });
+  const file = join(dir, 'cap-1'); // 故意无扩展名：连带覆盖 mimeType 缺省与 mimeOf 兜底分支
+  const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+  writeFileSync(file, bytes);
+  const fast = makeVision(fastResult());
+  const deep = makeVision(deepResult());
+  const pipeline = createPerceptionPipeline({ fast, deep }); // 其余全默认：真归属/真敏感判定/磁盘读图/默认 clock/默认 emit
+  const started = pipeline.start({
+    captureId: 'cap-d1',
+    ownerId: 'alice',
+    kind: 'image',
+    path: file,
+    capturedAt: '2026-10-26T19:05:00+08:00',
+    uploadedAt: '2026-10-26T19:06:00+08:00',
+    blocks: BLOCKS,
+  });
+  assert.deepEqual(started.attribution, { status: 'matched', blockId: 'b-shelf', confidence: 0.9 }, '真 attributeCapture 按窗口命中');
+  const done = await started.done;
+  assert.equal(fast.calls[0].images[0].imageBase64, bytes.toString('base64'), '磁盘加载为 base64 content part（vision.mjs 形状）');
+  assert.equal(fast.calls[0].images[0].mimeType, 'image/jpeg', '无扩展名回退默认 MIME');
+  assert.match(fast.calls[0].prompt, /做木书架/, '快提示词携带归属块标题');
+  assert.equal(done.status, 'upgraded', '真 classifySensitive 判非敏感 → 深路照常');
+  assert.equal(deep.calls[0].images[0].imageBase64, bytes.toString('base64'));
+});
+
+test('classify returning null（防御分支）is treated as non-sensitive: deep lane runs', async () => {
+  const { pipeline, events, emit } = harness({ classify: () => null });
+  const done = await pipeline.start(imageInput({ emit })).done;
+  assert.equal(done.status, 'upgraded');
+  assert.deepEqual(events.map(e => e.type), ['card.created', 'card.upgraded']);
+});
+
+test('non-Error throw surfaces as string in card.deep_failed payload', async () => {
+  const deep = { model: 'qwen3-vl-plus', analyze: async () => { throw 'plain-string failure'; } }; // eslint-disable-line no-throw-literal
+  const { pipeline, events, emit } = harness({ deep });
+  const done = await pipeline.start(imageInput({ emit })).done;
+  assert.equal(done.status, 'deep-failed');
+  assert.equal(events[1].payload.error, 'plain-string failure');
 });
