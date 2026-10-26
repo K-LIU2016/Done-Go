@@ -76,3 +76,46 @@ test('empty parts list yields empty result instead of throwing', () => {
   assert.deepEqual(out.fields, {});
   assert.deepEqual(out.files, []);
 });
+
+// —— 实现侧补充用例（RED 基线之上只增不改）：流式喂块与边界分支 ——
+
+import { MultipartParser, extractBoundary } from '../../../../scripts/agentic/perception/multipart.mjs';
+
+test('streaming parser: 7-byte chunks across delimiters/headers give identical results', () => {
+  const body = buildMultipart('schunk', [
+    { name: 'note', value: '跨块喂入' },
+    { name: 'file', filename: 'a.jpg', contentType: 'image/jpeg', data: Buffer.alloc(500, 0xcd) },
+  ]);
+  const one = parseMultipart(body, CT('schunk'));
+  const parser = new MultipartParser('schunk');
+  for (let i = 0; i < body.length; i += 7) parser.write(body.subarray(i, i + 7));
+  parser.end();
+  assert.deepEqual(parser.fields, one.fields);
+  assert.deepEqual(parser.files.map(f => f.filename), one.files.map(f => f.filename));
+  assert.ok(parser.files[0].data.equals(one.files[0].data));
+});
+
+test('streaming parser: truncated stream throws at end()', () => {
+  const body = buildMultipart('st', [{ name: 'k', value: 'v' }]);
+  const parser = new MultipartParser('st');
+  parser.write(body.subarray(0, body.length - 3));
+  assert.throws(() => parser.end(), /malformed|boundary/);
+});
+
+test('parser rejects garbage after a boundary and parts without a name', () => {
+  const bad = Buffer.from('--gb\r\nContent-Disposition: form-data; name="k"\r\n\r\nv\r\n--gbXX\r\n');
+  assert.throws(() => parseMultipart(bad, CT('gb')), /malformed/);
+  const nameless = Buffer.from('--nb\r\nContent-Disposition: form-data\r\n\r\nv\r\n--nb--\r\n');
+  assert.throws(() => parseMultipart(nameless, CT('nb')), /without name/);
+});
+
+test('preamble before the first boundary is skipped', () => {
+  const inner = buildMultipart('pb', [{ name: 'k', value: 'v' }]);
+  const body = Buffer.concat([Buffer.from('this is a preamble\r\n'), inner]);
+  assert.equal(parseMultipart(body, CT('pb')).fields.k, 'v');
+});
+
+test('extractBoundary: unquoted params ok, missing parameter rejected', () => {
+  assert.equal(extractBoundary('multipart/form-data; boundary=abc123'), 'abc123');
+  assert.throws(() => extractBoundary('multipart/form-data; charset=utf-8'), /boundary/);
+});
