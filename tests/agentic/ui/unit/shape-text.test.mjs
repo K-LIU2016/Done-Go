@@ -222,3 +222,18 @@ test('M03 mount：初次渲染写入，同内容 update 跳过，换内容重写
   assert.ok(el.innerHTML.includes('第二版'));
   assert.equal(typeof handle.update({}).update(undefined).update, 'function', 'update 可链式且容忍空 props');
 });
+
+// ---------- M21 补测：registry.safeJson 两条防御分支（JSON 投影兜底的错误路径） ----------
+
+test('M21 registry：块本身不可 JSON.stringify（函数）→ 空串兜底不抛', () => {
+  // JSON.stringify(function) === undefined → ?? '' 分支
+  const html = renderShape(() => 1);
+  assert.equal(html, '<div class="shape-unknown"><p></p></div>');
+});
+
+test('M21 registry：循环引用块 → safeJson 捕获不抛，降级空串', () => {
+  const b = { type: 'circular-kind' };
+  b.self = b; // JSON.stringify 会 throw → catch '' 分支
+  const html = renderShape(b);
+  assert.equal(html, '<div class="shape-unknown"><p></p></div>');
+});
