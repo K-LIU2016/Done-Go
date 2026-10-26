@@ -32,9 +32,13 @@ test('openAgenticDb enables WAL and foreign keys for a file database', async () 
   try {
     assert.equal(db.prepare('PRAGMA journal_mode').get().journal_mode, 'wal');
     assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
-    db.exec('CREATE TABLE owned_records (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, value TEXT)');
+    db.exec('CREATE TABLE owners (id TEXT PRIMARY KEY)');
+    db.exec('CREATE TABLE owned_records (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES owners(id), value TEXT)');
+    db.prepare('INSERT INTO owners (id) VALUES (?)').run('owner-a');
     db.prepare('INSERT INTO owned_records (id, owner_id, value) VALUES (?, ?, ?)').run('r1', 'owner-a', 'private');
     assert.deepEqual(db.prepare('SELECT owner_id FROM owned_records WHERE id = ?').get('r1'), { owner_id: 'owner-a' });
+    assert.throws(() => db.prepare('INSERT INTO owned_records (id, owner_id) VALUES (?, ?)').run('r2', 'unknown-owner'));
+    assert.throws(() => db.prepare('INSERT INTO owned_records (id) VALUES (?)').run('r3'));
   } finally {
     db.close();
   }
@@ -49,8 +53,8 @@ test('migrate sorts SQL files, records them, and is idempotent', async () => {
   writeFileSync(join(migrationDir, '001-first.sql'), 'CREATE TABLE first (id INTEGER PRIMARY KEY);');
   const db = openAgenticDb(':memory:');
   try {
-    migrate(db, migrationDir);
-    migrate(db, migrationDir);
+    assert.deepEqual(migrate(db, migrationDir), ['001-first.sql', '002-second.sql']);
+    assert.deepEqual(migrate(db, migrationDir), []);
     assert.deepEqual(
       db.prepare('SELECT name FROM _migrations ORDER BY name').all().map(row => row.name),
       ['001-first.sql', '002-second.sql'],
