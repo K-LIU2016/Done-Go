@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>fridge</title>
+<style>
+  html,body{margin:0;width:1024px;height:768px;background:#e8eaed}
+  .fridge{position:relative;width:780px;height:700px;margin:34px auto;background:#f6f8fa;
+    border:14px solid #d3d7db;border-radius:18px;box-shadow:inset 0 0 60px #cfd4d9;overflow:hidden}
+  .lamp{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:120px;height:18px;
+    border-radius:9px;background:#fffbe6;box-shadow:0 0 34px 12px #fff7cf}
+  .shelf{position:absolute;left:24px;right:24px;height:14px;background:#dde1e5;border-radius:4px;
+    box-shadow:0 3px 6px #b9bec4}
+  .s1{top:210px}.s2{top:420px}.s3{top:630px}
+  .tomato{position:absolute;width:96px;height:92px;border-radius:50% 50% 48% 48%;
+    background:radial-gradient(circle at 34% 30%,#ff7a59,#e2321e 62%,#a91403)}
+  .tomato::before{content:"";position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+    width:26px;height:16px;background:#2e7d32;border-radius:50% 50% 0 0}
+  .egg{position:absolute;width:66px;height:86px;border-radius:50% 50% 50% 50%/58% 58% 44% 44%;
+    background:radial-gradient(circle at 36% 26%,#fffdf5,#f2e3c8 70%,#dcc49a)}
+  .onion{position:absolute;width:190px;height:96px;border-radius:190px 190px 0 0;
+    background:radial-gradient(circle at 50% 100%,#f7e8f2 18%,#c98bd4 34%,#8e4a9e 62%,#5d2a68);
+    border-bottom:8px solid #6d3577}
+  .onion::after{content:"";position:absolute;left:50%;top:16px;transform:translateX(-50%);
+    width:10px;height:70px;background:#f7e8f2;border-radius:6px;opacity:.8}
+  .t1{left:70px;top:104px}.t2{left:190px;top:116px}
+  .e1{left:440px;top:112px}.e2{left:524px;top:108px}.e3{left:608px;top:116px}
+  .o1{left:70px;top:316px}
+</style></head>
+<body><div class="fridge">
+  <div class="lamp"></div>
+  <div class="tomato t1"></div><div class="tomato t2"></div>
+  <div class="egg e1"></div><div class="egg e2"></div><div class="egg e3"></div>
+  <div class="onion o1"></div>
+  <div class="shelf s1"></div><div class="shelf s2"></div><div class="shelf s3"></div>
+</div></body></html>
