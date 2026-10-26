@@ -71,16 +71,24 @@ export function ruleItems(text, now) {
   return draft.value.items.map(i => ({ title: i.title, timeText: i.timeText ?? null, date: i.date ?? null, start: i.start ?? null, end: i.end ?? null, deadline: i.deadline ?? null, recurrence: i.recurrence ?? null, vague: !!i.vague, remind: null, priority: clampPriority(i.priority) }));
 }
 
-/** ⑥ 整段（到目前为止）结构化：云端快模型 ≤ timeoutMs，否则规则稿。 */
-export async function structureUtterance({ a, b }, { fetch: fetchImpl = globalThis.fetch, now, timeoutMs = 12000, key = process.env.TANGO_AI_KEY } = {}) {
+/** ⑥ 整段（到目前为止）结构化：云端快模型 ≤ timeoutMs，否则规则稿。
+ *  对冲：hedgeMs 内没回来就再发一个同样的请求，谁先成功用谁（云端延迟长尾，10-26 实测偶发 >12s）。 */
+export async function structureUtterance({ a, b }, { fetch: fetchImpl = globalThis.fetch, now, timeoutMs = 8000, hedgeMs = 2500, key = process.env.TANGO_AI_KEY } = {}) {
   const fallbackText = ruleClean(a || b || '');
   const fallback = () => ({ clean: fallbackText, items: ruleItems(fallbackText, now), source: 'rule' });
   if (!a && !b) return { clean: '', items: [], source: 'rule' };
-  try {
-    const text = await chat(fetchImpl, CLOUD_URL(), { model: CLOUD_MODEL(), temperature: 0, max_tokens: 700, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: structSystem(now) }, { role: 'user', content: hypotheses({ a, b }) }] }, { timeoutMs, headers: key ? { authorization: 'Bearer ' + key } : {} });
+  const body = { model: CLOUD_MODEL(), temperature: 0, max_tokens: 700, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: structSystem(now) }, { role: 'user', content: hypotheses({ a, b }) }] };
+  const headers = key ? { authorization: 'Bearer ' + key } : {};
+  const once = async () => {
+    const text = await chat(fetchImpl, CLOUD_URL(), body, { timeoutMs, headers });
     const parsed = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
-    if (!parsed || !Array.isArray(parsed.items)) return fallback();
+    if (!parsed || !Array.isArray(parsed.items)) throw new Error('bad-shape');
     return { clean: typeof parsed.clean === 'string' && parsed.clean.trim() ? parsed.clean.trim() : fallbackText, items: parsed.items.map(x => finishItem(x, now)).filter(Boolean), source: 'cloud' };
+  };
+  const attempts = [once()];
+  const hedge = new Promise(resolve => { const t = setTimeout(() => resolve(once()), hedgeMs); attempts[0].then(() => clearTimeout(t), () => { clearTimeout(t); resolve(once()); }); });
+  try {
+    return await Promise.any([attempts[0], hedge]);
   } catch {
     return fallback();
   }

@@ -44,16 +44,14 @@ function talk(url, steps) {
   });
 }
 
-test('one utterance streams partial → final → clean → items, then quick rule cards, final items and end', async t => {
+test('one utterance streams partial → final → clean → items, then one final items message and end', async t => {
   const url = await harness(t);
   const { got } = await talk(url, ws => { for (let i = 0; i < 4; i++) ws.send(Buffer.alloc(3200)); setTimeout(() => ws.send(JSON.stringify({ type: 'stop' })), 50); });
   const types = got.map(m => m.type);
   assert.ok(types.includes('partial'));
   assert.deepEqual(got.filter(m => m.type === 'final').map(m => m.text), ['明天下午三点开组会。', '周五前交报告。'], 'final text is rule-cleaned instantly');
   assert.deepEqual(got.filter(m => m.type === 'clean').map(m => m.text), ['明天下午三点开组会。', '然后周五前交报告。'] /* clean 由假模型给出，原样透传 */);
-  const quick = got.find(m => m.type === 'items' && m.quick);
-  assert.equal(quick.source, 'rule');
-  assert.ok(quick.items.length >= 1, 'rule cards show the moment speech stops');
+  assert.equal(got.filter(m => m.type === 'items' && m.final).length, 1, 'exactly one final items message, no rule placeholder cards');
   const last = got.filter(m => m.type === 'items').at(-1);
   assert.equal(last.final, true);
   assert.equal(last.source, 'cloud');

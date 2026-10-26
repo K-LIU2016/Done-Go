@@ -2,7 +2,7 @@
 // 协议见 design/voice-pipeline/SPEC.md §2.1。鉴权与 Origin 复用 collaboration（默认拒绝）。
 import { WebSocketServer } from 'ws';
 import { ruleClean } from './clean.mjs';
-import { cleanSegment, structureUtterance, ruleItems } from './llm.mjs';
+import { cleanSegment, structureUtterance } from './llm.mjs';
 
 export const VOICE_V3_PATH = '/api/voice/v3';
 const MAX_SESSION_MS = 60_000;
@@ -40,7 +40,7 @@ export function createVoiceV3Gateway({
     const segs = []; // { a, b, clean, edited }
     const cleaning = [];
     let asr = null, started = false, stopped = false, closed = false;
-    let structuring = null, dirty = false, lastItems = [];
+    let structuring = null, dirty = false, lastItems = [], doneKey = null, lastResult = null, finalizing = false;
     const t0 = Date.now();
 
     const textOf = key => segs.map(s => (s ? (s.edited ?? s[key] ?? '') : '')).filter(Boolean).join('');
@@ -49,9 +49,13 @@ export function createVoiceV3Gateway({
       structuring = (async () => {
         do {
           dirty = false;
-          const r = await structure({ a: textOf('a'), b: textOf('b') }, { now: now() });
-          if (closed) return;
+          const input = { a: textOf('a'), b: textOf('b') };
+          const key = input.a + '\u0000' + input.b;
+          if (key === doneKey && lastResult?.source === 'cloud') continue; // 输入没变：不重复调用
+          const r = await structure(input, { now: now(), hedgeMs: final ? 2500 : 60_000 }); // 只在最终一轮对冲，免得说话中的中间轮挤占同一个 key 的并发
+          if (closed || finalizing) return; // 已进入最终轮：中间轮结果作废
           lastItems = r.items;
+          if (r.source === 'cloud') { doneKey = key; lastResult = r; }
           send({ type: 'items', clean: r.clean, items: r.items, source: r.source, upto: segs.length, final: !!final && !dirty });
         } while (dirty && !closed);
       })().finally(() => { structuring = null; });
@@ -70,22 +74,24 @@ export function createVoiceV3Gateway({
         if (closed || s.edited != null) return; // 用户改过的句子不再覆盖
         s.clean = r.text;
         send({ type: 'clean', seg, text: r.text, source: r.source });
-        runStructure(false);
       }));
+      runStructure(false); // 结构化直接用两路原文，不等即时整理（省 ~0.8s）
     };
 
     async function stop() {
       if (stopped || !asr) return;
       stopped = true;
       await asr.finish();
-      await Promise.all(cleaning);
-      // 先给规则卡片（说完瞬间），云端结果到了再无感替换
-      const quick = segs.map(s => s?.edited ?? s?.clean ?? ruleClean(s?.a || '')).join('');
-      send({ type: 'items', clean: quick, items: ruleItems(quick, now()), source: 'rule', upto: segs.length, final: false, quick: true });
-      if (structuring) await structuring;
-      await runStructure(true);
+      // 说完：立刻发最终一轮（对冲），不等说话中还在飞的中间轮；中间轮的迟到结果丢弃。
+      // 不发规则即时卡片——10-26 实测质量差（「十分@15:00」），界面先出整理文字 + 「正在整理成日程」占位。
+      finalizing = true;
+      const key = textOf('a') + '\u0000' + textOf('b');
+      const r = key === doneKey && lastResult ? lastResult : await structure({ a: textOf('a'), b: textOf('b') }, { now: now(), hedgeMs: 2500 });
+      lastItems = r.items;
+      send({ type: 'items', clean: r.clean, items: r.items, source: r.source, upto: segs.length, final: true });
+      await Promise.all(cleaning); // 各句整理文字发完再结束
       send({ type: 'end', segments: segs.length, ms: Date.now() - t0 });
-      log({ event: 'voice-v3', segments: segs.length, ms: Date.now() - t0, items: lastItems.length });
+      log({ event: 'voice-v3', segments: segs.length, ms: Date.now() - t0, items: lastItems.length, source: r.source });
       ws.close(1000);
     }
 
