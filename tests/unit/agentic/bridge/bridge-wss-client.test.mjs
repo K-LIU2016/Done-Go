@@ -46,7 +46,7 @@ function makeClient(over = {}) {
     onStateChange: (s, info) => states.push({ s, info }),
     ...over,
   });
-  return { client, states, messages, revoked, sockets: () => FakeWebSocket.created };
+  return { client, states, messages, get revoked() { return revoked; }, sockets: () => FakeWebSocket.created };
 }
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -102,29 +102,29 @@ test('断线重连：close(1006) 后指数退避重连，且退避时间翻倍�
 });
 
 test('令牌吊销：close(4001) 或收到 device.revoked → 停止一切重连，onRevoked 恰好一次（提示重新配对）', async () => {
-  const { client, revoked, sockets } = makeClient({ minBackoffMs: 20 });
-  client.connect();
-  const ws = sockets()[0];
+  const t = makeClient({ minBackoffMs: 20 });
+  t.client.connect();
+  const ws = t.sockets()[0];
   ws.open();
   ws.drop(4001); // hub 的吊销关闭码
   await wait(120);
-  assert.equal(revoked, 1, 'onRevoked 恰好一次');
-  assert.equal(sockets().length, 1, '吊销后绝不再重连');
-  client.stop();
+  assert.equal(t.revoked, 1, 'onRevoked 恰好一次');
+  assert.equal(t.sockets().length, 1, '吊销后绝不再重连');
+  t.client.stop();
 });
 
 test('吊销消息路径：收到 {type:"device.revoked"} 同样触发 onRevoked 且不再重连', async () => {
-  const { client, revoked, sockets } = makeClient({ minBackoffMs: 20 });
-  client.connect();
-  const ws = sockets()[0];
+  const t = makeClient({ minBackoffMs: 20 });
+  t.client.connect();
+  const ws = t.sockets()[0];
   ws.open();
   ws.deliver({ type: 'device.revoked' });
   await wait(80);
-  assert.equal(revoked, 1);
+  assert.equal(t.revoked, 1);
   ws.drop(1000);
   await wait(80);
-  assert.equal(sockets().length, 1, '吊销后 close 也不触发重连');
-  client.stop();
+  assert.equal(t.sockets().length, 1, '吊销后 close 也不触发重连');
+  t.client.stop();
 });
 
 test('stop()：主动停止不再重连', async () => {

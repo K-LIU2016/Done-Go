@@ -1,0 +1,11 @@
+{
+  "name": "donego-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "donego-bridge": "src/cli.mjs"
+  },
+  "files": ["src", "scripts", "package.json"],
+  "engines": { "node": ">=22.22" }
+}
