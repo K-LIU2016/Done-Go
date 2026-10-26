@@ -6,6 +6,7 @@ const port = Number(process.env.S2D_W1_PORT) || 17601;
 
 export default defineConfig({
   testDir: '.',
+  testMatch: 'index-hook.spec.ts', // blocks-e2e 模块的 sync-two-devices.spec.ts 归 playwright.blocks.config.ts（另一 harness/端口）
   outputDir: './.results',
   timeout: 30000,
   workers: 1,
