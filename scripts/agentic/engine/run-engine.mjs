@@ -101,7 +101,10 @@ export function createRunEngine({ db, policy = null, outbox = null, now = () => 
     const resume = async ({ revalidate } = {}) => {
       const row = get(id);
       if (row.status === 'cancelled' || TERMINAL.has(row.status)) return { resumed: false, reason: 'RUN_TERMINAL' };
-      if (!['paused', 'paused_pending_confirm'].includes(row.status)) return { resumed: false, reason: 'RUN_NOT_PAUSED' };
+      // A process can die after a step checkpoint is marked running. Treat that
+      // durable state as recoverable, but apply the same contract check before
+      // replaying it as we do for an explicitly paused run.
+      if (!['running', 'paused', 'paused_pending_confirm'].includes(row.status)) return { resumed: false, reason: 'RUN_NOT_PAUSED' };
       const current = await (revalidate ? revalidate() : row.contract_hash);
       if (current !== row.contract_hash) { touch(id, 'paused_pending_confirm'); return { resumed: false, reason: 'CONTRACT_CHANGED' }; }
       touch(id, 'running');

@@ -203,3 +203,19 @@ test('scenario D: resume entry always revalidates contract hash — both branche
   assert.equal(blocked.skipped, true);
   db.close();
 });
+
+test('scenario D recovery: a crashed running run revalidates before replay', async () => {
+  const db = makeDb();
+  const clock = fakeClock('2026-10-26T09:30:00+08:00');
+  const engine = createRunEngine({ db, now: clock.now, sleep: async () => {} });
+  const run = engine.startRun({ missionId: 'm_d-recovery', contractHash: CONTRACT, dod: ['x'], budget: {} });
+  db.prepare("UPDATE runs SET status='running' WHERE id=?").run(run.id);
+  let checks = 0;
+  const mismatch = await run.resume({ revalidate: async () => { checks += 1; return 'd'.repeat(64); } });
+  assert.equal(checks, 1, '恢复入口必须先执行合同重校验');
+  assert.deepEqual(mismatch, { resumed: false, reason: 'CONTRACT_CHANGED' });
+  assert.equal(engine.getRun(run.id).status, 'paused_pending_confirm');
+  const blocked = await run.step('after-crash', { n: 1 }, async () => 'must-not-run');
+  assert.equal(blocked.reason, 'RUN_PAUSED_PENDING_CONFIRM');
+  db.close();
+});
