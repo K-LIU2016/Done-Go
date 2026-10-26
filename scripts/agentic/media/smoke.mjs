@@ -63,15 +63,16 @@ export function goldenScenario() {
         id: 's1',
         layout: 'slide-title-bullets-image',
         page: '第 1 课时 · 首页',
+        // text 只带 title/bullets：冻结契约 preview-sample.schema.json 的 text 是
+        // additionalProperties:false（工作坊横幅这类 mission 级信息不进样张对象）。
         text: {
-          tag: 'AI 进课堂 · 初中 4 课时工作坊',
           title: 'AI 进课堂 · 第 1 课时：认识 AI 助教',
           bullets: ['什么是 AI 助教：能做什么、不能做什么', '分组体验：用 AI 完成一个小任务', '记录边界：AI 帮了哪、错在哪'],
         },
         image: {
           prompt: '初中教室里老师和学生围在大屏前讨论，清新鼠尾草绿与暖纸色，扁平插画，不要出现任何文字',
           model: PURE_IMAGE_MODEL,
-          status: 'pending',
+          status: 'queued', // 契约枚举 queued/generating/ready/failed（无 pending）
         },
         watermark: '示意',
       },
@@ -80,14 +81,13 @@ export function goldenScenario() {
         layout: 'slide-title-bullets-image',
         page: '第 2 课时 · 首页',
         text: {
-          tag: 'AI 进课堂 · 初中 4 课时工作坊',
           title: 'AI 进课堂 · 第 2 课时：用 AI 备课',
           bullets: ['用 AI 生成导入问题', '对照课标逐条核对', '说出 AI 帮了哪、错在哪'],
         },
         image: {
           prompt: '老师在教室用平板备课，清新鼠尾草绿，扁平插画，不要出现任何文字',
           model: PURE_IMAGE_MODEL,
-          status: 'pending',
+          status: 'queued',
         },
         watermark: '示意',
       },
@@ -112,7 +112,10 @@ export function goldenScenario() {
       '五点整，你会拿到完整课程方案，含课时表与活动卡。',
       '我不会把成果发给任何人，也不会替你付费或访问邮箱。',
     ].join(''),
-    scene: { status: 'off', model: SCENE_MODEL, prompt: '初中课堂现场氛围：老师用平板与学生互动，自然窗光，温暖电影感，镜头缓慢推近，画面内不出现任何文字' },
+    // scene 是冻结契约 preview-scene.schema.json 对象（status/model/url，additionalProperties:
+    // false）；生视频 prompt 是工作文档字段，放同级 scenePrompt，不塞进契约对象。
+    scenePrompt: '初中课堂现场氛围：老师用平板与学生互动，自然窗光，温暖电影感，镜头缓慢推近，画面内不出现任何文字',
+    scene: { status: 'off', model: SCENE_MODEL, url: null },
   };
 }
 
@@ -488,7 +491,7 @@ export async function runGoldenSmoke(opts = {}) {
       const videos = videoClientFactory({ cache, quota: videoQuota });
       const t0v = Date.now();
       try {
-        const v = await videos.generateVideo({ model: golden.scene.model, prompt: golden.scene.prompt, missionId: golden.missionId, version: golden.version });
+        const v = await videos.generateVideo({ model: golden.scene.model, prompt: golden.scenePrompt, missionId: golden.missionId, version: golden.version });
         writeFileSync(join(workDir, 'scene.mp4'), v.bytes);
         record({ kind: 'video', model: golden.scene.model, ms: Date.now() - t0v, ok: true, bytes: v.bytes.length, videoId: v.videoId });
         log(`video: ok ${v.bytes.length}B (${Date.now() - t0v}ms)`);
