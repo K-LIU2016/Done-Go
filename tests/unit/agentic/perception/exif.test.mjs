@@ -160,3 +160,17 @@ test('GPS pointer aimed out of bounds reads as no GPS rather than crashing', () 
   const exif = readExif(wrapApp1(tiff));
   assert.deepEqual(exif, { dateTimeOriginal: '2026:10:26 15:04:05', hasGps: false, gps: null });
 });
+
+test('walks past a valid non-Exif APP0 segment to reach APP1', () => {
+  const app0 = Buffer.concat([
+    Buffer.from([0xff, 0xe0, 0x00, 0x10]),
+    Buffer.from('JFIF\0', 'latin1'),
+    Buffer.from([0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00]),
+  ]);
+  const jpeg = Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    app0,
+    wrapApp1(buildExifTiffBE({ dateTimeOriginal: '2026:10:26 08:30:00', withGps: false })).subarray(2), // 去掉内层 SOI
+  ]);
+  assert.equal(readExif(jpeg).dateTimeOriginal, '2026:10:26 08:30:00');
+});
