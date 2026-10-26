@@ -3,7 +3,6 @@ import { mkdir, readFile, writeFile, lstat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createAuthService, AuthError } from '../server/auth/service.mjs';
 import { readAuthConfig } from '../server/auth/config.mjs';
-import { createDemoAuthService } from '../server/auth/demo.mjs';
 import { createCollaborationStore, collabError } from './collaboration-store.mjs';
 const intents = ['plan','adjust','tools','summary','method','chat'];
 const languages = ['zh','en','ru','th','ar','ko'];
@@ -37,14 +36,13 @@ function validateAnswer(raw, snapshot) {
  });
  return {reply:parsed.reply,actions};
 }
-export async function createCollaborationService({databaseFile,assistant,auth:providedAuth,now,secret,authOptions={},authConfig,sendEmail,allowLocalAccounts=false,demoMode=false}) {
- if(demoMode){databaseFile=':memory:';authConfig=readAuthConfig({TANGO_AUTH_SECRET:randomBytes(48).toString('hex'),EMAIL_TRANSPORT:'disabled',...(process.env.TANGO_PUBLIC_ORIGIN?{TANGO_PUBLIC_ORIGIN:process.env.TANGO_PUBLIC_ORIGIN}:{})});}
+export async function createCollaborationService({databaseFile,assistant,auth:providedAuth,now,secret,authOptions={},authConfig,sendEmail,allowLocalAccounts=false}) {
  if(!authConfig&&(process.env.TANGO_PUBLIC_ORIGIN||process.env.NODE_ENV==='production')&&!secret&&!process.env.TANGO_AUTH_SECRET&&!process.env.JWT_SECRET)throw collabError('AUTH_CONFIG_INVALID',503);
  const config=authConfig||readAuthConfig({...process.env,TANGO_AUTH_SECRET:secret||process.env.TANGO_AUTH_SECRET||process.env.JWT_SECRET||await durableSecret(databaseFile)});
  let store;
  const resourceHooks={countUserResources:id=>store.countUserResources(id),onUserDeleted:async(id,context)=>{try{store.removeUserResources(context.actor,id);}catch(error){if(error.code==='ACCOUNT_OWNS_GROUPS')throw new AuthError(409,error.code,'请先转交小组负责人，再删除账号。');throw error;}}};
- const auth=providedAuth||(demoMode?createDemoAuthService({secureCookie:config.secureCookie,...authOptions}):createAuthService({databaseFile,config,localAccounts:allowLocalAccounts,cookieName:'tango_collaboration_session',requireLoginAfterRegistration:!allowLocalAccounts,resourceHooks,...authOptions,...(sendEmail?{sendEmail}:{})}));
- function authenticate(req){const actor=auth.authenticate(req);need(demoMode&&actor.demo===true||allowLocalAccounts||actor.emailVerified||actor.phoneVerified,'EMAIL_VERIFICATION_REQUIRED',401);return actor;}
+ const auth=providedAuth||createAuthService({databaseFile,config,localAccounts:allowLocalAccounts,cookieName:'tango_collaboration_session',requireLoginAfterRegistration:!allowLocalAccounts,resourceHooks,...authOptions,...(sendEmail?{sendEmail}:{})});
+ function authenticate(req){const actor=auth.authenticate(req);need(allowLocalAccounts||actor.emailVerified||actor.phoneVerified,'EMAIL_VERIFICATION_REQUIRED',401);return actor;}
  function requestAllowed(req){const host=req.headers.host,origin=req.headers.origin;const publicHost=config.publicOrigin&&new URL(config.publicOrigin).host;const local=/^(?:localhost|127\.0\.0\.1):[0-9]+$/.test(host||'');if(host!==publicHost&&!local)return false;const expected=host===publicHost?config.publicOrigin:'http://'+host;return (!origin&&['GET','HEAD'].includes(req.method))||origin===expected;}
  store=createCollaborationStore({databaseFile,userById:auth.userById,...(now?{now}:{})});const rates=new Map();
  function send(res,status,value){if(!res.destroyed)res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(JSON.stringify(value));}
@@ -74,7 +72,7 @@ export async function createCollaborationService({databaseFile,assistant,auth:pr
    const actor=authenticate(req);let result;
    if(pathname==='/api/collaboration/groups'&&req.method==='GET')result={groups:store.list(actor),user:actor};
    else if(pathname==='/api/collaboration/groups'&&req.method==='POST')result=store.create(actor,body);
-   else if(pathname==='/api/collaboration/join'&&req.method==='POST'){auth.throttle('join-user:'+actor.id,10);auth.throttle('join-ip:'+req.socket.remoteAddress,30);result=store.join(actor,body.passphrase||body.token);}
+   else if(pathname==='/api/collaboration/join'&&req.method==='POST'){auth.throttle('join-user:'+actor.id,10);auth.throttle('join-ip:'+(auth.clientAddress?.(req)||req.socket.remoteAddress),30);result=store.join(actor,body.passphrase||body.token);}
    else {
     const match=/^\/api\/collaboration\/groups\/([\w-]+)(?:\/(history|invite|change|ai|proposal|proposals|dismiss|apply|personal))?$/.exec(pathname);
     const source=/^\/api\/collaboration\/source\/([\w-]+)$/.exec(pathname);

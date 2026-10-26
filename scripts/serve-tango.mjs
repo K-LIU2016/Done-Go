@@ -27,6 +27,7 @@ export function createAIGuard(options = {}) {
  const features = { parse: flag(env.TANGO_AI_PARSE), prompts: flag(env.TANGO_AI_PROMPTS) };
  const dailyLimit = positive(env.TANGO_AI_DAILY_LIMIT, 500);
  const visitorDailyLimit = positive(env.TANGO_AI_VISITOR_DAILY_LIMIT, 30);
+ const userDailyLimit = positive(env.TANGO_AI_USER_DAILY_LIMIT, 200);
  const minuteLimit = positive(env.TANGO_AI_RATE_LIMIT, 60);
  const now = options.now || Date.now;
  let dayKey = '', dayCount = 0;
@@ -41,20 +42,10 @@ export function createAIGuard(options = {}) {
   }
   return remote;
  };
- // D23: every demo visitor (demo session or anonymous IP) carries a per-day AI
- // budget counted on BOTH the demo session key and the IP key — whichever
- // bucket reaches the cap first blocks the call, so clearing the demo cookie
- // cannot mint a fresh bucket from the same IP and one busy IP cannot cycle
- // sessions to dodge its bucket. Authenticated non-demo actors are exempt
- // (they are not demo visitors); the global in-memory daily budget above
- // keeps its own TANGO_AI_DAILY_LIMIT code.
- const visitorDailyKeys = (req, actor) => {
-  if (actor && actor.demo !== true) return [];
-  const keys = [];
-  if (actor?.id) keys.push('demo:' + String(actor.id).slice(0, 64));
-  keys.push('ip:' + visitorKey(req));
-  return keys;
- };
+ // D23: per-day AI budgets — anonymous visitors by IP (30), each signed-in
+ // account by id (200, so one account cannot drain the global budget). The
+ // global in-memory daily budget above keeps its own TANGO_AI_DAILY_LIMIT code.
+ const visitorDailyKeys = (req, actor) => (actor?.id ? [['user:' + String(actor.id).slice(0, 64), userDailyLimit]] : [['ip:' + visitorKey(req), visitorDailyLimit]]);
  function check(req, actor, mode) {
   if (mode === 'parse' && !features.parse) throw assistantError('TANGO_AI_MODE_DISABLED', 400);
   if (mode === 'prompt' && !features.prompts) throw assistantError('TANGO_AI_MODE_DISABLED', 400);
@@ -62,7 +53,7 @@ export function createAIGuard(options = {}) {
   if (day !== dayKey) { dayKey = day; dayCount = 0; }
   if (dayCount >= dailyLimit) throw assistantError('TANGO_AI_DAILY_LIMIT', 429);
   const dailyKeys = visitorDailyKeys(req, actor);
-  for (const name of dailyKeys) { const slot = visitorDaily.get(name); if (slot && slot.day === day && slot.count >= visitorDailyLimit) throw assistantError('TANGO_AI_VISITOR_DAILY_LIMIT', 429); }
+  for (const [name, limit] of dailyKeys) { const slot = visitorDaily.get(name); if (slot && slot.day === day && slot.count >= limit) throw assistantError('TANGO_AI_VISITOR_DAILY_LIMIT', 429); }
   const key = (actor?.id ? 'user:' + String(actor.id) : visitorKey(req)).slice(0, 80);
   const window = Math.floor(time / 60000);
   const slot = windows.get(key);
@@ -74,7 +65,7 @@ export function createAIGuard(options = {}) {
   dayCount++;
   if (dailyKeys.length) {
    if (visitorDaily.size > 16384) for (const [name, value] of visitorDaily) if (value.day !== day) visitorDaily.delete(name);
-   for (const name of dailyKeys) { const slot = visitorDaily.get(name); if (!slot || slot.day !== day) visitorDaily.set(name, { day, count: 1 }); else slot.count++; }
+   for (const [name] of dailyKeys) { const slot = visitorDaily.get(name); if (!slot || slot.day !== day) visitorDaily.set(name, { day, count: 1 }); else slot.count++; }
   }
  }
  return { features: () => ({ ...features }), check };
@@ -106,7 +97,7 @@ export function createTangoServer(options = {}) {
         try{actor=options.collaboration.authenticate(req);}catch(error){send(401,{error:error.code||'AUTH_REQUIRED'});return;}
         if(pathname==='/api/assistant/config'&&req.method==='PUT'&&actor.role!=='admin'){send(403,{error:'ADMIN_REQUIRED'});return;}
         if(pathname==='/api/assistant/chat'||pathname==='/api/speech/transcribe'){
-          try{options.collaboration.auth.throttle('paid-user:'+actor.id,30);options.collaboration.auth.throttle('paid-ip:'+req.socket.remoteAddress,90);}catch{send(429,{error:'rate-limited'});return;}
+          try{options.collaboration.auth.throttle('paid-user:'+actor.id,30);options.collaboration.auth.throttle('paid-ip:'+(options.collaboration.auth.clientAddress?.(req)||req.socket.remoteAddress),90);}catch{send(429,{error:'rate-limited'});return;}
         }
       }
     }
@@ -241,10 +232,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   let assistant = createAssistant({ config });
   const delegate = { configuration: () => assistant.configuration(), chat: (input, signal) => assistant.chat(input, signal), streamChat: (input, signal) => assistant.streamChat(input, signal) };
   const store = { save: async patch => { await saveAssistantMetadata({ projectRoot, patch }); config = await loadAssistantConfig({ projectRoot }); assistant = createAssistant({ config }); } };
-  const demoMode=process.env.TANGO_DEMO_MODE==='1';
   const configuredDatabase=process.env.AUTH_DATABASE_PATH||process.env.TANGO_AUTH_DB||process.env.TANGO_COLLAB_DB;
   if(configuredDatabase&&configuredDatabase!==':memory:'&&!isAbsolute(configuredDatabase))throw new Error('AUTH_DATABASE_PATH must be absolute');
-  const collaboration = await createCollaborationService({ databaseFile: configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite'), assistant: delegate, demoMode, authOptions: demoMode ? { autoStart: true } : {} });
+  const collaboration = await createCollaborationService({ databaseFile: configuredDatabase || join(projectRoot, '.tango-donego', 'collaboration.sqlite'), assistant: delegate });
   // 语音管线 v3：配置了 TANGO_VOICE_MODELS（Mac 本地开发见 Done & Go/dev.sh）才启用；模型启动时预加载
   let voiceV3 = null;
   const voiceModels = process.env.TANGO_VOICE_MODELS;

@@ -3,13 +3,13 @@ import { test } from 'node:test';
 import { request } from 'node:http';
 import { createTangoServer, createAIGuard } from '../../scripts/serve-tango.mjs';
 
-// D23: every demo visitor gets a 30/day AI budget counted on BOTH the demo
-// session key and the IP key — whichever bucket hits the cap first returns
-// 429 TANGO_AI_VISITOR_DAILY_LIMIT with the existing quota message
-// 「今日体验额度已用完」. The global TANGO_AI_DAILY_LIMIT=500 stays an
-// in-process memory counter with its own code and is untouched by this quota.
+// D23: anonymous visitors get a 30/day AI budget keyed by IP; the 31st call
+// returns 429 TANGO_AI_VISITOR_DAILY_LIMIT with the existing quota message
+// 「今日体验额度已用完」. Signed-in accounts are exempt (demo mode was removed
+// 2026-10-26). The global TANGO_AI_DAILY_LIMIT=500 stays an in-process memory
+// counter with its own code and is untouched by this quota.
 
-const demoActor = id => ({ id, demo: true, role: 'user' });
+const anonymous = undefined;
 const paidActor = id => ({ id, demo: false, role: 'user', emailVerified: true });
 const reqFrom = ip => ({ socket: { remoteAddress: '127.0.0.1' }, headers: { 'x-forwarded-for': ip } });
 
@@ -43,25 +43,13 @@ function countingAssistant() {
   return state;
 }
 
-test('a demo session gets 30 AI calls per day; the 31st returns 429 TANGO_AI_VISITOR_DAILY_LIMIT', () => {
+test('an anonymous visitor gets 30 AI calls per day; the 31st returns 429 TANGO_AI_VISITOR_DAILY_LIMIT', () => {
   let clock = new Date(2026, 9, 23, 9, 0, 0).getTime();
   const guard = createAIGuard({ env: {}, now: () => clock });
-  for (let i = 0; i < 30; i += 1) guard.check(reqFrom('203.0.113.9'), demoActor('session-a'), 'chat');
-  assert.throws(() => guard.check(reqFrom('203.0.113.9'), demoActor('session-a'), 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT' && error.status === 429);
+  for (let i = 0; i < 30; i += 1) guard.check(reqFrom('203.0.113.9'), anonymous, 'chat');
+  assert.throws(() => guard.check(reqFrom('203.0.113.9'), anonymous, 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT' && error.status === 429);
   clock = new Date(2026, 9, 24, 9, 0, 0).getTime();
-  guard.check(reqFrom('203.0.113.9'), demoActor('session-a'), 'chat'); // next day resets both buckets
-});
-
-test('the session and IP buckets race: whichever hits 30 first blocks the call', () => {
-  const clock = new Date(2026, 9, 23, 10, 0, 0).getTime();
-  const guard = createAIGuard({ env: {}, now: () => clock });
-  for (let i = 0; i < 15; i += 1) {
-    guard.check(reqFrom('198.51.100.7'), demoActor('a'), 'chat');
-    guard.check(reqFrom('198.51.100.7'), demoActor('b'), 'chat');
-  }
-  assert.throws(() => guard.check(reqFrom('198.51.100.7'), demoActor('fresh-session'), 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT', 'the shared IP bucket filled up first');
-  for (let i = 0; i < 30; i += 1) guard.check(reqFrom('192.0.2.1'), demoActor('c'), 'chat');
-  assert.throws(() => guard.check(reqFrom('192.0.2.99'), demoActor('c'), 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT' && error.status === 429, 'the session bucket follows the visitor across IPs');
+  guard.check(reqFrom('203.0.113.9'), anonymous, 'chat'); // next day resets the bucket
 });
 
 test('anonymous visitors are capped by IP alone while paid actors stay exempt', () => {
@@ -69,22 +57,22 @@ test('anonymous visitors are capped by IP alone while paid actors stay exempt', 
   const guard = createAIGuard({ env: {}, now: () => clock });
   for (let i = 0; i < 30; i += 1) guard.check(reqFrom('198.51.100.9'), undefined, 'chat');
   assert.throws(() => guard.check(reqFrom('198.51.100.9'), undefined, 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT');
-  for (let i = 0; i < 40; i += 1) guard.check(reqFrom('198.51.100.9'), paidActor('u-1'), 'chat'); // must not throw
+  for (let i = 0; i < 40; i += 1) guard.check(reqFrom('198.51.100.9'), paidActor('u-1'), 'chat'); // the IP bucket does not apply to accounts
 });
 
 test('TANGO_AI_VISITOR_DAILY_LIMIT overrides the default 30', () => {
   const clock = new Date(2026, 9, 23, 12, 0, 0).getTime();
   const guard = createAIGuard({ env: { TANGO_AI_VISITOR_DAILY_LIMIT: '3' }, now: () => clock });
-  for (let i = 0; i < 3; i += 1) guard.check(reqFrom('203.0.113.4'), demoActor('s'), 'chat');
-  assert.throws(() => guard.check(reqFrom('203.0.113.4'), demoActor('s'), 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT');
+  for (let i = 0; i < 3; i += 1) guard.check(reqFrom('203.0.113.4'), anonymous, 'chat');
+  assert.throws(() => guard.check(reqFrom('203.0.113.4'), anonymous, 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT');
 });
 
 test('the visitor quota is independent of the in-memory global daily budget', () => {
   const clock = new Date(2026, 9, 23, 13, 0, 0).getTime();
   const guard = createAIGuard({ env: {}, now: () => clock });
-  for (let i = 0; i < 30; i += 1) guard.check(reqFrom('203.0.113.5'), demoActor('x'), 'chat');
-  assert.throws(() => guard.check(reqFrom('203.0.113.5'), demoActor('x'), 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT');
-  guard.check(reqFrom('203.0.113.6'), demoActor('y'), 'chat'); // another visitor is still served: the global 500 is far away
+  for (let i = 0; i < 30; i += 1) guard.check(reqFrom('203.0.113.5'), anonymous, 'chat');
+  assert.throws(() => guard.check(reqFrom('203.0.113.5'), anonymous, 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT');
+  guard.check(reqFrom('203.0.113.6'), anonymous, 'chat'); // another visitor is still served: the global 500 is far away
 });
 
 test('HTTP surface: the 31st call from one visitor IP is 429 TANGO_AI_VISITOR_DAILY_LIMIT with the quota message', async t => {
@@ -102,4 +90,14 @@ test('HTTP surface: the 31st call from one visitor IP is 429 TANGO_AI_VISITOR_DA
   assert.equal(state.calls, 30);
   assert.equal((await ask('203.0.113.78', '另一位访客')).status, 200);
   assert.equal(state.calls, 31);
+});
+
+test('each signed-in account has its own daily cap (default 200) so one account cannot drain the global budget', () => {
+  let clock = new Date(2026, 9, 23, 8, 0, 0).getTime();
+  const guard = createAIGuard({ env: { TANGO_AI_USER_DAILY_LIMIT: '5', TANGO_AI_RATE_LIMIT: '1000' }, now: () => clock });
+  for (let i = 0; i < 5; i += 1) guard.check(reqFrom('203.0.113.1'), paidActor('u-9'), 'chat');
+  assert.throws(() => guard.check(reqFrom('203.0.113.2'), paidActor('u-9'), 'chat'), error => error.code === 'TANGO_AI_VISITOR_DAILY_LIMIT' && error.status === 429, 'switching IPs does not reset the account bucket');
+  guard.check(reqFrom('203.0.113.1'), paidActor('u-10'), 'chat'); // another account is unaffected
+  clock = new Date(2026, 9, 24, 8, 0, 0).getTime();
+  guard.check(reqFrom('203.0.113.1'), paidActor('u-9'), 'chat'); // next day resets
 });

@@ -423,5 +423,5 @@ export function createAuthService({ databaseFile, config, sendEmail = createEmai
     }
     return true;
   }
-  return { handle, authenticate, requireAdmin, throttle: rate, userById: id => { const user = getUser(id); return user && user.is_active ? publicUser(user) : null; }, close: () => db.close() };
+  return { handle, authenticate, requireAdmin, throttle: rate, clientAddress: address, userById: id => { const user = getUser(id); return user && user.is_active ? publicUser(user) : null; }, close: () => db.close() };
 }
