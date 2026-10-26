@@ -1,0 +1,37 @@
+{
+  "valid": [
+    {
+      "id": "playbook-1",
+      "ownerId": "x",
+      "name": "x",
+      "steps": [
+        "item"
+      ],
+      "acceptance": [
+        "item"
+      ],
+      "successRate": 1
+    },
+    {
+      "id": "playbook-2",
+      "ownerId": "x",
+      "name": "x",
+      "steps": [
+        "item"
+      ],
+      "acceptance": [
+        "item"
+      ],
+      "successRate": 1
+    }
+  ],
+  "invalid": [
+    {
+      "ownerId": "x",
+      "name": "x",
+      "steps": [],
+      "acceptance": [],
+      "successRate": 1
+    }
+  ]
+}

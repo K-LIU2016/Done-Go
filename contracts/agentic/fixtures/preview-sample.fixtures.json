@@ -1,0 +1,50 @@
+{
+  "valid": [
+    {
+      "id": "preview-sample-1",
+      "layout": "x",
+      "page": "x",
+      "text": {
+        "title": "x",
+        "bullets": []
+      },
+      "image": {
+        "prompt": "x",
+        "model": "z-image-turbo",
+        "status": "queued"
+      },
+      "watermark": "示意"
+    },
+    {
+      "id": "preview-sample-2",
+      "layout": "x",
+      "page": "x",
+      "text": {
+        "title": "x",
+        "bullets": []
+      },
+      "image": {
+        "prompt": "x",
+        "model": "z-image-turbo",
+        "status": "queued"
+      },
+      "watermark": "示意"
+    }
+  ],
+  "invalid": [
+    {
+      "layout": "x",
+      "page": "x",
+      "text": {
+        "title": "x",
+        "bullets": []
+      },
+      "image": {
+        "prompt": "x",
+        "model": "z-image-turbo",
+        "status": "queued"
+      },
+      "watermark": "示意"
+    }
+  ]
+}

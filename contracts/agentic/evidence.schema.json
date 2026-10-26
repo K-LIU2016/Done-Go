@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence.schema.json",
+  "title": "Evidence",
+  "description": "交付物证据条目：验收页证据区与工单结果都用它。PRD §5.6、§6.4。",
+  "type": "object",
+  "required": ["type", "title"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["citation-list", "test-run", "diff", "build-log", "dod-check", "review", "screenshot", "transcript", "metric", "other"]
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "uri": { "type": ["string", "null"], "description": "证据内容的位置（对象库/文件/链接），可为空" },
+    "detail": { "type": "string", "description": "一句话摘要，必须能回答“做了什么、产出在哪”" },
+    "verified": { "type": "boolean", "description": "是否已核验（引用可达、测试真实跑过）" }
+  },
+  "additionalProperties": false
+}

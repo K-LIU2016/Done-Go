@@ -1,0 +1,22 @@
+{
+  "valid": [
+    {
+      "type": "test-run",
+      "title": "unit tests"
+    },
+    {
+      "type": "citation-list",
+      "title": "sources",
+      "uri": "/evidence/1",
+      "verified": true
+    }
+  ],
+  "invalid": [
+    [
+      {
+        "type": "bad",
+        "title": "x"
+      }
+    ]
+  ]
+}

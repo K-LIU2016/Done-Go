@@ -1,0 +1,21 @@
+{
+  "valid": [
+    {
+      "status": "off",
+      "model": "happyhorse-1.1-t2v",
+      "url": null
+    },
+    {
+      "status": "off",
+      "model": "happyhorse-1.1-t2v",
+      "url": null
+    }
+  ],
+  "invalid": [
+    {
+      "status": "not-a-status",
+      "model": "happyhorse-1.1-t2v",
+      "url": null
+    }
+  ]
+}
