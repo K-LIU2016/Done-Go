@@ -56,3 +56,10 @@ test('every cue satisfies the shared subtitle contract (numbers, non-negative, o
     assert.ok(c.startSec >= 0 && c.endSec >= c.startSec);
   }
 });
+
+test('defensive inputs: undefined/null narration behaves as empty', () => {
+  assert.deepEqual(splitSentences(), []);
+  assert.deepEqual(splitSentences(null), []);
+  assert.deepEqual(buildSubtitles(), []);
+  assert.deepEqual(buildSubtitles(null), []);
+});

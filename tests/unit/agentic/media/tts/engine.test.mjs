@@ -23,7 +23,8 @@ function fakeSherpa({ samples, sampleRate }) {
   const loader = async () => ({
     OfflineTts: class {
       constructor(config) { calls.configs.push(config); }
-      generate(text) { calls.texts.push(text); return { samples, sampleRate }; }
+      // 对齐 sherpa-onnx-node 2.0.0 真实 API：generate(TtsRequest{text,sid,speed}) → GeneratedAudio
+      generate(req) { calls.texts.push(req.text); return { samples, sampleRate }; }
     },
   });
   return { loader, calls };
