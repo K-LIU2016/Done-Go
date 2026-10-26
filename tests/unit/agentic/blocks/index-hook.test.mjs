@@ -4,7 +4,7 @@
 // 本地数据完整备份到 tango-donego.backup.<ts>）、PRD §11.1（服务端权威、浏览器缓存；冲突不自动覆盖）。
 //
 // 契约：attachBlockSync({ getState, saveBase, storage, fetchImpl, getAccount, now, pollMs, timer,
-//                         storeKey, onEvent }) → { notifySave, start, stop, setOnline, pending, poll }：
+//                         storeKey, onEvent }) → { notifySave, notifyDelete, start, stop, setOnline, pending, poll }：
 //   start()      未登录：静默不请求不备份。已登录：首次（该账号 flag 未置）先写
 //                localStorage['tango-donego.backup.<ts>']（内容=storeKey 原文，缺原文时=JSON(状态)）
 //                并置 flag 'tango-donego.blocks.backup.v1:<accountId>'，再走引擎 start() 全量拉取，
@@ -168,6 +168,44 @@ test('serverChanges 软删除：deleted_at 块从本地 entries 移除并持久�
   assert.ok(box.saved.length >= 1);
 });
 
+test('本地删除上行（安全评审 HIGH）：notifyDelete 后 POST 含 {id, deleted:true}；删除落定前 serverChanges 不复活该块', async () => {
+  const state = { v: 1, entries: [entryOf()], drafts: [] };
+  let syncResponse = { applied: 0, conflicts: [], serverChanges: [], cursor: 0 };
+  const io = recorder([
+    { blocks: [], cursor: 0 },
+    () => syncResponse, () => syncResponse, () => syncResponse,
+  ]);
+  const box = harness({ state, fetchImpl: io.fetchImpl });
+  await box.attached.start();                       // 首次：e1 上行（recorder 第2响应）
+  state.entries = [];                               // index.html del 路径的本地过滤
+  box.attached.notifySave();                        // 剩余块无脏：不发
+  box.attached.notifyDelete('e1');                  // 新增：删除上行
+  await box.attached.poll();
+  const deleteChange = io.sent()[io.sent().length - 1].changes.find(change => change.id === 'e1');
+  assert.ok(deleteChange, '删除 change 应上行');
+  assert.equal(deleteChange.deleted, true);
+  assert.ok(!('block' in deleteChange));
+
+  // 删除未落定期间：另一设备改了 e1（新修订非删除）→ 不得回填复活
+  syncResponse = { applied: 0, conflicts: [], serverChanges: [blockOf({ revision: 2, title: '别的设备改了' })], cursor: 2 };
+  await box.attached.poll();
+  assert.ok(!state.entries.some(item => item.id === 'e1'), '墓碑应拦住已删块的回填');
+
+  // 删除落定：服务端下发 deleted_at → 清墓碑（后续该 id 重新下发可正常接收）
+  syncResponse = { applied: 0, conflicts: [], serverChanges: [blockOf({ revision: 3, deleted_at: '2026-10-26T08:00:00.000Z' })], cursor: 3 };
+  await box.attached.poll();
+  syncResponse = { applied: 0, conflicts: [], serverChanges: [blockOf({ revision: 4, title: '真回来了' })], cursor: 4 };
+  await box.attached.poll();
+  assert.equal(state.entries.find(item => item.id === 'e1')?.title, '真回来了');
+});
+
+test('notifyDelete：未登录静默不入队', async () => {
+  const io = recorder([{ blocks: [], cursor: 0 }]);
+  const box = harness({ state: { entries: [] }, fetchImpl: io.fetchImpl, account: null });
+  assert.equal(box.attached.notifyDelete('e1'), false);
+  assert.equal(box.attached.pending(), 0);
+});
+
 test('冲突：onEvent 透传 conflicts，本地不自动覆盖、同内容不自动重推', async () => {
   const state = { v: 1, entries: [entryOf()], drafts: [] };
   const io = recorder([
@@ -280,4 +318,17 @@ test('index.html：持久化段动态 import /agentic/sync.js，登录守卫 Tan
 
 test('index.html：onboard 收尾不被破坏（collaboration.start().finally 分支保留）', () => {
   assert.match(html, /collaboration\.start\(\)\.finally\(function \(\) \{ if \(!S\.mode && !collaborationPersonal\.account\(\) && route\(\) !== 'agreements'\) onboard\(\); \}\)/);
+});
+
+test('index.html：本地删除上行接线（安全评审 HIGH）——del/draft-del/整段裁剪都 notifyBlockDelete', () => {
+  assert.match(html, /function notifyBlockDelete\(id\) \{ if \(!blockSync \|\| !id\) return; try \{ blockSync\.notifyDelete\(id\); \} catch \(e\) \{\} \}/, '删除上行 helper 应存在且静默');
+  const del = html.match(/if \(act === 'del'\) \{[^\n]*\}/);
+  assert.ok(del, 'del 分支应存在');
+  assert.match(del[0], /notifyBlockDelete\(did\)/, 'del 后应上行删除');
+  const draftDel = html.match(/if \(act === 'draft-del'\) \{[^\n]*\}/);
+  assert.ok(draftDel, 'draft-del 分支应存在');
+  assert.match(draftDel[0], /notifyBlockDelete\(d2\.id\)/, 'draft-del 后应上行删除');
+  const replace = html.match(/function replaceEntry\(e, parts\) \{[^\n]*\}/);
+  assert.ok(replace, 'replaceEntry 应存在');
+  assert.match(replace[0], /notifyBlockDelete\(e\.id\)/, '整段被裁掉（不保留 id）＝删除，应上行');
 });

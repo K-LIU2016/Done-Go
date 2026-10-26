@@ -32,7 +32,7 @@ export function entryToBlock(entry, { source = 'web' } = {}) {
     end,
     title: entry.title,
     kind: entry.kind,
-    prio: Number.isFinite(entry.prio) ? entry.prio : 3,
+    prio: Number.isInteger(entry.prio) ? entry.prio : 3, // 与服务端 store normalizeContent 的 Number.isInteger 对齐：浮点（旧数据/导入）按缺省 3 上行，绝不产出服务端必拒的毒丸
     note: typeof entry.note === 'string' ? entry.note : '',
     done: entry.done === true,
     source,
@@ -88,7 +88,7 @@ export function createBlockSync({
   storage,               // localStorage 形状 {getItem,setItem}：游标持久化
   now = Date.now,        // 引擎自身不落时间戳（服务端 store 盖章）；保留注入位给挂载方约定
   getAccount = () => null, // 返回账号对象或 null/undefined（null = 未登录，一切入口静默不动）
-  onEvent = () => {},    // console-free 事件回调：{type:'serverChanges'|'conflicts', items}
+  onEvent = () => {},    // console-free 事件回调：{type:'serverChanges'|'conflicts'|'error', items}
 } = {}) {
   const doFetch = typeof fetchImpl === 'function' ? fetchImpl : (...args) => globalThis.fetch(...args);
   if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
@@ -131,6 +131,17 @@ export function createBlockSync({
     return true;
   }
 
+  /** 本地删除入队（安全评审 HIGH：删除上行通道）：上行 {id, baseRevision, deleted:true}（服务端
+   *  softDelete）。同 id 再入队会覆盖此前的编辑入队——本地已删，最新意图就是删。服务端没见过
+   *  的块也照发：softDelete 对不存在的块返回 {applied:false, block:null}，走 conflicts 通道，
+   *  队列照清、不卡通道。 */
+  function enqueueDelete(id) {
+    if (!account()) return false;
+    if (typeof id !== 'string' || !id) return false;
+    queue.set(id, { id, baseRevision: revisions.get(id) ?? 0, deleted: true });
+    return true;
+  }
+
   /** 登录后的首次同步：GET /api/blocks 全量拉取 → serverChanges 事件 + 游标落盘。
    * 未登录/离线/网络失败：静默返回（首次同步由挂载方在上线时机重试）。 */
   async function start() {
@@ -147,7 +158,9 @@ export function createBlockSync({
 
   /** 在线时 POST /api/blocks/sync：上行排队块（各带 baseRevision），下行 baseRevision=游标
    * 之后的增量 serverChanges（含冲突块，服务端已剔除）与 conflicts。成功后推进游标、
-   * 清掉已上报的队列；冲突只经事件上报、本地版本保留由调用方处置，绝不自动重推。 */
+   * 清掉已上报的队列；冲突只经事件上报、本地版本保留由调用方处置，绝不自动重推。
+   * 请求非法类 4xx（400/413/415）不清队列重试也永不成功——清队 + error 事件（防毒丸卡死通道），
+   * 其余非 ok（401/403/5xx）与 fetch 抛错同语义：只排队不丢不抛。 */
   function flush() {
     if (!account() || !online) return Promise.resolve();
     if (inFlight) return inFlight; // 并发 flush 合一，避免重复上行同批
@@ -161,7 +174,18 @@ export function createBlockSync({
           body: JSON.stringify({ baseRevision: readCursor(), changes: sent }),
         });
       } catch { return; } // fetch 抛错：只排队不丢不抛
-      if (!response || response.ok === false) return; // 4xx/5xx 与断网同语义，队列原样保留
+      if (!response || response.ok === false) {
+        // 请求本身非法的 4xx（400 字段校验 / 413 body 超限 / 415 content-type）与断网不同：重试
+        // 永不成功。绝不能当离线无限重试——一条毒丸 change 会永久卡死上行+增量下行通道（安全评审
+        // HIGH）。清掉本批并经 error 事件交还调用方：本地数据仍在宿主 state/存储（saveBase 已落），
+        // 放弃的只是这次上行；清队后 poll 的空队列 POST 照常工作，增量下行恢复。
+        // 401/403/404/5xx 仍与断网同语义（登录态/服务端可能恢复）：队列原样保留。
+        if (response && (response.status === 400 || response.status === 413 || response.status === 415)) {
+          for (const change of sent) if (queue.get(change.id) === change) queue.delete(change.id);
+          emit({ type: 'error', status: response.status, items: sent });
+        }
+        return;
+      }
       let data; try { data = await response.json(); } catch { return; }
       learnRevisions(data?.serverChanges);
       if (Array.isArray(data?.serverChanges) && data.serverChanges.length) emit({ type: 'serverChanges', items: data.serverChanges });
@@ -182,7 +206,7 @@ export function createBlockSync({
   }
 
   const pending = () => queue.size;
-  return { start, enqueue, flush, setOnline, pending };
+  return { start, enqueue, enqueueDelete, flush, setOnline, pending };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -197,6 +221,8 @@ export function createBlockSync({
 //      语义的函数，不能传挂了 enqueue 的 save()，否则下行→保存→上行回环。
 //   3. notifySave 脏检测：只上行规范内容变化过的块（内容 key = entryToBlock 输出），冲突块上报后
 //      不自动重推（内容不变不再入队），冲突本身经 onEvent 透传、本地版本保留（第 3 批接提示 UI）。
+//   4. notifyDelete(id) 本地删除上行（安全评审 HIGH）：入队 {id, deleted:true}（引擎 enqueueDelete）
+//      + 墓碑拦住删除落定前的下行回填，防止已删块经 serverChanges/全量 GET 复活。
 // 全依赖注入（无 DOM/localStorage 直引），浏览器与 Node 双跑；引擎 dequeue 失败时队列保留，
 // 乐观标记的 key 不丢数据（内容仍在引擎队列里，下一轮 flush 照发）。
 export const BACKUP_FLAG_PREFIX = 'tango-donego.blocks.backup.v1';
@@ -220,6 +246,11 @@ export function attachBlockSync({
   const engine = createBlockSync({ fetchImpl, storage, now, getAccount, onEvent: handleEngineEvent });
   const account = () => { const value = getAccount(); return value && typeof value === 'object' ? value : null; };
   const pushedKeys = new Map(); // id → 上次入队时 entryToBlock 的内容 key（脏检测）
+  // 本地已删、上行未落定的块 id（墓碑）：拦住下行对该块的回填——另一台设备先改产生新 seq 也
+  // 不复活本地已删的块（安全评审 HIGH）。删除 change 上行落定后服务端不再下发该块的非删除态；
+  // 收到 deleted_at 下发（删除已生效）即清墓碑。仅内存态：与引擎队列同寿命（重载即空），此时
+  // 删除早已 flush，服务端为权威不会再回填。
+  const tombstones = new Set();
   let pollHandle = null;
 
   /** serverChanges 并入本地（引擎事件 → 宿主 state）。任何一步失败只影响本次并入，不抛给引擎。 */
@@ -238,11 +269,13 @@ export function attachBlockSync({
       const index = list.findIndex(item => item && item.id === block.id);
       const otherIndex = other ? other.findIndex(item => item && item.id === block.id) : -1;
       if (block.deleted_at != null) {
-        // 软删除传播：两列表里都清（晋级残留一并回收）
+        // 软删除传播：两列表里都清（晋级残留一并回收）；本地的待上行删除也在此刻落定 → 清墓碑
         if (index >= 0) { list.splice(index, 1); changed = true; }
         if (otherIndex >= 0) { other.splice(otherIndex, 1); changed = true; }
+        tombstones.delete(block.id);
         continue;
       }
+      if (tombstones.has(block.id)) continue; // 本地已删、上行未落定：不回填（防复活），等删除 change 落定
       if (index >= 0) {
         const before = JSON.stringify(list[index]);
         const merged = mergeBlockIntoEntry(list[index], block);
@@ -306,6 +339,19 @@ export function attachBlockSync({
     return dirty;
   }
 
+  /** 本地删除后调用（index.html 的 del / draft-del / 冲突整段裁剪）：入队 deleted:true 上行 +
+   *  记墓碑拦住删除落定前的下行回填（防复活）。删除与基准不符（他端先改）→ conflicts 通道交回
+   *  调用方，墓碑保留、本地不复活。未登录静默。 */
+  function notifyDelete(id) {
+    if (!account()) return false;
+    if (typeof id !== 'string' || !id) return false;
+    tombstones.add(id);
+    pushedKeys.delete(id); // 已删的块不再参与脏检测
+    const queued = engine.enqueueDelete(id);
+    if (queued) engine.flush();
+    return queued;
+  }
+
   const poll = () => engine.flush();
 
   /** 登录后的挂载入口：整备份（首次）→ 引擎 start() 全量拉取并入 → notifySave 上行本地（首次迁移，
@@ -327,5 +373,5 @@ export function attachBlockSync({
     pollHandle = null;
   }
 
-  return { notifySave, start, stop, poll, setOnline: online => engine.setOnline(online), pending: () => engine.pending() };
+  return { notifySave, notifyDelete, start, stop, poll, setOnline: online => engine.setOnline(online), pending: () => engine.pending() };
 }

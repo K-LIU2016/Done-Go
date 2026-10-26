@@ -7,10 +7,14 @@
 //                            onEvent({type:'serverChanges', items:<blocks>})，
 //                            游标写入 storage['tango-donego.blocks.cursor.v1']。
 //   enqueue(entry, {source}) 本地脏块入队（新块 baseRevision 0；服务端响应里见过的块用其 revision）。
+//   enqueueDelete(id)        本地删除入队：上行 {id, baseRevision, deleted:true}（服务端软删），
+//                            覆盖同 id 的编辑入队。
 //   flush()                  在线时 POST /api/blocks/sync（带 x-tango-client 头、JSON body
-//                            {baseRevision:<游标>, changes:[{id, baseRevision, block}]}）；
+//                            {baseRevision:<游标>, changes:[{id, baseRevision, block|deleted}]}）；
 //                            offline 或 fetch 抛错 → 只排队不抛；成功后按响应发 serverChanges /
-//                            conflicts 事件、推进游标、清空已上报队列。
+//                            conflicts 事件、推进游标、清空已上报队列。请求非法类 4xx（400/413/415）
+//                            重试永不成功：清掉本批发 error 事件（防毒丸永久卡死通道），其余非 ok
+//                            （401/403/5xx）只排队不丢。
 //   setOnline(bool)          可注入 online 状态；false→true 时自动补写，返回的 promise 在补写完成后 resolve。
 //   pending()                当前排队待写的块数。
 // 未登录（getAccount() 返回 null/undefined）：一切入口不发请求、不入队。
@@ -131,6 +135,70 @@ test('冲突：conflicts 事件触发且冲突块不随 serverChanges 自动下�
   assert.ok(!serverChanges[1].items.some(block => block.id === 'e1')); // 冲突块不自动覆盖本地
   assert.equal(sync.pending(), 0);                                 // 已上报，交回调用方决定
   assert.equal(Number(storage.getItem(CURSOR_KEY)), 4);
+});
+
+test('毒丸 400（安全评审 HIGH）：清掉本批 + error 事件，通道恢复（空队列 poll 照常增量拉取）；401 仍保留队列', async () => {
+  const events = [];
+  let status = 400;
+  const calls = [];
+  const sync = createBlockSync({
+    fetchImpl: async (url, init) => {
+      if (pathOf(url) !== '/api/blocks/sync') return ok({ blocks: [], cursor: 0 });
+      calls.push(bodyOf(init));
+      if (status !== 200) return { ok: false, status, json: async () => ({ error: 'INVALID_INPUT' }) };
+      return ok({ applied: 0, conflicts: [], serverChanges: [], cursor: 1 });
+    },
+    storage: memoryStorage(),
+    getAccount: () => ({ id: 'a' }),
+    onEvent: event => events.push(event),
+  });
+  sync.enqueue(entryOf());                      // 规范块即可：毒丸场景=服务端仍 400（旧客户端数据/网关行为）
+  await sync.flush();
+  assert.equal(sync.pending(), 0);              // 毒丸批被清，不再无限重试
+  const errors = events.filter(event => event.type === 'error');
+  assert.equal(errors.length, 1);               // 有信号
+  assert.equal(errors[0].status, 400);
+  assert.deepEqual(errors[0].items.map(change => change.id), ['e1']);
+  await sync.flush();                           // 通道恢复：空队列 POST = 增量拉取照常
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1].changes, []);
+
+  status = 401;                                 // 登录态丢失：可能恢复，不丢队列
+  sync.enqueue(entryOf({ title: '等登录恢复' }));
+  await sync.flush();
+  assert.equal(sync.pending(), 1);
+  const errorsStill1 = events.filter(event => event.type === 'error').length;
+  status = 200;
+  await sync.flush();
+  assert.equal(sync.pending(), 0);
+  assert.equal(events.filter(event => event.type === 'error').length, errorsStill1); // 401 不发 error、不清队
+});
+
+test('enqueueDelete：入队 {id, baseRevision, deleted:true}，覆盖同 id 编辑；未登录/缺 id 不入队', async () => {
+  const calls = [];
+  const sync = createBlockSync({
+    fetchImpl: async (url, init) => { calls.push(init); return ok({ applied: 1, conflicts: [], serverChanges: [], cursor: 2 }); },
+    storage: memoryStorage(),
+    getAccount: () => ({ id: 'a' }),
+    onEvent: () => {},
+  });
+  sync.enqueue(entryOf({ revision: undefined }));            // 先入队编辑（baseRevision 0）
+  assert.equal(sync.enqueueDelete('e1'), true);              // 再删：同 id 覆盖
+  assert.equal(sync.enqueueDelete(''), false);               // 缺 id 不入队
+  await sync.flush();
+  const sent = bodyOf(calls[0]);
+  assert.equal(sent.changes.length, 1);
+  assert.equal(sent.changes[0].id, 'e1');
+  assert.equal(sent.changes[0].deleted, true);               // 上行软删
+  assert.equal(sent.changes[0].baseRevision, 0);
+  assert.ok(!('block' in sent.changes[0]));                  // 删除不带内容
+  assert.equal(sync.pending(), 0);
+});
+
+test('未登录：enqueueDelete 也不入队', async () => {
+  const sync = createBlockSync({ fetchImpl: async () => ok({}), storage: memoryStorage(), getAccount: () => null, onEvent: () => {} });
+  assert.equal(sync.enqueueDelete('e1'), false);
+  assert.equal(sync.pending(), 0);
 });
 
 test('start()：GET /api/blocks 全量拉取下发 serverChanges，游标落盘、后续 flush 复用（不重复拉）', async () => {

@@ -49,6 +49,14 @@ test('entryToBlock 校验：date 非 YYYY-MM-DD、start/end 非 HH:MM（同 inde
   assert.ok(entryToBlock({ ...base, date: '2026-10-26', start: '24:00', end: '24:00' })); // 24:00 合法（同 isHM）
 });
 
+test('entryToBlock prio 对齐服务端 Number.isInteger（安全评审 HIGH）：浮点/非数值 → 缺省 3，整数保留', () => {
+  const base = { id: 'p1', date: '2026-10-26', start: '09:00', end: '10:00', title: 't', kind: 'create' };
+  assert.equal(entryToBlock({ ...base, prio: 2.5 }).prio, 3);   // 浮点（旧数据/导入）：按缺省上行，不产出毒丸
+  assert.equal(entryToBlock({ ...base, prio: '4' }).prio, 3);    // 数值字符串同非 Integer
+  assert.equal(entryToBlock({ ...base, prio: 4 }).prio, 4);      // 合法整数原样
+  assert.equal(Number.isInteger(entryToBlock({ ...base }).prio), true); // 缺省亦为 Integer
+});
+
 test('blockToEntry roundtrip：规范字段还原一致；无 start 的 draft 也能往返', () => {
   const entry = { id: 'ab12cd34', date: '2026-10-26', start: '14:00', end: '15:30', title: '午休', kind: 'restore', prio: 5, note: '小睡二十分钟', done: true };
   const round = blockToEntry(entryToBlock(entry));

@@ -114,6 +114,28 @@ test('幂等重放：同一批 changes 重发 applied 不重复计数、revision
   assert.equal(view.body.blocks.find(block => block.id === 'r1').revision, 1);
 });
 
+test('批量原子性（安全评审 HIGH）：批内含字段非法 change（prio 2.5）→ 整批 400，好块也不落库', async t => {
+  const f = await startBlockServer(t);
+  const alice = f.login('alice');
+  const response = await f.request('/api/blocks/sync', {
+    cookie: alice,
+    body: {
+      baseRevision: 0,
+      changes: [
+        { id: 'good1', baseRevision: 0, block: blockOf({ title: '好块' }) },
+        { id: 'poison', baseRevision: 0, block: blockOf({ title: '毒丸', prio: 2.5 }) }, // 字段级：store 要求 Number.isInteger
+      ],
+    },
+  });
+  assert.equal(response.status, 400);           // 整批拒（prio 非 Integer → store normalizeContent）
+  assert.equal(response.body.error, 'INVALID_INPUT');
+  assert.deepEqual((await f.request('/api/blocks', { cookie: alice })).body.blocks, []); // good1 未落库（无半批 COMMIT）
+  // 同批去掉毒丸重发 → 200 落库（客户端按 error 事件修数据后可恢复）
+  const retry = await f.request('/api/blocks/sync', { cookie: alice, body: { baseRevision: 0, changes: [{ id: 'good1', baseRevision: 0, block: blockOf({ title: '好块' }) }] } });
+  assert.equal(retry.status, 200);
+  assert.equal(retry.body.applied, 1);
+});
+
 test('软删除经 sync 下发：list 不出、其他设备经 serverChanges 收到 deleted_at', async t => {
   const f = await startBlockServer(t);
   const alice = f.login('alice');

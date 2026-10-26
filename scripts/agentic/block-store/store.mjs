@@ -117,6 +117,14 @@ export function createBlocksStore({ db, now = () => new Date().toISOString() }) 
   return {
     upsert: (owner, change) => applyChange(owner, change, false),
     softDelete: (owner, change) => applyChange(owner, change, true),
+    // 批量原子预检（安全评审 HIGH）：对一条 change 跑与真实应用完全相同的输入校验（含
+    // normalizeContent 的字段级校验），不写库、无副作用。routes 在应用任何一条之前整批跑它，
+    // 坏数据整体 400，杜绝"前半批已 COMMIT、后半批才抛"的半批落库。
+    validateChange: change => {
+      requireInput(change && typeof change === 'object');
+      if (change.deleted === true) return;   // 软删不带内容
+      normalizeContent(change.block);        // 坏字段在此抛 blocksError(400)
+    },
     list,
     changesSince,
   };

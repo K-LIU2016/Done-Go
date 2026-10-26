@@ -7,7 +7,8 @@
 //   POST /api/blocks/sync      body {baseRevision, changes:[{id, baseRevision, block|deleted}]}
 //     → 200 {applied, conflicts, serverChanges, cursor}。冲突 = change.baseRevision ≠ 服务端当前
 //     revision（判定模式同 collaboration-store.mjs:69 的 revision 基准检查，但逐条进 conflicts、
-//     不整体 409）；幂等重放 applied 不计数、revision 不前进。
+//     不整体 409）；幂等重放 applied 不计数、revision 不前进。批内任何一条（含字段级内容）非法
+//     → 整批 400、一条也不落库（原子：store.validateChange 预检先于应用循环）。
 // 护栏（安全评审落代码，对齐 collaboration-service.mjs）：x-tango-client/origin 校验(:68-69)、
 //   JSON content-type 415 / body≤128KB 413 / 坏 JSON 400（:11-15 readBody）、单次 changes≤500。
 import { blocksError } from './store.mjs';
@@ -51,13 +52,16 @@ export function createBlockRoutes({ store, authenticate, requestAllowed, now }) 
     need(Number.isInteger(body.baseRevision) && body.baseRevision >= 0, 'INVALID_BASE_REVISION');
     need(Array.isArray(body.changes), 'INVALID_CHANGES');
     need(body.changes.length <= MAX_CHANGES, 'TOO_MANY_CHANGES');
-    // 结构校验全部前置（原子性：任何一条坏数据都在写库前整体 400）；block 字段级内容校验由 store
-    // 的 normalizeContent 兜底（400），那一步发生在逐条应用期。
+    // 结构 + 内容校验全部前置（原子性：任何一条坏数据都在写库前整体 400，绝不半批落库——
+    // 安全评审 HIGH）。字段级内容校验的唯一来源仍是 store：validateChange 与真实应用走同一条
+    // normalizeContent，本层不重复实现；预检与下方应用循环之间无 await，校验通过的批不会再在
+    // 应用期抛错。
     for (const change of body.changes) {
       need(change && typeof change === 'object' && !Array.isArray(change));
       need(typeof change.id === 'string' && change.id.length > 0 && change.id.length <= 200);
       need(Number.isInteger(change.baseRevision) && change.baseRevision >= 0);
       need(change.deleted === true || (change.block && typeof change.block === 'object'));
+      store.validateChange(change);
     }
     // 应用前快照：owner 全部块（含已软删）的最新状态，每块一条（changesSince(owner,0) 的语义），
     // 用于区分真应用/重放。代价 O(该 owner 的历史块数)，W1 规模（单人日程，数百块）可接受。
