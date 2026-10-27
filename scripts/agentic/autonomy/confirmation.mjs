@@ -13,7 +13,17 @@ const timestamp = (value) => {
 export class ConfirmationStore {
   #items = new Map();
 
-  issue({ actionId, actor, contractHash, actionHash, action, now = new Date().toISOString(), ttlMs = 60_000 } = {}) {
+  constructor({ clock = () => new Date() } = {}) {
+    this.clock = clock;
+  }
+
+  #now(value) {
+    const current = value ?? this.clock();
+    return current instanceof Date ? current.toISOString() : current;
+  }
+
+  issue({ actionId, actor, contractHash, actionHash, action, now, ttlMs = 60_000 } = {}) {
+    now = this.#now(now);
     if (!validText(actionId) || !validText(contractHash)) fail('CONFIRMATION_INPUT_INVALID');
     if (!Number.isFinite(ttlMs) || ttlMs <= 0) fail('CONFIRMATION_TTL_INVALID');
     const normalizedActor = normalizeActor(actor);
@@ -33,7 +43,8 @@ export class ConfirmationStore {
     return { token, actionId, expiresAt: new Date(expiresAt).toISOString() };
   }
 
-  consume(token, { actionId, actor, contractHash, actionHash, action, now = new Date().toISOString() } = {}) {
+  consume(token, { actionId, actor, contractHash, actionHash, action, now } = {}) {
+    now = this.#now(now);
     const item = this.#items.get(token);
     if (!item) return { status: 'blocked', code: 'CONFIRMATION_REPLAY' };
     let currentActor;

@@ -47,10 +47,12 @@ function contextValid(input) {
 }
 
 export class IdempotencyRecovery {
-  constructor({ db = null, audit = new AuditLog(), now = () => new Date().toISOString() } = {}) {
+  constructor({ db = null, audit, clock = () => new Date(), now } = {}) {
     this.db = db;
-    this.audit = audit;
-    this.now = now;
+    this.clock = clock;
+    this.audit = audit ?? new AuditLog({ clock });
+    this.audit.clock = clock;
+    this.now = now ?? (() => this.clock().toISOString());
     this.actions = new Map();
     this.checkpoints = new Map();
     this.events = new Map();

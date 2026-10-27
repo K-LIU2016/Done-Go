@@ -35,8 +35,10 @@ export function evaluateSideEffect({ risk, requestedAutonomy, actor } = {}, { ph
 }
 
 export class SideEffectFence {
-  constructor({ audit = new AuditLog(), phase = 'P0' } = {}) {
-    this.audit = audit;
+  constructor({ audit, phase = 'P0', clock = () => new Date() } = {}) {
+    this.clock = clock;
+    this.audit = audit ?? new AuditLog({ clock });
+    this.audit.clock = clock;
     this.phase = phase;
   }
 

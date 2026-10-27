@@ -18,8 +18,10 @@ const INPUT = {
 
 const migrationDir = () => decodeURIComponent(new URL('../../../../scripts/agentic/db/migrations/', import.meta.url).pathname);
 
+const CLOCK = () => new Date(NOW);
+
 function make(options = {}) {
-  return new IdempotencyRecovery({ now: () => NOW, ...options });
+  return new IdempotencyRecovery({ clock: CLOCK, now: () => NOW, ...options });
 }
 
 test('exports the recovery state machine and rejects impossible transitions', () => {

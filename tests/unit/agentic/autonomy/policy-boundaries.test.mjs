@@ -63,6 +63,13 @@ test('enforces the contract window including the preparation window', () => {
   assert.equal(result({ grant: validGrant }, { now: '2026-10-27T11:00:00.000Z', phase: 'P1' }).code, 'WINDOW_OUTSIDE');
 });
 
+test('treats the grant expiry instant as expired with an injected fixed clock', () => {
+  const expiresAt = '2026-10-27T11:00:00.000Z';
+  const validGrant = { expiresAt };
+  assert.equal(result({ grant: validGrant }, { now: '2026-10-27T10:59:59.999Z', phase: 'P1' }).code, 'ALLOWED');
+  assert.equal(result({ grant: validGrant }, { now: expiresAt, phase: 'P1' }).code, 'GRANT_EXPIRED');
+});
+
 test('enforces budget against cumulative spend and rejects malformed estimates', () => {
   assert.equal(result({ spent: { modelCalls: 3, tokens: 950, cost: 1.5, localSlots: 0 } }).code, 'BUDGET_EXCEEDED');
   assert.equal(result({ action: { estimate: { modelCalls: -1, tokens: 1, cost: 0, localSlots: 0 } } }).code, 'BUDGET_INVALID');

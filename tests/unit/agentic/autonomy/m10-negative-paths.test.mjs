@@ -9,6 +9,7 @@ import { IdempotencyRecovery } from '../../../../scripts/agentic/autonomy/idempo
 import { SideEffectFence } from '../../../../scripts/agentic/autonomy/side-effect-fence.mjs';
 
 const NOW = '2026-10-27T10:00:00.000Z';
+const CLOCK = () => new Date(NOW);
 const ACTOR = { actorId: 'worker-1', modelProvider: 'gateway', resolvedModel: 'gpt-6.1-sol' };
 const BASE = {
   ownerId: 'owner-1',
@@ -57,7 +58,7 @@ test('A2 and A3 remain bounded by their matching capabilities and grants', () =>
 });
 
 test('A4 requires a fresh confirmation and a replay cannot execute', async () => {
-  const runtime = new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   const input = request({
     mission: { autonomy: 'A4' },
     action: { risk: 'external', requestedAutonomy: 'A4', capability: 'files.write' },
@@ -74,7 +75,7 @@ test('A4 requires a fresh confirmation and a replay cannot execute', async () =>
 
 test('A5 financial actions are hard-stopped even with an active grant', async () => {
   let calls = 0;
-  const runtime = new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   const result = await runtime.perform(request({
     mission: { autonomy: 'A5' },
     contract: { capabilities: [{ capability: 'purchase', scope: 'cart:1' }] },
@@ -92,7 +93,7 @@ test('owner changes fail closed and cannot reuse another owner\'s grant', () => 
 
 test('unresolved actor models remain UNKNOWN and never produce completion', async () => {
   let calls = 0;
-  const runtime = new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   const result = await runtime.perform(request({ action: { actor: { actorId: 'worker-1', resolvedModel: null } } }), async () => {
     calls += 1;
     return { completed: true };
@@ -104,8 +105,8 @@ test('unresolved actor models remain UNKNOWN and never produce completion', asyn
 
 test('audit failure blocks an action before the executor and latches the sink', async () => {
   let calls = 0;
-  const audit = new AuditLog({ writer: async () => { throw new Error('disk unavailable'); } });
-  const runtime = new AutonomyRuntime({ audit, phase: 'P1' });
+  const audit = new AuditLog({ writer: async () => { throw new Error('disk unavailable'); }, clock: CLOCK });
+  const runtime = new AutonomyRuntime({ audit, phase: 'P1', clock: CLOCK });
   const result = await runtime.perform(request(), async () => {
     calls += 1;
     return { completed: true };
@@ -118,7 +119,7 @@ test('audit failure blocks an action before the executor and latches the sink', 
 
 test('timeout and disconnect become UNKNOWN and recovery never retries the executor', async () => {
   for (const [suffix, code] of [['disconnect', 'CLIENT_DISCONNECTED'], ['timeout', 'TIMEOUT']]) {
-    const recovery = new IdempotencyRecovery({ now: () => NOW });
+    const recovery = new IdempotencyRecovery({ clock: CLOCK });
     const input = {
       idempotencyKey: `idem-negative-${suffix}`, actionId: `action-negative-${suffix}`, ownerId: 'owner-1',
       contractHash: 'contract-hash', grantId: 'grant-1', actor: ACTOR, actionHash: `hash-${suffix}`,
@@ -154,18 +155,18 @@ test('duplicate idempotency requests return the first result without rerunning w
 });
 
 test('side-effect fence rejects P0 external effects and audit persistence failures', async () => {
-  const p0 = new SideEffectFence({ audit: new AuditLog(), phase: 'P0' });
+  const p0 = new SideEffectFence({ audit: new AuditLog({ clock: CLOCK }), phase: 'P0', clock: CLOCK });
   const blocked = await p0.check({ action: { ...BASE.action, risk: 'external', requestedAutonomy: 'A3' } });
   assert.equal(blocked.code, 'P0_EXTERNAL_EFFECT_BLOCKED');
   const failing = new SideEffectFence({
-    audit: new AuditLog({ writer: async () => { throw new Error('read only'); } }), phase: 'P0',
+    audit: new AuditLog({ writer: async () => { throw new Error('read only'); }, clock: CLOCK }), phase: 'P0', clock: CLOCK,
   });
   const persisted = await failing.check({ action: BASE.action });
   assert.equal(persisted.code, 'AUDIT_WRITE_FAILED');
 });
 
 test('confirmation store rejects expired and binding-mismatched tokens once', () => {
-  const store = new ConfirmationStore();
+  const store = new ConfirmationStore({ clock: CLOCK });
   const issued = store.issue({ actionId: 'action-1', actor: ACTOR, contractHash: 'contract-hash', now: NOW, ttlMs: 1 });
   assert.equal(store.consume(issued.token, {
     actionId: 'action-2', actor: ACTOR, contractHash: 'contract-hash', now: NOW,

@@ -13,6 +13,7 @@ import { AuditLog } from '../../../../scripts/agentic/autonomy/audit.mjs';
 import { AutonomyRuntime, createAutonomyRoutes } from '../../../../scripts/agentic/autonomy/runtime.mjs';
 
 const NOW = '2026-10-27T10:00:00.000Z';
+const CLOCK = () => new Date(NOW);
 const ACTOR = { actorId: 'planner-1', resolvedModel: 'gpt-6.1-sol', modelProvider: 'gateway' };
 const BASE = {
   ownerId: 'owner-1',
@@ -65,19 +66,19 @@ test('missing resolved model is UNKNOWN and cannot be treated as complete', () =
 });
 
 test('allows an A3 reversible action only inside active contract and grant scope', () => {
-  const result = evaluateAction(input());
+  const result = evaluateAction(input(), { now: NOW });
   assert.deepEqual(result, { status: 'allowed', code: 'ALLOWED', requiresConfirmation: false });
 });
 
 test('rejects pre-contract actions and never calls an external executor', () => {
-  const result = evaluateAction(input({ mission: { state: 'previewed' } }));
+  const result = evaluateAction(input({ mission: { state: 'previewed' } }), { now: NOW });
   assert.equal(result.status, 'blocked');
   assert.equal(result.code, 'CONTRACT_REQUIRED');
 });
 
 test('rejects A0 and A1 write or execution attempts', () => {
   for (const autonomy of ['A0', 'A1']) {
-    const result = evaluateAction(input({ mission: { autonomy }, action: { requestedAutonomy: autonomy } }));
+    const result = evaluateAction(input({ mission: { autonomy }, action: { requestedAutonomy: autonomy } }), { now: NOW });
     assert.equal(result.status, 'blocked');
     assert.equal(result.code, 'AUTONOMY_TOO_LOW');
   }
@@ -87,7 +88,7 @@ test('allows an A2 preparation action with the required preparation grant', () =
   const result = evaluateAction(input({
     mission: { autonomy: 'A2' },
     action: { risk: 'prepare', requestedAutonomy: 'A2' },
-  }));
+  }), { now: NOW });
   assert.deepEqual(result, { status: 'allowed', code: 'ALLOWED', requiresConfirmation: false });
 });
 
@@ -100,8 +101,8 @@ test('rejects missing, expired, revoked, or mismatched grants fail-closed', () =
 });
 
 test('rejects cross-owner and out-of-scope actions', () => {
-  assert.equal(evaluateAction(input({ action: { ownerId: 'owner-2' } })).code, 'OWNER_MISMATCH');
-  assert.equal(evaluateAction(input({ action: { scope: '/other/place/file' } })).code, 'SCOPE_DENIED');
+  assert.equal(evaluateAction(input({ action: { ownerId: 'owner-2' } }), { now: NOW }).code, 'OWNER_MISMATCH');
+  assert.equal(evaluateAction(input({ action: { scope: '/other/place/file' } }), { now: NOW }).code, 'SCOPE_DENIED');
 });
 
 test('requires a fresh one-time confirmation for A4 external effects', () => {
@@ -109,7 +110,7 @@ test('requires a fresh one-time confirmation for A4 external effects', () => {
     mission: { autonomy: 'A4' },
     action: { risk: 'external', requestedAutonomy: 'A4', capability: 'message.send', scope: 'draft:message-1' },
     grant: { capabilities: [{ capability: 'message.send', scope: 'draft:message-1' }] },
-  }), { phase: 'P1' });
+  }), { now: NOW, phase: 'P1' });
   assert.deepEqual(result, { status: 'needs_confirmation', code: 'A4_CONFIRMATION_REQUIRED', requiresConfirmation: true });
 });
 
@@ -118,7 +119,7 @@ test('hard-stops A5 financial or legal actions even when a grant exists', () => 
     mission: { autonomy: 'A5' },
     action: { risk: 'financial', requestedAutonomy: 'A5', capability: 'purchase', scope: 'cart:1' },
     grant: { capabilities: [{ capability: 'purchase', scope: 'cart:1' }] },
-  }));
+  }), { now: NOW });
   assert.deepEqual(result, { status: 'blocked', code: 'A5_NEVER_AUTOMATIC', requiresConfirmation: false });
 });
 
@@ -128,17 +129,17 @@ test('does not allow deleting the default wont boundary', () => {
 });
 
 test('issues and atomically consumes an A4 confirmation bound to actor model and contract hash', () => {
-  const store = new ConfirmationStore();
-  const issued = store.issue({ actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash', now: NOW, ttlMs: 1000 });
+  const store = new ConfirmationStore({ clock: CLOCK });
+  const issued = store.issue({ actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash', ttlMs: 1000 });
   assert.ok(issued.token);
-  assert.equal(store.consume(issued.token, { actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash', now: NOW }).status, 'confirmed');
-  assert.equal(store.consume(issued.token, { actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash', now: NOW }).code, 'CONFIRMATION_REPLAY');
+  assert.equal(store.consume(issued.token, { actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash' }).status, 'confirmed');
+  assert.equal(store.consume(issued.token, { actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash' }).code, 'CONFIRMATION_REPLAY');
 });
 
 test('rejects expired or mismatched confirmations without creating a grant', () => {
-  const store = new ConfirmationStore();
-  const issued = store.issue({ actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash', now: NOW, ttlMs: 10 });
-  assert.equal(store.consume(issued.token, { actionId: 'a-4', actor: { ...ACTOR, resolvedModel: 'other' }, contractHash: 'contract-hash', now: NOW }).code, 'CONFIRMATION_BINDING_MISMATCH');
+  const store = new ConfirmationStore({ clock: CLOCK });
+  const issued = store.issue({ actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash', ttlMs: 10 });
+  assert.equal(store.consume(issued.token, { actionId: 'a-4', actor: { ...ACTOR, resolvedModel: 'other' }, contractHash: 'contract-hash' }).code, 'CONFIRMATION_BINDING_MISMATCH');
   assert.equal(store.consume(issued.token, { actionId: 'a-4', actor: ACTOR, contractHash: 'contract-hash', now: '2026-10-27T10:00:00.020Z' }).code, 'CONFIRMATION_EXPIRED');
 });
 
@@ -150,7 +151,7 @@ test('audit log fails closed when its writer fails', async () => {
 
 test('runtime blocks P0 external effects and A5 without invoking executor', async () => {
   let calls = 0;
-  const runtime = new AutonomyRuntime({ audit: new AuditLog() });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), clock: CLOCK });
   const result = await runtime.perform(input({
     action: { risk: 'external', requestedAutonomy: 'A4' },
     mission: { autonomy: 'A4' },
@@ -163,7 +164,7 @@ test('runtime blocks P0 external effects and A5 without invoking executor', asyn
 
 test('runtime consumes A4 confirmation once and executes only after explicit confirmation', async () => {
   let calls = 0;
-  const runtime = new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   const request = input({
     action: { id: 'a-4', ownerId: 'owner-1', risk: 'external', requestedAutonomy: 'A4', capability: 'message.send', scope: 'draft:message-1' },
     mission: { autonomy: 'A4' },
@@ -179,7 +180,7 @@ test('runtime consumes A4 confirmation once and executes only after explicit con
 
 test('runtime returns the same result for duplicate idempotency keys', async () => {
   let calls = 0;
-  const runtime = new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   const request = input({ action: { id: 'a-idem' }, idempotencyKey: 'idem-1' });
   const first = await runtime.perform(request, async () => { calls += 1; return { ok: true }; });
   const second = await runtime.perform(request, async () => { calls += 1; return { ok: true }; });
@@ -189,7 +190,7 @@ test('runtime returns the same result for duplicate idempotency keys', async () 
 
 test('runtime marks unknown external outcomes and recovery never retries them', async () => {
   let calls = 0;
-  const runtime = new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   const request = input({ action: { id: 'a-unknown' }, idempotencyKey: 'idem-unknown' });
   const result = await runtime.perform(request, async () => { calls += 1; const error = new Error('connection lost'); error.unknown = true; throw error; });
   assert.equal(result.status, 'UNKNOWN');
@@ -200,7 +201,7 @@ test('runtime marks unknown external outcomes and recovery never retries them', 
 
 test('runtime refuses completion when actor model is missing and records UNKNOWN', async () => {
   let calls = 0;
-  const runtime = new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   const result = await runtime.perform(input({ action: { actor: { actorId: 'planner-1', resolvedModel: null } } }), async () => { calls += 1; });
   assert.equal(result.status, 'UNKNOWN');
   assert.equal(result.code, 'ACTOR_MODEL_UNKNOWN');
@@ -210,7 +211,7 @@ test('runtime refuses completion when actor model is missing and records UNKNOWN
 test('runtime fails closed if audit persistence fails', async () => {
   let calls = 0;
   const audit = new AuditLog({ writer: async () => { throw new Error('read only'); } });
-  const runtime = new AutonomyRuntime({ audit, phase: 'P1' });
+  const runtime = new AutonomyRuntime({ audit, phase: 'P1', clock: CLOCK });
   const result = await runtime.perform(input(), async () => { calls += 1; });
   assert.equal(result.status, 'blocked');
   assert.equal(result.code, 'AUDIT_WRITE_FAILED');
@@ -218,7 +219,7 @@ test('runtime fails closed if audit persistence fails', async () => {
 });
 
 test('route harness returns JSON decisions and does not execute real external actions', async () => {
-  const runtime = new AutonomyRuntime({ audit: new AuditLog() });
+  const runtime = new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), clock: CLOCK });
   const route = createAutonomyRoutes({ runtime });
   const body = input({ action: { risk: 'external', requestedAutonomy: 'A4' }, mission: { autonomy: 'A4' } });
   const response = await route({ method: 'POST', pathname: '/api/autonomy/decide', body });

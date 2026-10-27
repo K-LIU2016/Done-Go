@@ -6,6 +6,7 @@ import { ConfirmationStore } from '../../../../scripts/agentic/autonomy/confirma
 import { AutonomyRuntime, createAutonomyRoutes } from '../../../../scripts/agentic/autonomy/runtime.mjs';
 
 const ACTOR = { actorId: 'route-actor', modelProvider: 'gateway', resolvedModel: 'gpt-6.1-sol' };
+const CLOCK = () => new Date('2026-10-27T10:00:00.000Z');
 const BASE = {
   ownerId: 'owner-1',
   mission: { id: 'mission-1', ownerId: 'owner-1', state: 'contracted', autonomy: 'A3' },
@@ -37,13 +38,13 @@ function request(overrides = {}) {
 }
 
 function makeRoute(options = {}) {
-  return createAutonomyRoutes({ runtime: new AutonomyRuntime({ audit: new AuditLog(), ...options }) });
+  return createAutonomyRoutes({ runtime: new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), clock: CLOCK, ...options }) });
 }
 
 test('route harness exposes a pure decision endpoint without invoking an executor', async () => {
   let calls = 0;
   const route = createAutonomyRoutes({
-    runtime: new AutonomyRuntime({ audit: new AuditLog(), execute: async () => { calls += 1; } }),
+    runtime: new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), clock: CLOCK, execute: async () => { calls += 1; } }),
   });
   const response = await route({ method: 'POST', pathname: '/api/autonomy/decide', body: request() });
   assert.equal(response.status, 200);
@@ -52,8 +53,8 @@ test('route harness exposes a pure decision endpoint without invoking an executo
 });
 
 test('route harness issues a one-time confirmation and audits the issuance', async () => {
-  const audit = new AuditLog();
-  const route = createAutonomyRoutes({ runtime: new AutonomyRuntime({ audit, phase: 'P1' }) });
+  const audit = new AuditLog({ clock: CLOCK });
+  const route = createAutonomyRoutes({ runtime: new AutonomyRuntime({ audit, phase: 'P1', clock: CLOCK }) });
   const body = request({
     mission: { autonomy: 'A4' },
     action: { capability: 'files.write', scope: '/workspace/mission-1/output.md', risk: 'external', requestedAutonomy: 'A4' },
@@ -77,7 +78,7 @@ test('route harness executes only the dry-run adapter and returns idempotent res
 
 test('route harness recovers an unknown result without repeating the executor', async () => {
   const route = createAutonomyRoutes({
-    runtime: new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' }),
+    runtime: new AutonomyRuntime({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK }),
     executor: async () => { throw Object.assign(new Error('disconnect'), { unknown: true }); },
   });
   const body = request({ idempotencyKey: 'unknown-route' });
@@ -99,9 +100,9 @@ test('route harness rejects unsupported routes and malformed input without throw
 });
 
 test('route harness fails closed when confirmation audit persistence fails', async () => {
-  const confirmations = new ConfirmationStore();
-  const audit = new AuditLog({ writer: async () => { throw new Error('audit unavailable'); } });
-  const runtime = new AutonomyRuntime({ audit, confirmations, phase: 'P1' });
+  const confirmations = new ConfirmationStore({ clock: CLOCK });
+  const audit = new AuditLog({ writer: async () => { throw new Error('audit unavailable'); }, clock: CLOCK });
+  const runtime = new AutonomyRuntime({ audit, confirmations, phase: 'P1', clock: CLOCK });
   const route = createAutonomyRoutes({ runtime });
   const body = request({
     mission: { autonomy: 'A4' },

@@ -19,8 +19,9 @@ function auditError() {
   return error;
 }
 
-function eventFor(type, fields = {}) {
+function eventFor(type, fields = {}, clock = () => new Date()) {
   const actor = fields.actor ?? {};
+  const clockValue = clock();
   const { actor: _actor, at, ...rest } = fields;
   let provenance = null;
   if (fields.actor !== undefined) {
@@ -45,21 +46,22 @@ function eventFor(type, fields = {}) {
     actorStatus: rest.actorStatus ?? provenance?.status ?? null,
     status: unknownActor && completionEvent ? 'UNKNOWN' : (rest.status ?? (type.endsWith('.unknown') ? 'UNKNOWN' : undefined)),
     code: unknownActor && completionEvent ? 'ACTOR_MODEL_UNKNOWN' : rest.code,
-    at: at ?? new Date().toISOString(),
+    at: at ?? (clockValue instanceof Date ? clockValue.toISOString() : clockValue),
   };
 }
 
 export class AuditLog {
-  constructor({ writer } = {}) {
+  constructor({ writer, clock = () => new Date() } = {}) {
     this.events = [];
     this.failed = false;
     this.available = true;
+    this.clock = clock;
     this.writer = writer ?? (async (event) => { this.events.push(event); });
   }
 
   async append(event) {
     if (this.failed) throw auditError();
-    const normalized = eventFor(event.type, event);
+    const normalized = eventFor(event.type, event, this.clock);
     try {
       await this.writer(normalized);
       return normalized;
@@ -72,16 +74,16 @@ export class AuditLog {
     }
   }
 
-  grantIssued(fields) { return this.append(eventFor(EVENT_TYPES.grantIssued, fields)); }
-  grantConsumed(fields) { return this.append(eventFor(EVENT_TYPES.grantConsumed, fields)); }
-  grantRevoked(fields) { return this.append(eventFor(EVENT_TYPES.grantRevoked, fields)); }
-  policyDenied(fields) { return this.append(eventFor(EVENT_TYPES.policyDenied, fields)); }
-  confirmationIssued(fields) { return this.append(eventFor(EVENT_TYPES.confirmationIssued, fields)); }
-  confirmationConsumed(fields) { return this.append(eventFor(EVENT_TYPES.confirmationConsumed, fields)); }
-  confirmationRejected(fields) { return this.append(eventFor(EVENT_TYPES.confirmationRejected, fields)); }
-  action(fields) { return this.append(eventFor(EVENT_TYPES.action(fields.phase ?? 'result'), fields)); }
-  unknown(fields) { return this.append(eventFor(EVENT_TYPES.unknown, fields)); }
-  recovery(fields) { return this.append(eventFor(EVENT_TYPES.recovery, fields)); }
+  grantIssued(fields) { return this.append(eventFor(EVENT_TYPES.grantIssued, fields, this.clock)); }
+  grantConsumed(fields) { return this.append(eventFor(EVENT_TYPES.grantConsumed, fields, this.clock)); }
+  grantRevoked(fields) { return this.append(eventFor(EVENT_TYPES.grantRevoked, fields, this.clock)); }
+  policyDenied(fields) { return this.append(eventFor(EVENT_TYPES.policyDenied, fields, this.clock)); }
+  confirmationIssued(fields) { return this.append(eventFor(EVENT_TYPES.confirmationIssued, fields, this.clock)); }
+  confirmationConsumed(fields) { return this.append(eventFor(EVENT_TYPES.confirmationConsumed, fields, this.clock)); }
+  confirmationRejected(fields) { return this.append(eventFor(EVENT_TYPES.confirmationRejected, fields, this.clock)); }
+  action(fields) { return this.append(eventFor(EVENT_TYPES.action(fields.phase ?? 'result'), fields, this.clock)); }
+  unknown(fields) { return this.append(eventFor(EVENT_TYPES.unknown, fields, this.clock)); }
+  recovery(fields) { return this.append(eventFor(EVENT_TYPES.recovery, fields, this.clock)); }
 }
 
 export function createDatabaseAuditWriter(db) {

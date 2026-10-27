@@ -52,7 +52,13 @@ function windowAllows(contract, now) {
   return current >= prepStart && current < end;
 }
 
-export function evaluateAction(input, { now = new Date().toISOString(), phase = 'P0' } = {}) {
+const clockNow = (clock) => {
+  const value = typeof clock === 'function' ? clock() : clock;
+  return value instanceof Date ? value.toISOString() : value ?? new Date().toISOString();
+};
+
+export function evaluateAction(input, { now, clock = () => new Date(), phase = 'P0' } = {}) {
+  const currentNow = clockNow(now ?? clock);
   const { mission, contract, grant, action } = input ?? {};
   if (!action || !mission || !contract) return errorResult('blocked', 'CONTEXT_INVALID');
   let normalizedAction;
@@ -76,7 +82,7 @@ export function evaluateAction(input, { now = new Date().toISOString(), phase = 
   if (grantModel != null && grantModel !== actor.resolvedModel) return errorResult('blocked', 'GRANT_ACTOR_MODEL_MISMATCH');
   if (!grant.expiresAt) return errorResult('blocked', 'GRANT_EXPIRED');
   if (grant.contractHash !== contract.hash) return errorResult('blocked', 'GRANT_CONTRACT_MISMATCH');
-  if (Date.parse(grant.expiresAt) <= Date.parse(now)) return errorResult('blocked', 'GRANT_EXPIRED');
+  if (Date.parse(grant.expiresAt) <= Date.parse(currentNow)) return errorResult('blocked', 'GRANT_EXPIRED');
   if (level(normalizedAction.requestedAutonomy) > level(mission.autonomy)) return errorResult('blocked', 'AUTONOMY_TOO_HIGH');
   if (level(mission.autonomy) < 2) return errorResult('blocked', 'AUTONOMY_TOO_LOW');
   const contractCapability = contract.capabilities == null
@@ -90,7 +96,7 @@ export function evaluateAction(input, { now = new Date().toISOString(), phase = 
     : null;
   if (!capability) return errorResult('blocked', 'SCOPE_DENIED');
   if (!disclosureAllows(contract, action)) return errorResult('blocked', 'DATA_DISCLOSURE_DENIED');
-  if (!windowAllows(contract, now)) return errorResult('blocked', 'WINDOW_OUTSIDE');
+  if (!windowAllows(contract, currentNow)) return errorResult('blocked', 'WINDOW_OUTSIDE');
   const budget = budgetAllows(contract, input, action);
   if (budget !== true) return errorResult('blocked', budget);
   if (action.risk === 'financial' || action.requestedAutonomy === 'A5') return errorResult('blocked', 'A5_NEVER_AUTOMATIC');

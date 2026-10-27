@@ -5,17 +5,20 @@ import { normalizeActor, errorResult } from './types.mjs';
 import { requestIdentity } from './identity.mjs';
 
 export class AutonomyRuntime {
-  constructor({ audit = new AuditLog(), phase = 'P0', confirmations = new ConfirmationStore() } = {}) {
-    this.audit = audit;
+  constructor({ audit, phase = 'P0', confirmations, clock = () => new Date() } = {}) {
+    this.audit = audit ?? new AuditLog({ clock });
+    this.audit.clock = clock;
     this.phase = phase;
-    this.confirmations = confirmations;
+    this.clock = clock;
+    this.confirmations = confirmations ?? new ConfirmationStore({ clock });
+    this.confirmations.clock = clock;
     this.results = new Map();
     this.inFlight = new Map();
     this.inFlightFingerprints = new Map();
   }
 
   decide(input) {
-    return evaluateAction(input, { phase: this.phase });
+    return evaluateAction(input, { phase: this.phase, clock: this.clock });
   }
 
   confirm(input) {
@@ -32,6 +35,7 @@ export class AutonomyRuntime {
       action: input.action,
       contractHash: input.contract.hash,
       actionHash: input.action.hash ?? input.action.id,
+      now: this.clock(),
     });
   }
 
@@ -58,6 +62,7 @@ export class AutonomyRuntime {
         action: input.action,
         contractHash: input.contract.hash,
         actionHash: input.action.hash ?? input.action.id,
+        now: this.clock(),
       });
       try {
         await this.audit.append({

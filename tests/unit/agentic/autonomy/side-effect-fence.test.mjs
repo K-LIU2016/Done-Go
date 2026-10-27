@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { AuditLog } from '../../../../scripts/agentic/autonomy/audit.mjs';
+
+const NOW = '2026-10-27T10:00:00.000Z';
+const CLOCK = () => new Date(NOW);
 import {
   SideEffectFence,
   evaluateSideEffect,
@@ -39,8 +42,8 @@ test('classifies read-only, suggestion, preparation, and reversible actions as n
 });
 
 test('blocks external consequences in P0 and records an auditable decision', async () => {
-  const audit = new AuditLog();
-  const fence = new SideEffectFence({ audit, phase: 'P0' });
+  const audit = new AuditLog({ clock: CLOCK });
+  const fence = new SideEffectFence({ audit, phase: 'P0', clock: CLOCK });
   const result = await fence.check(request({ action: { risk: 'external', requestedAutonomy: 'A3' } }));
 
   assert.deepEqual(result, {
@@ -68,8 +71,8 @@ test('blocks external consequences in P0 and records an auditable decision', asy
 });
 
 test('returns needs-human for A4 external consequences outside P0 without executing', async () => {
-  const audit = new AuditLog();
-  const fence = new SideEffectFence({ audit, phase: 'P1' });
+  const audit = new AuditLog({ clock: CLOCK });
+  const fence = new SideEffectFence({ audit, phase: 'P1', clock: CLOCK });
   let calls = 0;
   const result = await fence.execute(
     request({ action: { risk: 'external', requestedAutonomy: 'A4' } }),
@@ -86,7 +89,7 @@ test('returns needs-human for A4 external consequences outside P0 without execut
 });
 
 test('hard-stops A5 regardless of phase, risk, or an otherwise usable action', async () => {
-  const fence = new SideEffectFence({ audit: new AuditLog(), phase: 'P1' });
+  const fence = new SideEffectFence({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   let calls = 0;
   const result = await fence.execute(
     request({ action: { risk: 'financial', requestedAutonomy: 'A5' } }),
@@ -102,7 +105,7 @@ test('hard-stops A5 regardless of phase, risk, or an otherwise usable action', a
 });
 
 test('keeps unresolved actor models UNKNOWN and never treats them as allowed', async () => {
-  const fence = new SideEffectFence({ audit: new AuditLog(), phase: 'P1' });
+  const fence = new SideEffectFence({ audit: new AuditLog({ clock: CLOCK }), phase: 'P1', clock: CLOCK });
   const result = await fence.check(request({ action: { actor: { actorId: 'worker-1', resolvedModel: null } } }));
 
   assert.deepEqual(result, {
@@ -113,8 +116,8 @@ test('keeps unresolved actor models UNKNOWN and never treats them as allowed', a
 });
 
 test('fails closed when the audit sink cannot persist the fence decision', async () => {
-  const audit = new AuditLog({ writer: async () => { throw new Error('disk unavailable'); } });
-  const fence = new SideEffectFence({ audit, phase: 'P0' });
+  const audit = new AuditLog({ writer: async () => { throw new Error('disk unavailable'); }, clock: CLOCK });
+  const fence = new SideEffectFence({ audit, phase: 'P0', clock: CLOCK });
   const result = await fence.check(request());
 
   assert.deepEqual(result, {
@@ -125,7 +128,7 @@ test('fails closed when the audit sink cannot persist the fence decision', async
 });
 
 test('does not allow an invalid action risk to pass the fence', async () => {
-  const fence = new SideEffectFence({ audit: new AuditLog(), phase: 'P0' });
+  const fence = new SideEffectFence({ audit: new AuditLog({ clock: CLOCK }), phase: 'P0', clock: CLOCK });
   const result = await fence.check(request({ action: { risk: 'delete-production' } }));
 
   assert.deepEqual(result, {
@@ -136,7 +139,7 @@ test('does not allow an invalid action risk to pass the fence', async () => {
 });
 
 test('requires explicit actor provenance before allowing execution', async () => {
-  const fence = new SideEffectFence({ audit: new AuditLog(), phase: 'P0' });
+  const fence = new SideEffectFence({ audit: new AuditLog({ clock: CLOCK }), phase: 'P0', clock: CLOCK });
   const result = await fence.check(request({ action: { actor: undefined } }));
 
   assert.deepEqual(result, {
@@ -151,8 +154,8 @@ test('does not report success when the result audit cannot be persisted', async 
   const audit = new AuditLog({ writer: async () => {
     writes += 1;
     if (writes === 2) throw new Error('disk unavailable');
-  } });
-  const fence = new SideEffectFence({ audit, phase: 'P0' });
+  }, clock: CLOCK });
+  const fence = new SideEffectFence({ audit, phase: 'P0', clock: CLOCK });
   const result = await fence.execute(request(), async () => ({ written: true }));
 
   assert.deepEqual(result, {
