@@ -150,3 +150,104 @@ test('bad date format is rejected rather than repaired', () => {
   assert.equal(result.ok, false);
   assert.equal(result.outcome, 'UNKNOWN');
 });
+
+// ── M15 补强组（实现节点追加，2026-10-28；只增场景，不删不放宽任何既有断言；
+//    覆盖率预检 branch/funcs ≥80% 门）───────────────────────────────────────────
+
+test('supplement: mapping tables are frozen and pinned to the W1 precedent anchors', async () => {
+  const { PRIO_TO_ENUM, SOURCE_TO_ENUM } = await import('../../../../scripts/agentic/integration/w1-adapter.mjs');
+  assert.deepEqual(PRIO_TO_ENUM, { 1: 'high', 2: 'high', 3: 'normal', 4: 'low', 5: 'low' });
+  assert.deepEqual(SOURCE_TO_ENUM, { web: 'manual', draft: 'manual' });
+  assert.ok(Object.isFrozen(PRIO_TO_ENUM) && Object.isFrozen(SOURCE_TO_ENUM));
+});
+
+test('supplement: missing integration clock throws — no hidden wall clock fallback', () => {
+  assert.throws(() => adaptW1DtoToBlock(w1Row(), { ownerId: 'owner-a' }), /integration clock/);
+  assert.throws(() => adaptW1DtoToBlock(w1Row()), /integration clock/);
+});
+
+test('supplement: non-object dto is UNKNOWN, never a crash and never a block', () => {
+  for (const bad of [null, undefined, 'row', 42, ['array'], () => {}]) {
+    const result = adaptW1DtoToBlock(bad, { ownerId: 'owner-a', now: clock.now });
+    assert.equal(result.ok, false, JSON.stringify(bad));
+    assert.equal(result.outcome, 'UNKNOWN');
+    assert.equal(result.block, undefined);
+    assert.ok(result.reason.length > 0);
+  }
+});
+
+test('supplement: no server session owner → UNKNOWN naming ownerId, draft fields still named', () => {
+  const result = adaptW1DtoToBlock(w1Row(), { now: clock.now });
+  assert.equal(result.ok, false);
+  assert.equal(result.outcome, 'UNKNOWN');
+  assert.deepEqual(result.missing, ['ownerId']);
+  // 组合缺陷：owner 缺 + 草稿缺时刻，全部点名、互不吞并
+  const combo = adaptW1DtoToBlock(w1Row({ start: null, end: null }), { now: clock.now });
+  assert.deepEqual(combo.missing.sort(), ['end', 'ownerId', 'start']);
+});
+
+test('supplement: invalid id / revision / done / note are each named, nothing defaulted', () => {
+  for (const [overrides, field] of [
+    [{ id: '' }, 'id'],
+    [{ id: null }, 'id'],
+    [{ revision: 0 }, 'revision'],
+    [{ revision: '3' }, 'revision'],
+    [{ done: 'yes' }, 'done'],
+    [{ note: 5 }, 'note'],
+  ]) {
+    const result = adaptW1DtoToBlock(w1Row(overrides), { ownerId: 'owner-a', now: clock.now });
+    assert.equal(result.ok, false, field);
+    assert.equal(result.outcome, 'UNKNOWN');
+    assert.ok(result.missing.includes(field), `${field} in ${JSON.stringify(result.missing)}`);
+  }
+  // note 缺省（null/undefined）不算缺陷：补 '' 后正常转换
+  const okay = adaptW1DtoToBlock(w1Row({ note: null }), { ownerId: 'owner-a', now: clock.now });
+  assert.equal(okay.ok, true);
+  assert.equal(okay.block.note, '');
+});
+
+test('supplement: present-but-malformed time is rejected (not only null drafts)', () => {
+  for (const [overrides, field] of [[{ start: '9am' }, 'start'], [{ start: '' }, 'start'], [{ end: '25:00' }, 'end'], [{ end: '14-00' }, 'end']]) {
+    const result = adaptW1DtoToBlock(w1Row(overrides), { ownerId: 'owner-a', now: clock.now });
+    assert.equal(result.ok, false, JSON.stringify(overrides));
+    assert.deepEqual(result.missing, [field]);
+  }
+});
+
+test('supplement: unmappable source stays UNKNOWN in the sync layer', () => {
+  for (const source of ['android', 'WEB', '', null]) {
+    const result = adaptW1DtoToBlock(w1Row({ source }), { ownerId: 'owner-a', now: clock.now });
+    assert.equal(result.ok, false, JSON.stringify(source));
+    assert.ok(result.missing.includes('source'));
+    assert.ok(result.reason.includes('source'));
+  }
+});
+
+test('supplement: non-ISO clock stamp is refused instead of stamped through', () => {
+  for (const bad of [() => 'yesterday', () => 12345, () => null, () => '2026-10-28 10:00']) {
+    const result = adaptW1DtoToBlock(w1Row(), { ownerId: 'owner-a', now: bad });
+    assert.equal(result.ok, false, String(bad()));
+    assert.equal(result.outcome, 'UNKNOWN');
+    assert.equal(result.block, undefined);
+    assert.ok(result.reason.includes('ISO-8601'));
+  }
+});
+
+test('supplement: schemaVersion override below the frozen minimum hits the schema backstop', () => {
+  const result = adaptW1DtoToBlock(w1Row(), { ownerId: 'owner-a', now: clock.now, schemaVersion: 0 });
+  assert.equal(result.ok, false);
+  assert.equal(result.outcome, 'UNKNOWN');
+  assert.equal(result.block, undefined);
+  assert.ok(result.reason.includes('block.schema.json'));
+  assert.ok(result.missing.includes('schemaVersion'), JSON.stringify(result.missing));
+});
+
+test('supplement: draft with source=draft and no time combines both anchors — UNKNOWN, exactly start/end missing', () => {
+  const draft = w1Row({ source: 'draft', start: null, end: null });
+  const result = adaptW1DtoToBlock(draft, { ownerId: 'owner-a', now: clock.now });
+  assert.equal(result.ok, false);
+  assert.equal(result.outcome, 'UNKNOWN');
+  assert.equal(result.executionReady, false);
+  assert.deepEqual(result.missing.sort(), ['end', 'start']);
+  assert.ok(result.reason.includes('draft'));
+});
