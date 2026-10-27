@@ -855,6 +855,10 @@ window.TangoAppAuth.start(function (authUser) {
   function notifyBlockSync() { if (!blockSync) return; try { blockSync.notifySave(); } catch (e) {} }
   // 本地删除上行（PRD §11.1 删除方向）：入队 deleted:true + 墓碑防下行回填复活（见 /agentic/sync.js notifyDelete）
   function notifyBlockDelete(id) { if (!blockSync || !id) return; try { blockSync.notifyDelete(id); } catch (e) {} }
+  // 同步事件透出（W1 注释自认「冲突提示 UI 第 3 批（W13）接」→ M20 落最小可观察接缝）：冲突/错误
+  // serverChanges 经 window CustomEvent 交给宿主页面（PW golden/后续提示 UI 可监听）；console-free、
+  // 无 window/无 dispatchEvent 环境（tango-web-gaps 的 vm 抽取）静默，不改任何存储语义。
+  function notifyBlockSyncEvent(event) { if (!event) return; try { if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('tango:block-sync', { detail: event })); } catch (e) {} }
   // typeof window 守卫：tests/unit/tango-web-gaps.test.mjs 会把本段（canWriteStorage→demo 标记）抽进无 window 的 vm 跑
   if (typeof window !== 'undefined' && window.TangoCurrentUser) {
     // 免构建动态 import（先例 :2845 import('/ai-parse.js')；serve-tango 以 web/ 为根，/agentic/sync.js 自然可达）；
@@ -867,7 +871,7 @@ window.TangoAppAuth.start(function (authUser) {
         storeKey: STORE_KEY,
         getAccount: function () { return window.TangoCurrentUser; },
         pollMs: 30000,           // 空队列 flush 也会带回游标后的增量（另一设备写的下拉到本机）
-        onEvent: function () {}  // console-free；冲突提示 UI 第 3 批（W13）接
+        onEvent: notifyBlockSyncEvent  // 冲突/错误/serverChanges 透出（M20 接缝；提示 UI 后续批）
       });
       window.addEventListener('online', function () { blockSync.setOnline(true); });
       window.addEventListener('offline', function () { blockSync.setOnline(false); });
