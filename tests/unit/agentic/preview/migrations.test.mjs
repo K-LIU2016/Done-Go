@@ -102,6 +102,12 @@ test('discussion_threads is one per (owner, mission); messages carry the idempot
     // Idempotency key is unique per owner: replaying the same key cannot double-append.
     assert.throws(() => insertMessage.run('msg_2', 'key-1'), /UNIQUE/i);
     // Same key under another owner is a different discussion.
+    // (owner-b needs its own thread first: thread_id is FK-checked against
+    // discussion_threads(id) — spec repair, see .s2d/impl-preview-migrations.md.)
+    db.prepare(
+      `INSERT INTO discussion_threads (id, owner_id, mission_id, created_at, updated_at)
+       VALUES ('th_b', 'owner-b', 'm1', '2026-10-27T10:02:30Z', '2026-10-27T10:02:30Z')`,
+    ).run();
     db.prepare(
       `INSERT INTO discussion_messages
          (id, owner_id, thread_id, mission_id, base_version, utterance, patch, before_version, after_version,
