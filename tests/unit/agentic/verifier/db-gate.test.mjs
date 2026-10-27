@@ -2,9 +2,13 @@
 //
 // 本文件是 `scripts/agentic/verifier/db-gate.mjs` 的接口规约：
 //   dbVerdictGate(db, ownerId) → async (artifactId, version) => { blocking, unknownCount, highFailCount }
-//   - 阻断规则（plan M2-4 钉死）：该 (artifactId, version) 的最新 verdict 中
-//     存在 status='UNKNOWN' 的 check 或 status='FAIL' 且 severity='HIGH' 的 check → blocking=true。
-//     只有 MEDIUM/LOW FAIL 不阻断（按 plan 字面；M4 组合测试只用 UNKNOWN/HIGH 场景）。
+//   - 阻断规则（plan M2-4 + 评审 HIGH 修复的 overall 门禁）：该 (artifactId,
+//     version) 的最新 verdict 中存在 status='UNKNOWN' 的 check 或
+//     status='FAIL' 且 severity='HIGH' 的 check → blocking=true；
+//     且 verdict.overall !== 'VERIFIED'（UNKNOWN/FAILED）一律 blocking=true
+//     ——engine 的『没有 DoD 核验就没有免费 VERIFIED』（brief 裁决④）不得在
+//     M2→M1 边界丢失；FAILED+仅 MEDIUM/LOW FAIL 同样阻断（严于 plan 字面，
+//     收紧方向 fail-closed）。
 //   - fail closed：没有任何 verdict（含跨 owner、版本不匹配）→ blocking=true。
 //   - 同 (artifactId, version) 多次核验取最新一条（later ranAt / 更晚写入者胜）。
 import test from 'node:test';
@@ -73,11 +77,22 @@ test('mixed UNKNOWN and HIGH FAIL are both counted', async () => {
   assert.equal(summary.highFailCount, 2);
 });
 
-test('MEDIUM/LOW FAIL alone does not block (plan-literal rule)', async () => {
+test('an overall=UNKNOWN verdict with only PASS checks still blocks (builtin-reachable: dod=[] leaves no DoD verification)', async () => {
+  const db = makeDb();
+  // engine 在 dod=[] 时只产出 injection PASS，overall=UNKNOWN（no free VERIFIED）。
+  // 门禁不得只看 checks：overall 丢失 = 免费放行（评审 HIGH）。
+  saveVerdict(db, 'owner-a', verdict([check('injection-marker', 'PASS', 'LOW')], 'UNKNOWN'));
+  const summary = await dbVerdictGate(db, 'owner-a')('art-1', 1);
+  assert.equal(summary.blocking, true, 'overall=UNKNOWN must block even when every check is PASS');
+  assert.equal(summary.unknownCount, 0);
+  assert.equal(summary.highFailCount, 0);
+});
+
+test('a FAILED verdict blocks even with only MEDIUM/LOW FAIL checks (overall gate is fail-closed)', async () => {
   const db = makeDb();
   saveVerdict(db, 'owner-a', verdict([check('citation', 'FAIL', 'MEDIUM')], 'FAILED'));
   const summary = await dbVerdictGate(db, 'owner-a')('art-1', 1);
-  assert.equal(summary.blocking, false);
+  assert.equal(summary.blocking, true, 'overall=FAILED must block regardless of check severities');
 });
 
 test('no verdict at all fails closed', async () => {

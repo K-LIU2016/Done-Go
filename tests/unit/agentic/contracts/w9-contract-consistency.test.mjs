@@ -14,6 +14,7 @@ import { createArtifactStore } from '../../../../scripts/agentic/delivery/artifa
 import { createAcceptance } from '../../../../scripts/agentic/delivery/acceptance.mjs';
 import { acceptedBenefit } from '../../../../scripts/agentic/delivery/benefit.mjs';
 import { saveVerdict } from '../../../../scripts/agentic/verifier/verdict.mjs';
+import { verify } from '../../../../scripts/agentic/verifier/engine.mjs';
 import { dbVerdictGate } from '../../../../scripts/agentic/verifier/db-gate.mjs';
 import { createNeedStore } from '../../../../scripts/agentic/inbox/need-store.mjs';
 import { needView } from '../../../../scripts/agentic/inbox/attention-projection.mjs';
@@ -179,6 +180,29 @@ test('benefit gate: accepted + blocking verdict never yields benefit, non-blocki
   const art2 = await w.store.put('owner-a', { missionId: 'm2', type: 'report', title: 't2', location: '/a2', status: 'ready' });
   const rejected = await w.acceptance.record('owner-a', art2.id, { actor: 'user:alice', decision: 'reject' });
   assert.equal(acceptedBenefit(rejected, { blocking: false, unknownCount: 0, highFailCount: 0 }), null);
+});
+
+test('builtin-reachable UNKNOWN verdict (dod=[], all checks PASS) never enters benefit (no free VERIFIED, 裁决③④)', async () => {
+  const w = makeWorld();
+  const art = await w.store.put('owner-a', {
+    missionId: 'm1', type: 'report', title: '干净报告', location: '/a', status: 'ready',
+  });
+  // 空机 DoD：engine 只产出 injection PASS，overall=UNKNOWN（没有 DoD 核验
+  // 就没有免费 VERIFIED）。M2→M1 边界不得丢掉这个 overall（评审 HIGH）。
+  const verdict = await verify(
+    { id: art.id, version: 1, title: art.title, evidence: [] },
+    [],
+    { runCommand: async () => ({ rc: 0, stdout: '', timedOut: false }), clock: w.clock },
+  );
+  assert.equal(verdict.overall, 'UNKNOWN');
+  assert.ok(verdict.checks.length > 0 && verdict.checks.every((check) => check.status === 'PASS'));
+
+  saveVerdict(w.db, 'owner-a', verdict);
+  const summary = await dbVerdictGate(w.db, 'owner-a')(art.id, 1);
+  assert.equal(summary.blocking, true, 'overall=UNKNOWN must block even with all-PASS checks');
+
+  const accepted = await w.acceptance.record('owner-a', art.id, { actor: 'user:alice', decision: 'accept' });
+  assert.equal(acceptedBenefit(accepted, summary), null, 'accepted + UNKNOWN verdict must not count as benefit');
 });
 
 test('revision_requested never counts as benefit; only a fresh acceptance on the new version can (plan M4-3)', async () => {
