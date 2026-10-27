@@ -81,7 +81,12 @@ function renderPush(push) {
 
 function renderContract(row) {
   const relation = isNonEmptyString(row?.contractRelation) ? row.contractRelation : 'UNKNOWN';
-  const commit = isNonEmptyString(row?.contractCommit) ? row.contractCommit.slice(0, 7) : 'UNKNOWN';
+  // Report-derived rows carry only a commit prefix. Rendering it as-is keeps
+  // the prefix re-parseable; dropping it to UNKNOWN would fabricate
+  // CONTRACT_DRIFT on the next round trip (§7.2).
+  const commit = isNonEmptyString(row?.contractCommit)
+    ? row.contractCommit.slice(0, 7)
+    : (isNonEmptyString(row?.contractCommitPrefix) ? row.contractCommitPrefix : 'UNKNOWN');
   return `${relation}@${commit}`;
 }
 
@@ -168,6 +173,9 @@ export function renderMatrixMarkdown(matrix) {
   for (const row of rows) {
     lines.push(`### ${orUnknown(row.stream)}`);
     lines.push('');
+    // A row synthesised from a failed parse says so first: it explains why
+    // every other line in this section is UNKNOWN (§7.2 解析失败即 UNKNOWN).
+    if (isNonEmptyString(row?.parseError)) lines.push(`- 解析: ${row.parseError}`);
     lines.push(`- HEAD: ${orUnknown(row.head)}`);
     lines.push(`- 契约: ${renderContract(row)}`);
     lines.push(`- push: ${renderPush(row.push)}`);
@@ -183,6 +191,12 @@ export function renderMatrixMarkdown(matrix) {
       lines.push(`- 风险: ${risk?.id ?? 'UNKNOWN'} severity=${risk?.severity ?? 'UNKNOWN'} status=${risk?.status ?? 'UNKNOWN'}`);
     }
     lines.push(`- 状态: ${orUnknown(row.status)}`);
+    // The status a source report claimed is kept next to the derivation when
+    // the two disagree: a conflict is a record, not something to reconcile
+    // away (STATUS_CONFLICT also appears in ## UNKNOWN above).
+    if (isNonEmptyString(row?.claimedStatus) && row.claimedStatus !== row.status) {
+      lines.push(`- 状态冲突: claimed=${row.claimedStatus} derived=${orUnknown(row.status)}`);
+    }
     lines.push('');
   }
 
