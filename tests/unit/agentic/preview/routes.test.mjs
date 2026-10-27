@@ -243,3 +243,137 @@ test('routes only claim their own paths and methods', async () => {
     world.db.close();
   }
 });
+
+test('defaults: deterministic kernel parses without an injected parsePatch; real clock accepted', async () => {
+  const { routesMod, previewStoreMod } = await loadStores();
+  const db = openMigratedDb();
+  try {
+    const now = makeClock();
+    const previewStore = previewStoreMod.createPreviewStore(db, { now });
+    await previewStore.put({ ownerId: 'owner-a', missionId: 'm1', preview: makePreview({ missionId: 'm1' }) });
+    const routes = routesMod.createPreviewRoutes({
+      db,
+      auth: req => (req.headers['x-owner'] ? { ownerId: req.headers['x-owner'] } : null),
+    });
+
+    // R1 kernel rule: 只看… → sources.include, so a new preview version lands.
+    const narrowed = await call(routes, 'POST', '/api/missions/m1/discuss', {
+      ...OWNER_A, body: { utterance: '研究只看公开论文', baseVersion: 1 },
+    });
+    assert.equal(narrowed.res.statusCode, 200);
+    assert.equal(bodyJson(narrowed.res).preview.version, 2);
+    assert.equal(bodyJson(narrowed.res).preview.preview.shape.blocks[1].items[0].v, '公开论文');
+
+    // Chatter the kernel does not match: talk recorded, preview untouched.
+    const chatter = await call(routes, 'POST', '/api/missions/m1/discuss', {
+      ...OWNER_A, body: { utterance: '随便聊聊', baseVersion: 2 },
+    });
+    assert.equal(chatter.res.statusCode, 200);
+    assert.equal(bodyJson(chatter.res).preview.version, 2);
+    assert.equal(bodyJson(chatter.res).message.afterVersion, 2);
+  } finally {
+    db.close();
+  }
+});
+
+test('GET discussion: 404 before any preview exists; empty replay once previewed but not yet discussed', async () => {
+  const world = await freshServer();
+  try {
+    const threadless = await call(world.routes, 'GET', '/api/missions/m_never/discussion', OWNER_A);
+    assertErrorEnvelope(threadless.res, 'NOT_FOUND');
+
+    // m1 has a preview (freshServer) but no recorded turn yet.
+    const empty = await call(world.routes, 'GET', '/api/missions/m1/discussion', OWNER_A);
+    assert.equal(empty.res.statusCode, 200);
+    const body = bodyJson(empty.res);
+    assert.equal(body.thread, null);
+    assert.deepEqual(body.messages, []);
+    assert.deepEqual(body.changeRecords, []);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('unknown body keys and bad types are CONTRACT_INVALID before any write', async () => {
+  const world = await freshServer();
+  try {
+    const extraKey = await call(world.routes, 'POST', '/api/missions/m1/discuss', {
+      ...OWNER_A, body: { utterance: '你好', extra: true, baseVersion: 1 },
+    });
+    assertErrorEnvelope(extraKey.res, 'CONTRACT_INVALID');
+
+    const badBase = await call(world.routes, 'POST', '/api/missions/m1/discuss', {
+      ...OWNER_A, body: { utterance: '你好', baseVersion: 'one' },
+    });
+    assertErrorEnvelope(badBase.res, 'CONTRACT_INVALID');
+
+    const badUtterance = await call(world.routes, 'POST', '/api/missions/m1/discuss', {
+      ...OWNER_A, body: { utterance: 42, baseVersion: 1 },
+    });
+    assertErrorEnvelope(badUtterance.res, 'CONTRACT_INVALID');
+
+    const confirmExtra = await call(world.routes, 'POST', '/api/missions/m1/confirm', {
+      ...OWNER_A, body: { previewVersion: 1, decision: 'confirm', unexpected: 1 },
+    });
+    assertErrorEnvelope(confirmExtra.res, 'CONTRACT_INVALID');
+
+    // Nothing above wrote anything: no thread, no confirmations.
+    const thread = await call(world.routes, 'GET', '/api/missions/m1/discussion', OWNER_A);
+    assert.equal(bodyJson(thread.res).messages.length, 0);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('an oversized request body is rejected CONTRACT_INVALID without reading it all', async () => {
+  const world = await freshServer();
+  try {
+    const oversized = await call(world.routes, 'POST', '/api/missions/m1/discuss', {
+      ...OWNER_A, body: `{"utterance":"${'x'.repeat(70_000)}"}`,
+    });
+    assertErrorEnvelope(oversized.res, 'CONTRACT_INVALID');
+    assert.equal(oversized.res.statusCode, 400);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('an auth function throwing surfaces INTERNAL_ERROR, not a crash', async () => {
+  const { routesMod } = await loadStores();
+  const db = openMigratedDb();
+  try {
+    const routes = routesMod.createPreviewRoutes({
+      db,
+      auth: () => { throw new Error('auth backend exploded'); },
+      parsePatch: async () => ({ patch: null, origin: 'none' }),
+      now: makeClock(),
+    });
+    const { res } = await call(routes, 'GET', '/api/missions/m1/preview', OWNER_A);
+    assertErrorEnvelope(res, 'INTERNAL_ERROR');
+    assert.equal(res.statusCode, 500);
+  } finally {
+    db.close();
+  }
+});
+
+test('empty missionId is claimed and rejected CONTRACT_INVALID, not silently 404d', async () => {
+  const world = await freshServer();
+  try {
+    assert.equal(await handledFlag(world.routes, 'GET', '/api/missions//preview'), true);
+    const { res } = await call(world.routes, 'GET', '/api/missions//preview', OWNER_A);
+    assertErrorEnvelope(res, 'CONTRACT_INVALID');
+  } finally {
+    world.db.close();
+  }
+});
+
+test('GET versions for a foreign owner is an empty list (no existence leak)', async () => {
+  const world = await freshServer();
+  try {
+    const foreign = await call(world.routes, 'GET', '/api/missions/m1/preview/versions', OWNER_B);
+    assert.equal(foreign.res.statusCode, 200);
+    assert.deepEqual(bodyJson(foreign.res), []);
+  } finally {
+    world.db.close();
+  }
+});
