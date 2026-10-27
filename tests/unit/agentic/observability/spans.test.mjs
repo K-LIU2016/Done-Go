@@ -101,13 +101,75 @@ test('spans: attributes outside the vocabulary are preserved verbatim in attribu
   assert.equal(attributes['custom.flag'], 'yes');
 });
 
+test('spans: a whitespace-only actor model is treated as absent and stored UNKNOWN (N1 空)', async () => {
+  const { recorder, store } = await freshSpans();
+  recorder.record(
+    span({ id: 's1', kind: 'chat', attributes: { 'donego.actor.role': 'worker', 'donego.actor.model': '   ' } }),
+    { ownerId: 'owner-a' },
+  );
+  const row = store.getSpan('owner-a', 's1');
+  assert.equal(row.actor_model, null);
+  assert.equal(row.resolved_model, null);
+  assert.equal(row.provenance, 'UNKNOWN');
+});
+
+test('spans: an explicit resolved-model attribute wins, a blank one falls back to the actor model', async () => {
+  const { recorder, store } = await freshSpans();
+  recorder.record(
+    span({
+      id: 's1',
+      kind: 'chat',
+      attributes: { 'donego.actor.role': 'worker', 'donego.actor.model': 'glm-4.7', 'donego.model.resolved': 'glm-4.7-air' },
+    }),
+    { ownerId: 'owner-a' },
+  );
+  recorder.record(
+    span({
+      id: 's2',
+      kind: 'chat',
+      attributes: { 'donego.actor.role': 'worker', 'donego.actor.model': 'glm-4.7', 'donego.model.resolved': '   ' },
+    }),
+    { ownerId: 'owner-a' },
+  );
+  assert.equal(store.getSpan('owner-a', 's1').resolved_model, 'glm-4.7-air');
+  assert.equal(store.getSpan('owner-a', 's2').resolved_model, 'glm-4.7');
+});
+
+test('spans: model_local true is stored as 1 and absent stays NULL', async () => {
+  const { recorder, store } = await freshSpans();
+  recorder.record(
+    span({ id: 's1', attributes: { 'donego.actor.role': 'worker', 'donego.actor.model': 'glm-4.7', 'donego.model.local': true } }),
+    { ownerId: 'owner-a' },
+  );
+  recorder.record(span({ id: 's2', attributes: { 'donego.actor.role': 'worker', 'donego.actor.model': 'glm-4.7' } }), { ownerId: 'owner-a' });
+  assert.equal(store.getSpan('owner-a', 's1').model_local, 1);
+  assert.equal(store.getSpan('owner-a', 's2').model_local, null);
+});
+
 test('spans: re-recording a span is idempotent (N3)', async () => {
   const { recorder, store } = await freshSpans();
-  recorder.record(span({ id: 's1', status: 'running', endedAt: undefined }), { ownerId: 'owner-a', runId: 'run-1' });
-  const second = recorder.record(span({ id: 's1', status: 'ok' }), { ownerId: 'owner-a', runId: 'run-1' });
+  recorder.record(
+    span({ id: 's1', status: 'running', startedAt: '2026-10-27T10:00:00.000Z', endedAt: undefined }),
+    { ownerId: 'owner-a', runId: 'run-1' },
+  );
+  const second = recorder.record(
+    span({ id: 's1', status: 'ok', startedAt: '2026-10-27T11:00:00.000Z' }),
+    { ownerId: 'owner-a', runId: 'run-1' },
+  );
   assert.equal(second.duplicate, true);
-  assert.equal(store.getSpan('owner-a', 's1').status, 'running');
+  const row = store.getSpan('owner-a', 's1');
+  assert.equal(row.status, 'running');
+  assert.equal(row.started_at, '2026-10-27T10:00:00.000Z');
   assert.equal(store.countSpans('owner-a'), 1);
+});
+
+test('spans: recording a span id already owned by somebody else is rejected, not merged', async () => {
+  const { recorder } = await freshSpans();
+  recorder.record(span({ id: 's1' }), { ownerId: 'owner-a', runId: 'run-1' });
+  assert.throws(
+    () => recorder.record(span({ id: 's1' }), { ownerId: 'owner-b', runId: 'run-1' }),
+    (error) => error.code === 'SPAN_OWNER_MISMATCH',
+  );
 });
 
 test('spans: recordSpan without an owner is refused', async () => {
