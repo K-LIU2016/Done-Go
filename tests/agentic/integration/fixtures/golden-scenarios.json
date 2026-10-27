@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "description": "S2D-W13 黄金场景 fixture（brief §5 场景 1–7，node 侧）。场景 8（发布候选/回滚）由 tests/unit/agentic/integration/release-manifest.test.mjs 与 release-rollback.test.mjs 钉住。所有外部依赖（模型/网关/checker/桥/邮件）一律 harness 内假件，真实调用 0 次。",
+  "scenarios": [
+    {
+      "id": "golden-1-block-sync-adapter",
+      "brief": "§5.1",
+      "summary": "新用户创建日程草稿：完整行经 W13 adapter 转成合法 W0 Block；缺时间草稿留在同步层返回 UNKNOWN，不进执行层。",
+      "owner": "owner-a",
+      "inputs": {
+        "completeRow": {
+          "id": "blk-complete-1",
+          "revision": 1,
+          "date": "2026-10-29",
+          "start": "09:00",
+          "end": "10:00",
+          "title": "晨间写作",
+          "kind": "create",
+          "prio": 2,
+          "note": "",
+          "done": false,
+          "source": "web",
+          "deleted_at": null,
+          "updated_at": "2026-10-28T09:30:00.000Z"
+        },
+        "draftRow": {
+          "id": "blk-draft-1",
+          "revision": 1,
+          "date": "2026-10-29",
+          "start": null,
+          "end": null,
+          "title": " someday 立项",
+          "kind": "explore",
+          "prio": 3,
+          "note": "",
+          "done": false,
+          "source": "draft",
+          "deleted_at": null,
+          "updated_at": "2026-10-28T09:31:00.000Z"
+        }
+      },
+      "expect": {
+        "convertedBlockIds": ["blk-complete-1"],
+        "rejectedDraftIds": ["blk-draft-1"],
+        "rejectionOutcome": "UNKNOWN",
+        "rejectedMissingFields": ["end", "start"],
+        "executionLayerBlockCount": 1,
+        "convertedBlockSchemaValid": true,
+        "convertedSource": "manual",
+        "convertedPrio": "high"
+      }
+    },
+    {
+      "id": "golden-2-perception-preview-projection",
+      "brief": "§5.2",
+      "summary": "现场 fixture 经 W12 扫描进 W6 Preview；讨论 patch 生效、确认入口可追溯；Timeline projection 反映 patch 且 Preview 持久化行不被投影改写。",
+      "owner": "owner-a",
+      "inputs": {
+        "captureFixture": "fixtures/capture-board.png",
+        "discussionUtterance": "把第二节时长改成 8 秒，旁白去掉第一句",
+        "expectedPatch": { "sources": "discussion", "length": 8 }
+      },
+      "expect": {
+        "scanPersisted": true,
+        "previewPersisted": true,
+        "previewRevisionAfterPatch": 2,
+        "timelineReflectsPatch": true,
+        "projectionSourcePreviewId": "string",
+        "previewRowUntouchedByProjection": true
+      }
+    },
+    {
+      "id": "golden-3-autonomy-fence",
+      "brief": "§5.3",
+      "summary": "W4 A4 逐次确认生效一次；重复确认、过期 grant、跨 owner、A5 自动执行全部拒绝且零外部副作用。",
+      "owner": "owner-a",
+      "otherOwner": "owner-b",
+      "inputs": {
+        "contractGoal": "发送一封站内周报邮件给本人",
+        "a4Action": { "kind": "A4", "action": "email.send", "confirmationId": "confirm-1" },
+        "grantTtlSeconds": 3600
+      },
+      "expect": {
+        "firstConfirmExternalEffects": 1,
+        "repeatConfirm": { "rejected": true, "newExternalEffects": 0 },
+        "expiredGrant": { "rejected": true, "newExternalEffects": 0 },
+        "crossOwner": { "rejected": true, "httpStatus": 404, "code": "NOT_FOUND", "newExternalEffects": 0 },
+        "a5AutoAttempt": { "rejected": true, "newExternalEffects": 0 },
+        "totalExternalEffects": 1
+      }
+    },
+    {
+      "id": "golden-4-mission-runtime-recovery",
+      "brief": "§5.4",
+      "summary": "W3 mission admitted→planning→ready；W7 带检查点执行；注入 crash 后恢复不重复外部动作；预算耗尽与 resolved_model=NULL→UNKNOWN 不自动重试。",
+      "owner": "owner-a",
+      "inputs": {
+        "missionStates": ["admitted", "planning", "ready"],
+        "steps": 3,
+        "crashAtStep": 2,
+        "budget": { "maxCalls": 10, "maxTokens": 1000 },
+        "budgetExhaustAfter": 2
+      },
+      "expect": {
+        "stateSequence": ["admitted", "planning", "ready"],
+        "checkpointedStepsBeforeCrash": ["s1", "s2"],
+        "externalSendsAfterRecovery": 3,
+        "budgetExhaustedCode": "BUDGET_EXCEEDED",
+        "budgetExhaustedHttp": 409,
+        "nullModelOutcome": "unknown",
+        "nullModelWorkResults": 0,
+        "nullModelAutoRetries": 0
+      }
+    },
+    {
+      "id": "golden-5-delivery-benefit-gate",
+      "brief": "§5.5",
+      "summary": "W9 版本链+verifier+Need 投影：仅合法 accepted 计入收益；revision_requested、UNKNOWN/HIGH 未决、跨 owner acceptance 不计。",
+      "owner": "owner-a",
+      "otherOwner": "owner-b",
+      "inputs": {
+        "artifacts": [
+          { "version": 1, "verdict": "UNKNOWN", "check": { "severity": "LOW", "status": "UNKNOWN" }, "decision": "accepted" },
+          { "version": 2, "verdict": "VERIFIED", "check": { "severity": "MEDIUM", "status": "PASS" }, "decision": "revision_requested" },
+          { "version": 3, "verdict": "VERIFIED", "check": { "severity": "MEDIUM", "status": "PASS" }, "decision": "accepted" }
+        ],
+        "crossOwnerAcceptance": { "version": 4, "verdict": "VERIFIED", "decision": "accepted", "by": "owner-b" }
+      },
+      "expect": {
+        "versionChainLength": 4,
+        "acceptedBenefitCount": 1,
+        "countedVersions": [3],
+        "needProjectionIncludesRevisionRequest": true,
+        "crossOwnerReadHttpStatus": 404
+      }
+    },
+    {
+      "id": "golden-6-dual-device-sync",
+      "brief": "§5.6",
+      "summary": "同 owner 双设备增量同步：正常变化可重放、冲突不覆盖、断线恢复保持 cursor 与幂等。",
+      "owner": "owner-a",
+      "inputs": {
+        "deviceAChanges": [
+          { "id": "blk-a1", "op": "upsert", "title": "A 新增 1" },
+          { "id": "blk-a2", "op": "upsert", "title": "A 新增 2" }
+        ],
+        "conflictingEdit": { "id": "blk-a1", "title": "B 改标题" }
+      },
+      "expect": {
+        "deviceBReplayedTitles": ["A 新增 1", "A 新增 2"],
+        "conflictReported": true,
+        "serverTitleAfterConflict": "A 新增 1",
+        "offlineWritesFlushed": 1,
+        "replayAppliedCount": 0,
+        "cursorStableAfterReplay": true
+      }
+    },
+    {
+      "id": "golden-7-observability-provenance",
+      "brief": "§5.7",
+      "summary": "W10 记录 run/actor/model/gate/latency/cost；stale 与 conflicting evidence 在矩阵中保留 UNKNOWN/PROVISIONAL，不升级。",
+      "owner": "owner-a",
+      "inputs": {
+        "runs": 1,
+        "actors": [
+          { "actor": "w7·engine", "resolvedModel": "glm-5.3", "modelSource": "gateway" },
+          { "actor": "w8·review", "resolvedModel": null, "modelSource": "unknown" },
+          { "actor": "w8·review", "resolvedModel": "glm-5.3", "modelSource": "gateway", "stale": true }
+        ],
+        "conflictingEvidence": { "actor": "w8·review", "models": ["glm-5.3", "gpt-6.1-sol"] }
+      },
+      "expect": {
+        "recordedMetricKinds": ["run", "actor", "model", "gate", "latency", "cost"],
+        "nullModelStatus": "UNKNOWN",
+        "staleStatusIn": ["PROVISIONAL", "UNKNOWN"],
+        "conflictStatusIn": ["PROVISIONAL", "UNKNOWN"],
+        "upgradedToVerified": false
+      }
+    }
+  ]
+}
