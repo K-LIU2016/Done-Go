@@ -219,3 +219,45 @@ test('gates: summarizeGates reports provisional when every gate passes but none 
   gates.record({ ...baseGate, name: 'a', rc: 0, failed: 0 });
   assert.equal(gates.summarize('owner-a', '60fdc73').status, 'PROVISIONAL');
 });
+
+test('gates: a recorder without a store is a configuration error, not a silent noop', async () => {
+  const { createGateRecorder } = await gatesApi();
+  assert.throws(() => createGateRecorder({}), (error) => error.code === 'INVALID_ARGUMENT');
+  assert.throws(() => createGateRecorder(), (error) => error.code === 'INVALID_ARGUMENT');
+});
+
+test('gates: coverage without a line figure cannot vouch for a gate', async () => {
+  const { gates } = await freshGates();
+  const missingLine = gates.record({
+    ...baseGate,
+    rc: 0,
+    failed: 0,
+    coverage: { branch: 84 },
+    evidence: [{ type: 'test-run', title: 'x', verified: true }],
+  });
+  assert.equal(missingLine.coverageOk, false);
+  assert.equal(missingLine.evidenceStatus, 'PROVISIONAL');
+
+  const nanLine = gates.record({
+    ...baseGate,
+    name: 'nan',
+    rc: 0,
+    failed: 0,
+    coverage: { line: Number.NaN },
+    evidence: [{ type: 'test-run', title: 'x', verified: true }],
+  });
+  assert.equal(nanLine.coverageOk, false);
+  assert.equal(nanLine.evidenceStatus, 'PROVISIONAL');
+});
+
+test('gates: a head mixing verified and provisional gates is PROVISIONAL, never VERIFIED', async () => {
+  const { gates } = await freshGates();
+  gates.record({ ...baseGate, name: 'a', rc: 0, failed: 0, evidence: [{ type: 'test-run', title: 'a', verified: true }] });
+  gates.record({ ...baseGate, name: 'b', rc: 0, failed: 0 });
+  const summary = gates.summarize('owner-a', '60fdc73');
+  assert.equal(summary.total, 2);
+  assert.equal(summary.failed, 0);
+  assert.equal(summary.verified, 1);
+  assert.equal(summary.unknown, 1);
+  assert.equal(summary.status, 'PROVISIONAL');
+});
