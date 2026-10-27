@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "description": "S2D-W13 golden-8（brief §5.8 / plan.md M23）：发布候选 manifest 完整性 + 启动健康检查 + 上一候选回滚回读。期望值与 M22 的 golden-scenarios.json 分文件维护（M23 域），避免与并行节点 add/add。",
+  "scenario": {
+    "id": "golden-8-release-candidate-rollback",
+    "brief": "§5.8 发布候选 build 的 manifest 包含所有已批准的 web/server 文件，启动健康检查通过；上一候选的回滚读取和服务行为可复核。",
+    "owner": "golden-8-owner",
+    "portRange": { "min": 17711, "max": 17719 },
+    "portPreferred": { "candidateA": 17711, "candidateARollback": 17712 }
+  },
+  "expect": {
+    "manifestEntry": "web/index.html",
+    "requiredPaths": [
+      "web/index.html",
+      "web/agentic/sync.js",
+      "web/agentic/demo.html",
+      "web/agentic/component.html",
+      "web/agentic/agentic.css",
+      "web/agentic/ui/app.js",
+      "web/agentic/ui/acceptance.js",
+      "web/agentic/reel/player.js",
+      "web/agentic/reel/reel.css",
+      "scripts/serve-tango.mjs",
+      "scripts/collaboration-service.mjs",
+      "server/auth/service.mjs"
+    ],
+    "requiredPrefixes": [
+      { "prefix": "web/agentic/ui/", "minCount": 20 },
+      { "prefix": "web/agentic/assets/", "minCount": 7 },
+      { "prefix": "web/agentic/reel/", "minCount": 3 }
+    ],
+    "serverEntry": "package.json",
+    "allowedExtraFiles": ["manifest.json", "package.json"],
+    "forbiddenPathPatterns": [
+      "^dist-web/",
+      "^node_modules/",
+      "^\\.env",
+      "\\.db$",
+      "^\\.s2d/",
+      "tango-donego\\.web\\.v1",
+      "tango-donego\\.backup\\."
+    ],
+    "health": {
+      "statusField": "ok",
+      "dbOk": true,
+      "migrationsInclude": "blocks-001",
+      "containerOk": true,
+      "unauthenticatedStatus": 200
+    },
+    "legacyStatus": { "status": 200, "bodyStatus": "ok", "app": "Tango" },
+    "rollback": {
+      "manifestByteStable": true,
+      "filesStillVerify": true,
+      "serviceStillServes": true
+    }
+  }
+}
