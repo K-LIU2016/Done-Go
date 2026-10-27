@@ -288,3 +288,234 @@ test('M7 负面 · 外部结果 UNKNOWN（transport 超时）→ 台账 unknown�
   );
   assert.equal(audit.listToolCalls({ ownerId: 'owner-1' }).length, 1, 'UNKNOWN replays must not create new attempts');
 });
+
+// ---------------- 补充 · 防御分支（coverage 门禁：逐模块 line/branch/function ≥80%） ----------------
+// 以下全部是 fail-closed 防御路径的负面/边界测试，只新增，不改上面任何既有断言。
+
+test('M7 负面 · createMcpClient 构造缺 transport / send 非函数 / timeoutMs 非法 → CONTRACT_INVALID', () => {
+  const cases = [
+    {},
+    { timeoutMs: 10 },
+    { transport: {} },
+    { transport: { send: 'not-a-fn' }, timeoutMs: 10 },
+    { transport: mockMcpTransport(() => ok({})), timeoutMs: 0 },
+    { transport: mockMcpTransport(() => ok({})), timeoutMs: 'x' },
+  ];
+  for (const options of cases) {
+    assert.throws(() => createMcpClient(options), err => err.code === 'CONTRACT_INVALID');
+  }
+});
+
+test('M7 负面 · 客户端：响应非对象 / 无 result 无 error / initialize 无 serverInfo / tools/list 无 tools 数组', async () => {
+  const notObject = createMcpClient({ transport: { send: async () => 'OK' }, timeoutMs: 100 });
+  await assert.rejects(() => notObject.initialize(), err => err.code === 'UPSTREAM_UNAVAILABLE');
+  const neither = createMcpClient({ transport: { send: async () => ({ jsonrpc: '2.0', id: 1 }) }, timeoutMs: 100 });
+  await assert.rejects(() => neither.initialize(), err => err.code === 'UPSTREAM_UNAVAILABLE');
+  const noServerInfo = createMcpClient({ transport: mockMcpTransport(() => ok({ protocolVersion: '2025-06-18' })), timeoutMs: 100 });
+  await assert.rejects(() => noServerInfo.initialize(), err => err.code === 'UPSTREAM_UNAVAILABLE');
+  const noToolsArray = createMcpClient({ transport: mockMcpTransport(req => req.method === 'initialize' ? ok({ serverInfo: { name: 'm' } }) : ok({})), timeoutMs: 100 });
+  await noToolsArray.initialize();
+  await assert.rejects(() => noToolsArray.listTools(), err => err.code === 'UPSTREAM_UNAVAILABLE');
+});
+
+test('M7 负面 · callTool 工具名空 / args 非对象 / result 非对象 → 结构化拒绝', async () => {
+  const client = createMcpClient({
+    transport: mockMcpTransport(req => req.method === 'initialize' ? ok({ serverInfo: { name: 'm' } }) : ok('not-an-object-result')),
+    timeoutMs: 100,
+  });
+  await client.initialize();
+  await assert.rejects(() => client.callTool('', {}), err => err.code === 'CONTRACT_INVALID');
+  await assert.rejects(() => client.callTool('t', 'not-an-object'), err => err.code === 'CONTRACT_INVALID');
+  await assert.rejects(() => client.callTool('t', {}), err => err.code === 'UPSTREAM_UNAVAILABLE');
+});
+
+test('M7 负面 · 审计台账构造缺 db → 拒绝；recordToolCall 入参非法 → CONTRACT_INVALID', () => {
+  assert.throws(() => createToolAuditStore({}), /db handle is required/);
+  const { audit } = freshAudit();
+  const base = {
+    ownerId: 'owner-1', connectorId: 'c', toolName: 't', grantId: 'g',
+    policyDecision: 'allowed', resultSummary: 'x', status: 'succeeded',
+    idempotencyKey: 'sup-1', payloadHash: 'a'.repeat(64),
+  };
+  assert.throws(() => audit.recordToolCall(null), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordToolCall({ ...base, ownerId: '' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordToolCall({ ...base, toolName: '' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordToolCall({ ...base, idempotencyKey: '' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordToolCall({ ...base, payloadHash: '' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordToolCall({ ...base, status: 'bogus' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordToolCall({ ...base, idempotencyKey: 'sup-2', connectorId: 42 }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordToolCall({ ...base, idempotencyKey: 'sup-3', resultPayload: 'not-an-object' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.findToolCall({ ownerId: '' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.findToolCall({ ownerId: 'owner-1' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.listToolCalls({ ownerId: '' }), err => err.code === 'CONTRACT_INVALID');
+  // 可选列 null 归一 + calledAt 注入（确定性簿记）
+  const row = audit.recordToolCall({
+    ownerId: 'owner-1', toolName: 't', status: 'unknown',
+    idempotencyKey: 'sup-4', payloadHash: 'a'.repeat(64), calledAt: '2026-10-27T10:00:00Z',
+  }).record;
+  assert.equal(row.connectorId, null);
+  assert.equal(row.resultPayload, null);
+  assert.equal(row.calledAt, '2026-10-27T10:00:00Z');
+});
+
+test('M7 · recordConnector：登记快照幂等（同 manifest replay / 异 manifest CONFLICT）+ owner 隔离', () => {
+  const { audit } = freshAudit();
+  const manifestEntry = {
+    ownerId: 'owner-1',
+    manifest: {
+      id: 'connector-files', name: 'files-reader', transport: 'mcp-http',
+      reads: [], writes: [], risk: 'low', processing: 'local', retention: 'session',
+    },
+    tools: [{ name: 'read_doc' }],
+    registeredAt: '2026-10-27T10:00:00Z',
+  };
+  const first = audit.recordConnector(manifestEntry);
+  assert.equal(first.replayed, false);
+  assert.equal(first.record.connectorId, 'connector-files');
+  assert.deepEqual(first.record.tools, [{ name: 'read_doc' }]);
+  assert.equal(audit.recordConnector(manifestEntry).replayed, true, 'same manifest re-registration is idempotent');
+  const changed = { ...manifestEntry, manifest: { ...manifestEntry.manifest, risk: 'medium' } };
+  assert.throws(() => audit.recordConnector(changed), err => err.code === 'CONFLICT');
+  assert.deepEqual(audit.listConnectors({ ownerId: 'owner-2' }), [], 'cross-owner connectors are invisible');
+  assert.equal(audit.listConnectors({ ownerId: 'owner-1' }).length, 1);
+});
+
+test('M7 负面 · recordConnector 入参非法（null / manifest 非 object / 缺 id/name/transport / tools 非数组）', () => {
+  const { audit } = freshAudit();
+  const good = { id: 'c1', name: 'n', transport: 'mcp-http' };
+  assert.throws(() => audit.recordConnector(null), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordConnector({ ownerId: 'o' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordConnector({ ownerId: 'o', manifest: 'x' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordConnector({ ownerId: 'o', manifest: { name: 'n', transport: 't' } }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordConnector({ ownerId: 'o', manifest: { id: 'c1', transport: 't' } }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordConnector({ ownerId: 'o', manifest: { id: 'c1', name: 'n' } }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.recordConnector({ ownerId: 'o', manifest: good, tools: 'x' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => audit.listConnectors({ ownerId: '' }), err => err.code === 'CONTRACT_INVALID');
+});
+
+test('M7 负面 · invokeTool 构造缺件（registry/client/audit/toolName/args/ctx/idempotencyKey/clock）→ 结构化拒绝', async () => {
+  const { client, audit, registry, ctx } = setupInvoke();
+  const good = { registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-inv-0' };
+  const drop = key => { const options = { ...good }; delete options[key]; return options; };
+  for (const key of ['registry', 'client', 'audit', 'toolName', 'args', 'ctx', 'idempotencyKey']) {
+    await assert.rejects(() => invokeTool(drop(key)), err => err.code === 'CONTRACT_INVALID', `missing ${key}`);
+  }
+  await assert.rejects(() => invokeTool({ ...good, registry: {} }), err => err.code === 'CONTRACT_INVALID');
+  await assert.rejects(() => invokeTool({ ...good, client: {} }), err => err.code === 'CONTRACT_INVALID');
+  await assert.rejects(() => invokeTool({ ...good, audit: {} }), err => err.code === 'CONTRACT_INVALID');
+  await assert.rejects(() => invokeTool({ ...good, clock: {} }), err => err.code === 'CONTRACT_INVALID');
+  const badCtx = ctx(); delete badCtx.actor;
+  await assert.rejects(() => invokeTool({ ...good, ctx: badCtx }), err => err.code === 'CONTRACT_INVALID');
+});
+
+test('M7 负面 · Grant 缺 status / status 非 active → FORBIDDEN 并落 rejected 账', async () => {
+  const { client, audit, registry, transport, ctx } = setupInvoke();
+  const noStatus = ctx(); delete noStatus.grant.status;
+  await assert.rejects(
+    () => invokeTool({ registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: noStatus, idempotencyKey: 'sup-grant-1' }),
+    err => err.code === 'FORBIDDEN',
+  );
+  assert.equal(transport.sent.length, 0);
+  const row = audit.listToolCalls({ ownerId: 'owner-1' })[0];
+  assert.equal(row.status, 'rejected');
+  assert.equal(row.errorCode, 'FORBIDDEN');
+});
+
+test('M7 负面 · registry 闸门拒绝（policy deny）→ 台账 rejected 后原样上抛；message 凭据脱敏', async () => {
+  const { client, audit, ctx } = setupInvoke({ policyCheck: { check: async () => ({ allow: false, reason: 'grant sk-abcdef123456 expired' }) } });
+  const registry = createToolRegistry({
+    policyPort: { check: async () => ({ allow: false, reason: 'grant sk-abcdef123456 expired' }) },
+    schemaDir: contractDir, clock: { now: () => 0 }, audit: () => {},
+  });
+  registry.register({
+    id: 'connector-files', ownerId: 'owner-1', revision: 1, schemaVersion: 1,
+    createdAt: '2026-10-26T08:00:00Z', updatedAt: '2026-10-26T08:00:00Z', deletedAt: null,
+    source: 'demo', name: 'files-reader', transport: 'mcp-http',
+    reads: [{ scope: 'files.read:/Docs', dataClass: 'public', freshness: '1d' }],
+    writes: [], risk: 'low', quota: { perDay: 100 }, processing: 'local', retention: 'session',
+  }, [{
+    name: 'read_doc',
+    inputSchema: { type: 'object', required: ['resource'], properties: { resource: { type: 'string' } } },
+    capability: 'files.read:/Docs', execute: async () => ({}),
+  }]);
+  await assert.rejects(
+    () => invokeTool({ registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-deny-1' }),
+    err => err.code === 'FORBIDDEN',
+  );
+  const row = audit.listToolCalls({ ownerId: 'owner-1' })[0];
+  assert.equal(row.status, 'rejected');
+  assert.match(row.resultSummary, /sk-\[REDACTED\]/, 'credential-shaped text in summaries must be redacted');
+});
+
+test('M7 · 幂等重放分支：succeeded 原样取回 payload（不重新 invoke）', async () => {
+  const { client, audit, registry, transport, ctx } = setupInvoke();
+  const call = key => invokeTool({ registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: key });
+  const first = await call('sup-replay-1');
+  assert.equal(first.data.content[0].text, 'doc body');
+  const replayed = await call('sup-replay-1');
+  assert.equal(replayed.replayed, true);
+  assert.equal(replayed.data.content[0].text, 'doc body', 'succeeded replay returns the recorded payload, no re-invoke');
+  assert.equal(transport.sent.filter(r => r.method === 'tools/call').length, 1);
+});
+
+test('M7 · rejected/failed 账目同 key 同载重放 fail closed（不触 transport，不自动重试）', async () => {
+  const { client, audit, registry, transport, ctx } = setupInvoke();
+
+  // rejected：先造一条 rejected 账（用被拒 ctx），再以同 key 同载重放 → FORBIDDEN
+  const deniedCtx = ctx();
+  deniedCtx.grant.status = 'revoked';
+  await assert.rejects(
+    () => invokeTool({ registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: deniedCtx, idempotencyKey: 'sup-rj-1' }),
+    err => err.code === 'FORBIDDEN',
+  );
+  await assert.rejects(
+    () => invokeTool({ registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-rj-1' }),
+    err => err.code === 'FORBIDDEN',
+    'rejected replay must fail closed even with an active grant now',
+  );
+  assert.equal(transport.sent.length, 0);
+
+  // failed：工具 isError:true 首记 failed，同 key 同载重放 → UPSTREAM_UNAVAILABLE
+  const errClient = createMcpClient({
+    transport: mockMcpTransport(req => (req.method === 'tools/call'
+      ? ok({ content: [{ type: 'text', text: 'boom' }], isError: true })
+      : ok({ protocolVersion: '2025-06-18', capabilities: {}, serverInfo: { name: 'mock', version: '0' } }))),
+    timeoutMs: 100,
+  });
+  await errClient.initialize();
+  const failed = await invokeTool({ registry, client: errClient, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-fl-1' });
+  assert.equal(failed.quarantined, undefined, 'plain tool error text is data, not injection');
+  assert.equal(audit.findToolCall({ ownerId: 'owner-1', idempotencyKey: 'sup-fl-1' }).status, 'failed');
+  await assert.rejects(
+    () => invokeTool({ registry, client: errClient, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-fl-1' }),
+    err => err.code === 'UPSTREAM_UNAVAILABLE',
+    'failed replay must not re-invoke the tool',
+  );
+  assert.equal(audit.listToolCalls({ ownerId: 'owner-1' }).filter(r => r.idempotencyKey === 'sup-fl-1').length, 1);
+});
+
+test('M7 · connectorId 解析：显式参数优先，缺省 best-effort 反查 registry.listTools', async () => {
+  const { client, audit, registry, ctx } = setupInvoke();
+  await invokeTool({ registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-cid-1' });
+  assert.equal(audit.findToolCall({ ownerId: 'owner-1', idempotencyKey: 'sup-cid-1' }).connectorId, 'connector-files');
+  await invokeTool({ registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-cid-2', connectorId: 'explicit-conn' });
+  assert.equal(audit.findToolCall({ ownerId: 'owner-1', idempotencyKey: 'sup-cid-2' }).connectorId, 'explicit-conn');
+});
+
+test('M7 负面 · registry.listTools 反查失败（抛错）→ connectorId 落 null，主链路不受影响', async () => {
+  const { client, audit, registry, ctx } = setupInvoke();
+  const crippled = {
+    call: registry.call,
+    listTools: () => { throw new Error('listing broken'); },
+  };
+  const result = await invokeTool({ registry: crippled, client, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-cid-3' });
+  assert.equal(result.kind, 'external-content');
+  assert.equal(audit.findToolCall({ ownerId: 'owner-1', idempotencyKey: 'sup-cid-3' }).connectorId, null);
+});
+
+test('M7 · 审计时间戳：registry 返回的 at（注入时钟派生）优先于 store 缺省时钟', async () => {
+  const { client, audit, registry, ctx } = setupInvoke();
+  await invokeTool({ registry, client, audit, toolName: 'read_doc', args: ARGS, ctx: ctx(), idempotencyKey: 'sup-at-1' });
+  const row = audit.findToolCall({ ownerId: 'owner-1', idempotencyKey: 'sup-at-1' });
+  assert.equal(row.calledAt, '2026-10-27T10:00:00.000Z', 'called_at derives from the registry injected clock (.at)');
+});
