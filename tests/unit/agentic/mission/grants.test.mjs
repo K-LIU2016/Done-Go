@@ -71,6 +71,12 @@ test('rejects outside-window, expired and over-budget calls', () => {
   denied(checkGrant(active, context({ spent: 5, estimate: 1 })), 'BUDGET_EXCEEDED');
 });
 
+test('expires a proposed grant at its deadline before activation', () => {
+  const expired = successful(expireGrant(grant(), { ...context(), now: '2026-10-27T18:00:00Z' }));
+  assert.equal(expired.status, 'expired');
+  denied(activateGrant(expired, context()), 'GRANT_NOT_PROPOSED');
+});
+
 test('supports revoke, expiry and contract-change invalidation but not recovery', () => {
   const active = successful(activateGrant(grant(), context()));
   let current = successful(revokeGrant(active, context()));

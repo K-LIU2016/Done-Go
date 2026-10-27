@@ -35,8 +35,12 @@ function prerequisite(mission, event, context) {
     if (!context.contractId || !/^[a-f0-9]{64}$/.test(context.contractHash || '')) return error('PRECONDITION_FAILED', 'contract id and hash required');
     if (context.autonomy === 'A4') return error('AUTONOMY_REQUIRES_CONFIRMATION');
     if (context.autonomy === 'A5') return error('AUTONOMY_FORBIDDEN');
+    if (!['A1', 'A2', 'A3'].includes(context.autonomy)) return error('AUTONOMY_INVALID');
   }
-  if (event === 'expire' && mission.contractId) return error('PRECONDITION_FAILED', 'contracted mission cannot expire');
+  if (event === 'expire') {
+    if (mission.contractId) return error('PRECONDITION_FAILED', 'contracted mission cannot expire');
+    if (context.windowStart && (!context.now || Date.parse(context.now) < Date.parse(context.windowStart))) return error('WINDOW_NOT_OPEN');
+  }
   if (event === 'block' && !context.reason) return error('NEED_HUMAN', 'blocked transition needs a reason');
   if (event === 'resume' && context.contractHash !== mission.contractHash) return error('CONTRACT_MISMATCH', 'Contract must be revalidated');
   if (event === 'start' && mission.state !== 'prepping') return error('INVALID_TRANSITION');
@@ -62,7 +66,23 @@ export function transitionMission(mission, event, context = {}) {
   if (event === 'block') { next.blockedReason = context.reason; next.resumeState = mission.state; }
   if (event === 'pause') { next.resumeState = mission.state; }
   if (event === 'resume') { next.blockedReason = null; next.resumeState = null; }
-  return { ok: true, mission: next, event: { eventId: context.eventId || `evt_${next.revision}`, type: event, from: mission.state, to, revision: next.revision } };
+  return {
+    ok: true,
+    mission: next,
+    event: {
+      eventId: context.eventId || `evt_${next.revision}`,
+      type: event,
+      from: mission.state,
+      to,
+      revision: next.revision,
+      ...(context.scanId ? { scanId: context.scanId } : {}),
+      ...(context.previewId ? { previewId: context.previewId } : {}),
+      ...(context.contractId ? { contractId: context.contractId } : {}),
+      ...(context.contractHash ? { contractHash: context.contractHash } : {}),
+      ...(context.autonomy ? { autonomy: context.autonomy } : {}),
+      ...(context.reason ? { reason: context.reason } : {}),
+    },
+  };
 }
 
 export function replayMission(initial, events) {
@@ -70,8 +90,13 @@ export function replayMission(initial, events) {
   for (const event of events) {
     if (event.from !== current.state || event.revision !== current.revision + 1) return error('EVENT_TAMPERED', 'Event stream does not match mission revision');
     const replayContext = { ...event, eventId: event.eventId };
-    if (event.type === 'scan') replayContext.scanId = current.scanId || 'replayed-scan';
-    if (event.type === 'preview') replayContext.previewId = current.previewId || 'replayed-preview';
+    if (event.type === 'scan') replayContext.scanId = event.scanId || current.scanId || 'replayed-scan';
+    if (event.type === 'preview') replayContext.previewId = event.previewId || current.previewId || 'replayed-preview';
+    if (event.type === 'contract') {
+      replayContext.contractId = event.contractId || current.contractId;
+      replayContext.contractHash = event.contractHash || current.contractHash;
+      replayContext.autonomy = event.autonomy || current.autonomy;
+    }
     const result = transitionMission(current, event.type, replayContext);
     if (!result.ok || result.mission.state !== event.to) return error('EVENT_TAMPERED', 'Event cannot be reproduced');
     current = result.mission;

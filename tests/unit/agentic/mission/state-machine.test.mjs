@@ -73,6 +73,21 @@ test('expires unsigned missions at the window start and never auto-starts them',
   rejected(result.mission, 'prepare', {}, 'TERMINAL_STATE');
 });
 
+test('rejects expiration before the unsigned mission window opens', () => {
+  const mission = base({ state: 'previewed', scanId: 's1', previewId: 'p1' });
+  rejected(mission, 'expire', {
+    now: '2026-10-27T13:59:59Z',
+    windowStart: '2026-10-27T14:00:00Z',
+  }, 'WINDOW_NOT_OPEN');
+});
+
+test('rejects a contract without an A1-A3 autonomy value', () => {
+  const mission = base({ state: 'previewed', scanId: 's1', previewId: 'p1' });
+  rejected(mission, 'contract', {
+    contractId: 'c', contractHash: 'a'.repeat(64), autonomy: undefined,
+  }, 'AUTONOMY_INVALID');
+});
+
 test('rejects invalid transitions, terminal recovery, stale revisions and owner mismatch', () => {
   rejected(base({ state: 'delivered' }), 'resume', {}, 'TERMINAL_STATE');
   rejected(base({ state: 'scanned' }), 'preview', { expectedRevision: 99 }, 'CONFLICT');
@@ -92,6 +107,30 @@ test('replays accepted events and rejects a tampered event stream', () => {
   const bad = replayMission(initial, [{ ...first.event, to: 'delivered' }]);
   assert.equal(bad.ok, false);
   assert.equal(bad.error.code, 'EVENT_TAMPERED');
+});
+
+test('replays contract, pause and cancellation events with their required context', () => {
+  const initial = base();
+  const events = [];
+  let mission = initial;
+  for (const [event, context] of [
+    ['scan', { scanId: 's1' }],
+    ['preview', { previewId: 'p1' }],
+    ['contract', { contractId: 'c1', contractHash: 'a'.repeat(64), autonomy: 'A2' }],
+    ['prepare', {}],
+    ['pause', {}],
+    ['resume', { contractHash: 'a'.repeat(64) }],
+    ['cancel', {}],
+  ]) {
+    const result = transitionMission(mission, event, context);
+    assert.equal(result.ok, true, result.error?.message);
+    events.push(result.event);
+    mission = result.mission;
+  }
+  const replay = replayMission(initial, events);
+  assert.equal(replay.ok, true);
+  assert.equal(replay.mission.state, 'cancelled');
+  assert.equal(replay.mission.contractHash, 'a'.repeat(64));
 });
 
 test('maps command names to the state-machine events without accepting unknown commands', () => {
