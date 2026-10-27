@@ -46,3 +46,12 @@
 - targeted 快测：`node --test tests/unit/agentic/bridge/*.test.mjs` → rc=0，143 tests / 143 pass / 0 fail（W8 门禁原跑于 b561a7b，本次在 W13 合并树上重验通过）。
 - RED 套件：26 tests 保持 17 pass / 9 fail（与 M01/M02 后一致）。
 - PROVISIONAL 保留（不因合入抹平，进终报）：W8 报告的 19/21 actor resolved_model=NULL、真实 Codex smoke 0 完成回合、branch 覆盖率 78.27%<80%——代码原样合入，状态原样保留。
+
+## 批次收尾（W2+W1+W8 三连合入完成）
+
+- 聚合快测：`node --test tests/unit/agentic/{engine,blocks,bridge,contracts}/*.test.mjs` → rc=0，268 tests / 268 pass / 0 fail。
+- `git diff --check 60fdc73..HEAD` 初次 rc=2（两条 .s2d 记录的尾随空白/EOF 空行，系 W2/W8 源分支原样带入）→ 已在 W13 树修剪（8f386d9，源 worktree 未动），复跑 rc=0。
+- 工作树干净（`git status --short` 空）。
+- W13 RED 套件终态：26 tests / 17 pass / 9 fail——6 个迁移预期由真实合入转绿，9 fail 全为缺 integration 实现，待 M13-M17。
+- 三条 merge commit：42b754c（W2）、2f810d2（W1）、10584f7（W8），均为真双亲 merge commit，无 -X ours/theirs。
+- 待后续批次：W11(4a51457)→W12(8cd9b4f)→W5(1d638af)→W3(c972ba7)→W4(c9a865b)→W6(cbc79ed)→W7(1388636)→W9(472b6d4)→W10(f06d7e5)。
