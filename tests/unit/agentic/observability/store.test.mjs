@@ -345,6 +345,39 @@ test('store: recordNeed upserts status and recordGrant upserts status', async ()
   );
 });
 
+test('store: recordAcceptance rejects a duplicate id from another owner, not a silent rewrite', async () => {
+  const { store, db } = await freshStore();
+  store.recordAcceptance({ id: 'acc-1', ownerId: 'owner-a', artifactId: 'art-1', actor: 'reviewer', decision: 'accepted' });
+  assert.throws(
+    () => store.recordAcceptance({ id: 'acc-1', ownerId: 'owner-b', decision: 'rejected' }),
+    (error) => error.code === 'ID_OWNER_MISMATCH',
+  );
+  const rows = db.prepare('SELECT owner_id, decision FROM obs_acceptances').all();
+  assert.deepEqual(rows, [{ owner_id: 'owner-a', decision: 'accepted' }]);
+});
+
+test('store: recordNeed rejects a duplicate id from another owner, not a silent rewrite', async () => {
+  const { store, db } = await freshStore();
+  store.recordNeed({ id: 'need-1', ownerId: 'owner-a', missionId: 'm-1', status: 'open' });
+  assert.throws(
+    () => store.recordNeed({ id: 'need-1', ownerId: 'owner-b', status: 'answered', answeredAt: '2026-10-27T12:00:00.000Z' }),
+    (error) => error.code === 'ID_OWNER_MISMATCH',
+  );
+  const rows = db.prepare('SELECT owner_id, status, answered_at FROM obs_needs').all();
+  assert.deepEqual(rows, [{ owner_id: 'owner-a', status: 'open', answered_at: null }]);
+});
+
+test('store: recordGrant rejects a duplicate id from another owner, not a silent rewrite', async () => {
+  const { store, db } = await freshStore();
+  store.recordGrant({ id: 'grant-1', ownerId: 'owner-a', status: 'granted' });
+  assert.throws(
+    () => store.recordGrant({ id: 'grant-1', ownerId: 'owner-b', status: 'invalidated' }),
+    (error) => error.code === 'ID_OWNER_MISMATCH',
+  );
+  const rows = db.prepare('SELECT owner_id, status FROM obs_grants').all();
+  assert.deepEqual(rows, [{ owner_id: 'owner-a', status: 'granted' }]);
+});
+
 test('store: parseJsonOr falls back on empty or invalid JSON text', async () => {
   const { parseJsonOr } = await storeApi();
   assert.deepEqual(parseJsonOr('', []), []);

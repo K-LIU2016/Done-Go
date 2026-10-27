@@ -49,6 +49,25 @@ function requireOwner(ownerId) {
   return ownerId;
 }
 
+/**
+ * Guard a W0-projection upsert keyed by the single-column `id` PK (owner
+ * isolation, PRD §10). A row with the same id already owned by somebody else
+ * is a hard rejection — mirroring insertSpan's SPAN_OWNER_MISMATCH — so a
+ * foreign row can never be silently rewritten and the caller never loses its
+ * own record into another owner's row. Returns the existing row (or undefined).
+ */
+function requireProjectionIdOwner(db, table, id, owner) {
+  const existing = db.prepare(`SELECT owner_id FROM ${table} WHERE id = ?`).get(id);
+  if (existing && existing.owner_id !== owner) {
+    throw observabilityError(
+      OBS_ERROR_CODES.ID_OWNER_MISMATCH,
+      `${table} id already belongs to another owner`,
+      { id, table },
+    );
+  }
+  return existing;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -412,39 +431,68 @@ export function createObservabilityStore({ db } = {}) {
 
     // --- read-only W0 observation projections ------------------------------
 
+    /**
+     * Upsert keyed on the W0 acceptance id. A same-owner re-record updates the
+     * decision in place; an id already owned by another owner is a hard
+     * rejection (ID_OWNER_MISMATCH), never a silent cross-owner rewrite.
+     */
     recordAcceptance(entry) {
       const owner = requireOwner(entry?.ownerId);
+      const existing = requireProjectionIdOwner(db, 'obs_acceptances', entry.id, owner);
+      if (existing) {
+        db.prepare('UPDATE obs_acceptances SET decision = ? WHERE owner_id = ? AND id = ?')
+          .run(entry.decision, owner, entry.id);
+        return { recorded: true };
+      }
       db.prepare(`
         INSERT INTO obs_acceptances (id, owner_id, artifact_id, actor, decision, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET decision = excluded.decision
       `).run(entry.id, owner, entry.artifactId ?? null, entry.actor ?? null, entry.decision, entry.createdAt ?? nowIso());
       return { recorded: true };
     },
 
+    /**
+     * Upsert keyed on the W0 need id, same owner rule as recordAcceptance:
+     * same-owner re-record updates in place, foreign id is rejected.
+     */
     recordNeed(entry) {
       const owner = requireOwner(entry?.ownerId);
+      const existing = requireProjectionIdOwner(db, 'obs_needs', entry.id, owner);
+      if (existing) {
+        db.prepare(`
+          UPDATE obs_needs
+             SET status = ?, due_at = ?, answered_at = ?
+           WHERE owner_id = ? AND id = ?
+        `).run(entry.status, entry.dueAt ?? null, entry.answeredAt ?? null, owner, entry.id);
+        return { recorded: true };
+      }
       db.prepare(`
         INSERT INTO obs_needs (id, owner_id, mission_id, status, due_at, answered_at)
         VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          status = excluded.status,
-          due_at = excluded.due_at,
-          answered_at = excluded.answered_at
       `).run(entry.id, owner, entry.missionId ?? null, entry.status, entry.dueAt ?? null, entry.answeredAt ?? null);
       return { recorded: true };
     },
 
+    /**
+     * Upsert keyed on the W0 grant id, same owner rule as recordAcceptance:
+     * same-owner re-record updates in place, foreign id is rejected.
+     */
     recordGrant(entry) {
       const owner = requireOwner(entry?.ownerId);
+      const timestamp = entry.updatedAt ?? nowIso();
+      const existing = requireProjectionIdOwner(db, 'obs_grants', entry.id, owner);
+      if (existing) {
+        db.prepare(`
+          UPDATE obs_grants
+             SET status = ?, expires_at = ?, updated_at = ?
+           WHERE owner_id = ? AND id = ?
+        `).run(entry.status, entry.expiresAt ?? null, timestamp, owner, entry.id);
+        return { recorded: true };
+      }
       db.prepare(`
         INSERT INTO obs_grants (id, owner_id, status, expires_at, updated_at)
         VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          status = excluded.status,
-          expires_at = excluded.expires_at,
-          updated_at = excluded.updated_at
-      `).run(entry.id, owner, entry.status, entry.expiresAt ?? null, entry.updatedAt ?? nowIso());
+      `).run(entry.id, owner, entry.status, entry.expiresAt ?? null, timestamp);
       return { recorded: true };
     },
   };
