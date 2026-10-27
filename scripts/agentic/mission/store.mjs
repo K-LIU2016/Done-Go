@@ -10,8 +10,13 @@ const rowMission = row => row ? ({
 export function createMissionStore(db) {
   return {
     saveMission(mission) {
-      db.prepare(`INSERT INTO missions (id, owner_id, revision, schema_version, block_id, goal, state, autonomy, scan_id, preview_id, contract_id, contract_hash, blocked_reason, resume_state, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(mission.id, mission.ownerId, mission.revision, mission.schemaVersion, mission.blockId, mission.goal, mission.state, mission.autonomy, mission.scanId, mission.previewId, mission.contractId, mission.contractHash || null, mission.blockedReason || null, mission.resumeState || null, mission.createdAt, mission.updatedAt, mission.deletedAt || null);
-      return { ok: true, mission };
+      try {
+        db.prepare(`INSERT INTO missions (id, owner_id, revision, schema_version, block_id, goal, state, autonomy, scan_id, preview_id, contract_id, contract_hash, blocked_reason, resume_state, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(mission.id, mission.ownerId, mission.revision, mission.schemaVersion, mission.blockId, mission.goal, mission.state, mission.autonomy, mission.scanId, mission.previewId, mission.contractId, mission.contractHash || null, mission.blockedReason || null, mission.resumeState || null, mission.createdAt, mission.updatedAt, mission.deletedAt || null);
+        return { ok: true, mission };
+      } catch (error) {
+        if (String(error.message).includes('UNIQUE')) return { ok: false, error: { code: 'CONFLICT', message: 'Mission already exists' } };
+        throw error;
+      }
     },
     getMission(ownerId, id) { return rowMission(db.prepare('SELECT * FROM missions WHERE owner_id = ? AND id = ? AND deleted_at IS NULL').get(ownerId, id)); },
     updateMission(mission, { ownerId, expectedRevision }) {
@@ -45,7 +50,14 @@ export function createMissionStore(db) {
     },
     getGrant(ownerId, id) {
       const row = db.prepare('SELECT * FROM mission_grants WHERE owner_id=? AND id=?').get(ownerId, id);
-      return row && { ...row, ownerId: row.owner_id, contractHash: row.contract_hash, capabilities: parse(row.capabilities_json), dataDisclosure: parse(row.data_disclosure_json), expiresAt: row.expires_at, consumedAt: row.consumed_at, createdAt: row.created_at, updatedAt: row.updated_at };
+      return row && { id: row.id, ownerId: row.owner_id, revision: row.revision, contractHash: row.contract_hash, actor: row.actor, capabilities: parse(row.capabilities_json), dataDisclosure: parse(row.data_disclosure_json), expiresAt: row.expires_at, status: row.status, consumedAt: row.consumed_at, createdAt: row.created_at, updatedAt: row.updated_at };
+    },
+    updateGrant(grant, { ownerId, expectedRevision }) {
+      const existing = this.getGrant(ownerId, grant.id);
+      if (!existing) return { ok: false, error: { code: 'NOT_FOUND' } };
+      if (existing.revision !== expectedRevision) return { ok: false, error: { code: 'CONFLICT' } };
+      db.prepare('UPDATE mission_grants SET revision=?, status=?, consumed_at=?, updated_at=? WHERE owner_id=? AND id=? AND revision=?').run(grant.revision, grant.status, grant.consumedAt || null, grant.updatedAt || now(), ownerId, grant.id, expectedRevision);
+      return { ok: true, grant };
     },
     invalidateGrants(ownerId, oldContractHash, updatedAt = now()) {
       const result = db.prepare("UPDATE mission_grants SET status='invalidated', revision=revision+1, updated_at=? WHERE owner_id=? AND contract_hash=? AND status IN ('proposed','active')").run(updatedAt, ownerId, oldContractHash);

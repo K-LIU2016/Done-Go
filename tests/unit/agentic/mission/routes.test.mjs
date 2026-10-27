@@ -73,3 +73,45 @@ test('replays a rejected command with the same error envelope instead of pending
     assert.equal(result.response.body.error.code, 'PRECONDITION_FAILED');
   } finally { db.close(); }
 });
+
+test('fails closed for missing auth and duplicate mission creation', async () => {
+  const { db, routes } = harness();
+  try {
+    let result = await call(routes, 'POST', '/api/missions', '', mission);
+    assert.equal(result.response.statusCode, 401);
+    result = await call(routes, 'POST', '/api/missions', 'o1', mission);
+    assert.equal(result.response.statusCode, 201);
+    result = await call(routes, 'POST', '/api/missions', 'o1', mission);
+    assert.equal(result.response.statusCode, 409);
+  } finally { db.close(); }
+});
+
+test('does not expose another owner event stream or accept a reused command id', async () => {
+  const { db, routes } = harness();
+  try {
+    await call(routes, 'POST', '/api/missions', 'o1', mission);
+    let result = await call(routes, 'POST', '/api/missions/m1/transition', 'o1', { commandId: 'same', event: 'scan', scanId: 's1' });
+    assert.equal(result.response.statusCode, 200);
+    result = await call(routes, 'POST', '/api/missions/m1/transition', 'o2', { commandId: 'same', event: 'scan', scanId: 's2' });
+    assert.equal(result.response.statusCode, 404);
+    result = await call(routes, 'GET', '/api/missions/m1/events', 'o2');
+    assert.equal(result.response.statusCode, 404);
+  } finally { db.close(); }
+});
+
+test('serves owner-scoped grants and rejects terminal grant checks', async () => {
+  const { db, routes } = harness();
+  try {
+    await call(routes, 'POST', '/api/missions', 'o1', mission);
+    const grant = { id: 'g1', ownerId: 'ignored', revision: 1, contractHash: 'a'.repeat(64), actor: 'writer', capabilities: ['files.read'], dataDisclosure: ['notes'], expiresAt: '2026-10-27T18:00:00Z', status: 'proposed' };
+    let result = await call(routes, 'POST', '/api/missions/m1/grants', 'o1', grant);
+    assert.equal(result.response.statusCode, 201);
+    result = await call(routes, 'GET', '/api/missions/m1/grants/g1', 'o2');
+    assert.equal(result.response.statusCode, 404);
+    result = await call(routes, 'POST', '/api/missions/m1/grants/g1/activate', 'o1', { actor: 'writer', resolvedModel: 'gpt-6.1-sol', now: '2026-10-27T15:00:00Z' });
+    assert.equal(result.response.statusCode, 200);
+    result = await call(routes, 'POST', '/api/missions/m1/grants/g1/check', 'o1', { actor: 'writer', resolvedModel: null, contractHash: grant.contractHash, capability: 'files.read', now: '2026-10-27T15:00:00Z' });
+    assert.equal(result.response.statusCode, 403);
+    assert.equal(result.response.body.error.code, 'MODEL_UNKNOWN');
+  } finally { db.close(); }
+});
