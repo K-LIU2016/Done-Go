@@ -18,7 +18,7 @@ export const GATE_EVIDENCE_STATUS = Object.freeze({
   BLOCKED: 'BLOCKED',
 });
 
-/** BUILD-PLAN §5: line coverage floor for this stream. */
+/** BUILD-PLAN §2.3/§2.4: per-module line coverage floor (≥80%). */
 export const COVERAGE_LINE_FLOOR = 80;
 
 /** Evidence sources that cannot prove a real run happened. */
