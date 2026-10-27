@@ -8,4 +8,4 @@
 - 通过检查：`node --test --experimental-test-coverage tests/unit/agentic/engine/event-clock.test.mjs`，exit 0；event-clock 行覆盖率 90.70%，函数覆盖率 88.89%。
 - 全引擎检查：`node --test --experimental-test-coverage tests/unit/agentic/engine/*.test.mjs`，exit 1，50 tests 中 32 pass/18 fail；失败集中在并行模块 run-engine/policy/outbox/crash-recovery，不改动其归属文件。
 - 外部真实调用：0；运行时依赖：0；端口/密钥：未使用。
-- 提交：见本分支 event-clock commit。 
+- 提交：见本分支 event-clock commit。

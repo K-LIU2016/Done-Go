@@ -22,4 +22,3 @@
 - 完成后更新 s2d-w1-report.md 第 6 节与门禁⑥
 
 ## TA5：已在 BUILD-PLAN 更新基线说明
-
