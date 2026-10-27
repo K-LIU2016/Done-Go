@@ -136,3 +136,67 @@ test('a corrupted stored payload fails closed on read with CONTRACT_INVALID', as
     db.close();
   }
 });
+
+// Negative paths from plan §2 (missionId empty → CONTRACT_INVALID, malformed
+// inputs fail closed before any write, baseVersion against an empty chain).
+test('malformed put inputs fail closed with CONTRACT_INVALID and write nothing', async () => {
+  const { db, store } = await freshStore();
+  try {
+    await assert.rejects(
+      () => store.put({ ownerId: '', missionId: 'm1', preview: makeMinimalPreview('m1') }),
+      error => error.code === 'CONTRACT_INVALID',
+    );
+    await assert.rejects(
+      () => store.put({ ownerId: 'owner-a', missionId: '', preview: makeMinimalPreview('m1') }),
+      error => error.code === 'CONTRACT_INVALID',
+    );
+    await assert.rejects(
+      () => store.put({ ownerId: 'owner-a', missionId: 'm1', preview: 'not-an-object' }),
+      error => error.code === 'CONTRACT_INVALID',
+    );
+    await assert.rejects(
+      () => store.put({ ownerId: 'owner-a', missionId: 'm1', preview: makeMinimalPreview('other') }),
+      error => error.code === 'CONTRACT_INVALID',
+    );
+    await assert.rejects(
+      () => store.put({ ownerId: 'owner-a', missionId: 'm1', baseVersion: 'one', preview: makeMinimalPreview('m1') }),
+      error => error.code === 'CONTRACT_INVALID',
+    );
+    assert.deepEqual(await store.list({ ownerId: 'owner-a', missionId: 'm1' }), []);
+  } finally {
+    db.close();
+  }
+});
+
+test('baseVersion against an empty chain CONFLICTs (the base never existed)', async () => {
+  const { db, store } = await freshStore();
+  try {
+    await assert.rejects(
+      () => store.put({ ownerId: 'owner-a', missionId: 'm1', baseVersion: 1, preview: makeMinimalPreview('m1') }),
+      error => error.code === 'CONFLICT',
+    );
+    assert.equal(await store.latest({ ownerId: 'owner-a', missionId: 'm1' }), null);
+  } finally {
+    db.close();
+  }
+});
+
+test('malformed version lookups fail closed with CONTRACT_INVALID', async () => {
+  const { db, store } = await freshStore();
+  try {
+    await assert.rejects(
+      () => store.get({ ownerId: 'owner-a', missionId: 'm1', version: 0 }),
+      error => error.code === 'CONTRACT_INVALID',
+    );
+    await assert.rejects(
+      () => store.softDelete({ ownerId: 'owner-a', missionId: 'm1', version: 'two' }),
+      error => error.code === 'CONTRACT_INVALID',
+    );
+    await assert.rejects(
+      () => store.latest({ ownerId: 'owner-b', missionId: '' }),
+      error => error.code === 'CONTRACT_INVALID',
+    );
+  } finally {
+    db.close();
+  }
+});
