@@ -125,13 +125,17 @@ test('POST /api/needs/:id/answer answers a need and returns the updated state', 
   assert.equal(body.need.revision, 2);
 });
 
-test('POST answer with a stale revision returns 409 CONFLICT envelope', async () => {
+test('POST answer with a non-replayable revision returns 409 CONFLICT envelope', async () => {
+  // 规约修正（2026-10-27，M3 实现期）：原稿先 store.answer(rev1) 再 POST rev1 期待 409，
+  // 与 brief 裁决⑤（answer 幂等键 owner/need/revision）冲突——重放被消费的 rev1 必须幂等 200。
+  // 本负路径改为对已终态（answered，行 revision 2）的 need 用“新 revision 2”再答：
+  // 不是任何 answer 重放 → 409 CONFLICT。负路径保留，未删测试、未放宽断言。
   const s = makeSetup();
   const need = await s.store.createNeed('owner-a', INPUT);
   await s.store.answer('owner-a', need.id, { answer: '选 A', revision: 1 });
   s.as('owner-a');
   const res = makeRes();
-  await s.routes(makeReq('POST', `/api/needs/${need.id}/answer`, { answer: '旧的', revision: 1 }), res, `/api/needs/${need.id}/answer`);
+  await s.routes(makeReq('POST', `/api/needs/${need.id}/answer`, { answer: '改主意', revision: 2 }), res, `/api/needs/${need.id}/answer`);
   await res.done;
   assert.equal(res.statusCode, 409);
   const body = res.body();

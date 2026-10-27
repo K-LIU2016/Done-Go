@@ -88,12 +88,27 @@ test('createNeed rejects invalid input and client-supplied server fields', async
 });
 
 test('answer records the answer, bumps revision and appends an event', async () => {
-  const { db, clock, store } = makeStore();
+  // 规约修正（2026-10-27，M3 实现期）：原稿 assert.equal(answered.answeredAt, clock.now())
+  // 不可能满足——seqClock 每次调用前进 1s，断言里的 clock.now() 永远比 answer() 内部
+  // 捕获的值晚一拍。改为记录式时钟：断言 answeredAt 确实来自注入 clock 的某次输出、
+  // 且晚于 createNeed 时刻（语义不变：时间一律服务端/注入时钟生成，红线6）。
+  const outputs = [];
+  const db = openAgenticDb(':memory:');
+  migrate(db, join(root, 'scripts/agentic/db/migrations'));
+  const clock = {
+    now: () => {
+      const value = new Date(T0 + outputs.length * 1000).toISOString();
+      outputs.push(value);
+      return value;
+    },
+  };
+  const store = createNeedStore({ db, clock, idGen: seqId('need') });
   const need = await store.createNeed('owner-a', { ...INPUT, defaultAction: 'continue' });
   const answered = await store.answer('owner-a', need.id, { answer: '选 A', revision: 1 });
   assert.equal(answered.status, 'answered');
   assert.equal(answered.answer, '选 A');
-  assert.equal(answered.answeredAt, clock.now());
+  assert.ok(outputs.includes(answered.answeredAt), 'answeredAt must come from the injected clock');
+  assert.ok(answered.answeredAt > outputs[0], 'answeredAt is later than the creation timestamp');
   assert.equal(answered.revision, 2);
   const events = db.prepare('SELECT COUNT(*) AS n FROM w9_need_events WHERE need_id = ?').get(need.id);
   assert.equal(events.n, 2);
@@ -115,9 +130,15 @@ test('duplicate answer with the same revision is idempotent and returns the firs
 });
 
 test('answering with a stale revision conflicts', async () => {
+  // 规约修正（2026-10-27，M3 实现期）：原稿与本文件 “duplicate answer … idempotent” 测试
+  // 逐调用相同（createNeed → answer(rev1) → answer(rev1)）却分别期待 CONFLICT 与幂等成功，
+  // 二者不可能同时成立。按 brief 裁决⑤（answer 幂等键 owner/need/revision）与 plan §G1-M3-1
+  // （重复 answer 幂等返回首答），重放“被 answer 消费的 revision”必须幂等。真正的“旧 revision
+  // CONFLICT”负路径改为：waive 消费了 revision 1（行 revision→2）后，用旧的 revision 1 回答
+  // ——它不是任何 answer 的重放，必须 CONFLICT。负路径保留，未删测试、未放宽断言。
   const { store } = makeStore();
   const need = await store.createNeed('owner-a', INPUT);
-  await store.answer('owner-a', need.id, { answer: '选 A', revision: 1 });
+  await store.waive('owner-a', need.id); // revision 1 被 waive 消费 → 行 revision 2
   await assert.rejects(
     async () => store.answer('owner-a', need.id, { answer: '再答一次', revision: 1 }),
     (e) => e.code === 'CONFLICT',
