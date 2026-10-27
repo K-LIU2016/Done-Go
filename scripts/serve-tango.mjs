@@ -77,6 +77,12 @@ export function createTangoServer(options = {}) {
  const assistant = options.assistant || createAssistant();
  const discovery = options.discovery || createDiscovery();
  const aiGuard = options.aiGuard || createAIGuard();
+ // S2D-W13 · M18：agentic 集成路由挂载件（可注入；无配置时 legacy 行为不变）。
+ // 形状同 options.collaboration.handle 先例（下方 collaboration 分支）：
+ // { handle(req,res,pathname) } —— 即 M14 createAgenticDispatcher() 的返回值；
+ // 真值=已处理（响应已写完），falsy=未处理（body 未读、响应未触碰）→ 原样落回
+ // legacy 流程。接线错误在构造期就炸，不等到第一个请求。
+ if (options.agentic && typeof options.agentic.handle !== 'function') throw new Error('options.agentic must expose handle(req,res,pathname) — the M14 dispatcher mount shape');
  const versionSwitch = options.nextPort ? createVersionSwitch({ nextPort: options.nextPort, secure: !!options.collaboration?.publicOrigin }) : null;
  const server = createServer(async (req, res) => {
   if (versionSwitch && versionSwitch.handle(req, res)) return;
@@ -91,6 +97,22 @@ export function createTangoServer(options = {}) {
   };
   try {
     const url = new URL(req.url, 'http://127.0.0.1'), pathname = decodeURIComponent(url.pathname);
+    // S2D-W13 · M18：/api/agentic/ 前缀交注入的 dispatcher 全权处理。置于
+    // collaboration /api/ 鉴权块之前：冻结错误信封与 /api/agentic/health 免鉴权
+    // 探活（M17/M26 release 检查）不得被 tango 401 抢答；origin 门与既有 API
+    // 分支同款（collaboration.requestAllowed / allowedHosts+origin 匹配）。
+    // 未处理（falsy）时还原 apiRequest 后落回 legacy——collaboration 鉴权与静态
+    // 语义如同本分支未运行。CLI 入口不自动装配：真实 gateway/model 一律由
+    // harness/release 显式注入，绝不因环境变量静默启用。
+    if (options.agentic && pathname.startsWith('/api/agentic/')) {
+      apiRequest = true;
+      const address = server.address(), allowedHosts = ['localhost:' + address.port, '127.0.0.1:' + address.port];
+      if (isIP(address.address) === 4 && !['127.0.0.1', '0.0.0.0'].includes(address.address)) allowedHosts.push(address.address + ':' + address.port);
+      if (options.collaboration ? !options.collaboration.requestAllowed(req) : !allowedHosts.includes(req.headers.host) || req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) { send(403, { error: 'origin-rejected' }); return; }
+      const handled = await options.agentic.handle(req, res, pathname);
+      if (handled) return;
+      apiRequest = false;
+    }
     let actor;
     if(options.collaboration&&pathname.startsWith('/api/')){
       apiRequest=true;
