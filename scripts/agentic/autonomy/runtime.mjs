@@ -10,9 +10,31 @@ export class AutonomyRuntime {
     this.results = new Map();
   }
 
-  confirm(input) {
+  async confirm(input) {
+    const decision = evaluateAction(input, { phase: this.phase });
+    if (decision.status !== 'needs_confirmation') {
+      const error = new Error('CONFIRMATION_NOT_REQUIRED');
+      error.code = 'CONFIRMATION_NOT_REQUIRED';
+      throw error;
+    }
     const actor = normalizeActor(input.action.actor);
-    return this.confirmations.issue({ actionId: input.action.id, actor, contractHash: input.contract.hash });
+    const confirmation = this.confirmations.issue({
+      actionId: input.action.id,
+      actor,
+      contractHash: input.contract.hash,
+      actionHash: input.action.hash ?? input.action.id,
+    });
+    try {
+      await this.audit.confirmationIssued({
+        actionId: input.action.id,
+        ownerId: input.action.ownerId,
+        actor,
+        contractHash: input.contract.hash,
+      });
+    } catch (error) {
+      return errorResult('blocked', error.code);
+    }
+    return confirmation;
   }
 
   async perform(input, executor) {
@@ -21,7 +43,12 @@ export class AutonomyRuntime {
     let decision = evaluateAction(input, { phase: this.phase });
     if (decision.status === 'needs_confirmation') {
       if (!input.confirmationToken) return this.record(key, decision, input);
-      const confirmation = this.confirmations.consume(input.confirmationToken, { actionId: input.action.id, actor: normalizeActor(input.action.actor), contractHash: input.contract.hash });
+      const confirmation = this.confirmations.consume(input.confirmationToken, {
+        actionId: input.action.id,
+        actor: normalizeActor(input.action.actor),
+        contractHash: input.contract.hash,
+        actionHash: input.action.hash ?? input.action.id,
+      });
       if (confirmation.status !== 'confirmed') return this.record(key, confirmation, input);
       decision = { status: 'allowed', code: 'ALLOWED', requiresConfirmation: false };
     }

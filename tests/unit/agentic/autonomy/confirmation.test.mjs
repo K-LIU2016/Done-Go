@@ -1,0 +1,79 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { ConfirmationStore } from '../../../../scripts/agentic/autonomy/confirmation.mjs';
+import { AuditLog } from '../../../../scripts/agentic/autonomy/audit.mjs';
+import { AutonomyRuntime } from '../../../../scripts/agentic/autonomy/runtime.mjs';
+
+const NOW = '2026-10-27T10:00:00.000Z';
+const ACTOR = { actorId: 'sender-1', resolvedModel: 'gpt-6.1-sol', modelProvider: 'gateway' };
+const REQUEST = {
+  mission: { id: 'm-1', ownerId: 'owner-1', state: 'contracted', autonomy: 'A4' },
+  contract: {
+    id: 'c-1', ownerId: 'owner-1', hash: 'hash-1', status: 'active',
+    capabilities: [{ capability: 'message.send', scope: 'draft:1' }],
+  },
+  grant: {
+    id: 'g-1', ownerId: 'owner-1', contractHash: 'hash-1', status: 'active',
+    capabilities: [{ capability: 'message.send', scope: 'draft:1' }],
+    expiresAt: '2026-10-27T11:00:00.000Z',
+  },
+  action: {
+    id: 'action-1', ownerId: 'owner-1', capability: 'message.send', scope: 'draft:1',
+    risk: 'external', requestedAutonomy: 'A4', actor: ACTOR,
+  },
+};
+
+function freshStore() { return new ConfirmationStore(); }
+
+test('does not issue a confirmation for an unresolved actor model', () => {
+  assert.throws(() => freshStore().issue({
+    actionId: 'action-1',
+    actor: { ...ACTOR, resolvedModel: null },
+    contractHash: 'hash-1',
+    now: NOW,
+  }), /ACTOR_MODEL_UNKNOWN/);
+});
+
+test('rejects invalid confirmation inputs instead of creating a usable token', () => {
+  const store = freshStore();
+  assert.throws(() => store.issue({ actionId: '', actor: ACTOR, contractHash: 'hash-1', now: NOW }), /CONFIRMATION_INPUT_INVALID/);
+  assert.throws(() => store.issue({ actionId: 'action-1', actor: ACTOR, contractHash: '', now: NOW }), /CONFIRMATION_INPUT_INVALID/);
+  assert.throws(() => store.issue({ actionId: 'action-1', actor: ACTOR, contractHash: 'hash-1', now: NOW, ttlMs: 0 }), /CONFIRMATION_TTL_INVALID/);
+});
+
+test('runtime only issues A4 confirmations for a policy decision that needs confirmation', async () => {
+  const runtime = new AutonomyRuntime({ audit: new AuditLog(), phase: 'P1' });
+  assert.throws(() => runtime.confirm({ ...REQUEST, action: { ...REQUEST.action, requestedAutonomy: 'A3', risk: 'reversible' } }), /CONFIRMATION_NOT_REQUIRED/);
+  const issued = runtime.confirm(REQUEST);
+  assert.equal(typeof issued.token, 'string');
+  assert.equal(issued.actionId, 'action-1');
+});
+
+test('confirmation is bound to the complete action identity, not only its token', () => {
+  const store = freshStore();
+  const issued = store.issue({ actionId: 'action-1', actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-1', now: NOW });
+  assert.equal(store.consume(issued.token, {
+    actionId: 'action-2', actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-1', now: NOW,
+  }).code, 'CONFIRMATION_BINDING_MISMATCH');
+  assert.equal(store.consume(issued.token, {
+    actionId: 'action-1', actionHash: 'action-hash-2', actor: ACTOR, contractHash: 'hash-1', now: NOW,
+  }).code, 'CONFIRMATION_BINDING_MISMATCH');
+  assert.equal(store.consume(issued.token, {
+    actionId: 'action-1', actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-2', now: NOW,
+  }).code, 'CONFIRMATION_BINDING_MISMATCH');
+  assert.equal(store.consume(issued.token, {
+    actionId: 'action-1', actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-1', now: NOW,
+  }).status, 'confirmed');
+});
+
+test('expired confirmation is removed and cannot be consumed later', () => {
+  const store = freshStore();
+  const issued = store.issue({ actionId: 'action-1', actor: ACTOR, contractHash: 'hash-1', now: NOW, ttlMs: 1 });
+  assert.equal(store.consume(issued.token, {
+    actionId: 'action-1', actor: ACTOR, contractHash: 'hash-1', now: '2026-10-27T10:00:00.001Z',
+  }).code, 'CONFIRMATION_EXPIRED');
+  assert.equal(store.consume(issued.token, {
+    actionId: 'action-1', actor: ACTOR, contractHash: 'hash-1', now: NOW,
+  }).code, 'CONFIRMATION_REPLAY');
+});

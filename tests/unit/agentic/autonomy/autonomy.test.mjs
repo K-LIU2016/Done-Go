@@ -18,7 +18,11 @@ const BASE = {
   mission: { id: 'm-1', ownerId: 'owner-1', state: 'contracted', autonomy: 'A3' },
   contract: {
     id: 'c-1', ownerId: 'owner-1', hash: 'contract-hash', status: 'active',
-    capabilities: [{ capability: 'files.write', scope: '/workspace/m-1' }],
+    capabilities: [
+      { capability: 'files.write', scope: '/workspace/m-1' },
+      { capability: 'message.send', scope: 'draft:message-1' },
+      { capability: 'purchase', scope: 'cart:1' },
+    ],
     wont: ['send external messages'],
   },
   grant: {
