@@ -299,3 +299,128 @@ test('M2 负面 · unknown 台账跨 owner 隔离', () => {
   });
   assert.deepEqual(store.listUnknownOutcomes({ ownerId: 'owner-2' }), []);
 });
+
+// ---------------- 补充（实现节点追加：fail-closed 分支 + 注入时钟，不削弱以上任何断言） ----------------
+
+test('M2 补 · 空 ownerId → CONTRACT_INVALID（fail closed）', () => {
+  const { store } = freshStore();
+  assert.throws(
+    () => store.saveWorkOrder({ ownerId: '', workOrder: validWorkOrder(), idempotencyKey: 'k' }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  assert.throws(
+    () => store.saveWorkOrder({ ownerId: 'owner-1', workOrder: validWorkOrder(), idempotencyKey: '' }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+});
+
+test('M2 补负面 · 同 owner 同工单 id 换 idempotency key 再写 → CONFLICT', () => {
+  const { store } = freshStore();
+  store.saveWorkOrder({ ownerId: 'owner-1', workOrder: validWorkOrder(), idempotencyKey: 'idem-1' });
+  assert.throws(
+    () => store.saveWorkOrder({ ownerId: 'owner-1', workOrder: validWorkOrder(), idempotencyKey: 'idem-2' }),
+    err => err.code === 'CONFLICT',
+  );
+});
+
+test('M2 补负面 · updateWorkOrder：id 不匹配 / 非法 revision → CONTRACT_INVALID', () => {
+  const { store } = freshStore();
+  store.saveWorkOrder({ ownerId: 'owner-1', workOrder: validWorkOrder(), idempotencyKey: 'idem-1' });
+  assert.throws(
+    () => store.updateWorkOrder({
+      ownerId: 'owner-1', orderId: 'wo-other', expectedRevision: 1,
+      workOrder: validWorkOrder({ objective: 'x' }),
+    }),
+    err => err.code === 'CONTRACT_INVALID',
+    'workOrder.id must match orderId',
+  );
+  assert.throws(
+    () => store.updateWorkOrder({
+      ownerId: 'owner-1', orderId: 'wo-1', expectedRevision: 0,
+      workOrder: validWorkOrder({ objective: 'x' }),
+    }),
+    err => err.code === 'CONTRACT_INVALID',
+    'expectedRevision must be a positive integer',
+  );
+  assert.throws(
+    () => store.updateWorkOrder({
+      ownerId: 'owner-1', orderId: 'missing', expectedRevision: 1,
+      workOrder: validWorkOrder({ id: 'missing', objective: 'x' }),
+    }),
+    err => err.code === 'NOT_FOUND',
+    'unknown order must be NOT_FOUND, not a silent insert',
+  );
+});
+
+test('M2 补 · getWorkOrder/getWorkResult 对不存在 id → null', () => {
+  const { store } = freshStore();
+  assert.equal(store.getWorkOrder({ ownerId: 'owner-1', orderId: 'nope' }), null);
+  assert.equal(store.getWorkResult({ ownerId: 'owner-1', orderId: 'nope' }), null);
+});
+
+test('M2 补负面 · saveWorkResult：工单不存在 → NOT_FOUND（不给悬空结果行）', () => {
+  const { store } = freshStore();
+  const result = {
+    orderId: 'ghost', status: 'done', artifacts: [], evidence: [],
+    spent: { calls: 0, tokens: 0 }, notes: '',
+  };
+  assert.throws(() => store.saveWorkResult({ ownerId: 'owner-1', result }), err => err.code === 'NOT_FOUND');
+});
+
+test('M2 补 · WorkResult 幂等：同载重放、异载 CONFLICT', () => {
+  const { store } = freshStore();
+  store.saveWorkOrder({ ownerId: 'owner-1', workOrder: validWorkOrder(), idempotencyKey: 'idem-1' });
+  const result = {
+    orderId: 'wo-1', status: 'done', artifacts: [], evidence: [],
+    spent: { calls: 1, tokens: 5 }, notes: 'ok',
+  };
+  const first = store.saveWorkResult({ ownerId: 'owner-1', result });
+  assert.equal(first.replayed, false);
+  const replay = store.saveWorkResult({ ownerId: 'owner-1', result: { ...result } });
+  assert.equal(replay.replayed, true, 'same result payload must replay, not duplicate');
+  assert.throws(
+    () => store.saveWorkResult({ ownerId: 'owner-1', result: { ...result, notes: 'different' } }),
+    err => err.code === 'CONFLICT',
+  );
+});
+
+test('M2 补 · updateStepState 支持 attempt 递进，且终态自跃迁也被拒', () => {
+  const { store } = freshStore();
+  store.recordStep({ ownerId: 'owner-1', step: validStep({ id: 's-att', inputHash: '7'.repeat(64) }) });
+  const running = store.updateStepState({ ownerId: 'owner-1', stepId: 's-att', state: 'running', attempt: 1 });
+  assert.equal(running.record.attempt, 1);
+  store.updateStepState({ ownerId: 'owner-1', stepId: 's-att', state: 'failed' });
+  assert.throws(
+    () => store.updateStepState({ ownerId: 'owner-1', stepId: 's-att', state: 'failed', checkpoint: 'x' }),
+    err => err.code === 'CONFLICT',
+    'failed is terminal; even self-transition with a new checkpoint must be rejected',
+  );
+  assert.throws(
+    () => store.updateStepState({ ownerId: 'owner-1', stepId: 'ghost-step', state: 'running' }),
+    err => err.code === 'NOT_FOUND',
+  );
+});
+
+test('M2 补 · recordStep 拒绝冻结枚举外的 state（CONTRACT_INVALID，经 schema 校验）', () => {
+  const { store } = freshStore();
+  assert.throws(
+    () => store.recordStep({ ownerId: 'owner-1', step: validStep({ state: 'unknown', inputHash: '8'.repeat(64) }) }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+});
+
+test('M2 补 · now 可注入：recorded_at/updated_at 不依赖真实 wall clock', () => {
+  const db = openAgenticDb(':memory:');
+  migrate(db, migrationsDir);
+  const fixed = '2026-10-27T08:00:00Z';
+  let tick = 0;
+  const store = createRuntimeStore({ db, now: () => { tick += 1; return `${fixed}#${tick}`; } });
+  const { record } = store.recordUnknownOutcome({
+    ownerId: 'owner-1', runId: 'run-1', stepId: null, source: 'test', detail: 'injected clock',
+  });
+  assert.equal(record.recordedAt, `${fixed}#1`);
+  const rows = store.listUnknownOutcomes({ ownerId: 'owner-1' });
+  assert.equal(rows[0].recordedAt, `${fixed}#1`);
+  const saved = store.saveWorkOrder({ ownerId: 'owner-1', workOrder: validWorkOrder(), idempotencyKey: 'idem-c' });
+  assert.ok(saved.record, 'injected-clock store still persists work orders');
+});
