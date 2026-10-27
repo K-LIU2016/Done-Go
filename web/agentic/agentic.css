@@ -1,0 +1,111 @@
+/* ==========================================================================
+   agentic.css —— M01 Kira 设计变量层（plan.md M01；BUILD-PLAN §2.1 W5 交付物）
+   --------------------------------------------------------------------------
+   来源（同源同值，单一口径）：
+   - Kira 变量重声明：web/index.html :root（主站 Kira 设计变量，L24-48）
+   - prototype 扩展变量：prototype.html L12-17（--ok/--warn/--bad/--you/--add/--del/--chg）
+   - 深色双路：prototype.html L18-19（[data-theme=dark] 参数路 + prefers-color-scheme 媒体路）
+     —— 深色集以 prototype（唯一视觉标准）为准；主站 Kira 的深色专属变量
+        （--warm/--moss/--k-* 深色值）仍由 web/index.html 持有，此处不重复声明，
+        避免与 app.js APP_CSS 兜底层出现双值漂移。
+   - reduced-motion 全局禁动画：prototype.html L185 原文
+   - 900/720/560 响应式断点的具体规则归组件 CSS 层各自持有（app.js APP_CSS @900、
+     boundaries.js @720、board.js/capture-card.js @560），本层只提供令牌，不重复规则。
+   smoke.spec.ts 契约：GET /agentic.css 200，含 :root 与 --you（prototype L12 扩展 token）。
+   与 app.js APP_CSS 的关系：APP_CSS 为页面骨架样式的兜底（agentic.css 落地前顶上，
+   同名变量值同源，共存无害）；本文件落地后变量声明以本文件为先。
+   ========================================================================== */
+
+:root {
+  /* Kira 基础（web/index.html L24-42） */
+  --bg: #EEF3EC;
+  --surface: #FFFFFF;
+  --text: #22302A;
+  --text-2: #5C6B61;
+  --line: rgba(34, 48, 42, .14);
+  --accent: #3E5A47;
+  --warm: #8A5A2B;
+  --k-nec: #7D8781;
+  --k-restore: #4F8570;
+  --k-create: #B07A36;
+  --k-connect: #B05A4D;
+  --k-explore: #4D7699;
+  --k-stillness: #6E7E72;
+  --spring: #EEF0BE;
+  --haze: #8C9FB1;
+  --spring-ink: #2F3B26;
+  --moss: #8DA48E;
+  --moss-line: #7F977F;
+  --deep: #2E4636;
+  --paper: #FCFBF6;
+  --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --font-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  /* prototype 扩展 token（prototype.html L13-17） */
+  --ok: #3F7A55;
+  --warn: #B07A36;
+  --bad: #A53B25;
+  --you: #E95432;
+  --add: rgba(63, 122, 85, .14);
+  --del: rgba(165, 59, 37, .12);
+  --chg: rgba(238, 240, 190, .9);
+  color-scheme: light;
+}
+
+/* 深色路一：prefers-color-scheme（无显式浅色参数时生效；prototype L18） */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #263C32;
+    --surface: #324B40;
+    --text: #F8F7EE;
+    --text-2: #D0DDD2;
+    --line: rgba(248, 247, 238, .24);
+    --accent: #EEF0BE;
+    --paper: #2B4337;
+    --deep: #152C20;
+    --add: rgba(120, 200, 150, .18);
+    --del: rgba(240, 120, 100, .18);
+    --chg: rgba(238, 240, 190, .22);
+    color-scheme: dark;
+  }
+}
+
+/* 深色路二：[data-theme=dark] 显式参数（demo.html ?theme=dark；prototype L19） */
+:root[data-theme="dark"] {
+  --bg: #263C32;
+  --surface: #324B40;
+  --text: #F8F7EE;
+  --text-2: #D0DDD2;
+  --line: rgba(248, 247, 238, .24);
+  --accent: #EEF0BE;
+  --paper: #2B4337;
+  --deep: #152C20;
+  --add: rgba(120, 200, 150, .18);
+  --del: rgba(240, 120, 100, .18);
+  --chg: rgba(238, 240, 190, .22);
+  color-scheme: dark;
+}
+
+/* reduced-motion：全局禁动画（prototype.html L185 原文；PRD §5.8） */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* 焦点可见兜底（BUILD-PLAN §3 W5.3 硬性要求；组件层另有各自 :focus-visible 规则，
+   此处 :where 零特异性，只补底、不覆盖组件描边） */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent, #3E5A47);
+  outline-offset: 2px;
+}
+
+/* 屏读隐藏工具类（plan.md M01「:focus-visible/.sr」；视觉隐藏、辅读可达） */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

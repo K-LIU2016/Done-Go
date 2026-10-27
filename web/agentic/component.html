@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentic 组件页 · donego W5</title>
+<!-- M02 测试 harness 组件页（plan.md M02 / smoke.spec.ts 头注契约）：
+     GET /component.html?c=<name>[&p=<encodeURIComponent(JSON)>]
+     - 引 web/agentic/agentic.css（M01 Kira 设计变量层）；挂载点 #host（带 .ag-app，
+       页面骨架样式经 ui/app.js 的 APP_CSS 注入，与 demo.html 同源零双份）；
+     - window.__defaults(name) → fixtures 深拷贝默认 props（无默认返回 null）
+     - window.__mount(name, props) → mount(host, props)，置 window.__handle/__el，返回 handle
+     - window.__update(props) → window.__handle.update(props)
+     组件名：block-card / drawer / tiers / scene-card / gallery / storyboard / discuss /
+     boundaries / activity-feed / acceptance / trace-view / inbox / inbox-bell / board /
+     capture-card / reel-player / shape-text / shape-rich（后两者为 registry 渲染宿主）。 -->
+<link rel="stylesheet" href="agentic.css">
+</head>
+<body>
+<div id="host" class="ag-app"></div>
+<script type="module">
+import * as blockCard from './ui/block-card.js';
+import * as drawer from './ui/drawer.js';
+import * as tiers from './ui/tiers.js';
+import * as sceneCard from './ui/scene-card.js';
+import * as gallery from './ui/gallery.js';
+import * as storyboard from './ui/storyboard.js';
+import * as discuss from './ui/discuss.js';
+import * as boundaries from './ui/boundaries.js';
+import * as activityFeed from './ui/activity-feed.js';
+import * as acceptance from './ui/acceptance.js';
+import * as traceView from './ui/trace-view.js';
+import * as inbox from './ui/inbox.js';
+import * as board from './ui/board.js';
+import * as captureCard from './ui/capture-card.js';
+import * as reelPlayer from './ui/reel-player.js';
+import { renderShape } from './ui/shape/registry.js';
+import './ui/shape/text-shapes.js'; // 注册副作用：outline/facts/caveat/table/cards
+import './ui/shape/rich-shapes.js'; // 注册副作用：checklist/timeline/slides/diffSummary/mapRoute/personCard/sample
+import * as fixtures from './ui/fixtures.js';
+import { setHTML } from './ui/utils.js';
+import { ensureStyles } from './ui/app.js'; // 页面骨架样式（APP_CSS）；app.js 无 #ag-app 宿主不自动装配
+
+const host = document.getElementById('host');
+ensureStyles(document);
+
+// shape 渲染宿主（M03/M04 契约「__mount 后每块经 registry 渲染进 #host（.shape 或等价容器）」）：
+// mount(el, { blocks }) → 渲染进 .shape 容器；update({ blocks }) 换内容（setHTML 内容比对）。
+function mountShapeHost(el, props = {}) {
+  const state = { blocks: Array.isArray(props?.blocks) ? props.blocks : [] };
+  const apply = () => setHTML(el, `<div class="shape">${state.blocks.map((b) => renderShape(b)).join('')}</div>`);
+  apply();
+  const handle = {
+    el,
+    update(p = {}) {
+      if (p && 'blocks' in p) {
+        state.blocks = Array.isArray(p.blocks) ? p.blocks : [];
+        apply();
+      }
+      return handle;
+    },
+  };
+  return handle;
+}
+
+const MOUNTS = {
+  'block-card': (el, p) => blockCard.mount(el, p),
+  'drawer': (el, p) => drawer.mount(el, p),
+  'tiers': (el, p) => tiers.mount(el, p),
+  'scene-card': (el, p) => sceneCard.mount(el, p),
+  'gallery': (el, p) => gallery.mount(el, p),
+  'storyboard': (el, p) => storyboard.mount(el, p),
+  'discuss': (el, p) => discuss.mount(el, p),
+  'boundaries': (el, p) => boundaries.mount(el, p),
+  'activity-feed': (el, p) => activityFeed.mount(el, p),
+  'acceptance': (el, p) => acceptance.mount(el, p),
+  'trace-view': (el, p) => traceView.mount(el, p),
+  'inbox': (el, p) => inbox.mount(el, p),
+  'inbox-bell': (el, p) => inbox.mountBell(el, p),
+  'board': (el, p) => board.mount(el, p),
+  'capture-card': (el, p) => captureCard.mount(el, p),
+  'reel-player': (el, p) => reelPlayer.mount(el, p),
+  'shape-text': mountShapeHost,
+  'shape-rich': mountShapeHost,
+};
+
+// 深拷贝（数据均为 JSON-safe；函数默认不拷贝，按名字现取）
+const dc = (v) => JSON.parse(JSON.stringify(v ?? null));
+
+// 富类型默认数据形状：与 tests/agentic/ui/unit/shape-rich.test.mjs 同款（M04 契约七类）
+const RICH_SHAPE_BLOCKS = () => [
+  { type: 'checklist', items: [{ text: '带上：上次借的书', done: true }, { text: '确认学员画像', done: false }] },
+  { type: 'timeline', items: [{ at: '13:30', text: '研究员先找资料' }, { at: '13:55', text: '你确认受众', you: true }, { at: '14:52', text: '研究交付' }] },
+  { type: 'slides', pages: [{ tag: 'AI 进课堂 · 第 2 课时', title: '用 AI 备课：提示词与核对', bullets: ['用 AI 生成导入问题', '对照课标逐条核对'] }] },
+  { type: 'diffSummary', added: ['课堂实践', '教师准备度'], removed: ['海外案例'], changed: ['来源范围仅国内'], reason: '你说只看国内 K12' },
+  { type: 'mapRoute', title: '18:25 出发 · 地铁 32 分钟', lines: ['家 → 2 号线 → 静安寺站 3 口', '步行 6 分钟到「小南国」'] },
+  { type: 'personCard', name: '小王', role: '朋友 · 上周说在找新工作', notes: ['想聊 Argus 的合作'] },
+  { type: 'sample', text: '第 2 课时活动卡（样张）：**15 分钟改教案** —— 每组一份真实七年级物理教案，用 AI 生成 3 个导入问题。' },
+];
+
+// 默认 props（fixtures 深拷贝；smoke.spec.ts:32-37 契约：block-card 含黄金场景 5 块）
+const DEFAULTS = {
+  'block-card': () => ({ blocks: dc(fixtures.blocks) }),
+  'drawer': () => ({
+    blockId: 'r', stage: 'see', tab: 'preview',
+    sections: { preview: '<h2>研究报告 · 目录骨架</h2>', bound: '', live: '', art: '', trace: '' },
+  }),
+  'tiers': () => ({ blockId: 'c' }), // c：黄金场景唯一可生成场景片的块（tiers.js canSceneOf；「真」档三态测试载体）
+  'shape-text': () => ({ blocks: dc(fixtures.preview('r').shape.blocks) }), // outline/facts/caveat
+  'shape-rich': () => ({ blocks: dc(RICH_SHAPE_BLOCKS()) }),
+};
+
+window.__defaults = (name) => (Object.prototype.hasOwnProperty.call(DEFAULTS, name) ? DEFAULTS[name]() : null);
+
+window.__mount = (name, props) => {
+  const mountFn = MOUNTS[name];
+  if (typeof mountFn !== 'function') throw new Error(`component.html: 未知组件 ${String(name)}`);
+  // 卫生：重复 __mount 前先销毁旧实例（drawer 等 document 级监听靠 destroy 摘除，
+  // 否则旧实例的 Esc preventDefault 会吞掉新实例的 document 键监听）
+  if (window.__handle && typeof window.__handle.destroy === 'function') window.__handle.destroy();
+  const handle = mountFn(host, props ?? {});
+  window.__handle = handle;
+  window.__el = host;
+  return handle;
+};
+
+window.__update = (props) => {
+  if (!window.__handle) throw new Error('component.html: 尚未 __mount，无法 __update');
+  return window.__handle.update(props);
+};
+
+// ?c= 自动挂载：有 ?p= 用之（已解码 JSON），否则用默认 props；两者皆无则留空宿主待显式挂载
+const qs = new URLSearchParams(window.location.search);
+const c = qs.get('c');
+if (c) {
+  const pRaw = qs.get('p');
+  if (pRaw != null && pRaw !== '') {
+    try {
+      window.__mount(c, JSON.parse(pRaw));
+    } catch (err) {
+      host.textContent = `component.html: ?p= JSON 解析失败（${String(err)}）`;
+    }
+  } else {
+    const props = window.__defaults(c);
+    if (props) window.__mount(c, props);
+    else if (!(c in MOUNTS)) host.textContent = `component.html: 未知组件 ${c}`;
+  }
+}
+</script>
+</body>
+</html>
