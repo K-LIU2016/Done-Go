@@ -54,6 +54,25 @@ const PATCH_FIELDS = Object.freeze(['sources', 'length', 'boundary']);
 const BOUNDARY_SECTIONS = Object.freeze(['will', 'wont']);
 const BOUNDARY_OPS = Object.freeze(['add', 'remove']);
 
+/**
+ * Length semantics (remediation blocker C): patch.length.unit must SURVIVE
+ * into the facts the owner reads. The facts key is 预计篇幅 (PRD §10.3 facts
+ * sample:「预计篇幅：约 3000 字，7–12 个引用」); each supported unit renders
+ * readable —「3000 字」→「约 3000 字」,「4 课时」→「4 课时」. Estimation-flavored
+ * units (字/页) carry 约; commitment counts (课时/小时/分钟) stay exact. The
+ * unit set is exactly what patch-parser R3 can produce; any other unit is
+ * CONTRACT_INVALID before a single row is written — apply refuses a length
+ * it cannot render faithfully instead of flattening it to a bare number.
+ */
+const LENGTH_FACT_KEY = '预计篇幅';
+const LENGTH_UNIT_RENDERERS = Object.freeze({
+  课时: value => `${value} 课时`,
+  小时: value => `${value} 小时`,
+  分钟: value => `${value} 分钟`,
+  字: value => `约 ${value} 字`,
+  页: value => `约 ${value} 页`,
+});
+
 function fail(code, message, extra = {}) {
   const error = new Error(`${code}: ${message}`);
   error.code = code;
@@ -127,6 +146,9 @@ function validatePatch(patch) {
     }
     if (typeof patch.length.unit !== 'string' || patch.length.unit.trim() === '') {
       fail('CONTRACT_INVALID', 'patch.length.unit must be a non-empty string');
+    }
+    if (LENGTH_UNIT_RENDERERS[patch.length.unit] === undefined) {
+      fail('CONTRACT_INVALID', `unsupported patch.length.unit: ${patch.length.unit} (supported: ${Object.keys(LENGTH_UNIT_RENDERERS).join('、')})`);
     }
     if (typeof patch.length.value !== 'number' || !Number.isFinite(patch.length.value) || patch.length.value <= 0) {
       fail('CONTRACT_INVALID', 'patch.length.value must be a positive number');
@@ -214,7 +236,15 @@ function applyPatchToPreview(preview, patch, reason) {
     setFact(next, '来源范围', patch.sources.include.join('、'), changed, 'shape.facts[来源范围]');
   }
   if (patch?.length) {
-    setFact(next, '课时', String(patch.length.value), changed, 'shape.facts[课时]');
+    // Remediation blocker C: the unit survives —「4 课时」stays 课时,
+    //「3000 字」renders as「约 3000 字」— never a bare number under 课时.
+    setFact(
+      next,
+      LENGTH_FACT_KEY,
+      LENGTH_UNIT_RENDERERS[patch.length.unit](patch.length.value),
+      changed,
+      `shape.facts[${LENGTH_FACT_KEY}]`,
+    );
   }
   if (patch?.boundary) {
     for (const section of BOUNDARY_SECTIONS) {

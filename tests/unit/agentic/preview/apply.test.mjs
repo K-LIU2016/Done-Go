@@ -99,7 +99,7 @@ test('boundary wont.add produces a contract change record linked to the message'
   }
 });
 
-test('length patch writes the 课时 fact; wont.remove of a custom item is allowed but recorded', async () => {
+test('length patch keeps the unit: 课时 stays 课时 in a readable 预计篇幅 fact', async () => {
   const world = await freshWorld();
   try {
     const hours = await world.applyPatch({
@@ -109,7 +109,9 @@ test('length patch writes the 课时 fact; wont.remove of a custom item is allow
       parsePatch: parserReturning({ length: { unit: '课时', value: 4 } }),
     });
     const facts = hours.preview.preview.shape.blocks.find(block => block.type === 'facts');
-    assert.equal(facts.items.find(item => item.k === '课时').v, '4');
+    assert.equal(facts.items.find(item => item.k === '预计篇幅').v, '4 课时');
+    assert.equal(facts.items.some(item => item.k === '课时'), false, 'no bare 课时 fact');
+    assert.deepEqual(hours.preview.preview.diff.changed, ['shape.facts[预计篇幅]']);
 
     const loosened = await world.applyPatch({
       ...baseParams({ utterance: '允许读邮箱', baseVersion: hours.preview.version }),
@@ -119,6 +121,59 @@ test('length patch writes the 课时 fact; wont.remove of a custom item is allow
     });
     assert.equal(loosened.preview.preview.boundary.wont.includes('读邮箱'), false);
     assert.ok(loosened.changeRecord, 'boundary change must be recorded');
+  } finally {
+    world.db.close();
+  }
+});
+
+// Remediation blocker C: patch.length.unit must survive into the facts the
+// owner reads —「3000 字」renders as「预计篇幅：约 3000 字」,「4 课时」keeps
+// 课时 — for EVERY unit the parser can produce (课时/小时/分钟/字/页).
+test('every supported length unit renders a readable, unit-keeping 预计篇幅 fact', async () => {
+  const cases = [
+    { unit: '课时', value: 4, expected: '4 课时' },
+    { unit: '小时', value: 1.5, expected: '1.5 小时' },
+    { unit: '分钟', value: 90, expected: '90 分钟' },
+    { unit: '字', value: 3000, expected: '约 3000 字' },
+    { unit: '页', value: 12, expected: '约 12 页' },
+  ];
+  for (const { unit, value, expected } of cases) {
+    const world = await freshWorld();
+    try {
+      const result = await world.applyPatch({
+        ...baseParams({ utterance: `篇幅改成 ${value} ${unit}` }),
+        previewStore: world.previewStore,
+        discussionStore: world.discussionStore,
+        parsePatch: parserReturning({ length: { unit, value } }),
+      });
+      assert.equal(result.preview.version, 2, `${unit}: one new version`);
+      const facts = result.preview.preview.shape.blocks.find(block => block.type === 'facts');
+      const fact = facts.items.find(item => item.k === '预计篇幅');
+      assert.equal(fact.v, expected, `${unit} must render as「${expected}」`);
+      assert.equal(facts.items.some(item => item.k === '课时'), false, `${unit}: no bare 课时 fact`);
+      assert.deepEqual(result.preview.preview.diff.changed, ['shape.facts[预计篇幅]'], `${unit}: diff path names 预计篇幅`);
+    } finally {
+      world.db.close();
+    }
+  }
+});
+
+test('unsupported length units fail closed CONTRACT_INVALID with zero writes', async () => {
+  const world = await freshWorld();
+  try {
+    for (const unit of ['光年', 'miles', '字数']) {
+      await assert.rejects(
+        () => world.applyPatch({
+          ...baseParams({ utterance: `篇幅改成 3 ${unit}` }),
+          previewStore: world.previewStore,
+          discussionStore: world.discussionStore,
+          parsePatch: parserReturning({ length: { unit, value: 3 } }),
+        }),
+        error => error.code === 'CONTRACT_INVALID' && /unit/.test(error.message),
+      );
+    }
+    assert.equal(await countRows(world.db, 'previews'), 1);
+    assert.equal(await countRows(world.db, 'discussion_messages'), 0);
   } finally {
     world.db.close();
   }
@@ -345,7 +400,7 @@ test('combined sources+length+boundary patch lands ONE version with a multi-path
     assert.equal(result.preview.version, 2);
     assert.equal(await countRows(world.db, 'previews'), 2, 'one new version, not one per field');
     assert.deepEqual(result.preview.preview.diff.changed, [
-      'shape.facts[来源范围]', 'shape.facts[课时]', 'boundary.will', 'boundary.wont',
+      'shape.facts[来源范围]', 'shape.facts[预计篇幅]', 'boundary.will', 'boundary.wont',
     ]);
     assert.ok(result.preview.preview.boundary.will.includes('检索论文'));
     assert.deepEqual(result.changeRecord.changedFields, ['boundary.will', 'boundary.wont']);
