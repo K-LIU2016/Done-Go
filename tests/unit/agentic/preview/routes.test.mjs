@@ -3,8 +3,11 @@
 // the frozen api-error envelope; auth is injectable; cross-owner is NOT_FOUND.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   openMigratedDb, makeClock, makePreview, call, bodyJson, checkWithSchema,
+  CONTRACTS_DIR,
 } from './_helpers.mjs';
 
 async function loadRoutes() {
@@ -233,6 +236,60 @@ test('BUDGET_EXCEEDED and NEED_HUMAN surface as 409 per the frozen README HTTP t
       assert.equal(hit.res.statusCode, 409, `${code} must map to 409 (frozen README table), got ${hit.res.statusCode}`);
     }
     // Fail-closed: neither error path wrote a new preview version.
+    const latest = await previewStore.latest({ ownerId: 'owner-a', missionId: 'm1' });
+    assert.equal(latest.version, 1);
+  } finally {
+    db.close();
+  }
+});
+
+// Remediation blocker B, hardened: the mapping regression is driven by the
+// FROZEN contracts/agentic/README.md HTTP table itself, so STATUS_BY_CODE can
+// never drift from the frozen contract — and every code is exercised through
+// a real request, never excused as "no path triggers it today".
+test('every frozen README error code maps to exactly its frozen HTTP status through the route surface', async () => {
+  const readme = readFileSync(join(CONTRACTS_DIR, 'README.md'), 'utf8');
+  const section = readme.slice(
+    readme.indexOf('## 错误码与 HTTP 建议'),
+    readme.indexOf('##', readme.indexOf('## 错误码与 HTTP 建议') + 3),
+  );
+  const frozenTable = [...section.matchAll(/^\| `([A-Z_]+)` \|[^|]+\| (\d{3}) \|$/gm)]
+    .map(([, code, status]) => ({ code, status: Number(status) }));
+  assert.equal(frozenTable.length, 10, `expected all 10 frozen error codes, got ${frozenTable.length}`);
+  assert.deepEqual(
+    frozenTable.filter(row => row.code === 'BUDGET_EXCEEDED' || row.code === 'NEED_HUMAN'),
+    [{ code: 'BUDGET_EXCEEDED', status: 409 }, { code: 'NEED_HUMAN', status: 409 }],
+    'the frozen table itself pins both gate codes to 409',
+  );
+
+  const { routesMod, previewStoreMod } = await loadStores();
+  const db = openMigratedDb();
+  try {
+    const now = makeClock();
+    const previewStore = previewStoreMod.createPreviewStore(db, { now });
+    await previewStore.put({ ownerId: 'owner-a', missionId: 'm1', preview: makePreview({ missionId: 'm1' }) });
+    for (const { code, status } of frozenTable) {
+      const parsePatch = async () => {
+        const error = new Error(`${code.toLowerCase().replace(/_/g, ' ')} (injected)`);
+        error.code = code;
+        throw error;
+      };
+      const routes = routesMod.createPreviewRoutes({
+        db,
+        auth: req => (req.headers['x-owner'] ? { ownerId: req.headers['x-owner'] } : null),
+        parsePatch,
+        now,
+      });
+      const hit = await call(routes, 'POST', '/api/missions/m1/discuss', {
+        ...OWNER_A, body: { utterance: `触发 ${code}`, baseVersion: 1 },
+      });
+      assertErrorEnvelope(hit.res, code);
+      assert.equal(
+        hit.res.statusCode, status,
+        `${code} must surface as ${status} per the frozen README table, got ${hit.res.statusCode}`,
+      );
+    }
+    // Fail-closed: none of the injected error paths wrote a preview version.
     const latest = await previewStore.latest({ ownerId: 'owner-a', missionId: 'm1' });
     assert.equal(latest.version, 1);
   } finally {
