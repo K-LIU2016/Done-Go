@@ -5,7 +5,7 @@ const EDGES = {
   scanned: { preview: 'previewed', cancel: 'cancelled', expire: 'expired' },
   previewed: { discuss: 'discussing', contract: 'contracted', cancel: 'cancelled', expire: 'expired' },
   discussing: { preview: 'previewed', contract: 'contracted', cancel: 'cancelled', expire: 'expired' },
-  contracted: { prepare: 'prepping', pause: 'paused', block: 'blocked', cancel: 'cancelled' },
+  contracted: { contract: 'contracted', prepare: 'prepping', pause: 'paused', block: 'blocked', cancel: 'cancelled' },
   prepping: { start: 'live', pause: 'paused', block: 'blocked', fail: 'failed', cancel: 'cancelled' },
   live: { review: 'reviewing', pause: 'paused', block: 'blocked', fail: 'failed', cancel: 'cancelled' },
   reviewing: { deliver: 'delivered', prepare: 'prepping', pause: 'paused', fail: 'failed', cancel: 'cancelled' },
@@ -31,8 +31,10 @@ function prerequisite(mission, event, context) {
   if (event === 'prepare' && mission.state === 'previewed') return error('PRECONDITION_FAILED', 'contract required');
   if (event === 'preview' && !mission.scanId && !context.scanId) return error('PRECONDITION_FAILED', 'scan required');
   if (event === 'contract') {
+    if (mission.state === 'contracted' && !context.contractId && !context.contractHash) return error('PRECONDITION_FAILED', 'new contract version required');
     if (!mission.previewId && !context.previewId) return error('PRECONDITION_FAILED', 'preview required');
     if (!context.contractId || !/^[a-f0-9]{64}$/.test(context.contractHash || '')) return error('PRECONDITION_FAILED', 'contract id and hash required');
+    if (mission.state === 'contracted' && context.contractHash === mission.contractHash) return error('CONTRACT_UNCHANGED', 'new contract hash required');
     if (context.autonomy === 'A4') return error('AUTONOMY_REQUIRES_CONFIRMATION');
     if (context.autonomy === 'A5') return error('AUTONOMY_FORBIDDEN');
     if (!['A1', 'A2', 'A3'].includes(context.autonomy)) return error('AUTONOMY_INVALID');

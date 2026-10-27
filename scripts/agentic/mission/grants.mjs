@@ -7,34 +7,43 @@ const iso = value => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 function validTime(value) { return iso(value) !== null; }
+function validHash(value) { return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value); }
+function validCapabilities(value) { return Array.isArray(value) && value.length > 0 && value.every(item => typeof item === 'string' && item.length > 0); }
+function validGrantShape(grant) {
+  if (!grant?.id || !grant.ownerId || !grant.actor || !validHash(grant.contractHash)
+    || !validCapabilities(grant.capabilities) || !Array.isArray(grant.dataDisclosure)
+    || !grant.dataDisclosure.every(item => typeof item === 'string' && item.length > 0)
+    || !validTime(grant.expiresAt)) return fail('GRANT_INVALID');
+  return null;
+}
 function owned(grant, context) {
   if (grant.ownerId !== context.ownerId || grant.actor !== context.actor) return fail('FORBIDDEN');
   if (!context.actor) return fail('ACTOR_REQUIRED');
-  if (context.resolvedModel == null) return fail('MODEL_UNKNOWN');
+  if (context.resolvedModel == null || context.resolvedModel === '') return fail('MODEL_UNKNOWN');
   if (context.contractHash !== grant.contractHash) return fail('CONTRACT_MISMATCH');
   return null;
 }
 export function proposeGrant(grant) {
-  if (!grant?.ownerId || !grant.actor) return fail('ACTOR_REQUIRED');
+  const malformed = validGrantShape(grant); if (malformed) return malformed;
   if (grant.status !== 'proposed') return fail('GRANT_NOT_PROPOSED');
-  if (!Array.isArray(grant.capabilities) || grant.capabilities.length === 0) return fail('CAPABILITY_REQUIRED');
   return { ok: true, grant: { ...grant, status: 'proposed' } };
 }
 export function activateGrant(grant, context) {
-  if (!grant || !context || !validTime(grant.expiresAt) || !validTime(context.now)) return fail('GRANT_INVALID');
+  const malformed = validGrantShape(grant); if (malformed || !context || !validTime(context.now)) return malformed || fail('GRANT_INVALID');
   if (grant.status !== 'proposed') return fail('GRANT_NOT_PROPOSED');
   if (!grant.actor || !context.actor) return fail('ACTOR_REQUIRED');
-  if (context.resolvedModel == null) return fail('MODEL_UNKNOWN');
+  if (context.resolvedModel == null || context.resolvedModel === '') return fail('MODEL_UNKNOWN');
   if (context.actionAutonomy === 'A5') return fail('AUTONOMY_FORBIDDEN');
   if (context.actionAutonomy === 'A4') return fail('CONFIRMATION_REQUIRED');
   if (grant.ownerId !== context.ownerId || grant.actor !== context.actor) return fail('FORBIDDEN');
+  if (context.contractHash !== grant.contractHash) return fail('CONTRACT_MISMATCH');
   if (grant.expiresAt && iso(grant.expiresAt) <= iso(context.now)) return fail('GRANT_EXPIRED');
   return { ok: true, grant: { ...grant, status: 'active', revision: (grant.revision || 0) + 1 } };
 }
 export function checkGrant(grant, context) {
-  if (!grant || !context || !validTime(grant.expiresAt) || !validTime(context.now)
+  const malformed = validGrantShape(grant); if (malformed || !context || !validTime(context.now)
     || (context.windowStart && !validTime(context.windowStart))
-    || (context.windowEnd && !validTime(context.windowEnd))) return fail('GRANT_INVALID');
+    || (context.windowEnd && !validTime(context.windowEnd))) return malformed || fail('GRANT_INVALID');
   if (grant.status !== 'active') return fail(terminalErrors[grant.status] || 'GRANT_NOT_ACTIVE');
   const identity = owned(grant, context); if (identity) return identity;
   if (iso(context.now) >= iso(grant.expiresAt)) return fail('GRANT_EXPIRED');
@@ -54,21 +63,21 @@ export function consumeGrant(grant, context) {
   return { ok: true, grant: { ...grant, status: 'consumed', consumedAt: context.now, revision: grant.revision + 1 } };
 }
 function transition(grant, status, context) {
-  if (!grant?.id || !context?.ownerId || grant.ownerId !== context.ownerId) return fail('FORBIDDEN');
+  const malformed = validGrantShape(grant); if (malformed || !context?.ownerId) return malformed || fail('FORBIDDEN');
   const allowed = status === 'invalidated' ? ['proposed', 'active'] : ['active'];
   if (!allowed.includes(grant.status)) return fail('GRANT_NOT_ACTIVE');
   return { ok: true, grant: { ...grant, status, revision: grant.revision + 1 } };
 }
 export const revokeGrant = (grant, context) => transition(grant, 'revoked', context);
 export function expireGrant(grant, context) {
-  if (!grant || !context || !validTime(grant.expiresAt) || !validTime(context.now)) return fail('GRANT_INVALID');
+  const malformed = validGrantShape(grant); if (malformed || !context || !validTime(context.now)) return malformed || fail('GRANT_INVALID');
   if (iso(context.now) < iso(grant.expiresAt)) return fail('NOT_EXPIRED');
   if (!grant?.id || !context?.ownerId || grant.ownerId !== context.ownerId) return fail('FORBIDDEN');
   if (!['proposed', 'active'].includes(grant.status)) return fail('GRANT_NOT_ACTIVE');
   return { ok: true, grant: { ...grant, status: 'expired', revision: grant.revision + 1 } };
 }
 export function invalidateGrant(grant, context) {
-  if (!grant || !context) return fail('GRANT_INVALID');
+  const malformed = validGrantShape(grant); if (malformed || !context) return malformed || fail('GRANT_INVALID');
   if (!context.newContractHash || context.newContractHash === grant.contractHash) return fail('CONTRACT_UNCHANGED');
   if (!grant.id || !context.ownerId || grant.ownerId !== context.ownerId) return fail('FORBIDDEN');
   if (!['proposed', 'active'].includes(grant.status)) return fail('GRANT_NOT_ACTIVE');

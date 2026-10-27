@@ -45,6 +45,19 @@ test('store persists owner-scoped revisions and idempotent command results', () 
   } finally { db.close(); }
 });
 
+test('store rejects stale grant writes and preserves owner isolation', () => {
+  const db = openAgenticDb(':memory:');
+  migrate(db, migrationDir);
+  const store = createMissionStore(db);
+  try {
+    const grant = { ownerId: 'o1', id: 'g1', revision: 1, contractHash: 'a'.repeat(64), actor: 'writer', capabilities: ['files.read'], dataDisclosure: ['notes'], expiresAt: '2026-10-27T18:00:00Z', status: 'active' };
+    store.saveGrant(grant);
+    assert.equal(store.getGrant('o2', 'g1'), undefined);
+    assert.equal(store.updateGrant({ ...grant, revision: 2, status: 'revoked' }, { ownerId: 'o1', expectedRevision: 99 }).error.code, 'CONFLICT');
+    assert.equal(store.updateGrant({ ...grant, revision: 2, status: 'revoked' }, { ownerId: 'o1', expectedRevision: 1 }).ok, true);
+  } finally { db.close(); }
+});
+
 test('store recovers persisted events after reopening a file database', () => {
   const dir = mkdtempSync(join(tmpdir(), 'donego-w3-'));
   const file = join(dir, 'agentic.sqlite');

@@ -52,6 +52,18 @@ test('rejects A4 and A5 as default contract autonomy', () => {
   rejected(mission, 'contract', { contractId: 'c', contractHash: 'a'.repeat(64), autonomy: 'A5' }, 'AUTONOMY_FORBIDDEN');
 });
 
+test('allows a contracted mission to accept a new contract version for re-confirmation', () => {
+  const mission = base({ state: 'contracted', scanId: 's1', previewId: 'p1', contractId: 'c1', contractHash: 'a'.repeat(64), autonomy: 'A2' });
+  const result = transitionMission(mission, 'contract', {
+    contractId: 'c2', contractHash: 'b'.repeat(64), autonomy: 'A2', expectedRevision: 1,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.mission.state, 'contracted');
+  assert.equal(result.mission.contractId, 'c2');
+  assert.equal(result.mission.contractHash, 'b'.repeat(64));
+  assert.equal(result.mission.revision, 2);
+});
+
 test('blocks with a need, pauses and resumes only with the same contract hash', () => {
   let mission = base({ state: 'contracted', contractHash: 'a'.repeat(64), contractId: 'c1' });
   mission = ok(mission, 'prepare');

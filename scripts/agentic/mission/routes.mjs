@@ -44,8 +44,12 @@ export function createMissionRoutes({ db, auth, store = createMissionStore(db) }
     if (!ownerId) { reply(res, 401, errorBody({ code: 'AUTH_REQUIRED' })); return true; }
     const parts = pathname.split('/').filter(Boolean);
     if (req.method === 'POST' && parts.length === 2) {
-      const input = await req.json();
-      const mission = { ...input, ownerId, revision: 1 };
+    const input = await req.json();
+    const mission = { ...input, ownerId, revision: 1 };
+    if (!mission.id || !mission.schemaVersion || !mission.blockId || !mission.goal || !mission.state || !mission.autonomy || !mission.createdAt || !mission.updatedAt) {
+      reply(res, 400, errorBody({ code: 'INVALID_INPUT' })); return true;
+    }
+
       const result = store.saveMission(mission);
       reply(res, result.ok ? 201 : statusFor(result.error?.code), result.ok ? mission : errorBody(result.error));
       return true;
@@ -103,7 +107,7 @@ async function grantRoute(req, res, parts, ownerId, missionId, store) {
   const input = await req.json();
   const prior = rememberPending(store, ownerId, input.commandId);
   if (prior?.duplicate) return replay(res, prior.result);
-  const context = { ...input, ownerId, actor: input.actor || grant.actor, contractHash: input.contractHash || grant.contractHash };
+  const context = { ...input, ownerId, actor: input.actor || grant.actor, contractHash: input.contractHash };
   const result = action === 'activate' ? activateGrant(grant, context)
     : action === 'check' ? checkGrant(grant, context)
       : action === 'consume' ? consumeGrant(grant, context)

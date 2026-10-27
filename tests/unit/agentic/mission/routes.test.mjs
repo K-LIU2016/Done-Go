@@ -52,6 +52,15 @@ test('hides another owner and rejects stale route commands', async () => {
   } finally { db.close(); }
 });
 
+test('rejects malformed mission creation before persistence', async () => {
+  const { db, routes } = harness();
+  try {
+    const result = await call(routes, 'POST', '/api/missions', 'o1', { id: 'm1' });
+    assert.equal(result.response.statusCode, 400);
+    assert.equal(result.response.body.error.code, 'INVALID_INPUT');
+  } finally { db.close(); }
+});
+
 test('returns false for paths outside the mission route boundary', async () => {
   const { db, routes } = harness();
   try {
@@ -109,9 +118,15 @@ test('serves owner-scoped grants and rejects terminal grant checks', async () =>
     result = await call(routes, 'GET', '/api/missions/m1/grants/g1', 'o2');
     assert.equal(result.response.statusCode, 404);
     result = await call(routes, 'POST', '/api/missions/m1/grants/g1/activate', 'o1', { actor: 'writer', resolvedModel: 'gpt-6.1-sol', now: '2026-10-27T15:00:00Z' });
+    assert.equal(result.response.statusCode, 403);
+    assert.equal(result.response.body.error.code, 'CONTRACT_MISMATCH');
+    result = await call(routes, 'POST', '/api/missions/m1/grants/g1/activate', 'o1', { actor: 'writer', resolvedModel: 'gpt-6.1-sol', contractHash: grant.contractHash, now: '2026-10-27T15:00:00Z' });
     assert.equal(result.response.statusCode, 200);
     result = await call(routes, 'POST', '/api/missions/m1/grants/g1/check', 'o1', { actor: 'writer', resolvedModel: null, contractHash: grant.contractHash, capability: 'files.read', now: '2026-10-27T15:00:00Z' });
     assert.equal(result.response.statusCode, 403);
     assert.equal(result.response.body.error.code, 'MODEL_UNKNOWN');
+    result = await call(routes, 'POST', '/api/missions/m1/grants/g1/check', 'o1', { actor: 'writer', resolvedModel: 'gpt-6.1-sol', contractHash: 'b'.repeat(64), capability: 'files.read', now: '2026-10-27T15:00:00Z', commandId: 'check-1' });
+    assert.equal(result.response.statusCode, 403);
+    assert.equal(result.response.body.error.code, 'CONTRACT_MISMATCH');
   } finally { db.close(); }
 });

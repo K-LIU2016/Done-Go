@@ -50,6 +50,14 @@ test('rejects proposed grants and unknown actors or unresolved models', () => {
   denied(checkGrant(grant(), context()), 'GRANT_NOT_ACTIVE');
   denied(activateGrant(grant(), context({ actor: '' })), 'ACTOR_REQUIRED');
   denied(activateGrant(grant(), context({ resolvedModel: null })), 'MODEL_UNKNOWN');
+  denied(activateGrant(grant(), context({ resolvedModel: '' })), 'MODEL_UNKNOWN');
+});
+
+test('binds activation to the presented contract and validates grant identity fields', () => {
+  denied(activateGrant(grant(), context({ contractHash: 'b'.repeat(64) })), 'CONTRACT_MISMATCH');
+  denied(proposeGrant(grant({ contractHash: 'not-a-hash' })), 'GRANT_INVALID');
+  denied(proposeGrant(grant({ expiresAt: 'not-a-date' })), 'GRANT_INVALID');
+  denied(proposeGrant(grant({ capabilities: [''] })), 'GRANT_INVALID');
 });
 
 test('rejects owner, actor, contract, capability, resource and disclosure mismatches', () => {
@@ -100,6 +108,14 @@ test('invalidates proposed grants when the contract changes', () => {
   const result = invalidateGrant(grant(), context({ newContractHash: 'b'.repeat(64) }));
   const invalidated = successful(result);
   assert.equal(invalidated.status, 'invalidated');
+});
+
+test('rejects malformed grant shape on every authorization path', () => {
+  const malformed = grant({ dataDisclosure: [''], capabilities: ['files.read'] });
+  denied(checkGrant({ ...malformed, status: 'active' }, context()), 'GRANT_INVALID');
+  denied(consumeGrant({ ...malformed, status: 'active' }, context()), 'GRANT_INVALID');
+  denied(revokeGrant({ ...malformed, status: 'active' }, context()), 'GRANT_INVALID');
+  denied(expireGrant({ ...malformed, status: 'active' }, context({ now: '2026-10-27T19:00:00Z' })), 'GRANT_INVALID');
 });
 
 test('fails closed for malformed grant and clock timestamps', () => {
