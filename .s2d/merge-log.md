@@ -101,3 +101,66 @@
 - 三条 merge commit：0198b05（W11）、3bb41e8（W12，含 R-6 语义冲突解决）、9801c0c（W5，含 .s2d 双冲突解决），均真双亲，无 -X ours/theirs。
 - PROVISIONAL 保留（不抹平，进终报）：W11 视频 UNKNOWN（403 配额+400s 超时）+ 安全 3 MEDIUM + TTS BZNSYP 许可；W12 TD2 分叉仅消除 evidence 一项（risk 枚举/全字段非空仍待 CTO 裁决）+ 真实 vision 不自动启用；npm lock 缺 sherpa-onnx-win-arm64（npm ci rc=1）；W5 Playwright spec 留 M23、W11/W5 播放接缝留 M16/M19。
 - 待后续批次：W3(c972ba7)→W4(c9a865b)→W6(cbc79ed)→W7(1388636)→W9(472b6d4)→W10(f06d7e5)。
+
+---
+
+- 合入会话：2026-10-28 · w13·合入·C（模型 zai-api/GLM-5.3$max，工作流统一绑定）；沿用合入·A/B 的固定门禁包与 /tmp/w13-gate-{frozen.sh,migrations.mjs} 脚本。
+- 批次前置实测：RED 套件基线 26 tests / 17 pass / 9 fail（与前两批终态一致）；六流 tip `git rev-parse` 全部与派单一致（零漂移）：W3=c972ba7b…、W4=c9a865b7…、W6=cbc79ed1…、W7=13886366…、W9=472b6d44…、W10=f06d7e55…；六流 merge-base 均=60fdc73，对 `contracts/agentic` 自基线 delta=0。
+
+## M07 · merge W3（feat/s2d-w3-mission @ c972ba7）
+
+- tip 核对：`c972ba7bcba3fa96ce2a6c5fa33ce42a7e00193b` = 派单值 c972ba7 ✓（零漂移）。
+- 命令：`git merge --no-commit c972ba7` → rc=1，1 冲突 `.s2d/plan.md`（modify/modify）→ 按 §0.4 keep-ours + theirs blob `04f57fc` 逐字节归档 `.s2d/import-w3-plan.md`（69 行）。
+- **语义冲突（targeted 快测暴露）**：`persistence.test.mjs:22` 断言 `migrate()` applied==`['mission-001-core.sql']`（W3 孤立树真值）；集成树 W0 单台账字典序全量应用（8 文件）。解决（W13 树内、保实质）：断言改为 applied deep-equal 迁移目录排序清单 + 必含 mission-001（校验更强而非放宽；表创建/owner 边界/双跑幂等原样）。复跑 40/40。
+- FROZEN 门禁 rc=0（contracts 树哈希 cddcdf2e… 不变、FROZEN=v1 b9d9bdf…5734…）；migration 门禁 rc=0（8 文件字典序、38 DDL 零重名、双跑 applied=[]）。
+- targeted：`node --test tests/unit/agentic/mission/*.test.mjs` → rc=0，40/40。RED 套件 26/17/9 不变。提交 `9d8fc06`（真双亲）。
+
+## M08 · merge W4（feat/s2d-w4-autonomy @ c9a865b）
+
+- tip 核对：`c9a865b75f42988fc6ea8a47c11f87a640624e8b` = 派单值 c9a865b ✓（零漂移）。
+- 命令：`git merge --no-commit c9a865b` → rc=1，1 冲突 `.s2d/plan.md` **modify/delete**（W4 清空其 .s2d）：keep W13 版；W4 侧无内容可归档（删除语义），其 plan 历史可达 `c9a865b^`（b1bb47d）。`impl-contract-tests.md`/`impl-freeze-and-report.md` 删除自动落（W0 遗留、HEAD 自 60fdc73 未改、内容保留在 W13 M00 历史）；`tests-red.md` 已于 M01 删除（双删无冲突）。
+- FROZEN 门禁 rc=0；migration 门禁 rc=0（10 文件、45 DDL、双跑 applied=[]）。
+- targeted：`node --test tests/unit/agentic/autonomy/*.test.mjs` → rc=0，85/85（A4 逐次确认/A5 永不自动/P0 fail-closed 语义原样合入，autonomy/*.mjs 零冲突）。RED 套件不变。提交 `b2325eb`（真双亲）。
+
+## M09 · merge W6（feat/s2d-w6-preview @ cbc79ed）
+
+- tip 核对：`cbc79ed1e43ad47d275c1827ae373762a6441b71` = 派单值 cbc79ed ✓（零漂移；W6 终报 HEAD=df106ae 已过期，以代码为准——与盘点 §0.1 一致）。
+- 命令：`git merge --no-commit cbc79ed` → rc=1，1 冲突 `.s2d/plan.md` → keep-ours + theirs blob `56f4f86` 归档 `.s2d/import-w6-plan.md`（66 行）。
+- **语义冲突（targeted 快测暴露）**：`confirm.test.mjs:140`「side-effect boundary」断言 `missions` 表**不存在**（W6 孤立树真值）；集成树 W3 mission-001 合法创建之。解决（保边界实质、两路同强度证明）：① 静态——两个 preview-*.sql 均 doesNotMatch `CREATE TABLE missions`（软引用 mission_id 不受限，与 preview-001 注释「missions 表归 W3 所有、不得在此创建」一致）；② 动态——confirm 动作前后 missions 行数不变。W6_TABLES 计数断言原样。复跑 109/109。
+- FROZEN 门禁 rc=0；migration 门禁 rc=0（12 文件、53 DDL、双跑 applied=[]；preview-001/002 裸 CREATE 依赖 W0 台账单次执行——幂等复验通过）。
+- targeted：`node --test tests/unit/agentic/preview/*.test.mjs` → rc=0，109/109。RED 套件不变。提交 `2b23cef`（真双亲）。
+
+## M10 · merge W7（feat/s2d-w7-runtime @ 1388636）
+
+- tip 核对：`13886366308b109b05a5955e2b82425fad99b4b6` = 派单值 1388636 ✓（零漂移）。
+- 命令：`git merge --no-commit 1388636` → rc=1，1 冲突 `.s2d/plan.md` → keep-ours + theirs blob `fe7c106` 归档 `.s2d/import-w7-plan.md`（105 行）。
+- 新增共享目录文件 `tests/unit/agentic/contracts/w7-contract-consistency.test.mjs`：对冻结 contracts 实跑通过（R-6 核销；W7 merge-base=60fdc73 即冻结态，集成树 contracts 零漂移）。
+- FROZEN 门禁 rc=0；migration 门禁 rc=0（15 文件、66 DDL、双跑 applied=[]）。
+- targeted：runtime+model-router+tool-registry+w7-contract-consistency → rc=0，218/218；共享 contracts 目录 36/36。RED 套件不变。提交 `b271cc5`（真双亲）。
+
+## M11 · merge W9（feat/s2d-w9-delivery @ 472b6d4）
+
+- tip 核对：`472b6d448df717cfd08b37c8cbf37cb3dae438de` = 派单值 472b6d4 ✓（零漂移）。
+- 命令：`git merge --no-commit 472b6d4` → rc=1，1 冲突 `.s2d/plan.md` → keep-ours + theirs blob `7d21cc2` 归档 `.s2d/import-w9-plan.md`（82 行）。W9 自有 `.s2d/tests-red-w9.md` 新文件名无冲突。
+- 新增 `tests/unit/agentic/contracts/w9-contract-consistency.test.mjs`：对冻结 contracts 实跑通过（R-6 核销）。
+- FROZEN 门禁 rc=0；migration 门禁 rc=0（18 文件、82 DDL、双跑 applied=[]）。
+- targeted：delivery+verifier+inbox+w9-contract-consistency → rc=0，192/192；共享 contracts 目录 46/46（36+10）。RED 套件不变。提交 `07b0974`（真双亲；提交信息一度误写 38/38 已 amend 更正为实测 46/46）。
+
+## M12 · merge W10（feat/s2d-w10-observability @ f06d7e5）
+
+- tip 核对：`f06d7e558397601fee91fa512f1114bf3feeb334` = 派单值 f06d7e5 ✓（零漂移）。
+- 命令：`git merge --no-commit f06d7e5` → rc=1，1 冲突 `.s2d/plan.md` → keep-ours + theirs blob `b1a5ddd` 归档 `.s2d/import-w10-plan.md`（146 行）。
+- **语义冲突（targeted 快测暴露）**：`store.test.mjs:33`「migrations run against a file database without touching other tables」断言共享台账 `_migrations` 行全为 obs-*（W10 孤立树真值，`OBS_MIGRATIONS_DIR` 即共享目录）；集成树台账记录全部 20 文件。解决（保边界实质、静态同强度证明）：obs-*.sql 中 TABLE 必须 ∈ OBS_TABLES、INDEX/VIEW/TRIGGER 必须 obs 域内（idx_obs_*/obs_* 前缀）+ obs 文件必在台账 + obs_ 表归属守卫（sqlite_master 反查）。W10 源码/迁移零改动。复跑 284/284。
+- FROZEN 门禁 rc=0；migration 门禁 rc=0（**20 文件全量字典序**、103 DDL 零重名、双跑 applied=[]）。
+- targeted：`node --test tests/unit/agentic/observability/*.test.mjs` → rc=0，284/284。RED 套件不变。提交 `1f9e10d`（真双亲）。
+- **W10 PROVISIONAL 原样保留（不抹平）**：全量基线 rc=1 与报告溯源不一致均不在本合入处置，留 W13 全量对账门禁节点（brief §6.3）。
+
+## 批次收尾（W3+W4+W6+W7+W9+W10 六连合入完成，brief §2 合入序全部 12 流完成）
+
+- 聚合快测（十二流全量 targeted，显式文件 glob）：`node --test tests/unit/agentic/{engine,blocks,bridge,contracts,media,perception,mission,autonomy,preview,runtime,model-router,tool-registry,delivery,verifier,inbox,observability}/*.test.mjs tests/unit/agentic/media/*/*.test.mjs tests/agentic/ui/unit/*.test.mjs` → rc=0，**2045 tests / 2045 pass / 0 fail**（= 批次二终态 1117 + 本批六流 928，前批零回归）。
+- `git diff --check 60fdc73..HEAD` → rc=0（本批无尾随空白带入）。工作树干净（`git status --short` 空）。
+- W13 RED 套件终态：26 tests / 17 pass / 9 fail——与前两批终态一致，无污染（9 fail 全为缺 integration 实现，待 M13-M17）。
+- 六条 merge commit：9d8fc06（W3）、b2325eb（W4）、2b23cef（W6）、b271cc5（W7）、07b0974（W9）、1f9e10d（W10），均真双亲，无 -X ours/theirs。
+- 语义冲突解决累计 3 起（W3 台账独占假设 / W6 missions 不存在假设 / W10 obs-only 台账假设），全部为「孤立树世界假设 vs 集成树共享台账/共享目录」类，零 W0 冻结 schema 改动、零流内源码改动（仅测试断言按集成语义重述且强度不降）。
+- PROVISIONAL/UNKNOWN 保留（进终报）：W10 全量基线 rc=1+报告溯源不一致；W8 19/21 actor resolved_model=NULL+真实 Codex smoke 0 回合+branch 覆盖 78.27%；W11 视频 UNKNOWN+3 MEDIUM+TTS 许可；W12 TD2 余项（risk 枚举/全字段非空）；npm lock 缺 sherpa-onnx-win-arm64（npm ci rc=1）。
+- 合入阶段（G1/M01-M12）完成；后续：组合根/路由复用器/adapter/projection/状态恢复（M13-M17）、serve-tango 挂载（M18）、build-web 清单（M19）、UI/播放接缝（M19/M20）、黄金场景与 HTTP/Playwright/release 门禁（M21-M24）。
