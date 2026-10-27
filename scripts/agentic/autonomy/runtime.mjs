@@ -10,7 +10,7 @@ export class AutonomyRuntime {
     this.results = new Map();
   }
 
-  async confirm(input) {
+  confirm(input) {
     const decision = evaluateAction(input, { phase: this.phase });
     if (decision.status !== 'needs_confirmation') {
       const error = new Error('CONFIRMATION_NOT_REQUIRED');
@@ -18,23 +18,12 @@ export class AutonomyRuntime {
       throw error;
     }
     const actor = normalizeActor(input.action.actor);
-    const confirmation = this.confirmations.issue({
+    return this.confirmations.issue({
       actionId: input.action.id,
       actor,
       contractHash: input.contract.hash,
       actionHash: input.action.hash ?? input.action.id,
     });
-    try {
-      await this.audit.confirmationIssued({
-        actionId: input.action.id,
-        ownerId: input.action.ownerId,
-        actor,
-        contractHash: input.contract.hash,
-      });
-    } catch (error) {
-      return errorResult('blocked', error.code);
-    }
-    return confirmation;
   }
 
   async perform(input, executor) {
@@ -42,39 +31,86 @@ export class AutonomyRuntime {
     if (this.results.has(key) && this.results.get(key).status !== 'needs_confirmation') return this.results.get(key);
     let decision = evaluateAction(input, { phase: this.phase });
     if (decision.status === 'needs_confirmation') {
-      if (!input.confirmationToken) return this.record(key, decision, input);
+      if (!input.confirmationToken) return this.record(key, decision, input, 'policy');
       const confirmation = this.confirmations.consume(input.confirmationToken, {
         actionId: input.action.id,
         actor: normalizeActor(input.action.actor),
         contractHash: input.contract.hash,
         actionHash: input.action.hash ?? input.action.id,
       });
-      if (confirmation.status !== 'confirmed') return this.record(key, confirmation, input);
+      try {
+        await this.audit.append({
+          type: confirmation.status === 'confirmed'
+            ? 'autonomy.confirmation.consumed'
+            : 'autonomy.confirmation.rejected',
+          actionId: input.action.id,
+          ownerId: input.action.ownerId,
+          actor: input.action.actor,
+          code: confirmation.code,
+          status: confirmation.status,
+        });
+      } catch (error) {
+        return this.store(key, errorResult('blocked', error.code));
+      }
+      if (confirmation.status !== 'confirmed') return this.record(key, confirmation, input, 'policy');
       decision = { status: 'allowed', code: 'ALLOWED', requiresConfirmation: false };
     }
-    if (decision.status !== 'allowed') return this.record(key, decision, input);
-    try { await this.audit.append({ type: 'autonomy.action.allowed', actionId: input.action.id, actor: input.action.actor }); }
-    catch (error) { return this.record(key, errorResult('blocked', error.code), input); }
+    if (decision.status !== 'allowed') return this.record(key, decision, input, decision.status === 'UNKNOWN' ? 'unknown' : 'policy');
+    try {
+      await this.audit.append({
+        type: 'autonomy.action.allowed', actionId: input.action.id, ownerId: input.action.ownerId,
+        actor: input.action.actor, status: 'allowed', code: decision.code,
+      });
+    } catch (error) { return this.store(key, errorResult('blocked', error.code)); }
     try {
       const output = await executor();
       const result = { status: 'succeeded', code: 'SUCCEEDED', output };
-      return this.record(key, result, input);
+      try {
+        await this.audit.append({
+          type: 'autonomy.action.result', actionId: input.action.id, ownerId: input.action.ownerId,
+          actor: input.action.actor, status: result.status, code: result.code,
+        });
+      } catch (error) {
+        return this.store(key, errorResult('UNKNOWN', 'AUDIT_WRITE_FAILED'));
+      }
+      return this.store(key, result);
     } catch (error) {
       const result = error.unknown ? errorResult('UNKNOWN', 'EXTERNAL_RESULT_UNKNOWN') : errorResult('blocked', 'EXECUTION_FAILED');
-      try { await this.audit.append({ type: 'autonomy.action.result', actionId: input.action.id, result: result.status }); } catch { /* preserve original fail-closed result */ }
-      return this.record(key, result, input);
+      try {
+        await this.audit.append({
+          type: error.unknown ? 'autonomy.action.unknown' : 'autonomy.action.result',
+          actionId: input.action.id, ownerId: input.action.ownerId, actor: input.action.actor,
+          status: result.status, code: result.code,
+        });
+      } catch { /* preserve the original fail-closed result */ }
+      return this.store(key, result);
     }
   }
 
-  record(key, result, input) {
+  async record(key, result, input, kind = 'decision') {
+    try {
+      const type = kind === 'unknown' ? 'autonomy.action.unknown' : 'autonomy.policy.denied';
+      await this.audit.append({
+        type, actionId: input.action?.id, ownerId: input.action?.ownerId,
+        actor: input.action?.actor, status: result.status, code: result.code,
+      });
+    } catch (error) {
+      result = errorResult('blocked', error.code);
+    }
+    return this.store(key, result);
+  }
+
+  store(key, result) {
     this.results.set(key, result);
-    this.audit.append({ type: 'autonomy.decision', actionId: input.action.id, result: result.status, code: result.code }).catch(() => {});
     return result;
   }
 
   async recover(key, executor) {
     const prior = this.results.get(key);
-    if (prior?.status === 'UNKNOWN') return prior;
+    if (prior?.status === 'UNKNOWN') {
+      try { await this.audit.recovery({ actionId: executor.input?.action?.id, decision: 'not_retried', status: 'UNKNOWN' }); } catch { /* fail closed */ }
+      return prior;
+    }
     if (prior) return prior;
     return this.perform({ idempotencyKey: key, ...executor.input }, executor);
   }
