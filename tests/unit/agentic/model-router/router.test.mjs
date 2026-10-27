@@ -152,3 +152,78 @@ test('M4 · provenance：rule 命名、inputsHash 稳定且区分输入、decide
   const otherTime = selectModel('reason', 'public', { ...OPTS, now: '2026-10-27T09:00:00Z' });
   assert.equal(otherTime.provenance.decidedAt, '2026-10-27T09:00:00Z');
 });
+
+// ---------------- 补充钉子：防御分支与规则优先级（只增不删） ----------------
+
+test('M4 负面 · budget.tokens=0 或 budget 缺失/非法 → BUDGET_EXCEEDED / CONTRACT_INVALID', () => {
+  assert.throws(
+    () => selectModel('reason', 'public', { ...OPTS, budget: { calls: 5, tokens: 0 } }),
+    err => err.code === 'BUDGET_EXCEEDED',
+  );
+  assert.throws(
+    () => selectModel('reason', 'public', { ...OPTS, budget: undefined }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  assert.throws(
+    () => selectModel('reason', 'public', { ...OPTS, budget: { calls: -1, tokens: 10 } }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  assert.throws(
+    () => selectModel('reason', 'public', { ...OPTS, budget: { calls: 'many', tokens: 10 } }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+});
+
+test('M4 负面 · rateLimit 注入但非法（越界 weeklyUsed / 非布尔 spendControlReached / 非对象）→ CONTRACT_INVALID', () => {
+  for (const rateLimit of [{ weeklyUsed: 1.5 }, { weeklyUsed: -0.1 }, { weeklyUsed: 'high' }, {}, 'busy']) {
+    assert.throws(
+      () => selectModel('reason', 'public', { ...OPTS, rateLimit }),
+      err => err.code === 'CONTRACT_INVALID',
+      `rateLimit=${JSON.stringify(rateLimit)} must be rejected`,
+    );
+  }
+  assert.throws(
+    () => selectModel('reason', 'public', { ...OPTS, rateLimit: { weeklyUsed: 0.2, spendControlReached: 'yes' } }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+});
+
+test('M4 负面 · 注入缺失：opts 整体 / actor / localAvailable / now 不可解析 → CONTRACT_INVALID（fail closed）', () => {
+  assert.throws(() => selectModel('reason', 'public', undefined), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => selectModel('reason', 'public', null), err => err.code === 'CONTRACT_INVALID');
+  const { actor, ...noActor } = OPTS;
+  assert.throws(() => selectModel('reason', 'public', noActor), err => err.code === 'CONTRACT_INVALID');
+  const { localAvailable, ...noLocalFlag } = OPTS;
+  assert.throws(() => selectModel('reason', 'public', noLocalFlag), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(
+    () => selectModel('reason', 'public', { ...OPTS, now: 'not-a-timestamp' }),
+    err => err.code === 'CONTRACT_INVALID' && /now|clock/i.test(err.message),
+  );
+});
+
+test('M4 正例 · dataClass=sensitive 优先于 taskClass=code：仍只走本地，不产 codexChoice', () => {
+  const decision = selectModel('code', 'sensitive', OPTS);
+  assert.equal(decision.status, 'selected');
+  assert.equal(decision.locality, 'local');
+  assert.equal(decision.provider, 'local');
+  assert.equal(decision.codexChoice, undefined, 'sensitive data must not take the cloud codex path');
+});
+
+test('M4 · unknown 决策也带完整 provenance（rule=no-rule-match，inputsHash 稳定、不含 decidedAt）', () => {
+  const a = selectModel('telepathy', 'public', OPTS);
+  const b = selectModel('telepathy', 'public', { ...OPTS, now: '2026-10-27T23:59:59Z' });
+  assert.equal(a.provenance.rule, 'no-rule-match');
+  assert.equal(a.provenance.inputsHash, b.provenance.inputsHash, 'decidedAt must not affect inputsHash');
+  assert.equal(b.provenance.decidedAt, '2026-10-27T23:59:59Z');
+  const noLocal = selectModel('reason', 'sensitive', NO_LOCAL);
+  assert.equal(noLocal.provenance.rule, 'sensitive-local-only');
+  assert.ok(noLocal.provenance.inputsHash.length === 64);
+});
+
+test('M4 正例 · code 未注入 rateLimit → codexChoice.rateLimit.weeklyUsed=0 且过冻结 schema（如实记录无压力信号）', () => {
+  const decision = selectModel('code', 'public', OPTS);
+  const check = validate(decision.codexChoice, codexChoiceSchema, { schemaDir: contractDir });
+  assert.equal(check.valid, true, JSON.stringify(check.errors));
+  assert.equal(decision.codexChoice.rateLimit.weeklyUsed, 0);
+  assert.equal(decision.codexChoice.rateLimit.spendControlReached, undefined);
+});
