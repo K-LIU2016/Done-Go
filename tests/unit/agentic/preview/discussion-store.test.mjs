@@ -142,6 +142,53 @@ test('atomicity: if the change-record insert fails the whole message rolls back'
   }
 });
 
+test('fresh appends with invalid params are CONTRACT_INVALID and write nothing', async () => {
+  const { db, store } = await freshStore();
+  try {
+    const badInputs = [
+      messageParams({ missionId: '   ' }),
+      messageParams({ utterance: '   ' }),
+      messageParams({ utterance: '长'.repeat(2001) }),
+      messageParams({ idempotencyKey: '' }),
+      messageParams({ ownerId: '' }),
+      messageParams({ baseVersion: 0 }),
+      messageParams({ beforeVersion: 'v1' }),
+      messageParams({ afterVersion: 0 }),
+      messageParams({ patch: 'not-an-object' }),
+      messageParams({ contractChange: { patch: { a: 1 }, changedFields: [] } }),
+      messageParams({ contractChange: { patch: { a: 1 }, changedFields: 'boundary.wont' } }),
+    ];
+    for (const params of badInputs) {
+      await assert.rejects(
+        () => store.appendMessage(params),
+        error => error.code === 'CONTRACT_INVALID',
+        `expected CONTRACT_INVALID for ${JSON.stringify(params)}`,
+      );
+    }
+    assert.equal(await store.getThread({ ownerId: 'owner-a', missionId: 'm1' }), null);
+    assert.deepEqual(await store.listChangeRecords({ ownerId: 'owner-a', missionId: 'm1' }), []);
+  } finally {
+    db.close();
+  }
+});
+
+test('replay lookup happens before validation: a drifted replay still returns the stored message', async () => {
+  const { db, store } = await freshStore();
+  try {
+    const first = await store.appendMessage(messageParams());
+    // Same key, but fields that would fail fresh-input validation (oversized
+    // utterance drift): idempotency wins, returning the original message.
+    const replay = await store.appendMessage(messageParams({
+      idempotencyKey: 'key-1', utterance: '长'.repeat(2001),
+    }));
+    assert.equal(replay.id, first.id);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.utterance, first.utterance);
+  } finally {
+    db.close();
+  }
+});
+
 test('listChangeRecords returns [] when nothing was recorded and is owner-scoped', async () => {
   const { db, store } = await freshStore();
   try {
