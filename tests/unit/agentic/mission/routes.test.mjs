@@ -57,7 +57,7 @@ test('rejects malformed mission creation before persistence', async () => {
   try {
     const result = await call(routes, 'POST', '/api/missions', 'o1', { id: 'm1' });
     assert.equal(result.response.statusCode, 400);
-    assert.equal(result.response.body.error.code, 'INVALID_INPUT');
+    assert.equal(result.response.body.error.code, 'CONTRACT_INVALID');
   } finally { db.close(); }
 });
 
@@ -76,10 +76,10 @@ test('replays a rejected command with the same error envelope instead of pending
     const input = { commandId: 'bad-command', event: 'preview' };
     let result = await call(routes, 'POST', '/api/missions/m1/transition', 'o1', input);
     assert.equal(result.response.statusCode, 400);
-    assert.equal(result.response.body.error.code, 'PRECONDITION_FAILED');
+    assert.equal(result.response.body.error.code, 'CONTRACT_INVALID');
     result = await call(routes, 'POST', '/api/missions/m1/transition', 'o1', input);
     assert.equal(result.response.statusCode, 400);
-    assert.equal(result.response.body.error.code, 'PRECONDITION_FAILED');
+    assert.equal(result.response.body.error.code, 'CONTRACT_INVALID');
   } finally { db.close(); }
 });
 
@@ -119,14 +119,15 @@ test('serves owner-scoped grants and rejects terminal grant checks', async () =>
     assert.equal(result.response.statusCode, 404);
     result = await call(routes, 'POST', '/api/missions/m1/grants/g1/activate', 'o1', { actor: 'writer', resolvedModel: 'gpt-6.1-sol', now: '2026-10-27T15:00:00Z' });
     assert.equal(result.response.statusCode, 403);
-    assert.equal(result.response.body.error.code, 'CONTRACT_MISMATCH');
+    assert.equal(result.response.body.error.code, 'FORBIDDEN');
     result = await call(routes, 'POST', '/api/missions/m1/grants/g1/activate', 'o1', { actor: 'writer', resolvedModel: 'gpt-6.1-sol', contractHash: grant.contractHash, now: '2026-10-27T15:00:00Z' });
-    assert.equal(result.response.statusCode, 200);
+    assert.equal(result.response.statusCode, 403);
+    assert.equal(result.response.body.error.code, 'FORBIDDEN');
     result = await call(routes, 'POST', '/api/missions/m1/grants/g1/check', 'o1', { actor: 'writer', resolvedModel: null, contractHash: grant.contractHash, capability: 'files.read', now: '2026-10-27T15:00:00Z' });
     assert.equal(result.response.statusCode, 403);
-    assert.equal(result.response.body.error.code, 'MODEL_UNKNOWN');
+    assert.equal(result.response.body.error.code, 'FORBIDDEN');
     result = await call(routes, 'POST', '/api/missions/m1/grants/g1/check', 'o1', { actor: 'writer', resolvedModel: 'gpt-6.1-sol', contractHash: 'b'.repeat(64), capability: 'files.read', now: '2026-10-27T15:00:00Z', commandId: 'check-1' });
     assert.equal(result.response.statusCode, 403);
-    assert.equal(result.response.body.error.code, 'CONTRACT_MISMATCH');
+    assert.equal(result.response.body.error.code, 'FORBIDDEN');
   } finally { db.close(); }
 });

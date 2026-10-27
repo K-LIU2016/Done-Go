@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS missions (
   contract_hash TEXT,
   blocked_reason TEXT,
   resume_state TEXT,
+  confirmed_contract_hash TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -29,7 +30,7 @@ CREATE TABLE IF NOT EXISTS mission_events (
   event_type TEXT NOT NULL,
   payload_json TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (owner_id, event_id),
+  PRIMARY KEY (owner_id, mission_id, event_id),
   FOREIGN KEY (owner_id, mission_id) REFERENCES missions(owner_id, id)
 );
 
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS mission_grants (
   owner_id TEXT NOT NULL,
   id TEXT NOT NULL,
   revision INTEGER NOT NULL,
+  schema_version INTEGER NOT NULL,
   contract_hash TEXT NOT NULL,
   actor TEXT NOT NULL,
   capabilities_json TEXT NOT NULL,
@@ -46,7 +48,35 @@ CREATE TABLE IF NOT EXISTS mission_grants (
   consumed_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  source TEXT NOT NULL,
   PRIMARY KEY (owner_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS grant_provenance (
+  owner_id TEXT NOT NULL,
+  grant_id TEXT NOT NULL,
+  mission_id TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  resolved_model TEXT NOT NULL,
+  model_source TEXT NOT NULL,
+  scope_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (owner_id, grant_id, revision),
+  FOREIGN KEY (owner_id, grant_id) REFERENCES mission_grants(owner_id, id),
+  FOREIGN KEY (owner_id, mission_id) REFERENCES missions(owner_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS mission_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id TEXT NOT NULL,
+  mission_id TEXT,
+  grant_id TEXT,
+  action TEXT NOT NULL,
+  revision INTEGER,
+  payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS mission_idempotency (

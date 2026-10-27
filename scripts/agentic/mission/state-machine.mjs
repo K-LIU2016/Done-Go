@@ -17,8 +17,8 @@ const error = (code, message = code) => ({ ok: false, error: { code, message } }
 export function missionStateForCommand(command) {
   return Object.prototype.hasOwnProperty.call(Object.values(EDGES).flatMap(edges => Object.keys(edges)).reduce((out, key) => ({ ...out, [key]: true }), {}), command) ? command : null;
 }
-function targetFor(mission, event, context) {
-  if (event === 'resume') return context.resumeState || mission.resumeState || 'prepping';
+function targetFor(mission, event) {
+  if (event === 'resume') return mission.resumeState;
   return EDGES[mission.state]?.[event];
 }
 function prerequisite(mission, event, context) {
@@ -28,7 +28,7 @@ function prerequisite(mission, event, context) {
   if (TERMINAL.has(mission.state)) return error('TERMINAL_STATE', 'Terminal mission cannot transition');
   if (event === 'scan' && context.scanId === undefined) return error('PRECONDITION_FAILED', 'scanId required');
   if (event === 'preview' && mission.state === 'draft') return error('PRECONDITION_FAILED', 'scan required');
-  if (event === 'prepare' && mission.state === 'previewed') return error('PRECONDITION_FAILED', 'contract required');
+  if (event === 'prepare' && (mission.state !== 'contracted' || (mission.confirmedContractHash !== undefined && mission.confirmedContractHash !== mission.contractHash))) return error('PRECONDITION_FAILED', 'confirmed contract required');
   if (event === 'preview' && !mission.scanId && !context.scanId) return error('PRECONDITION_FAILED', 'scan required');
   if (event === 'contract') {
     if (mission.state === 'contracted' && !context.contractId && !context.contractHash) return error('PRECONDITION_FAILED', 'new contract version required');
@@ -45,7 +45,10 @@ function prerequisite(mission, event, context) {
     if (Date.parse(context.now) < Date.parse(context.windowStart)) return error('WINDOW_NOT_OPEN');
   }
   if (event === 'block' && !context.reason) return error('NEED_HUMAN', 'blocked transition needs a reason');
-  if (event === 'resume' && context.contractHash !== mission.contractHash) return error('CONTRACT_MISMATCH', 'Contract must be revalidated');
+  if (event === 'resume') {
+    if (!['contracted', 'prepping', 'live', 'reviewing'].includes(mission.resumeState)) return error('INVALID_TRANSITION', 'Persisted resume state is invalid');
+    if (context.contractHash !== mission.contractHash) return error('CONTRACT_MISMATCH', 'Contract must be revalidated');
+  }
   if (event === 'start' && mission.state !== 'prepping') return error('INVALID_TRANSITION');
   return null;
 }
@@ -65,6 +68,11 @@ export function transitionMission(mission, event, context = {}) {
     next.contractId = context.contractId;
     next.contractHash = context.contractHash;
     next.autonomy = context.autonomy;
+    if (mission.state === 'contracted' && context.contractHash !== mission.contractHash) {
+      next.confirmedContractHash = context.confirmed === true ? context.contractHash : null;
+    } else {
+      next.confirmedContractHash = context.confirmed === false ? null : context.contractHash;
+    }
   }
   if (event === 'block') { next.blockedReason = context.reason; next.resumeState = mission.state; }
   if (event === 'pause') { next.resumeState = mission.state; }
@@ -83,7 +91,9 @@ export function transitionMission(mission, event, context = {}) {
       ...(context.contractId ? { contractId: context.contractId } : {}),
       ...(context.contractHash ? { contractHash: context.contractHash } : {}),
       ...(context.autonomy ? { autonomy: context.autonomy } : {}),
+      ...(event === 'contract' && next.confirmedContractHash ? { confirmedContractHash: next.confirmedContractHash } : {}),
       ...(context.reason ? { reason: context.reason } : {}),
+      ...(event === 'expire' ? { now: context.now, windowStart: context.windowStart } : {}),
     },
   };
 }
@@ -99,6 +109,11 @@ export function replayMission(initial, events) {
       replayContext.contractId = event.contractId || current.contractId;
       replayContext.contractHash = event.contractHash || current.contractHash;
       replayContext.autonomy = event.autonomy || current.autonomy;
+      replayContext.confirmed = event.confirmedContractHash === replayContext.contractHash;
+    }
+    if (event.type === 'expire') {
+      replayContext.now = event.now;
+      replayContext.windowStart = event.windowStart;
     }
     const result = transitionMission(current, event.type, replayContext);
     if (!result.ok || result.mission.state !== event.to) return error('EVENT_TAMPERED', 'Event cannot be reproduced');
