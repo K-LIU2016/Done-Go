@@ -56,3 +56,19 @@
 ## 红线核对
 
 - 文件归属：本 ask 仅改 `tests/unit/agentic/observability/spans.test.mjs` 与 `.s2d/impl-obs-spans.md`；实现文件与冻结面零改动。提交只含上述两文件——工作树中并行会话的 `tests/unit/agentic/observability/gates.test.mjs` 未暂存、未提交（属 obs-gates 模块）。
+
+## 重跑证据（本 ask，2026-10-27，worktree HEAD=`3a4da49` 起点）
+
+本 ask（provenance 补齐重跑轮的 obs-spans 节点）对已交付模块做规格重核 + 门禁复跑；**未改任何实现或测试 `.mjs`**（`git diff --stat 61c78e4 HEAD -- scripts/agentic/observability/spans.mjs` 为空，spans.mjs 自 feat 提交逐字节未变；模块测试仍 21 用例/266 行）。改动仅本记录。
+
+必读重核：BRIEF §3（W10 责任边界、mock 不升级为端到端）、BUILD-PLAN §2.1/§2.3/§2.4（归属/TDD≥80%/门禁失败集合）、CTO-DECISIONS §3.3（未解析模型不产生通过结论）与 §5（协议）、PRD §10.5（span 属性约定：gen_ai.*/donego.* 命名、chat span 记模型不记正文）——spans.mjs 的键全部经 `vocabulary.mjs` 的 `ATTRIBUTE_KEYS`（gen_ai.request.model / donego.actor.model / donego.model.resolved / donego.model.source / donego.model.local），无散落字面量，与 PRD §10.5 对齐；`prototype.html:212` 块抽屉「追踪」标签为 span 树的 routes 层下游消费面，与本模块职责边界一致。下游消费者行号复核：`routes.mjs:17`（import createSpanRecorder）、`:118`、`:150`（buildTree 供 trace 路由；原记录笔误 `:151`）；`bundle.mjs:82-84`（`spanUnknowns` 对断线 span 传播 UNKNOWN）——均实读确认。
+
+| 命令（cwd=worktree） | rc | 结果 |
+|---|---:|---|
+| `node --experimental-test-coverage --test tests/unit/agentic/observability/spans.test.mjs` | 0 | `# tests 21 / # pass 21 / # fail 0 / # skipped 0`；`spans.mjs` line **100.00%** / branch 96.55% / funcs 100% |
+| `node --experimental-test-coverage --test tests/unit/agentic/observability/*.test.mjs` | 0 | `# tests 235 / # pass 235 / # fail 0 / # skipped 0`（并行会话续增至 235，本模块 21 不变）；`spans.mjs` line **100.00%** / branch 96.61%；all files line 97.55% / branch 85.54% |
+| `npm run test:unit` | 1 | `# tests 1205 / # pass 1196 / # fail 7 / # skipped 2`；7 条失败逐一=§0.1：metric-layout、design-system、streamChat…done marker、independent authenticated accounts…、AI uses selected shared fields…、replays a multi-clause recording…、voice-pipeline-gateway（`not ok` 名称实取自输出），零新增 |
+| `git diff --stat 60fdc73 -- contracts/agentic scripts/agentic/contracts.mjs scripts/agentic/db/index.mjs` | 0 | 输出为空；`FROZEN` 在 HEAD 与 `60fdc73` 均为 `v1 b9d9bdfa0511905a95b729753b82e5734adab6bb`（N15 只读守卫） |
+| `git diff --name-only 60fdc73 HEAD \| sed 's\|/[^/]*$\|\|' \| sort -u` | 0 | 仅 `.s2d`、`scripts/agentic/db/migrations`、`scripts/agentic/observability`、`tests/unit/agentic/observability`——全部 §2.1 归属内 |
+
+覆盖率结论维持：line ≥80% 达标（模块 100%），branch 同时报告（96.55%/96.61%）。未运行项不变：`npm run verify:web`（流级，归汇总步）、Playwright（本模块无 e2e，条件不触发）。
