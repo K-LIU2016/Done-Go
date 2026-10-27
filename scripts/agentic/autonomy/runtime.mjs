@@ -1,17 +1,22 @@
 import { ConfirmationStore } from './confirmation.mjs';
+import { AuditLog } from './audit.mjs';
 import { evaluateAction } from './policy.mjs';
 import { normalizeActor, errorResult } from './types.mjs';
 
 export class AutonomyRuntime {
-  constructor({ audit, phase = 'P0', confirmations = new ConfirmationStore() } = {}) {
+  constructor({ audit = new AuditLog(), phase = 'P0', confirmations = new ConfirmationStore() } = {}) {
     this.audit = audit;
     this.phase = phase;
     this.confirmations = confirmations;
     this.results = new Map();
   }
 
+  decide(input) {
+    return evaluateAction(input, { phase: this.phase });
+  }
+
   confirm(input) {
-    const decision = evaluateAction(input, { phase: this.phase });
+    const decision = this.decide(input);
     if (decision.status !== 'needs_confirmation') {
       const error = new Error('CONFIRMATION_NOT_REQUIRED');
       error.code = 'CONFIRMATION_NOT_REQUIRED';
@@ -26,10 +31,11 @@ export class AutonomyRuntime {
     });
   }
 
-  async perform(input, executor) {
-    const key = input.idempotencyKey ?? input.action.id;
+  async perform(input, executor = async () => ({ dryRun: true })) {
+    const key = input?.idempotencyKey ?? input?.action?.id;
+    if (!key) return this.record(key ?? '__invalid__', errorResult('blocked', 'CONTEXT_INVALID'), input ?? {});
     if (this.results.has(key) && this.results.get(key).status !== 'needs_confirmation') return this.results.get(key);
-    let decision = evaluateAction(input, { phase: this.phase });
+    let decision = this.decide(input);
     if (decision.status === 'needs_confirmation') {
       if (!input.confirmationToken) return this.record(key, decision, input, 'policy');
       const confirmation = this.confirmations.consume(input.confirmationToken, {
@@ -116,10 +122,38 @@ export class AutonomyRuntime {
   }
 }
 
-export function createAutonomyRoutes({ runtime }) {
-  return async function route({ method, pathname, body }) {
-    if (method !== 'POST' || pathname !== '/api/autonomy/decide') return { status: 404, body: { code: 'NOT_FOUND' } };
-    const result = await runtime.perform(body, async () => ({ dryRun: true }));
-    return { status: 200, body: result };
+export function createAutonomyRoutes({ runtime = new AutonomyRuntime(), executor = async () => ({ dryRun: true }) } = {}) {
+  return async function route({ method, pathname, body } = {}) {
+    const routes = {
+      '/api/autonomy/decide': 'decide',
+      '/api/autonomy/confirm': 'confirm',
+      '/api/autonomy/execute': 'perform',
+      '/api/autonomy/recover': 'recover',
+    };
+    if (method !== 'POST' || !routes[pathname]) return { status: 404, body: { code: 'NOT_FOUND' } };
+    try {
+      const operation = routes[pathname];
+      const result = operation === 'decide'
+        ? runtime.decide(body)
+        : operation === 'confirm'
+          ? runtime.confirm(body)
+          : operation === 'recover'
+            ? await runtime.recover(body.idempotencyKey, Object.assign(executor, { input: body }))
+            : await runtime.perform(body, executor);
+      if (operation === 'confirm') {
+        await runtime.audit.append({
+          type: 'autonomy.confirmation.issued',
+          actionId: body.action.id,
+          ownerId: body.action.ownerId,
+          actor: body.action.actor,
+          contractHash: body.contract.hash,
+          status: 'issued',
+        });
+      }
+      return { status: result.code === 'CONTEXT_INVALID' ? 400 : 200, body: result };
+    } catch (error) {
+      const code = error.code ?? 'AUTONOMY_ROUTE_FAILED';
+      return { status: 400, body: errorResult('blocked', code) };
+    }
   };
 }
