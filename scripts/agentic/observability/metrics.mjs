@@ -5,6 +5,14 @@
  * re-derived from the same rows the UI shows. The rule that shapes the whole
  * file: a value the data cannot support is the sentinel `UNKNOWN`, never `0`.
  * "No samples" and "zero cost" are different facts and must stay different.
+ *
+ * Record shapes accepted everywhere: the contract shape (camelCase field
+ * names, what step/span/spend callers assemble) *and* the store's SQL rows
+ * (snake_case `obs_*.sql` columns), plus span projections from
+ * `spans.classifyOutcome` (`outcome`/`incomplete`). A caller feeding raw
+ * `obs_steps`/`obs_spans` rows must never get silently wrong numbers (a
+ * `started_at` misread as "no start", a NULL `cost_cny` summed as zero).
+ * Contract names win when a record carries both spellings.
  */
 
 import { observabilityError, RUN_STATES, OBS_ERROR_CODES, UNKNOWN } from './vocabulary.mjs';
@@ -14,6 +22,61 @@ const SECTION_STATUS = Object.freeze({
   PROVISIONAL: 'PROVISIONAL',
   UNKNOWN: 'UNKNOWN',
 });
+
+/** Terminal step states (step.schema.json): no further outcome can arrive. */
+const TERMINAL_STEP_STATES = new Set(['succeeded', 'failed', 'skipped']);
+
+/**
+ * First present key among the given spellings. Deliberately `!== undefined`
+ * (not `??`): SQL NULL is a present value and means "unknown", not "absent".
+ */
+function pick(record, ...keys) {
+  for (const key of keys) {
+    if (record[key] !== undefined) return record[key];
+  }
+  return undefined;
+}
+
+function parseMs(value) {
+  return typeof value === 'string' ? Date.parse(value) : NaN;
+}
+
+/** Start timestamp in ms; `started_at` is the store column spelling. */
+function startMs(record) {
+  return parseMs(pick(record, 'startedAt', 'started_at'));
+}
+
+/** Finish timestamp in ms; steps say `finishedAt`, spans say `endedAt`. */
+function finishMs(record) {
+  return parseMs(pick(record, 'finishedAt', 'finished_at', 'endedAt', 'ended_at'));
+}
+
+/**
+ * Outcome state of one record: the step `state`, or — for span projections
+ * that carry their verdict in `outcome` — the mapped span verdict.
+ */
+function resolveState(record) {
+  if (record.state !== undefined) return record.state;
+  if (record.outcome === 'succeeded' || record.outcome === 'failed') return record.outcome;
+  return undefined;
+}
+
+function resolveTimedOut(record) {
+  return record.timedOut === true || record.timed_out === true || record.timed_out === 1 || record.outcome === 'timed_out';
+}
+
+function resolveIncompleteFlag(record) {
+  return record.incomplete === true || record.incomplete === 1;
+}
+
+/**
+ * Whether a record with a start but no finish is still waiting on a terminal
+ * state (N10: started, no verdict yet → incomplete).
+ */
+function derivedIncomplete(record, state) {
+  if (TERMINAL_STEP_STATES.has(state)) return false;
+  return Number.isFinite(startMs(record)) && pick(record, 'finishedAt', 'finished_at', 'endedAt', 'ended_at') == null;
+}
 
 /** Nearest-rank percentile over a sorted copy of the finite samples. */
 export function percentile(samples, p) {
@@ -28,18 +91,25 @@ export function percentile(samples, p) {
 }
 
 /**
- * Step latency in milliseconds (PRD §12).
+ * Step/span latency in milliseconds (PRD §12).
  *
- * A step with a start but no finish is *incomplete*, not a zero-duration
- * success: it is counted separately and excluded from the percentiles.
+ * A record with a start but no finish is *incomplete* (cut mid-flight), not a
+ * zero-duration success: counted separately, excluded from the percentiles.
+ * A record that never started is a different population (`notStarted`) — N10
+ * counts incomplete only when a start exists.
  */
 export function latencyMetrics(steps = []) {
   const durations = [];
   let incomplete = 0;
+  let notStarted = 0;
   for (const step of Array.isArray(steps) ? steps : []) {
-    const startedMs = typeof step.startedAt === 'string' ? Date.parse(step.startedAt) : NaN;
-    const finishedMs = typeof step.finishedAt === 'string' ? Date.parse(step.finishedAt) : NaN;
-    if (!Number.isFinite(startedMs) || !Number.isFinite(finishedMs)) {
+    const startedMs = startMs(step);
+    if (!Number.isFinite(startedMs)) {
+      notStarted += 1;
+      continue;
+    }
+    const finishedMs = finishMs(step);
+    if (!Number.isFinite(finishedMs)) {
       incomplete += 1;
       continue;
     }
@@ -49,6 +119,7 @@ export function latencyMetrics(steps = []) {
   const p90 = percentile(durations, 90);
   return {
     count: durations.length,
+    notStarted,
     incomplete,
     p50: p50 === null ? UNKNOWN : p50,
     p90: p90 === null ? UNKNOWN : p90,
@@ -61,7 +132,12 @@ function rate(part, total) {
   return total === 0 ? UNKNOWN : part / total;
 }
 
-/** Failure / timeout / incompleteness rates over the whole step sample. */
+/**
+ * Failure / timeout / incompleteness rates over the whole sample.
+ *
+ * A timed-out record is neither a failure nor a success (N9): the SLA fired
+ * before any verdict existed, so it never lands in either bucket.
+ */
 export function stepOutcomeMetrics(steps = []) {
   const list = Array.isArray(steps) ? steps : [];
   let succeeded = 0;
@@ -69,12 +145,14 @@ export function stepOutcomeMetrics(steps = []) {
   let timedOut = 0;
   let incomplete = 0;
   for (const step of list) {
-    const isTimedOut = step.timedOut === true;
-    const isIncomplete = step.incomplete === true;
+    const state = resolveState(step);
+    const isTimedOut = resolveTimedOut(step);
+    const isIncomplete = resolveIncompleteFlag(step) || derivedIncomplete(step, state);
     if (isTimedOut) timedOut += 1;
     if (isIncomplete) incomplete += 1;
-    if (!isTimedOut && !isIncomplete && step.state === 'succeeded') succeeded += 1;
-    if (step.state === 'failed') failed += 1;
+    if (isTimedOut) continue;
+    if (!isIncomplete && state === 'succeeded') succeeded += 1;
+    if (state === 'failed') failed += 1;
   }
   const total = list.length;
   return {
@@ -92,17 +170,20 @@ export function stepOutcomeMetrics(steps = []) {
 /**
  * Retry behaviour keyed on `inputHash` (N11).
  *
- * Retries are counted from `attempt > 0` rather than from row count, so a
- * replayed step that reuses its attempt numbers cannot look like extra work.
+ * Retries are counted from *distinct* `attempt` values above 0 within a group,
+ * so a recovery replay that re-records rows it already emitted cannot look
+ * like extra work; a group's final state is the state of its highest attempt,
+ * not whatever row happened to arrive last.
  */
 export function retryMetrics(steps = []) {
   const groups = new Map();
   for (const step of Array.isArray(steps) ? steps : []) {
-    const key = step.inputHash ?? step.id;
-    const entry = groups.get(key) ?? { attempts: [], finalState: null, maxAttempt: 0 };
+    const key = pick(step, 'inputHash', 'input_hash') ?? step.id;
+    const entry = groups.get(key) ?? { attempts: new Set(), stateByAttempt: new Map(), maxAttempt: 0 };
     if (Number.isInteger(step.attempt)) entry.maxAttempt = Math.max(entry.maxAttempt, step.attempt);
-    entry.attempts.push(step.attempt ?? 0);
-    entry.finalState = step.state ?? null;
+    const attempt = Number.isInteger(step.attempt) ? step.attempt : 0;
+    entry.attempts.add(attempt);
+    entry.stateByAttempt.set(attempt, resolveState(step) ?? null);
     groups.set(key, entry);
   }
 
@@ -111,10 +192,14 @@ export function retryMetrics(steps = []) {
   let recoveredGroups = 0;
   let maxAttempt = 0;
   for (const entry of groups.values()) {
-    const retries = entry.attempts.filter((attempt) => attempt > 0).length;
+    let retries = 0;
+    for (const attempt of entry.attempts) {
+      if (attempt > 0) retries += 1;
+    }
     totalRetries += retries;
     if (retries > 0) retriedGroups += 1;
-    if (retries > 0 && entry.finalState === 'succeeded') recoveredGroups += 1;
+    const finalState = entry.stateByAttempt.get(entry.maxAttempt) ?? null;
+    if (retries > 0 && finalState === 'succeeded') recoveredGroups += 1;
     maxAttempt = Math.max(maxAttempt, entry.maxAttempt);
   }
   return { groups: groups.size, retriedGroups, totalRetries, maxAttempt, recoveredGroups };
@@ -123,19 +208,21 @@ export function retryMetrics(steps = []) {
 /**
  * Fold a replay over the original spend rows without double-counting calls.
  *
- * Rows are identified by `(stepId, attempt)`: a replayed row that was already
- * accounted for is dropped and reported as `deduped`.
+ * Rows are identified by `(stepId, attempt)` in either field spelling: a
+ * replayed row that was already accounted for is dropped and reported as
+ * `deduped`.
  */
 export function reconcileSpendReplay({ original = [], replay = [] } = {}) {
+  const keyOf = (row) => `${pick(row, 'stepId', 'step_id')}::${row.attempt ?? 0}`;
   const seen = new Set();
   const merged = [];
   for (const row of Array.isArray(original) ? original : []) {
-    seen.add(`${row.stepId}::${row.attempt ?? 0}`);
+    seen.add(keyOf(row));
     merged.push(row);
   }
   let deduped = 0;
   for (const row of Array.isArray(replay) ? replay : []) {
-    const key = `${row.stepId}::${row.attempt ?? 0}`;
+    const key = keyOf(row);
     if (seen.has(key)) {
       deduped += 1;
       continue;
@@ -153,7 +240,7 @@ export function reconcileSpendReplay({ original = [], replay = [] } = {}) {
 /**
  * Cost rollup (N6).
  *
- * `costCny === 0` is a *known* free call; `costCny` absent/null is *unknown*.
+ * `costCny === 0` is a *known* free call; `costCny` absent/NULL is *unknown*.
  * Both survive into the output with different statuses, and an unknown row is
  * never added as zero — the total simply reports `PARTIAL`.
  */
@@ -171,15 +258,17 @@ export function costMetrics(spend = []) {
   for (const row of rows) {
     calls += row.calls ?? 0;
     tokens += row.tokens ?? 0;
-    if (typeof row.costCny === 'number' && Number.isFinite(row.costCny)) {
+    const rowCostCny = pick(row, 'costCny', 'cost_cny');
+    if (typeof rowCostCny === 'number' && Number.isFinite(rowCostCny)) {
       knownCostRuns += 1;
-      costCny += row.costCny;
-      if (row.costCny === 0) freeRuns += 1;
+      costCny += rowCostCny;
+      if (rowCostCny === 0) freeRuns += 1;
     } else {
       unknownCostRuns += 1;
     }
-    if (typeof row.localShare === 'number' && Number.isFinite(row.localShare)) {
-      localShareSum += row.localShare;
+    const rowLocalShare = pick(row, 'localShare', 'local_share');
+    if (typeof rowLocalShare === 'number' && Number.isFinite(rowLocalShare)) {
+      localShareSum += rowLocalShare;
       localShareSamples += 1;
     }
   }
@@ -258,14 +347,23 @@ export function acceptanceMetrics(acceptances = []) {
   return decisionMetrics(acceptances, ['accepted', 'revision_requested', 'rejected']);
 }
 
-/** Need interruption quality: a defaulted or expired need is an attention defect. */
+/**
+ * Need interruption quality: a defaulted or expired need is an attention
+ * defect. `defaultRate` is the "no answer given" defect rate; `expiredRate`
+ * is the timeout rate (plan §2.1 maps `need.expired` to the timeout metric).
+ */
 export function needMetrics(needs = []) {
   const list = Array.isArray(needs) ? needs : [];
   const counts = { open: 0, answered: 0, defaulted: 0, waived: 0, expired: 0 };
   for (const need of list) {
     if (need?.status in counts) counts[need.status] += 1;
   }
-  return { total: list.length, ...counts, defaultRate: rate(counts.defaulted, list.length) };
+  return {
+    total: list.length,
+    ...counts,
+    defaultRate: rate(counts.defaulted, list.length),
+    expiredRate: rate(counts.expired, list.length),
+  };
 }
 
 /** Grant lifecycle: invalidated/expired are revocation counts, kept separate from consumed. */

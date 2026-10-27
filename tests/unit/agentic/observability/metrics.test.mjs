@@ -256,3 +256,174 @@ test('metrics: buildMetrics marks sections with no data UNKNOWN, not zero', asyn
   assert.equal(metrics.acceptance.acceptanceRate, 'UNKNOWN');
   assert.equal(metrics.status, 'UNKNOWN');
 });
+
+// ---------------------------------------------------------------------------
+// Re-run additions (plan §2.1/§2.3/N6/N9/N10/N11 + DAG edge obs-spans →
+// obs-metrics). These pin the store-row seam (obs_*.sql snake_case columns),
+// the span-row seam (ended_at) and the replay/timeout semantics the plan words
+// exactly. Written RED before the implementation change.
+// ---------------------------------------------------------------------------
+
+const T0 = '2026-10-27T10:00:00.000Z';
+const at = (ms) => new Date(Date.parse(T0) + ms).toISOString();
+
+test('metrics: latency reads store rows (obs_steps snake_case columns) without silently marking them incomplete', async () => {
+  const { latencyMetrics } = await metricsApi();
+  const result = latencyMetrics([
+    { id: 'db1', run_id: 'run-1', name: 'execute', kind: 'execute', state: 'succeeded', attempt: 0, input_hash: 'h1', started_at: T0, finished_at: at(250) },
+  ]);
+  assert.equal(result.count, 1);
+  assert.equal(result.notStarted, 0);
+  assert.equal(result.incomplete, 0);
+  assert.equal(result.p50, 250);
+  assert.equal(result.max, 250);
+});
+
+test('metrics: latency reads span rows (endedAt/ended_at) so span trees feed the same metric', async () => {
+  const { latencyMetrics } = await metricsApi();
+  const result = latencyMetrics([
+    { id: 'sp1', name: 'chat m', kind: 'chat', status: 'ok', startedAt: T0, endedAt: at(1000) },
+    { id: 'sp2', name: 'chat m', kind: 'chat', status: 'ok', started_at: T0, ended_at: at(3000) },
+  ]);
+  assert.equal(result.count, 2);
+  assert.equal(result.incomplete, 0);
+  assert.equal(result.p50, 1000);
+  assert.equal(result.p90, 3000);
+});
+
+test('metrics: a step that never started is notStarted, not incomplete (N10 needs startedAt)', async () => {
+  const { latencyMetrics } = await metricsApi();
+  const result = latencyMetrics([
+    { id: 's1', runId: 'run-1', kind: 'execute', state: 'succeeded', attempt: 0, startedAt: T0, finishedAt: at(500) },
+    { id: 'p1', runId: 'run-1', kind: 'plan', state: 'pending', attempt: 0 },
+  ]);
+  assert.equal(result.count, 1);
+  assert.equal(result.notStarted, 1);
+  assert.equal(result.incomplete, 0);
+  assert.equal(result.p50, 500);
+});
+
+test('metrics: a running store row with no finished_at is derived incomplete (N10)', async () => {
+  const { stepOutcomeMetrics } = await metricsApi();
+  const result = stepOutcomeMetrics([
+    { id: 'db1', run_id: 'run-1', name: 'execute', kind: 'execute', state: 'running', attempt: 0, input_hash: 'h1', started_at: T0, finished_at: null },
+  ]);
+  assert.equal(result.total, 1);
+  assert.equal(result.incomplete, 1);
+  assert.equal(result.succeeded, 0);
+  assert.equal(result.failed, 0);
+  assert.equal(result.timedOut, 0);
+});
+
+test('metrics: a timed-out step counts as neither failed nor succeeded (N9)', async () => {
+  const { stepOutcomeMetrics } = await metricsApi();
+  const result = stepOutcomeMetrics([{ id: 't1', state: 'failed', timedOut: true }]);
+  assert.equal(result.timedOut, 1);
+  assert.equal(result.succeeded, 0);
+  assert.equal(result.failed, 0);
+  assert.equal(result.timeoutRate, 1);
+  assert.equal(result.failureRate, 0);
+});
+
+test('metrics: classifyOutcome-style span records feed outcome metrics (DAG obs-spans → obs-metrics)', async () => {
+  const { stepOutcomeMetrics } = await metricsApi();
+  const result = stepOutcomeMetrics([
+    { id: 'sp1', status: 'ok', outcome: 'succeeded', incomplete: false },
+    { id: 'sp2', status: 'running', outcome: 'timed_out', incomplete: true },
+    { id: 'sp3', status: 'error', outcome: 'failed', incomplete: false },
+  ]);
+  assert.equal(result.total, 3);
+  assert.equal(result.succeeded, 1);
+  assert.equal(result.failed, 1);
+  assert.equal(result.timedOut, 1);
+  assert.equal(result.incomplete, 1);
+  assert.equal(result.failureRate, 1 / 3);
+  assert.equal(result.timeoutRate, 1 / 3);
+});
+
+test('metrics: a replay that re-records attempts does not double-count retries (N11)', async () => {
+  const { retryMetrics } = await metricsApi();
+  const result = retryMetrics([
+    { id: 's1', inputHash: 'h1', attempt: 0, state: 'failed' },
+    { id: 's2', inputHash: 'h1', attempt: 1, state: 'succeeded' },
+    { id: 's1', inputHash: 'h1', attempt: 0, state: 'failed' }, // replay re-record
+    { id: 's2', inputHash: 'h1', attempt: 1, state: 'succeeded' }, // replay re-record
+  ]);
+  assert.equal(result.groups, 1);
+  assert.equal(result.retriedGroups, 1);
+  assert.equal(result.totalRetries, 1);
+  assert.equal(result.maxAttempt, 1);
+  assert.equal(result.recoveredGroups, 1);
+});
+
+test('metrics: retry recovery follows the highest attempt, not row order (N11)', async () => {
+  const { retryMetrics } = await metricsApi();
+  const result = retryMetrics([
+    { id: 's2', inputHash: 'h1', attempt: 1, state: 'succeeded' },
+    { id: 's1', inputHash: 'h1', attempt: 0, state: 'failed' },
+  ]);
+  assert.equal(result.groups, 1);
+  assert.equal(result.totalRetries, 1);
+  assert.equal(result.recoveredGroups, 1);
+});
+
+test('metrics: retry groups read store rows keyed by input_hash', async () => {
+  const { retryMetrics } = await metricsApi();
+  const result = retryMetrics([
+    { id: 's1', run_id: 'r', input_hash: 'h1', attempt: 0, state: 'failed' },
+    { id: 's2', run_id: 'r', input_hash: 'h1', attempt: 1, state: 'failed' },
+    { id: 's3', run_id: 'r', input_hash: 'h2', attempt: 0, state: 'succeeded' },
+  ]);
+  assert.equal(result.groups, 2);
+  assert.equal(result.totalRetries, 1);
+  assert.equal(result.recoveredGroups, 0);
+});
+
+test('metrics: reconcileSpendReplay dedupes across store and contract row shapes (N11)', async () => {
+  const { reconcileSpendReplay } = await metricsApi();
+  const result = reconcileSpendReplay({
+    original: [{ run_id: 'r1', step_id: 's1', attempt: 0, calls: 3, tokens: 900, cost_cny: 0.12, local_share: 0 }],
+    replay: [{ stepId: 's1', attempt: 0, calls: 3, tokens: 900, costCny: 0.12, localShare: 0 }],
+  });
+  assert.equal(result.deduped, 1);
+  assert.equal(result.calls, 3);
+  assert.equal(result.tokens, 900);
+});
+
+test('metrics: cost metrics read store rows and keep NULL cost_cny unknown (N6)', async () => {
+  const { costMetrics } = await metricsApi();
+  const result = costMetrics([
+    { run_id: 'r1', step_id: 's1', attempt: 0, calls: 2, tokens: 120, cost_cny: null, local_share: 1 },
+  ]);
+  assert.equal(result.runs, 1);
+  assert.equal(result.calls, 2);
+  assert.equal(result.tokens, 120);
+  assert.equal(result.knownCostRuns, 0);
+  assert.equal(result.unknownCostRuns, 1);
+  assert.equal(result.costCny, null);
+  assert.equal(result.costStatus, 'UNKNOWN');
+  assert.equal(result.unknownCost, true);
+  assert.equal(result.localShare, 1);
+  assert.equal(result.localShareSamples, 1);
+});
+
+test('metrics: cost metrics read an explicit free store row as free, not unknown (N6)', async () => {
+  const { costMetrics } = await metricsApi();
+  const result = costMetrics([{ step_id: 's1', attempt: 0, calls: 1, tokens: 5, cost_cny: 0, local_share: 1 }]);
+  assert.equal(result.knownCostRuns, 1);
+  assert.equal(result.costCny, 0);
+  assert.equal(result.costStatus, 'KNOWN');
+  assert.equal(result.freeRuns, 1);
+  assert.equal(result.unknownCost, false);
+});
+
+test('metrics: need metrics expose the expired (timeout) rate alongside the default rate', async () => {
+  const { needMetrics } = await metricsApi();
+  const result = needMetrics([
+    { id: 'n1', status: 'answered' },
+    { id: 'n2', status: 'expired' },
+  ]);
+  assert.equal(result.expired, 1);
+  assert.equal(result.expiredRate, 0.5);
+  assert.equal(result.defaultRate, 0);
+});
