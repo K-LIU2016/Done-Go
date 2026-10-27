@@ -59,3 +59,17 @@ test('returns false for paths outside the mission route boundary', async () => {
     assert.equal(result.handled, false);
   } finally { db.close(); }
 });
+
+test('replays a rejected command with the same error envelope instead of pending state', async () => {
+  const { db, routes } = harness();
+  try {
+    await call(routes, 'POST', '/api/missions', 'o1', mission);
+    const input = { commandId: 'bad-command', event: 'preview' };
+    let result = await call(routes, 'POST', '/api/missions/m1/transition', 'o1', input);
+    assert.equal(result.response.statusCode, 400);
+    assert.equal(result.response.body.error.code, 'PRECONDITION_FAILED');
+    result = await call(routes, 'POST', '/api/missions/m1/transition', 'o1', input);
+    assert.equal(result.response.statusCode, 400);
+    assert.equal(result.response.body.error.code, 'PRECONDITION_FAILED');
+  } finally { db.close(); }
+});

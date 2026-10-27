@@ -24,7 +24,11 @@ export function createMissionRoutes({ auth, store }) {
     if (req.method === 'POST' && parts[3] === 'transition') {
       const input = await req.json();
       const prior = input.commandId ? store.rememberCommand(ownerId, input.commandId, { pending: true }) : { duplicate: false };
-      if (prior.duplicate) { reply(res, 200, { ...prior.result, replayed: true }); return true; }
+      if (prior.duplicate) {
+        const replayed = { ...prior.result, replayed: true };
+        reply(res, prior.result?.ok === false ? (prior.result.error?.code === 'CONFLICT' ? 409 : 400) : 200, prior.result?.ok === false ? errorBody(prior.result.error) : replayed);
+        return true;
+      }
       const result = transitionMission(mission, input.event, { ...input, ownerId });
       if (!result.ok) { if (input.commandId) store.rememberCommand(ownerId, input.commandId, result); reply(res, result.error.code === 'CONFLICT' ? 409 : 400, errorBody(result.error)); return true; }
       const updated = store.updateMission(result.mission, { ownerId, expectedRevision: mission.revision });

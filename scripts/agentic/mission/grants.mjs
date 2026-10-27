@@ -68,7 +68,8 @@ export function expireGrant(grant, context) {
   return { ok: true, grant: { ...grant, status: 'expired', revision: grant.revision + 1 } };
 }
 export function invalidateGrant(grant, context) {
-  if (!grant || !context || !context.newContractHash || context.newContractHash === grant.contractHash) return fail('CONTRACT_UNCHANGED');
+  if (!grant || !context) return fail('GRANT_INVALID');
+  if (!context.newContractHash || context.newContractHash === grant.contractHash) return fail('CONTRACT_UNCHANGED');
   if (!grant.id || !context.ownerId || grant.ownerId !== context.ownerId) return fail('FORBIDDEN');
   if (!['proposed', 'active'].includes(grant.status)) return fail('GRANT_NOT_ACTIVE');
   return { ok: true, grant: { ...grant, status: 'invalidated', revision: grant.revision + 1 } };
