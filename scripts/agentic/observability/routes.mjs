@@ -15,8 +15,16 @@
 
 import { createObservabilityStore, parseJsonOr } from './store.mjs';
 import { createSpanRecorder } from './spans.mjs';
+import { observabilityError, OBS_ERROR_CODES } from './vocabulary.mjs';
 
 export const OBS_ROUTE_PATHS = Object.freeze(['/api/runs/:id/trace', '/api/runs/:id/activity', '/api/cache/stale']);
+
+/**
+ * Documented default SLA for the activity view. A span still `running` whose
+ * start is older than this is surfaced as `timed_out` (N9): neither a failure
+ * the system chose nor a success. W13 can override it per mount.
+ */
+export const DEFAULT_ACTIVITY_SLA_MS = 60_000;
 
 const JSON_HEADERS = Object.freeze({ 'content-type': 'application/json; charset=utf-8' });
 
@@ -95,25 +103,51 @@ function cacheRowForApi(row) {
 }
 
 /**
- * Count span outcomes for the activity view.
- *
- * `running`/`incomplete` stays separate from both success and failure: a trace
- * cut short is neither (N9/N10).
+ * Count span outcomes for the activity view by delegating to the spans module
+ * (the declared dependency), so the API and the metrics/bundle consumers share
+ * one classification: `incomplete` is the total of non-terminal spans, split
+ * into `running` (within SLA) and `timed_out` (beyond it). A span cut short is
+ * never counted twice and never promoted to success or failure (N9/N10).
  */
-function activityCounts(rows) {
-  const counts = { succeeded: 0, failed: 0, running: 0, incomplete: 0 };
-  for (const row of rows) {
-    if (row.status === 'ok') counts.succeeded += 1;
-    else if (row.status === 'error') counts.failed += 1;
-    else {
-      counts.running += 1;
-      counts.incomplete += 1;
-    }
-  }
-  return counts;
+function activityPayload(recorder, ownerId, run, rows, slaMs) {
+  const classified = recorder.classifyOutcome({
+    ownerId,
+    runId: run.id,
+    now: new Date().toISOString(),
+    slaMs,
+  });
+  const byId = new Map(classified.spans.map((entry) => [entry.id, entry]));
+  return {
+    runId: run.id,
+    counts: classified.counts,
+    items: rows.map((row) => {
+      const entry = byId.get(row.id) ?? null;
+      return {
+        id: row.id,
+        name: row.name,
+        kind: row.kind,
+        status: row.status,
+        startedAt: row.started_at,
+        endedAt: row.ended_at ?? null,
+        actorRole: row.actor_role ?? null,
+        resolvedModel: row.resolved_model ?? null,
+        modelSource: row.model_source ?? null,
+        provenance: row.provenance,
+        error: row.error ?? null,
+        outcome: entry?.outcome ?? null,
+        timedOut: entry === null ? null : entry.outcome === 'timed_out',
+      };
+    }),
+  };
 }
 
-export function createObservabilityRoutes({ db, auth } = {}) {
+export function createObservabilityRoutes({ db, auth, activitySlaMs = DEFAULT_ACTIVITY_SLA_MS } = {}) {
+  if (typeof activitySlaMs !== 'number' || !Number.isFinite(activitySlaMs) || activitySlaMs < 0) {
+    throw observabilityError(
+      OBS_ERROR_CODES.INVALID_ARGUMENT,
+      'activitySlaMs must be a finite non-negative number of milliseconds',
+    );
+  }
   const store = createObservabilityStore({ db });
   const recorder = createSpanRecorder({ store });
 
@@ -153,23 +187,7 @@ export function createObservabilityRoutes({ db, auth } = {}) {
     }
 
     const rows = store.listRunSpans(ownerId, run.id);
-    send(res, 200, {
-      runId: run.id,
-      counts: activityCounts(rows),
-      items: rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        kind: row.kind,
-        status: row.status,
-        startedAt: row.started_at,
-        endedAt: row.ended_at ?? null,
-        actorRole: row.actor_role ?? null,
-        resolvedModel: row.resolved_model ?? null,
-        modelSource: row.model_source ?? null,
-        provenance: row.provenance,
-        error: row.error ?? null,
-      })),
-    });
+    send(res, 200, activityPayload(recorder, ownerId, run, rows, activitySlaMs));
     return true;
   };
 }

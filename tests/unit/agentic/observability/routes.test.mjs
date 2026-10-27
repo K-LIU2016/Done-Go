@@ -11,14 +11,14 @@ const routesApi = () => loadModule('routes.mjs');
 const schemaDir = fileURLToPath(CONTRACTS_DIR);
 const apiErrorSchema = () => JSON.parse(readFileSync(`${schemaDir}api-error.schema.json`, 'utf8'));
 
-async function freshRoutes(auth = () => ({ ownerId: 'owner-a' })) {
+async function freshRoutes(auth = () => ({ ownerId: 'owner-a' }), options = {}) {
   const { openAgenticDb } = await dbApi();
   const { applyObservabilityMigrations, createObservabilityStore } = await storeApi();
   const { createObservabilityRoutes } = await routesApi();
   const db = openAgenticDb(':memory:');
   applyObservabilityMigrations(db);
   const store = createObservabilityStore({ db });
-  const route = createObservabilityRoutes({ db, auth });
+  const route = createObservabilityRoutes({ db, auth, ...options });
   return { db, store, route };
 }
 
@@ -133,6 +133,69 @@ test('routes: activity is owner scoped as well (N12)', async () => {
   assert.equal(res.json().error.code, 'NOT_FOUND');
 });
 
+test('routes: activity counts each non-terminal span once, split by SLA (N9)', async () => {
+  const { route, store } = await freshRoutes(() => ({ ownerId: 'owner-a' }), { activitySlaMs: 60_000 });
+  await seedRun(store);
+  const recent = new Date(Date.now() - 1_000).toISOString();
+  const tooOld = new Date(Date.now() - 300_000).toISOString();
+  store.insertSpan(span({ id: 'live', status: 'running', startedAt: recent, endedAt: undefined }), { ownerId: 'owner-a', runId: 'run-1' });
+  store.insertSpan(span({ id: 'late', status: 'running', startedAt: tooOld, endedAt: undefined }), { ownerId: 'owner-a', runId: 'run-1' });
+  const { res } = call(route, { url: '/api/runs/run-1/activity' });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  // one bucket per span: incomplete is the total, running/timed_out the split
+  assert.equal(body.counts.incomplete, 2);
+  assert.equal(body.counts.running, 1);
+  assert.equal(body.counts.timed_out, 1);
+  assert.equal(body.counts.running + body.counts.timed_out, body.counts.incomplete);
+  // a timeout is neither a failure the system chose nor a success (N9)
+  assert.equal(body.counts.succeeded, 0);
+  assert.equal(body.counts.failed, 0);
+  const late = body.items.find((item) => item.id === 'late');
+  assert.equal(late.outcome, 'timed_out');
+  assert.equal(late.timedOut, true);
+  assert.equal(late.status, 'running');
+  const live = body.items.find((item) => item.id === 'live');
+  assert.equal(live.outcome, 'running');
+  assert.equal(live.timedOut, false);
+});
+
+test('routes: activity applies the documented default SLA when the mounter does not override it', async () => {
+  const { createObservabilityRoutes, DEFAULT_ACTIVITY_SLA_MS } = await routesApi();
+  assert.equal(typeof DEFAULT_ACTIVITY_SLA_MS, 'number');
+  const { openAgenticDb } = await dbApi();
+  const { applyObservabilityMigrations, createObservabilityStore } = await storeApi();
+  const db = openAgenticDb(':memory:');
+  applyObservabilityMigrations(db);
+  const store = createObservabilityStore({ db });
+  const route = createObservabilityRoutes({ db, auth: () => ({ ownerId: 'owner-a' }) });
+  await seedRun(store);
+  const wayPast = new Date(Date.now() - DEFAULT_ACTIVITY_SLA_MS * 10).toISOString();
+  store.insertSpan(span({ id: 'ancient', status: 'running', startedAt: wayPast, endedAt: undefined }), { ownerId: 'owner-a', runId: 'run-1' });
+  const { res } = call(route, { url: '/api/runs/run-1/activity' });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.counts.timed_out, 1);
+  assert.equal(body.counts.running, 0);
+  assert.equal(body.counts.incomplete, 1);
+});
+
+test('routes: the factory rejects an invalid activity SLA at mount time, not per request', async () => {
+  const { createObservabilityRoutes } = await routesApi();
+  const { openAgenticDb } = await dbApi();
+  const { applyObservabilityMigrations } = await storeApi();
+  const db = openAgenticDb(':memory:');
+  applyObservabilityMigrations(db);
+  for (const bad of [-1, Number.NaN, '60000', null]) {
+    assert.throws(
+      () => createObservabilityRoutes({ db, auth: () => ({ ownerId: 'owner-a' }), activitySlaMs: bad }),
+      (error) => error.code === 'INVALID_ARGUMENT',
+      `activitySlaMs=${String(bad)} must be rejected`,
+    );
+  }
+  db.close();
+});
+
 test('routes: GET /api/cache/stale lists only stale entries for the owner', async () => {
   const { route, store } = await freshRoutes();
   const base = {
@@ -178,6 +241,13 @@ test('routes: /api/runs (no id) is not handled', async () => {
   assert.equal(call(route, { url: '/api/runs' }).handled, false);
   assert.equal(call(route, { url: '/api/runs//trace' }).handled, false);
   assert.equal(call(route, { url: '/api/runs/run-1/unknown-sub' }).handled, false);
+});
+
+test('routes: a malformed percent-encoded path falls through, never a 500', async () => {
+  const { route } = await freshRoutes();
+  const { handled, res } = call(route, { url: '/api/runs/%/trace' });
+  assert.equal(handled, false);
+  assert.equal(res.ended, false);
 });
 
 test('routes: every route response is JSON so the client never guesses a format', async () => {
