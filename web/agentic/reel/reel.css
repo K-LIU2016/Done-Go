@@ -1,0 +1,37 @@
+/* W11 reel-player · 预演片播放器宿主页样式（web/agentic/reel/reel.css）。
+ * 取值逐条对照 prototype.html:165-185，与 scripts/agentic/composer/compose-reel.mjs 内联的
+ * STYLE 保持同一套规格——composeReel 输出的自包含页自带样式不引本文件；本文件供宿主页面
+ * （W5 预演片全屏播放器、demo 页）内嵌播放器时 <link> 引入，或由播放器自建控制条时兜底。
+ * 播放器运行时用 Web Animations 驱动交叉过渡与 Ken Burns，不依赖这里的 animation/transition
+ * （.on + @keyframes kb 是无 JS 时的渐进增强回退）；末尾 reduced-motion 全局降级为分步静态。
+ */
+
+.reel { position: fixed; inset: 0; z-index: 40; background: rgba(12, 18, 15, .86); display: grid; place-items: center; padding: 16px; }
+.reel > div { width: min(960px, 100%); }
+.reel .stage { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 16px; overflow: hidden; background: #000; touch-action: none; }
+
+/* 顶部 3px 进度条（prototype:175，播放器按增量更新 width） */
+.reel .prog { position: absolute; left: 0; top: 0; height: 3px; background: var(--you, #4D7699); width: 0; z-index: 2; }
+
+/* 镜头：交叉过渡 .6s（prototype:168-169）；播放器用 WAAPI fill forwards 覆盖，这里是回退 */
+.reel .shot { position: absolute; inset: 0; opacity: 0; transition: opacity .6s; }
+.reel .shot.on { opacity: 1; }
+.reel .shot img { width: 100%; height: 100%; object-fit: cover; }
+.reel .shot.on img { animation: kb 7s ease-out forwards; }
+@keyframes kb { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.09) translate(-2%, -1%); } }
+
+/* 字幕条（prototype:173-174）：每句一条 .cap，播放器按时间轴增量显隐；<small> 为时间标签 */
+.reel .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 22px 20px; color: #fff; background: linear-gradient(transparent, rgba(0, 0, 0, .72)); font-size: clamp(14px, 2.2vw, 19px); }
+.reel .cap small { display: block; opacity: .75; font-size: 12px; margin-bottom: 2px; letter-spacing: .08em; }
+
+/* 示意水印（PRD §5.2「示意标注」，配图镜头由 composeReel 内联；此处兜底） */
+.reel .wm { position: absolute; right: 8px; bottom: 6px; font-size: 11px; color: #fff; background: rgba(0, 0, 0, .38); border-radius: 6px; padding: 1px 6px; letter-spacing: .1em; }
+
+/* 控制条（prototype:176-177）：播放/暂停/继续/重播、关闭；reduced-motion 下换 上一步/下一步 */
+.reel .ctl { display: flex; gap: 10px; margin-top: 12px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.reel .ctl .btn { border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .12); color: #fff; border-radius: 999px; padding: 8px 16px; min-height: 40px; font: inherit; cursor: pointer; }
+.reel .ctl .btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.reel .ctl .reel-time { color: rgba(255, 255, 255, .75); font-size: 12px; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+
+/* reduced-motion：关全部动画/过渡（prototype:185），播放器同步降级为分步静态 */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
