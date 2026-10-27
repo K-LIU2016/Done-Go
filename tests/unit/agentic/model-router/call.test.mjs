@@ -115,7 +115,10 @@ test('M5 负面 · transport timeout（AbortSignal）→ UPSTREAM_UNAVAILABLE', 
 
 // ---------------- complete：负面路径先行 ----------------
 
-function makeService({ decision = selectedDecision(), responder, ledger } = {}) {
+// 注：RED 基线此处原为 `decision = selectedDecision()`（对象），但 helper 会以
+// 函数形式调用 decision(...)——实现前该文件在 import 阶段即整体失败，此潜在
+// bug 从未暴露。修正为传工厂本身（断言全部保持不变，仅修 mock 接线）。
+function makeService({ decision = selectedDecision, responder, ledger } = {}) {
   const fetcher = mockFetch(responder ?? (() => okResponse({
     model: 'gpt-6-sol', choices: [{ message: { content: 'answer' } }], usage: { total_tokens: 42 },
   })));
@@ -230,10 +233,172 @@ test('M5 负面 · 预算耗尽（budget.calls=0）→ BUDGET_EXCEEDED，不选�
 
 test('M5 负面 · 台账跨 owner 查询隔离', async () => {
   const { ledger } = freshLedger();
-  ledger.record({ ownerId: 'owner-1', actor: 'a@w7', taskClass: 'reason', dataClass: 'public', model: 'gpt-6-sol', provenance: {}, status: 'selected' });
+  ledger.record({ ownerId: 'owner-1', actor: 'a@w7', taskClass: 'reason', dataClass: 'public', model: 'gpt-6-sol', provenance: { rule: 'r' }, status: 'selected' });
   ledger.record({ ownerId: 'owner-1', actor: 'a@w7', taskClass: 'code', dataClass: 'public', model: null, provenance: {}, status: 'unknown' });
   const mine = ledger.list({ ownerId: 'owner-1' });
   assert.equal(mine.length, 2);
   assert.deepEqual(ledger.list({ ownerId: 'owner-2' }), [], 'cross-owner ledger rows must be invisible');
   assert.equal(mine.find(r => r.status === 'unknown').model, null, 'UNKNOWN rows keep model=NULL');
+  assert.deepEqual(mine.find(r => r.status === 'selected').provenance, { rule: 'r' }, 'provenance round-trips as parsed JSON');
+});
+
+// ---------------- 补充负面路径（fail-closed 构造/校验分支） ----------------
+
+const rejectsCode = (promise, code) => assert.rejects(promise, err => err.code === code);
+
+test('M5 负面 · transport 构造缺 baseUrl/apiKey/fetch/timeoutMs → CONTRACT_INVALID', () => {
+  const fetcher = mockFetch(() => okResponse({}));
+  const cases = [
+    { fetch: fetcher, apiKey: 'k', timeoutMs: 10 },               // 缺 baseUrl
+    { baseUrl: BASE, fetch: fetcher, timeoutMs: 10 },              // 缺 apiKey
+    { baseUrl: BASE, apiKey: 'k', timeoutMs: 10 },                 // 缺 fetch（绝不回退全局 fetch）
+    { baseUrl: BASE, apiKey: 'k', fetch: fetcher },                // 缺 timeoutMs
+    { baseUrl: BASE, apiKey: 'k', fetch: fetcher, timeoutMs: 0 },  // 非正数
+    { baseUrl: BASE, apiKey: 'k', fetch: fetcher, timeoutMs: 'x' },// 非数字
+  ];
+  for (const options of cases) {
+    assert.throws(() => createChatTransport(options), err => err.code === 'CONTRACT_INVALID');
+  }
+});
+
+test('M5 · baseUrl 尾斜杠归一后仍 POST /chat/completions', async () => {
+  const fetcher = mockFetch(() => okResponse({ model: 'm' }));
+  const transport = createChatTransport({ baseUrl: `${BASE}/`, apiKey: 'k', fetch: fetcher, timeoutMs: 1000 });
+  await transport.chat({ model: 'm', messages: [] });
+  assert.equal(fetcher.calls[0].url, `${BASE}/chat/completions`);
+});
+
+test('M5 负面 · chat 载荷非对象（null/数组）→ CONTRACT_INVALID', async () => {
+  const transport = createChatTransport({ baseUrl: BASE, apiKey: 'k', fetch: mockFetch(() => okResponse({})), timeoutMs: 1000 });
+  await rejectsCode(transport.chat(null), 'CONTRACT_INVALID');
+  await rejectsCode(transport.chat([]), 'CONTRACT_INVALID');
+});
+
+test('M5 负面 · transport 401 → FORBIDDEN；429 → RATE_LIMITED；500 → UPSTREAM_UNAVAILABLE（带 status）', async () => {
+  for (const [status, code] of [[401, 'FORBIDDEN'], [429, 'RATE_LIMITED'], [500, 'UPSTREAM_UNAVAILABLE']]) {
+    const transport = createChatTransport({
+      baseUrl: BASE, apiKey: 'k', timeoutMs: 1000,
+      fetch: mockFetch(() => ({ status, ok: false, json: async () => ({}) })),
+    });
+    await assert.rejects(
+      () => transport.chat({ model: 'm', messages: [] }),
+      err => err.code === code && err.status === status,
+    );
+  }
+});
+
+test('M5 负面 · 2xx 响应非 JSON / JSON 非对象 / fetch 返回非对象 → UPSTREAM_UNAVAILABLE', async () => {
+  const badJson = { status: 200, ok: true, json: async () => { throw new Error('not json'); } };
+  const arrayBody = { status: 200, ok: true, json: async () => [] };
+  for (const response of [badJson, arrayBody, null]) {
+    const transport = createChatTransport({ baseUrl: BASE, apiKey: 'k', fetch: mockFetch(() => response), timeoutMs: 1000 });
+    await rejectsCode(transport.chat({ model: 'm', messages: [] }), 'UPSTREAM_UNAVAILABLE');
+  }
+});
+
+test('M5 负面 · ledger 构造缺 db / record 入参非法 → 结构化拒绝', () => {
+  assert.throws(() => createSelectionLedger({}), /db handle is required/);
+  const { ledger } = freshLedger();
+  const base = { ownerId: 'o', actor: 'a', taskClass: 'reason', dataClass: 'public', model: null, provenance: null, status: 'unknown' };
+  assert.throws(() => ledger.record(null), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => ledger.record({ ...base, status: 'bogus' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => ledger.record({ ...base, model: 42 }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => ledger.record({ ...base, provenance: 'x' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => ledger.record({ ...base, ownerId: '' }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => ledger.list({ ownerId: '' }), err => err.code === 'CONTRACT_INVALID');
+  // '' model 归一为 NULL = UNKNOWN；recordedAt 可注入（确定性簿记）
+  const row = ledger.record({ ...base, model: '', recordedAt: NOW }).record;
+  assert.equal(row.model, null);
+  assert.equal(ledger.list({ ownerId: 'o' })[0].recordedAt, NOW);
+});
+
+test('M5 负面 · service 构造缺 select/transport/ledger/clock → CONTRACT_INVALID', () => {
+  const good = {
+    select: async () => selectedDecision(),
+    transport: createChatTransport({ baseUrl: BASE, apiKey: 'k', fetch: mockFetch(() => okResponse({})), timeoutMs: 10 }),
+    ledger: freshLedger().ledger,
+    clock: { now: () => Date.parse(NOW) },
+  };
+  const drop = key => { const options = { ...good }; delete options[key]; return options; };
+  for (const key of ['select', 'transport', 'ledger', 'clock']) {
+    assert.throws(() => createCompletionService(drop(key)), err => err.code === 'CONTRACT_INVALID', `missing ${key}`);
+  }
+  assert.throws(() => createCompletionService({ ...good, transport: {} }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => createCompletionService({ ...good, ledger: {} }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => createCompletionService({ ...good, clock: {} }), err => err.code === 'CONTRACT_INVALID');
+});
+
+test('M5 负面 · complete 入参缺失（taskClass/messages/opts/actor/ownerId/dataClass）→ CONTRACT_INVALID', async () => {
+  const { service, fetcher } = makeService();
+  await rejectsCode(service.complete('', [{ role: 'user', content: 'q' }], OPTS), 'CONTRACT_INVALID');
+  await rejectsCode(service.complete('reason', [], OPTS), 'CONTRACT_INVALID');
+  await rejectsCode(service.complete('reason', 'not-array', OPTS), 'CONTRACT_INVALID');
+  await rejectsCode(service.complete('reason', [{ role: 'user', content: 'q' }], null), 'CONTRACT_INVALID');
+  for (const key of ['actor', 'ownerId', 'dataClass']) {
+    const bad = { ...OPTS }; delete bad[key];
+    await rejectsCode(service.complete('reason', [{ role: 'user', content: 'q' }], bad), 'CONTRACT_INVALID', `missing ${key}`);
+  }
+  assert.equal(fetcher.calls.length, 0);
+});
+
+test('M5 负面 · 预算缺失或 tokens=0 → BUDGET_EXCEEDED（不选型不调用）', async () => {
+  const { service, fetcher } = makeService();
+  const noBudget = { ...OPTS }; delete noBudget.budget;
+  await rejectsCode(service.complete('reason', [{ role: 'user', content: 'q' }], noBudget), 'BUDGET_EXCEEDED');
+  await rejectsCode(
+    service.complete('reason', [{ role: 'user', content: 'q' }], { ...OPTS, budget: { calls: 3, tokens: 0 } }),
+    'BUDGET_EXCEEDED',
+  );
+  assert.equal(fetcher.calls.length, 0);
+});
+
+test('M5 负面 · select 抛结构化错误 → 台账 rejected 后原样上抛（不吞）', async () => {
+  const original = new Error('router rejected');
+  original.code = 'FORBIDDEN';
+  const led = freshLedger().ledger;
+  const service = createCompletionService({
+    select: async () => { throw original; },
+    transport: createChatTransport({ baseUrl: BASE, apiKey: 'k', fetch: mockFetch(() => okResponse({})), timeoutMs: 10 }),
+    ledger: led,
+    clock: { now: () => Date.parse(NOW) },
+  });
+  await assert.rejects(
+    () => service.complete('reason', [{ role: 'user', content: 'q' }], OPTS),
+    err => err === original, 'the router error must be rethrown as-is',
+  );
+  const row = led.list({ ownerId: 'owner-1' })[0];
+  assert.equal(row.status, 'rejected');
+  assert.equal(row.model, null);
+  assert.equal(row.provenance, null);
+});
+
+test('M5 负面 · select 返回非对象 / 非法 status → CONTRACT_INVALID 且台账 rejected', async () => {
+  for (const decision of [null, { status: 'bogus', provenance: {} }]) {
+    const led = freshLedger().ledger;
+    const service = createCompletionService({
+      select: async () => decision,
+      transport: createChatTransport({ baseUrl: BASE, apiKey: 'k', fetch: mockFetch(() => okResponse({})), timeoutMs: 10 }),
+      ledger: led, clock: { now: () => Date.parse(NOW) },
+    });
+    await rejectsCode(service.complete('reason', [{ role: 'user', content: 'q' }], OPTS), 'CONTRACT_INVALID');
+    assert.equal(led.list({ ownerId: 'owner-1' })[0].status, 'rejected');
+  }
+});
+
+test('M5 · 成功路径透传 usage；provenance 非对象时按 null 记账', async () => {
+  const led = freshLedger().ledger;
+  const service = createCompletionService({
+    select: async () => ({ ...selectedDecision(), provenance: 'not-an-object' }),
+    transport: createChatTransport({
+      baseUrl: BASE, apiKey: 'k', timeoutMs: 1000,
+      fetch: mockFetch(() => okResponse({ model: 'gpt-6-sol', choices: [{ message: { content: 'answer' } }], usage: { total_tokens: 42 } })),
+    }),
+    ledger: led, clock: { now: () => Date.parse(NOW) },
+  });
+  const result = await service.complete('reason', [{ role: 'user', content: 'q' }], OPTS);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.usage, { total_tokens: 42 });
+  const row = led.list({ ownerId: 'owner-1' })[0];
+  assert.equal(row.provenance, null, 'malformed provenance is recorded as null, never guessed');
+  assert.equal(row.recordedAt, new Date(Date.parse(NOW)).toISOString(), 'recorded_at derives from the injected clock');
 });
