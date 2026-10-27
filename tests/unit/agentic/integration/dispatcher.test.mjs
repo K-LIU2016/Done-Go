@@ -31,7 +31,12 @@ const OWNER_A = { ownerId: 'owner-a', actor: 'user:owner-a' };
 const OWNER_B = { ownerId: 'owner-b', actor: 'user:owner-b' };
 
 function makeDispatcher(options = {}) {
-  const context = stubContext({ auth: principalAuth(options.principal ?? OWNER_A) });
+  // 显式 principal:null 必须原样透传（未登录场景）；仅未提供时才默认 OWNER_A。
+  // 原写法 `options.principal ?? OWNER_A` 会把 null 复活成 OWNER_A，使 401/
+  // public-path 两个场景不可达（任何正确实现都无法通过）——测试基建修复，
+  // 断言本身不变（RED 清单：未登录 401 / public bypass）。
+  const principal = options.principal === undefined ? OWNER_A : options.principal;
+  const context = stubContext({ auth: principalAuth(principal) });
   const dispatcher = createAgenticDispatcher({ context, ...options });
   return { dispatcher, context };
 }
@@ -262,4 +267,169 @@ test('dispatcher authenticates exactly once per request, not once per handler', 
   });
   await dispatcher.handle(fakeReq({ url: '/api/blocks/sync', body: {} }), fakeRes(), '/api/blocks/sync');
   assert.equal(authCalls, 1);
+});
+
+// —— M14 补充组：构造校验、鉴权器故障、requestId 故障、已发头失败路径、
+// 真实 ServerResponse 形状（getHeader）、events 汇故障、信封归一边界。
+// 仅新增用例，不改动上方任何既有断言（TDD 红线：不删测试/不放宽校验）。
+
+test('constructor validates injection: context/auth/handlers/legacy/requestId/maxBodyBytes', () => {
+  const good = () => makeDispatcher();
+  assert.throws(() => createAgenticDispatcher({ handlers: [] }), /context required/);
+  assert.throws(() => createAgenticDispatcher({ context: { auth: null }, handlers: [] }), /context\.auth required/);
+  assert.throws(() => createAgenticDispatcher({ context: stubContext(), handlers: 'nope' }), /handlers must be an array/);
+  assert.throws(() => createAgenticDispatcher({ context: stubContext(), handlers: [], legacy: 42 }), /legacy must be a function/);
+  assert.throws(() => createAgenticDispatcher({ context: stubContext(), handlers: [], requestId: 'x' }), /requestId must be a function/);
+  assert.throws(() => createAgenticDispatcher({ context: stubContext(), handlers: [], maxBodyBytes: 0 }), /maxBodyBytes must be a positive integer/);
+  good(); // 完整注入可构造
+});
+
+test('auth resolver throwing is treated as unauthenticated: 401 on protected paths', async () => {
+  const context = stubContext({ auth: () => { throw new Error('session store exploded'); } });
+  const dispatcher = createAgenticDispatcher({ context, handlers: [async () => true] });
+  const res = fakeRes();
+  assert.equal(await dispatcher.handle(fakeReq({ url: '/api/blocks/sync', body: {} }), res, '/api/blocks/sync'), true);
+  assertErrorEnvelope(res, { status: 401, code: 'AUTH_REQUIRED' });
+});
+
+test('requestId generator throwing never breaks the request; envelope omits requestId when absent', async () => {
+  const { dispatcher } = makeDispatcher({
+    requestId: () => { throw new Error('id gen broken'); },
+    handlers: [async () => { throw { code: 'CONFLICT', message: 'rev' }; }],
+  });
+  const res = fakeRes();
+  assert.equal(await dispatcher.handle(fakeReq({ url: '/api/blocks/sync', body: {} }), res, '/api/blocks/sync'), true);
+  const envelope = assertErrorEnvelope(res, { status: 409, code: 'CONFLICT' });
+  assert.equal('requestId' in envelope.error, false, 'no requestId key when generation failed');
+});
+
+test('context without idGen/clock still serves and omits requestId and event timestamps', async () => {
+  const bare = { auth: () => OWNER_A }; // 无 idGen/clock/events（最小上下文）
+  const dispatcher = createAgenticDispatcher({ context: bare, handlers: [async () => { throw { code: 'NOT_FOUND', message: 'x' }; }] });
+  const res = fakeRes();
+  assert.equal(await dispatcher.handle(fakeReq({ url: '/api/missions/m', body: {} }), res, '/api/missions/m'), true);
+  assertErrorEnvelope(res, { status: 404, code: 'NOT_FOUND' });
+});
+
+test('failure after JSON headers were sent: stream is ended, no second status line is written', async () => {
+  const { dispatcher } = makeDispatcher({
+    handlers: [async (req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      res.write('{"partial":');
+      throw { code: 'INTERNAL_ERROR' };
+    }],
+  });
+  const res = fakeRes();
+  await dispatcher.handle(fakeReq({ url: '/api/blocks/sync', body: {} }), res, '/api/blocks/sync');
+  assert.equal(res.statusCode, 200, 'headers already sent cannot be replaced');
+  assert.equal(res.writableEnded, true, 'response must terminate');
+});
+
+test('failure after the response fully ended: nothing further is written, request stays handled', async () => {
+  const { dispatcher } = makeDispatcher({
+    handlers: [async (req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      res.end('{}');
+      throw { code: 'INTERNAL_ERROR' };
+    }],
+  });
+  const res = fakeRes();
+  assert.equal(await dispatcher.handle(fakeReq({ url: '/api/blocks/sync', body: {} }), res, '/api/blocks/sync'), true);
+  assert.equal(res.text(), '{}');
+});
+
+test('real ServerResponse shape (getHeader, no .headers): SSE error frame still emitted', async () => {
+  const { dispatcher } = makeDispatcher({
+    handlers: [async (req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8' });
+      res.write('data: {"layer":"shape"}\n\n');
+      throw { code: 'UPSTREAM_UNAVAILABLE', message: 'gateway cut' };
+    }],
+  });
+  // 模拟真实 http.ServerResponse：headers 只经 getHeader(name) 读取（大小写
+  // 不敏感），实例上没有 .headers 属性（与 fakeRes 不同）；不带 on/close。
+  const sentHeaders = {};
+  const chunks = [];
+  const res = {
+    statusCode: 0,
+    headersSent: false,
+    writableEnded: false,
+    writeHead(status, headers) {
+      res.statusCode = status;
+      for (const [key, value] of Object.entries(headers || {})) sentHeaders[key.toLowerCase()] = value;
+      res.headersSent = true;
+      return res;
+    },
+    getHeader: name => sentHeaders[String(name).toLowerCase()],
+    write: chunk => { chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); return true; },
+    end() { res.writableEnded = true; return res; },
+    text: () => Buffer.concat(chunks).toString('utf8'),
+  };
+  res.sseFrames = () => res.text().split('\n\n')
+    .filter(block => block.startsWith('data:'))
+    .map(block => JSON.parse(block.replace(/^data:\s?/mg, '').trim()));
+  await dispatcher.handle(fakeReq({ method: 'GET', url: '/api/missions/m1/preview' }), res, '/api/missions/m1/preview');
+  assert.equal(res.writableEnded, true);
+  const frames = res.sseFrames();
+  const last = frames[frames.length - 1];
+  assert.ok(JSON.stringify(last).includes('UPSTREAM_UNAVAILABLE'), 'real-shape SSE must still get the error frame');
+});
+
+test('events sink throwing during disconnect never crashes the dispatch path', async () => {
+  const context = stubContext({ auth: () => OWNER_A, events: { emit: () => { throw new Error('sink down'); }, recorded: () => [] } });
+  const dispatcher = createAgenticDispatcher({
+    context,
+    handlers: [async (req, res, pathname, env) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.destroy();
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(env.signal.aborted, true, 'abort still fires when the sink is broken');
+      return true;
+    }],
+  });
+  assert.equal(await dispatcher.handle(fakeReq({ method: 'GET', url: '/api/runs/r1/activity' }), fakeRes(), '/api/runs/r1/activity'), true);
+});
+
+test('legacy returning false propagates as not handled', async () => {
+  const { dispatcher } = makeDispatcher({
+    handlers: [async () => false],
+    legacy: async () => false,
+  });
+  const res = fakeRes();
+  assert.equal(await dispatcher.handle(fakeReq({ url: '/api/other' }), res, '/api/other'), false);
+  assert.equal(res.headersSent, false);
+});
+
+test('empty handler chain with no legacy: false, response untouched', async () => {
+  const { dispatcher } = makeDispatcher({ handlers: [] });
+  const res = fakeRes();
+  assert.equal(await dispatcher.handle(fakeReq({ url: '/x' }), res, '/x'), false);
+  assert.equal(res.headersSent, false);
+});
+
+test('envelope normalization edges: empty message falls back to code; non-object details dropped; fractional status ignored', async () => {
+  const { dispatcher } = makeDispatcher({
+    handlers: [async () => { throw { code: 'RATE_LIMITED', message: '', details: 'leaky', status: 429.5 }; }],
+  });
+  const res = fakeRes();
+  await dispatcher.handle(fakeReq({ url: '/api/blocks/sync', body: {} }), res, '/api/blocks/sync');
+  const envelope = assertErrorEnvelope(res, { status: 429, code: 'RATE_LIMITED' });
+  assert.equal(envelope.error.message, 'RATE_LIMITED', 'empty message falls back to the code, never an empty string');
+  assert.equal('details' in envelope.error, false, 'non-object details must be dropped');
+});
+
+test('body limit drains the remainder before rejecting (single oversized chunk and streamed chunks)', async () => {
+  for (const body of [Buffer.from('{"pad":"' + 'x'.repeat(4096) + '"}'), Buffer.concat([
+    Buffer.from('{"a":"'), Buffer.from('y'.repeat(2048)), Buffer.from('"}'),
+  ])]) {
+    const { dispatcher } = makeDispatcher({
+      maxBodyBytes: 32,
+      handlers: [async (req, res, pathname, env) => { await env.readBody(); return true; }],
+    });
+    const res = fakeRes();
+    await dispatcher.handle(fakeReq({ url: '/api/blocks/sync', body }), res, '/api/blocks/sync');
+    const envelope = assertErrorEnvelope(res);
+    assert.equal(res.statusCode, 413);
+    assert.equal(envelope.error.details.limitBytes, 32);
+  }
 });

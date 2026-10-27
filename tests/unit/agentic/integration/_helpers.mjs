@@ -66,7 +66,9 @@ export function fakeRes() {
   const chunks = [];
   res.writeHead = (status, headers) => {
     res.statusCode = status;
-    res.headers = headers || {};
+    // node 语义：header 名大小写不敏感（内部一律小写）；12 流路由全部
+    // 小写 'content-type' 写法，此处按 node 行为归一化，读写两侧解耦。
+    res.headers = Object.fromEntries(Object.entries(headers || {}).map(([key, value]) => [key.toLowerCase(), value]));
     res.headersSent = true;
     return res;
   };
@@ -101,7 +103,10 @@ export function fakeRes() {
 /** Envelope assertions against the FROZEN api-error schema. */
 export function assertErrorEnvelope(res, { status, code } = {}) {
   assert.ok(res.headersSent, 'response must have headers');
-  assert.equal(res.statusCode, status, `expected HTTP ${status}, got ${res.statusCode}: ${res.text?.() ?? ''}`);
+  // status/code 仅在显式传入时断言（无参调用只校验信封合法性本身）。
+  if (status !== undefined) {
+    assert.equal(res.statusCode, status, `expected HTTP ${status}, got ${res.statusCode}: ${res.text?.() ?? ''}`);
+  }
   assert.match(res.headers['content-type'] || '', /^application\/json/);
   assert.equal(res.headers['cache-control'], 'no-store');
   const body = res.json();
