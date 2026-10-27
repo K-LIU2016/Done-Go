@@ -1,3 +1,5 @@
+import { COMPLETION_EVENT_TYPES, normalizeActorProvenance } from './actor-model-boundary.mjs';
+
 const EVENT_TYPES = Object.freeze({
   grantIssued: 'autonomy.grant.issued',
   grantConsumed: 'autonomy.grant.consumed',
@@ -20,13 +22,22 @@ function auditError() {
 function eventFor(type, fields = {}) {
   const actor = fields.actor ?? {};
   const { actor: _actor, at, ...rest } = fields;
+  let provenance = null;
+  if (fields.actor !== undefined) {
+    try { provenance = normalizeActorProvenance(actor); } catch { provenance = null; }
+  }
+  const unknownActor = provenance?.status === 'UNKNOWN';
+  const completionEvent = COMPLETION_EVENT_TYPES.includes(type);
   return {
     ...rest,
     type,
-    actorId: rest.actorId ?? actor.actorId ?? null,
-    modelProvider: rest.modelProvider ?? actor.modelProvider ?? null,
-    resolvedModel: rest.resolvedModel ?? actor.resolvedModel ?? null,
-    status: rest.status ?? (type.endsWith('.unknown') ? 'UNKNOWN' : undefined),
+    actorId: rest.actorId ?? provenance?.actorId ?? actor.actorId ?? null,
+    modelProvider: rest.modelProvider ?? provenance?.modelProvider ?? actor.modelProvider ?? null,
+    requestedModel: rest.requestedModel ?? provenance?.requestedModel ?? actor.requestedModel ?? null,
+    resolvedModel: rest.resolvedModel ?? provenance?.resolvedModel ?? actor.resolvedModel ?? null,
+    actorStatus: rest.actorStatus ?? provenance?.status ?? null,
+    status: unknownActor && completionEvent ? 'UNKNOWN' : (rest.status ?? (type.endsWith('.unknown') ? 'UNKNOWN' : undefined)),
+    code: unknownActor && completionEvent ? 'ACTOR_MODEL_UNKNOWN' : rest.code,
     at: at ?? new Date().toISOString(),
   };
 }
