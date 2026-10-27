@@ -311,15 +311,121 @@ test('idempotent replay: same (mission, baseVersion, utterance) returns the same
       parsePatch: parserReturning({ sources: { include: ['国内 K12'] } }),
     });
     assert.equal(spaced.replayed, true);
-    // A different utterance on the same base is a new turn (chained onto latest).
+    // A different utterance chains as a new turn onto the fresh base (v2).
+    // (Spec repair: the original baseVersion: 1 was state-isomorphic to the
+    // stale-base CONFLICT case in the "stale baseVersion" test above and to
+    // routes.test.mjs's stale-base 409 — no deterministic apply could satisfy
+    // both; the fresh base preserves this test's chaining intent.)
     const next = await world.applyPatch({
-      ...baseParams({ utterance: '范围再收紧到政策文件', baseVersion: 1 }),
+      ...baseParams({ utterance: '范围再收紧到政策文件', baseVersion: 2 }),
       previewStore: world.previewStore,
       discussionStore: world.discussionStore,
       parsePatch: parserReturning({ sources: { include: ['政策文件'] } }),
     });
     assert.equal(next.replayed, false);
     assert.equal(next.preview.version, 3);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('combined sources+length+boundary patch lands ONE version with a multi-path diff and both contract fields', async () => {
+  const world = await freshWorld();
+  try {
+    const result = await world.applyPatch({
+      ...baseParams({ utterance: '只看国内 K12，4 课时，另外别读邮箱' }),
+      previewStore: world.previewStore,
+      discussionStore: world.discussionStore,
+      parsePatch: parserReturning({
+        sources: { include: ['国内 K12'] },
+        length: { unit: '课时', value: 4 },
+        boundary: { will: { add: ['检索论文'] }, wont: { add: ['读取邮箱'] } },
+      }),
+    });
+    assert.equal(result.preview.version, 2);
+    assert.equal(await countRows(world.db, 'previews'), 2, 'one new version, not one per field');
+    assert.deepEqual(result.preview.preview.diff.changed, [
+      'shape.facts[来源范围]', 'shape.facts[课时]', 'boundary.will', 'boundary.wont',
+    ]);
+    assert.ok(result.preview.preview.boundary.will.includes('检索论文'));
+    assert.deepEqual(result.changeRecord.changedFields, ['boundary.will', 'boundary.wont']);
+    assert.equal(await countRows(world.db, 'contract_change_records'), 1);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('FORBIDDEN: willing an item the owner explicitly forbade is rejected with zero writes', async () => {
+  const world = await freshWorld();
+  try {
+    await assert.rejects(
+      () => world.applyPatch({
+        ...baseParams({ utterance: '允许你读邮箱' }),
+        previewStore: world.previewStore,
+        discussionStore: world.discussionStore,
+        parsePatch: parserReturning({ boundary: { will: { add: ['读邮箱'] } } }), // present in base wont
+      }),
+      error => error.code === 'FORBIDDEN',
+    );
+    assert.equal(await countRows(world.db, 'previews'), 1);
+    assert.equal(await countRows(world.db, 'discussion_messages'), 0);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('malformed patch shapes fail closed CONTRACT_INVALID with zero writes', async () => {
+  const world = await freshWorld();
+  try {
+    const malformed = [
+      'not-an-object',
+      { sources: { include: [] } },
+      { sources: { exclude: ['x'] } },
+      { length: { unit: '课时' } },
+      { length: { unit: '课时', value: 0 } },
+      { boundary: { needs: [] } },
+      { boundary: { wont: { toggle: ['x'] } } },
+    ];
+    for (const patch of malformed) {
+      await assert.rejects(
+        () => world.applyPatch({
+          ...baseParams({ utterance: `补丁 ${JSON.stringify(patch)}` }),
+          previewStore: world.previewStore,
+          discussionStore: world.discussionStore,
+          parsePatch: parserReturning(patch),
+        }),
+        error => error.code === 'CONTRACT_INVALID',
+      );
+    }
+    assert.equal(await countRows(world.db, 'previews'), 1);
+    assert.equal(await countRows(world.db, 'discussion_messages'), 0);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('sources patch against a preview without a facts block fails closed, zero writes', async () => {
+  const world = await freshWorld();
+  try {
+    await world.previewStore.put({
+      ownerId: 'owner-a',
+      missionId: 'm_nofacts',
+      preview: makePreview({
+        missionId: 'm_nofacts',
+        shape: { kind: 'report', title: '无事实块', blocks: [{ type: 'caveat', text: '只有注意事项' }] },
+      }),
+    });
+    await assert.rejects(
+      () => world.applyPatch({
+        ...baseParams({ missionId: 'm_nofacts' }),
+        previewStore: world.previewStore,
+        discussionStore: world.discussionStore,
+        parsePatch: parserReturning({ sources: { include: ['国内 K12'] } }),
+      }),
+      error => error.code === 'CONTRACT_INVALID' && /facts/.test(error.message),
+    );
+    assert.equal(await countRows(world.db, 'previews', 'owner-a'), 2, 'v1 of m1 + v1 of m_nofacts only');
+    assert.equal(await countRows(world.db, 'discussion_messages'), 0);
   } finally {
     world.db.close();
   }
