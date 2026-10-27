@@ -106,3 +106,61 @@ test('the deterministic kernel performs no I/O (sync-shape contract)', async () 
   // Sanity for the fixture used elsewhere: unchanged narration sentences split cleanly.
   assert.ok(makePreview().narration.includes('。'));
 });
+
+/* ---- GREEN-stage additions: plan §2 negative paths specific to the parser.
+ * The 11 tests above are the frozen RED spec and stay untouched. ---- */
+
+test('near-miss utterances fire no rule (kernel stays precise)', async () => {
+  const { parsePatch } = await loadParser();
+  // 不只看到… is not a narrowing; 允许读邮箱 is a loosening, not a wont.add;
+  // 只看 + only whitespace captures nothing usable.
+  for (const utterance of ['不只看到海外案例', '允许读邮箱', '研究只看 ']) {
+    const result = await parsePatch(utterance);
+    assert.equal(result.patch, null, `${utterance} must not fire a rule`);
+    assert.equal(result.origin, 'none');
+  }
+});
+
+test('顿号 list: 只看A、B splits into separate include entries', async () => {
+  const { parsePatch } = await loadParser();
+  const result = await parsePatch('研究只看论文、公开官网');
+  assert.deepEqual(result.patch.sources, { include: ['论文', '公开官网'] });
+});
+
+test('llm null return means "no patch" with origin=llm', async () => {
+  const { parsePatch } = await loadParser();
+  const llm = { parse: async () => null };
+  const result = await parsePatch('标题颜色换成深色', { llm });
+  assert.equal(result.patch, null);
+  assert.equal(result.origin, 'llm');
+});
+
+test('llm returning an array fails closed (an array is not a MissionPatch)', async () => {
+  const { parsePatch } = await loadParser();
+  const llm = { parse: async () => [{ format: '深色主题' }] };
+  await assert.rejects(
+    () => parsePatch('标题颜色换成深色', { llm }),
+    error => error.code === 'UPSTREAM_UNAVAILABLE' && /array/.test(error.message),
+  );
+});
+
+test('bad inputs are CONTRACT_INVALID before any llm call; options=null tolerated', async () => {
+  const { parsePatch } = await loadParser();
+  let calls = 0;
+  const llm = { parse: async () => { calls += 1; return null; } };
+  await assert.rejects(
+    () => parsePatch(42, { llm }),
+    error => error.code === 'CONTRACT_INVALID',
+  );
+  await assert.rejects(
+    () => parsePatch('标题颜色换成深色', { llm: { parse: 'not-a-function' } }),
+    error => error.code === 'CONTRACT_INVALID',
+  );
+  await assert.rejects(
+    () => parsePatch('标题颜色换成深色', { llm, timeoutMs: 0 }),
+    error => error.code === 'CONTRACT_INVALID',
+  );
+  assert.equal(calls, 0, 'validation must precede any upstream call');
+  const tolerated = await parsePatch('标题颜色换成深色', null);
+  assert.equal(tolerated.origin, 'none');
+});
