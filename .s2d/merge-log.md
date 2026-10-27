@@ -22,3 +22,15 @@
 - migration 门禁：4 个 engine-*.sql 字典序 engine-001→004、编号无冲突、15 个 DDL 对象跨文件零重名、同库双跑 `migrate()` 第二次 applied=[] → rc=0。
 - targeted 快测：`node --test tests/unit/agentic/engine/*.test.mjs tests/unit/agentic/contracts/*.test.mjs` → rc=0，75 tests / 75 pass / 0 fail（W2 套件首次在 60fdc73 对齐后的 contracts 上跑，R-6 核销：无回归）。
 - RED 套件联动观察：`tests/unit/agentic/integration/*.test.mjs` 26 tests 由基线 11 pass/15 fail → 17 pass/9 fail；新增 6 pass 全部是 migrations.test.mjs 的迁移 RED 预期（单台账/字典序/幂等/无 DDL 碰撞/无 stray），由真实合入的 engine-*.sql 合法转绿；其余 9 fail 均为缺 integration 实现（context/dispatcher/health/projection/w1-adapter/release-*），RED 状态未被污染。
+
+## M02 · merge W1（feat/s2d-w1-blocksync @ 3033265）
+
+- tip 核对：`git rev-parse feat/s2d-w1-blocksync` = `30332659f55a44d7881c2a36a8f69b1c50a35c15` = 派单值 3033265 ✓（零漂移）。merge-base vs HEAD = `43f12b3`。
+- 命令：`git merge --no-commit 3033265` → rc=0，**自动合并干净，零冲突**。
+- 变更面（19 文件）：`scripts/agentic/block-store/**`（index/routes/store）、`scripts/agentic/db/migrations/blocks-001-blocks.sql`、`tests/unit/agentic/blocks/**`（7 test 文件含 contract-consistency）、`tests/agentic/blocks/**`（Playwright 双设备同步 spec + harness + 两 config）、`web/agentic/sync.js`（新增）、`web/index.html`（M，W1 侧唯一改动方：动态 import /agentic/sync.js、删除上行接线、onboard 收尾保留）。
+- .s2d 处置：W1 对 .s2d 零改动（其树 4 文件与 43f12b3 逐 blob 相同），无冲突面。
+- FROZEN 门禁：committed+worktree 对 `contracts/agentic` 零 delta、树哈希 cddcdf2e… 不变、`FROZEN` = `v1 b9d9bdfa0511905a95b729753b82e5734adab6bb` → rc=0。
+- migration 门禁：5 文件字典序 blocks-001 → engine-001..004、编号无冲突、19 DDL 对象跨文件零重名、双跑 `migrate()` 第二次 applied=[] → rc=0。
+- targeted 快测：`node --test tests/unit/agentic/blocks/*.test.mjs` → rc=0，50 tests / 50 pass / 0 fail。含 contract-consistency（W1 对象经适配层过 W0 校验、W0 fixtures 往返、draft 缺口锚定）——首次在 60fdc73 对齐后 contracts 上跑，R-6 核销：无回归。
+- RED 套件：26 tests 保持 17 pass / 9 fail（与 M01 后一致，W1 未触碰 integration 预期）。
+- 备注：`web/index.html` 属 W13 允许域（M20 接缝），本合入保留 W1 版本原样；后续 M19/M20 再统一处理发布清单与 UI 接缝。
