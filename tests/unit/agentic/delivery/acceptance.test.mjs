@@ -63,12 +63,21 @@ async function readyArtifact(store, ownerId = 'owner-a') {
 test('accept on a ready artifact records a schema-valid acceptance bound to the latest version', async () => {
   const { db, clock, store, acceptance } = makeSetup();
   const art = await readyArtifact(store);
+  // 测试修复（off-by-one，实现期发现并记录）：seqClock 每次调用前进 1s；put 已消费 tick#1，
+  // record 的 createdAt 只能来自某个更早的 tick，而原断言 clock.now() 读的是更晚的 tick，
+  // 对任何实现都不可满足。改为区间断言：createdAt 必须落在 record 调用前后的两个 tick 之间，
+  // 仍然证明 createdAt 来自注入时钟序列（真实 wall clock 会落在区间外），约束不弱于原意。
+  const tickBefore = clock.now();
   const record = await acceptance.record('owner-a', art.id, { actor: 'user:alice', decision: 'accept', comment: '不错' });
+  const tickAfter = clock.now();
 
   assert.equal(record.decision, 'accepted');
   assert.equal(record.artifactId, art.id);
   assert.equal(record.actor, 'user:alice');
-  assert.equal(record.createdAt, clock.now());
+  assert.ok(
+    record.createdAt > tickBefore && record.createdAt <= tickAfter,
+    `createdAt must come from the injected clock: ${record.createdAt} ∉ (${tickBefore}, ${tickAfter}]`,
+  );
   assert.equal(validate(record, acceptanceSchema, { schemaDir: contractDir }).valid, true);
 
   const after = await store.get('owner-a', art.id);
