@@ -64,6 +64,10 @@ export function projectPlayback(vm) {
  *   - overall !== 'VERIFIED'（UNKNOWN/FAILED）一律 blocking（没有免费 VERIFIED）；
  *   - 任一 UNKNOWN check 阻断；HIGH+FAIL 阻断；仅 MEDIUM/LOW FAIL 不在此收紧；
  *   - 无任何核验结果（verdict 缺失）fail-closed → blocking（用户验收 ≠ agent 自报成功）。
+ *   - W9 安全 F2（W13 评审 HIGH）：落库 overall='VERIFIED' 但 checks 为空的行
+ *     是引擎不可能产出的形状（engine：checks 非空才 VERIFIED；saveVerdict 修复后
+ *     落库前已拒）。投影入参来自显式查询，不保证经过 saveVerdict 门——读取侧
+ *     同样不信任这种『免费 VERIFIED』，一律 blocking（fail-closed，只收紧）。
  */
 function verdictSummaryFromChecks(verdict) {
   if (verdict === null || typeof verdict !== 'object') return null;
@@ -72,7 +76,7 @@ function verdictSummaryFromChecks(verdict) {
   const highFailCount = checks
     .filter((check) => check && check.status === 'FAIL' && check.severity === 'HIGH')
     .length;
-  const overallBlocking = verdict.overall !== 'VERIFIED';
+  const overallBlocking = verdict.overall !== 'VERIFIED' || checks.length === 0;
   return { blocking: overallBlocking || unknownCount > 0 || highFailCount > 0, unknownCount, highFailCount };
 }
 
@@ -121,7 +125,8 @@ export function projectAcceptedBenefit(entries, ownerId) {
       drop(`DECISION_NOT_ACCEPTED:${acceptance.decision ?? 'none'}`);
       continue;
     }
-    // 围栏 4：W9 门禁——无核验结果或 UNKNOWN/HIGH 未决 fail-closed。
+    // 围栏 4：W9 门禁——无核验结果、UNKNOWN/HIGH 未决、或空-checks 的
+    // 『免费 VERIFIED』（W9 F2，引擎不可能产出）一律 fail-closed。
     const summary = verdictSummaryFromChecks(record.verdict);
     if (acceptedBenefit(acceptance, summary) === null) {
       if (summary === null) {

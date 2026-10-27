@@ -160,6 +160,32 @@ test('benefit projection never upgrades: a VERIFIED overall with an open UNKNOWN
   assert.equal(projectAcceptedBenefit(sneaky, 'owner-a').count, 0);
 });
 
+test('no free VERIFIED (W9 F2): user-owner accepted VERIFIED with zero checks is excluded, not counted', () => {
+  // W13 评审 HIGH / W9 安全 F2 残留钉死用例：落库前 saveVerdict 已拒绝
+  // 空-checks VERIFIED；投影入参来自显式查询，同样不得信任这种引擎不可能
+  // 产出的『免费 VERIFIED』（engine.mjs：checks 非空才 VERIFIED）。
+  const rows = [{
+    owner: 'owner-a',
+    acceptance: { actor: 'user:owner-a', decision: 'accepted', artifactVersion: 8 },
+    verdict: { overall: 'VERIFIED', checks: [] },
+  }];
+  const result = projectAcceptedBenefit(rows, 'owner-a');
+  assert.equal(result.count, 0, 'empty-checks VERIFIED must never count as benefit');
+  assert.deepEqual(result.included, []);
+  assert.equal(result.excluded.length, 1);
+  assert.equal(result.excluded[0].artifactVersion, 8);
+  assert.equal(result.excluded[0].reason, 'VERDICT_BLOCKING');
+});
+
+test('no free VERIFIED (W9 F2): a VERIFIED with real checks still counts (fix does not over-tighten)', () => {
+  const rows = [{
+    owner: 'owner-a',
+    acceptance: { actor: 'user:owner-a', decision: 'accepted', artifactVersion: 9 },
+    verdict: { overall: 'VERIFIED', checks: [{ severity: 'LOW', status: 'PASS' }] },
+  }];
+  assert.deepEqual(projectAcceptedBenefit(rows, 'owner-a').included, [{ artifactVersion: 9 }]);
+});
+
 test('model provenance: NULL resolved_model is UNKNOWN, never VERIFIED', () => {
   const result = projectModelProvenance({ actor: 'w13·评审', resolvedModel: null, modelSource: 'unknown' });
   assert.equal(result.status, 'UNKNOWN');

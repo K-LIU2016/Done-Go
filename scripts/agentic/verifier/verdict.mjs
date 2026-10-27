@@ -42,6 +42,14 @@ export function saveVerdict(db, ownerId, verdict, options = {}) {
   verdict.checks.forEach((check, index) => {
     if (!isValidCheck(check)) throw contractInvalid(`verdict.checks[${index}] does not match the check shape`);
   });
+  // W9 安全 F2（W13 评审升级 HIGH；W9 终报 §8 对账项「落库前 VERIFIED 不变量
+  // 应在组装层补」）：engine 的『没有核验就没有免费 VERIFIED』（engine.mjs：
+  // 全 PASS 且 checks 非空才 VERIFIED）不得在落库边界被丢弃。空-checks 的
+  // VERIFIED 是引擎不可能产出的形状（手工 verdict 专属），一律
+  // CONTRACT_INVALID 拒绝，dbVerdictGate/projection 不再读到免费 VERIFIED。
+  if (verdict.overall === 'VERIFIED' && verdict.checks.length === 0) {
+    throw contractInvalid('verdict.overall=VERIFIED requires at least one check (no free VERIFIED)');
+  }
   if (!isIsoDateTime(verdict.ranAt)) {
     throw contractInvalid('verdict.ranAt must be an ISO date-time string');
   }

@@ -89,6 +89,22 @@ test('missing artifact identity or ranAt is rejected', () => {
   assert.throws(() => saveVerdict(db, 'owner-a', { ...VERDICT, ranAt: 'not-a-time' }), (e) => e.code === 'CONTRACT_INVALID');
 });
 
+test('a hand-crafted VERIFIED verdict with zero checks is rejected before persisting (no free VERIFIED, W9 F2)', () => {
+  // W13 评审 HIGH / W9 安全 F2 落库前不变量（W9 终报 §8 对账项）：engine 只在
+  // checks 非空时产出 VERIFIED；空-checks VERIFIED 是手工 verdict 专属形状，
+  // 落库边界必须拒绝，且不得留下半写行。
+  const db = makeDb();
+  assert.throws(
+    () => saveVerdict(db, 'owner-a', { ...VERDICT, checks: [] }),
+    (e) => e.code === 'CONTRACT_INVALID',
+  );
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM w9_verdicts').get().n, 0, 'no row may be persisted');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM w9_verdict_checks').get().n, 0, 'no check rows may be persisted');
+  // UNKNOWN/FAILED 允许零 checks（无核验结果本身合法，读取侧 fail-closed）。
+  const unknown = saveVerdict(db, 'owner-a', { ...VERDICT, overall: 'UNKNOWN', checks: [] });
+  assert.equal(unknown.overall, 'UNKNOWN');
+});
+
 test('emits a verdict event through the injected sink', () => {
   const db = makeDb();
   const emitted = [];
