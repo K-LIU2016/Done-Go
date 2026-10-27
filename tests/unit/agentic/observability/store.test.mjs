@@ -249,3 +249,106 @@ test('store: observability tables never carry a hidden default owner', async () 
   assert.equal(owner.notnull, 1);
   assert.equal(owner.dflt_value, null);
 });
+
+test('store: listSpend without a runId returns every row for that owner only', async () => {
+  const { store } = await freshStore();
+  store.recordSpend({ ownerId: 'owner-a', runId: 'run-1', stepId: 's1', calls: 1, tokens: 10 });
+  store.recordSpend({ ownerId: 'owner-a', runId: 'run-2', stepId: 's2', calls: 2, tokens: 20 });
+  store.recordSpend({ ownerId: 'owner-b', runId: 'run-1', stepId: 's1', calls: 9, tokens: 90 });
+  assert.deepEqual(
+    store.listSpend('owner-a').map((row) => row.run_id).sort(),
+    ['run-1', 'run-2'],
+  );
+});
+
+test('store: countRuns counts only the requesting owner (N12)', async () => {
+  const { store } = await freshStore();
+  const run = (id) => ({
+    id, missionId: 'm', contractHash: 'a'.repeat(64), state: 'succeeded',
+    startedAt: '2026-10-27T10:00:00.000Z', updatedAt: '2026-10-27T10:00:00.000Z',
+  });
+  store.upsertRun(run('a1'), { ownerId: 'owner-a' });
+  store.upsertRun(run('a2'), { ownerId: 'owner-a' });
+  store.upsertRun(run('b1'), { ownerId: 'owner-b' });
+  assert.equal(store.countRuns('owner-a'), 2);
+  assert.equal(store.countRuns('owner-b'), 1);
+  assert.equal(store.countRuns('owner-c'), 0);
+});
+
+test('store: listRuns is owner scoped and ordered by start time', async () => {
+  const { store } = await freshStore();
+  const run = (id, startedAt) => ({
+    id, missionId: 'm', contractHash: 'a'.repeat(64), state: 'succeeded',
+    startedAt, updatedAt: startedAt,
+  });
+  store.upsertRun(run('late', '2026-10-27T10:00:09.000Z'), { ownerId: 'owner-a' });
+  store.upsertRun(run('early', '2026-10-27T10:00:01.000Z'), { ownerId: 'owner-a' });
+  store.upsertRun(run('foreign', '2026-10-27T10:00:00.000Z'), { ownerId: 'owner-b' });
+  assert.deepEqual(store.listRuns('owner-a').map((row) => row.id), ['early', 'late']);
+  assert.deepEqual(store.listRuns('owner-c'), []);
+});
+
+test('store: listGates filters by head within one owner (N12)', async () => {
+  const { store } = await freshStore();
+  const gate = (head, stream = 'W10') => ({
+    stream, name: `gate-${stream}-${head}`, head, command: 'npm test', rc: 0, ownerId: 'owner-a',
+  });
+  store.upsertGate(gate('h1'));
+  store.upsertGate(gate('h2'));
+  store.upsertGate(gate('h1', 'W6'));
+  store.upsertGate({ ...gate('h1'), ownerId: 'owner-b' });
+  assert.deepEqual(
+    store.listGates('owner-a', { head: 'h1' }).map((row) => row.stream).sort(),
+    ['W10', 'W6'],
+  );
+  assert.deepEqual(
+    store.listGates('owner-a', { stream: 'W10', head: 'h2' }).map((row) => row.head),
+    ['h2'],
+  );
+});
+
+test('store: recordAcceptance is idempotent per id and owner scoped', async () => {
+  const { store, db } = await freshStore();
+  store.recordAcceptance({ id: 'acc-1', ownerId: 'owner-a', artifactId: 'art-1', actor: 'reviewer', decision: 'accepted' });
+  store.recordAcceptance({ id: 'acc-1', ownerId: 'owner-a', artifactId: 'art-1', actor: 'reviewer', decision: 'rejected' });
+  store.recordAcceptance({ id: 'acc-2', ownerId: 'owner-b', decision: 'accepted' });
+  const rows = db.prepare("SELECT * FROM obs_acceptances WHERE owner_id = 'owner-a'").all();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].decision, 'rejected');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM obs_acceptances").get().n, 2);
+  assert.throws(
+    () => store.recordAcceptance({ id: 'acc-3', decision: 'accepted' }),
+    (error) => error.code === 'OWNER_REQUIRED',
+  );
+});
+
+test('store: recordNeed upserts status and recordGrant upserts status', async () => {
+  const { store, db } = await freshStore();
+  store.recordNeed({ id: 'need-1', ownerId: 'owner-a', missionId: 'm-1', status: 'open', dueAt: '2026-10-27T12:00:00.000Z' });
+  store.recordNeed({ id: 'need-1', ownerId: 'owner-a', missionId: 'm-1', status: 'defaulted', answeredAt: '2026-10-27T12:00:01.000Z' });
+  store.recordGrant({ id: 'grant-1', ownerId: 'owner-a', status: 'granted', expiresAt: '2026-10-28T00:00:00.000Z' });
+  store.recordGrant({ id: 'grant-1', ownerId: 'owner-a', status: 'invalidated' });
+  const need = db.prepare("SELECT * FROM obs_needs WHERE id = 'need-1'").get();
+  assert.equal(need.status, 'defaulted');
+  assert.equal(need.answered_at, '2026-10-27T12:00:01.000Z');
+  const grant = db.prepare("SELECT * FROM obs_grants WHERE id = 'grant-1'").get();
+  assert.equal(grant.status, 'invalidated');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM obs_needs').get().n, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM obs_grants').get().n, 1);
+  assert.throws(
+    () => store.recordNeed({ id: 'need-x', status: 'open' }),
+    (error) => error.code === 'OWNER_REQUIRED',
+  );
+  assert.throws(
+    () => store.recordGrant({ id: 'grant-x', status: 'granted' }),
+    (error) => error.code === 'OWNER_REQUIRED',
+  );
+});
+
+test('store: parseJsonOr falls back on empty or invalid JSON text', async () => {
+  const { parseJsonOr } = await storeApi();
+  assert.deepEqual(parseJsonOr('', []), []);
+  assert.deepEqual(parseJsonOr(null, {}), {});
+  assert.deepEqual(parseJsonOr('not json', []), []);
+  assert.deepEqual(parseJsonOr('["a"]', []), ['a']);
+});

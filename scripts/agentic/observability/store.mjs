@@ -427,7 +427,10 @@ export function createObservabilityStore({ db } = {}) {
       db.prepare(`
         INSERT INTO obs_needs (id, owner_id, mission_id, status, due_at, answered_at)
         VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET status = excluded.status
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          due_at = excluded.due_at,
+          answered_at = excluded.answered_at
       `).run(entry.id, owner, entry.missionId ?? null, entry.status, entry.dueAt ?? null, entry.answeredAt ?? null);
       return { recorded: true };
     },
@@ -437,7 +440,10 @@ export function createObservabilityStore({ db } = {}) {
       db.prepare(`
         INSERT INTO obs_grants (id, owner_id, status, expires_at, updated_at)
         VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET status = excluded.status
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          expires_at = excluded.expires_at,
+          updated_at = excluded.updated_at
       `).run(entry.id, owner, entry.status, entry.expiresAt ?? null, entry.updatedAt ?? nowIso());
       return { recorded: true };
     },
