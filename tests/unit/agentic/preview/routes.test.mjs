@@ -203,6 +203,43 @@ test('POST discuss negative paths: bad body 400, stale base 409, upstream 503', 
   }
 });
 
+// M1 (R1 review): the frozen contracts/agentic/README.md HTTP table maps both
+// BUDGET_EXCEEDED and NEED_HUMAN to 409; W3 uses the same mapping. These codes
+// are not produced by W6 routes today, but STATUS_BY_CODE must stay consistent
+// with the frozen table so cross-stream error handling does not diverge.
+test('BUDGET_EXCEEDED and NEED_HUMAN surface as 409 per the frozen README HTTP table', async () => {
+  const { routesMod, previewStoreMod } = await loadStores();
+  const db = openMigratedDb();
+  try {
+    const now = makeClock();
+    const previewStore = previewStoreMod.createPreviewStore(db, { now });
+    await previewStore.put({ ownerId: 'owner-a', missionId: 'm1', preview: makePreview({ missionId: 'm1' }) });
+    for (const code of ['BUDGET_EXCEEDED', 'NEED_HUMAN']) {
+      const parsePatch = async () => {
+        const error = new Error(code.toLowerCase().replace(/_/g, ' '));
+        error.code = code;
+        throw error;
+      };
+      const routes = routesMod.createPreviewRoutes({
+        db,
+        auth: req => (req.headers['x-owner'] ? { ownerId: req.headers['x-owner'] } : null),
+        parsePatch,
+        now,
+      });
+      const hit = await call(routes, 'POST', '/api/missions/m1/discuss', {
+        ...OWNER_A, body: { utterance: '触发配额/人工路径', baseVersion: 1 },
+      });
+      assertErrorEnvelope(hit.res, code);
+      assert.equal(hit.res.statusCode, 409, `${code} must map to 409 (frozen README table), got ${hit.res.statusCode}`);
+    }
+    // Fail-closed: neither error path wrote a new preview version.
+    const latest = await previewStore.latest({ ownerId: 'owner-a', missionId: 'm1' });
+    assert.equal(latest.version, 1);
+  } finally {
+    db.close();
+  }
+});
+
 test('POST confirm records the decision; replay idempotent; bad input 400/404', async () => {
   const world = await freshServer();
   try {

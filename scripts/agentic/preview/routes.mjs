@@ -52,8 +52,10 @@ const STATUS_BY_CODE = Object.freeze({
   CONTRACT_INVALID: 400,
   CONFLICT: 409,
   RATE_LIMITED: 429,
-  BUDGET_EXCEEDED: 402,
-  NEED_HUMAN: 428,
+  // Both map to 409 per the frozen contracts/agentic/README.md HTTP table
+  // (same mapping as W3); M1 correction from the R1 review.
+  BUDGET_EXCEEDED: 409,
+  NEED_HUMAN: 409,
   UPSTREAM_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 });
