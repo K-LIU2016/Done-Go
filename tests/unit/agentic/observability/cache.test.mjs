@@ -173,3 +173,94 @@ test('cache: a refreshed entry re-keys to the current identity', async () => {
   assert.equal(refreshed.inputsHash, HASH_C);
   assert.match(refreshed.createdAt, /^\d{4}-\d{2}-\d{2}T/);
 });
+
+test('cache: cacheKey rejects non-object inputs instead of hashing garbage', async () => {
+  const { cacheKey } = await cacheApi();
+  for (const bad of [null, undefined, ['kind'], 'block-summary', 42]) {
+    assert.throws(() => cacheKey(bad), (error) => error.code === 'CACHE_KEY_INCOMPLETE', `input ${JSON.stringify(bad)}`);
+  }
+});
+
+test('cache: cacheKey rejects blank field values, not just missing ones', async () => {
+  // A whitespace-only model would otherwise hash to a key that looks complete.
+  const { cacheKey } = await cacheApi();
+  assert.throws(
+    () => cacheKey({ ...baseInputs, model: '   ' }),
+    (error) => error.code === 'CACHE_KEY_INCOMPLETE' && /model/.test(error.message),
+  );
+});
+
+test('cache: assessCacheEntry rejects a non-object entry', async () => {
+  const { assessCacheEntry } = await cacheApi();
+  for (const bad of [null, undefined, ['entry'], 'entry']) {
+    assert.throws(() => assessCacheEntry(bad, baseInputs), (error) => error.code === 'CACHE_UNVERIFIABLE', `entry ${JSON.stringify(bad)}`);
+  }
+});
+
+test('cache: a verifiable entry with no stored key is stale, not fresh', async () => {
+  const { assessCacheEntry, FRESHNESS } = await cacheApi();
+  const verdict = assessCacheEntry({ ...baseInputs, modelSource: 'gateway' }, baseInputs);
+  assert.equal(verdict.freshness, FRESHNESS.STALE);
+  assert.ok(verdict.reasons.includes('key'));
+});
+
+test('cache: a clock without a TTL cannot expire a matching entry', async () => {
+  const { cacheKey, assessCacheEntry, FRESHNESS } = await cacheApi();
+  const entry = { ...baseInputs, key: cacheKey(baseInputs), modelSource: 'gateway', createdAt: '2026-10-01T10:00:00.000Z' };
+  // Weeks old, but with no TTL to compare against the content still matches.
+  const verdict = assessCacheEntry(entry, baseInputs, { now: '2026-10-27T10:00:00.000Z' });
+  assert.equal(verdict.freshness, FRESHNESS.FRESH);
+  assert.equal(verdict.expired, false);
+});
+
+test('cache: a TTL without a clock is unverifiable, never quietly fresh', async () => {
+  const { cacheKey, assessCacheEntry, FRESHNESS } = await cacheApi();
+  const entry = { ...baseInputs, key: cacheKey(baseInputs), modelSource: 'gateway', createdAt: '2026-10-27T09:00:00.000Z' };
+  const verdict = assessCacheEntry(entry, baseInputs, { ttlMs: 1000 });
+  assert.equal(verdict.freshness, FRESHNESS.UNVERIFIABLE);
+  assert.equal(verdict.verifiable, false);
+});
+
+test('cache: a non-numeric ttlMs is ignored as no TTL at all', async () => {
+  const { cacheKey, assessCacheEntry, FRESHNESS } = await cacheApi();
+  const entry = { ...baseInputs, key: cacheKey(baseInputs), modelSource: 'gateway', createdAt: '2026-10-01T10:00:00.000Z' };
+  const verdict = assessCacheEntry(entry, baseInputs, { now: '2026-10-27T10:00:00.000Z', ttlMs: '1 day' });
+  assert.equal(verdict.freshness, FRESHNESS.FRESH);
+});
+
+test('cache: an unparseable now string is treated as no usable clock', async () => {
+  const { cacheKey, assessCacheEntry, FRESHNESS } = await cacheApi();
+  const entry = { ...baseInputs, key: cacheKey(baseInputs), modelSource: 'gateway', createdAt: '2026-10-27T09:00:00.000Z' };
+  const verdict = assessCacheEntry(entry, baseInputs, { now: 'not-a-date', ttlMs: 1000 });
+  assert.equal(verdict.freshness, FRESHNESS.UNVERIFIABLE);
+  assert.ok(verdict.reasons.includes('createdAt'));
+});
+
+test('cache: an expired-but-matching entry is recorded in verified with its marker, never in stale', async () => {
+  // plan §2.3: content-identical but past TTL is "recorded, not stale" — the
+  // freshness marker travels with it so no downstream reader can mistake it
+  // for a fresh hit.
+  const { cacheKey, partitionCacheEntries, FRESHNESS } = await cacheApi();
+  const expired = {
+    ...baseInputs,
+    key: cacheKey(baseInputs),
+    modelSource: 'gateway',
+    createdAt: '2026-10-01T10:00:00.000Z',
+  };
+  const partition = partitionCacheEntries([expired], baseInputs, {
+    now: '2026-10-27T10:00:00.000Z',
+    ttlMs: 24 * 3600 * 1000,
+  });
+  assert.equal(partition.stale.length, 0);
+  assert.equal(partition.unverifiable.length, 0);
+  assert.equal(partition.verified.length, 1);
+  assert.equal(partition.verified[0].freshness, FRESHNESS.EXPIRED_BUT_MATCHING);
+});
+
+test('cache: partitionCacheEntries over a non-array input yields empty buckets', async () => {
+  const { partitionCacheEntries } = await cacheApi();
+  for (const bad of [null, undefined, 'nope']) {
+    const partition = partitionCacheEntries(bad, baseInputs);
+    assert.deepEqual(partition, { verified: [], stale: [], unverifiable: [] }, `input ${JSON.stringify(bad)}`);
+  }
+});
