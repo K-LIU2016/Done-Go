@@ -24,9 +24,16 @@ function eventFor(type, fields = {}) {
   const { actor: _actor, at, ...rest } = fields;
   let provenance = null;
   if (fields.actor !== undefined) {
-    try { provenance = normalizeActorProvenance(actor); } catch { provenance = null; }
+    try { provenance = normalizeActorProvenance(actor); } catch (error) {
+      provenance = {
+        status: 'UNKNOWN',
+        code: error.code ?? 'ACTOR_MODEL_UNKNOWN',
+        actorId: actor.actorId ?? null,
+        resolvedModel: null,
+      };
+    }
   }
-  const unknownActor = provenance?.status === 'UNKNOWN';
+  const unknownActor = provenance?.status !== 'RESOLVED';
   const completionEvent = COMPLETION_EVENT_TYPES.includes(type);
   return {
     ...rest,

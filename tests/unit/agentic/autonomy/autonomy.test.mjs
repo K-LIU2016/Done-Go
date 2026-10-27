@@ -15,9 +15,10 @@ import { AutonomyRuntime, createAutonomyRoutes } from '../../../../scripts/agent
 const NOW = '2026-10-27T10:00:00.000Z';
 const ACTOR = { actorId: 'planner-1', resolvedModel: 'gpt-6.1-sol', modelProvider: 'gateway' };
 const BASE = {
+  ownerId: 'owner-1',
   mission: { id: 'm-1', ownerId: 'owner-1', state: 'contracted', autonomy: 'A3' },
   contract: {
-    id: 'c-1', ownerId: 'owner-1', hash: 'contract-hash', status: 'active',
+    id: 'c-1', ownerId: 'owner-1', missionId: 'm-1', hash: 'contract-hash', status: 'active',
     capabilities: [
       { capability: 'files.write', scope: '/workspace/m-1' },
       { capability: 'message.send', scope: 'draft:message-1' },

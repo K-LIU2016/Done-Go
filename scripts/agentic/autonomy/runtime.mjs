@@ -2,6 +2,7 @@ import { ConfirmationStore } from './confirmation.mjs';
 import { AuditLog } from './audit.mjs';
 import { evaluateAction } from './policy.mjs';
 import { normalizeActor, errorResult } from './types.mjs';
+import { requestIdentity } from './identity.mjs';
 
 export class AutonomyRuntime {
   constructor({ audit = new AuditLog(), phase = 'P0', confirmations = new ConfirmationStore() } = {}) {
@@ -9,6 +10,8 @@ export class AutonomyRuntime {
     this.phase = phase;
     this.confirmations = confirmations;
     this.results = new Map();
+    this.inFlight = new Map();
+    this.inFlightFingerprints = new Map();
   }
 
   decide(input) {
@@ -26,21 +29,33 @@ export class AutonomyRuntime {
     return this.confirmations.issue({
       actionId: input.action.id,
       actor,
+      action: input.action,
       contractHash: input.contract.hash,
       actionHash: input.action.hash ?? input.action.id,
     });
   }
 
-  async perform(input, executor = async () => ({ dryRun: true })) {
+  async #performUnlocked(input, executor = async () => ({ dryRun: true })) {
     const key = input?.idempotencyKey ?? input?.action?.id;
     if (!key) return this.record(key ?? '__invalid__', errorResult('blocked', 'CONTEXT_INVALID'), input ?? {});
-    if (this.results.has(key) && this.results.get(key).status !== 'needs_confirmation') return this.results.get(key);
+    const fingerprint = requestIdentity(input);
+    const prior = this.results.get(key);
+    if (prior && prior.fingerprint !== fingerprint) {
+      try {
+        await this.audit.append({ type: 'autonomy.policy.denied', actionId: input.action?.id, ownerId: input.action?.ownerId, actor: input.action?.actor, status: 'blocked', code: 'IDEMPOTENCY_KEY_CONFLICT' });
+      } catch (error) {
+        return errorResult('blocked', error.code ?? 'AUDIT_WRITE_FAILED');
+      }
+      return errorResult('blocked', 'IDEMPOTENCY_KEY_CONFLICT');
+    }
+    if (prior && prior.result.status !== 'needs_confirmation') return prior.result;
     let decision = this.decide(input);
     if (decision.status === 'needs_confirmation') {
-      if (!input.confirmationToken) return this.record(key, decision, input, 'policy');
+      if (!input.confirmationToken) return this.record(key, decision, input, 'policy', fingerprint);
       const confirmation = this.confirmations.consume(input.confirmationToken, {
         actionId: input.action.id,
         actor: normalizeActor(input.action.actor),
+        action: input.action,
         contractHash: input.contract.hash,
         actionHash: input.action.hash ?? input.action.id,
       });
@@ -56,18 +71,18 @@ export class AutonomyRuntime {
           status: confirmation.status,
         });
       } catch (error) {
-        return this.store(key, errorResult('blocked', error.code));
+        return this.store(key, errorResult('blocked', error.code), fingerprint);
       }
-      if (confirmation.status !== 'confirmed') return this.record(key, confirmation, input, 'policy');
+      if (confirmation.status !== 'confirmed') return this.record(key, confirmation, input, 'policy', fingerprint);
       decision = { status: 'allowed', code: 'ALLOWED', requiresConfirmation: false };
     }
-    if (decision.status !== 'allowed') return this.record(key, decision, input, decision.status === 'UNKNOWN' ? 'unknown' : 'policy');
+    if (decision.status !== 'allowed') return this.record(key, decision, input, decision.status === 'UNKNOWN' ? 'unknown' : 'policy', fingerprint);
     try {
       await this.audit.append({
         type: 'autonomy.action.allowed', actionId: input.action.id, ownerId: input.action.ownerId,
         actor: input.action.actor, status: 'allowed', code: decision.code,
       });
-    } catch (error) { return this.store(key, errorResult('blocked', error.code)); }
+    } catch (error) { return this.store(key, errorResult('blocked', error.code), fingerprint); }
     try {
       const output = await executor();
       const result = { status: 'succeeded', code: 'SUCCEEDED', output };
@@ -77,9 +92,9 @@ export class AutonomyRuntime {
           actor: input.action.actor, status: result.status, code: result.code,
         });
       } catch (error) {
-        return this.store(key, errorResult('UNKNOWN', 'AUDIT_WRITE_FAILED'));
+        return this.store(key, errorResult('UNKNOWN', error.code ?? 'AUDIT_WRITE_FAILED'), fingerprint);
       }
-      return this.store(key, result);
+      return this.store(key, result, fingerprint);
     } catch (error) {
       const result = error.unknown ? errorResult('UNKNOWN', 'EXTERNAL_RESULT_UNKNOWN') : errorResult('blocked', 'EXECUTION_FAILED');
       try {
@@ -88,12 +103,35 @@ export class AutonomyRuntime {
           actionId: input.action.id, ownerId: input.action.ownerId, actor: input.action.actor,
           status: result.status, code: result.code,
         });
-      } catch { /* preserve the original fail-closed result */ }
-      return this.store(key, result);
+      } catch (auditError) {
+        return this.store(key, errorResult('UNKNOWN', auditError.code ?? 'AUDIT_WRITE_FAILED'), fingerprint);
+      }
+      return this.store(key, result, fingerprint);
     }
   }
 
-  async record(key, result, input, kind = 'decision') {
+  async perform(input, executor = async () => ({ dryRun: true })) {
+    const key = input?.idempotencyKey ?? input?.action?.id;
+    if (!key) return this.#performUnlocked(input, executor);
+    const fingerprint = requestIdentity(input);
+    const inFlight = this.inFlight.get(key);
+    if (inFlight) {
+      return this.inFlightFingerprints.get(key) === fingerprint
+        ? inFlight
+        : errorResult('blocked', 'IDEMPOTENCY_KEY_CONFLICT');
+    }
+    const work = this.#performUnlocked(input, executor);
+    this.inFlightFingerprints.set(key, fingerprint);
+    this.inFlight.set(key, work);
+    try {
+      return await work;
+    } finally {
+      this.inFlight.delete(key);
+      this.inFlightFingerprints.delete(key);
+    }
+  }
+
+  async record(key, result, input, kind = 'decision', fingerprint = requestIdentity(input)) {
     try {
       const type = kind === 'unknown' ? 'autonomy.action.unknown' : 'autonomy.policy.denied';
       await this.audit.append({
@@ -103,22 +141,36 @@ export class AutonomyRuntime {
     } catch (error) {
       result = errorResult('blocked', error.code);
     }
-    return this.store(key, result);
+    return this.store(key, result, fingerprint);
   }
 
-  store(key, result) {
-    this.results.set(key, result);
+  store(key, result, fingerprint = null) {
+    this.results.set(key, { fingerprint, result });
     return result;
   }
 
-  async recover(key, executor) {
+  async recover(input, executor = async () => ({ dryRun: true })) {
+    const request = typeof input === 'string' ? { idempotencyKey: input } : input;
+    const key = request?.idempotencyKey;
+    if (!key) return errorResult('blocked', 'CONTEXT_INVALID');
     const prior = this.results.get(key);
-    if (prior?.status === 'UNKNOWN') {
-      try { await this.audit.recovery({ actionId: executor.input?.action?.id, decision: 'not_retried', status: 'UNKNOWN' }); } catch { /* fail closed */ }
-      return prior;
+    const requestFingerprint = requestIdentity(request);
+    if (this.inFlight.get(key)) {
+      return this.inFlightFingerprints.get(key) === requestFingerprint
+        ? this.inFlight.get(key)
+        : errorResult('blocked', 'IDEMPOTENCY_KEY_CONFLICT');
     }
-    if (prior) return prior;
-    return this.perform({ idempotencyKey: key, ...executor.input }, executor);
+    if (prior && typeof input !== 'string' && prior.fingerprint !== requestFingerprint) return errorResult('blocked', 'IDEMPOTENCY_KEY_CONFLICT');
+    if (prior?.result?.status === 'UNKNOWN') {
+      try {
+        await this.audit.recovery({ actionId: request.action?.id, ownerId: request.action?.ownerId, decision: 'not_retried', status: 'UNKNOWN' });
+      } catch (error) {
+        return this.store(key, errorResult('UNKNOWN', error.code ?? 'AUDIT_WRITE_FAILED'), prior.fingerprint);
+      }
+      return prior.result;
+    }
+    if (prior) return prior.result;
+    return this.perform(request, executor);
   }
 }
 
@@ -138,7 +190,7 @@ export function createAutonomyRoutes({ runtime = new AutonomyRuntime(), executor
         : operation === 'confirm'
           ? runtime.confirm(body)
           : operation === 'recover'
-            ? await runtime.recover(body.idempotencyKey, Object.assign(executor, { input: body }))
+            ? await runtime.recover(body, executor)
             : await runtime.perform(body, executor);
       if (operation === 'confirm') {
         await runtime.audit.append({

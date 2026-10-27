@@ -23,6 +23,9 @@ export function evaluateSideEffect({ risk, requestedAutonomy, actor } = {}, { ph
   }
 
   if (requestedAutonomy === 'A5' || risk === 'financial') return blockedResult('A5_NEVER_AUTOMATIC');
+  if (level(requestedAutonomy) < 2 && !['observe', 'suggest'].includes(risk)) {
+    return blockedResult('AUTONOMY_TOO_LOW');
+  }
   if (phase === 'P0' && isP0Forbidden({ risk, requestedAutonomy })) {
     return blockedResult('P0_EXTERNAL_EFFECT_BLOCKED');
   }

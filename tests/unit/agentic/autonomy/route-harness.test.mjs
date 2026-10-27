@@ -7,9 +7,10 @@ import { AutonomyRuntime, createAutonomyRoutes } from '../../../../scripts/agent
 
 const ACTOR = { actorId: 'route-actor', modelProvider: 'gateway', resolvedModel: 'gpt-6.1-sol' };
 const BASE = {
+  ownerId: 'owner-1',
   mission: { id: 'mission-1', ownerId: 'owner-1', state: 'contracted', autonomy: 'A3' },
   contract: {
-    id: 'contract-1', ownerId: 'owner-1', hash: 'contract-hash', status: 'active',
+    id: 'contract-1', ownerId: 'owner-1', missionId: 'mission-1', hash: 'contract-hash', status: 'active',
     capabilities: [{ capability: 'files.write', scope: '/workspace/mission-1' }],
   },
   grant: {

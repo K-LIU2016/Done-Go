@@ -6,9 +6,10 @@ import { evaluateAction } from '../../../../scripts/agentic/autonomy/policy.mjs'
 const NOW = '2026-10-27T10:00:00.000Z';
 const ACTOR = { actorId: 'worker-1', resolvedModel: 'gpt-6.1-sol', modelProvider: 'gateway' };
 const BASE = {
+  ownerId: 'owner-1',
   mission: { id: 'm-1', ownerId: 'owner-1', state: 'contracted', autonomy: 'A3' },
   contract: {
-    id: 'c-1', ownerId: 'owner-1', hash: 'contract-hash', status: 'active',
+    id: 'c-1', ownerId: 'owner-1', missionId: 'm-1', hash: 'contract-hash', status: 'active',
     capabilities: [{ capability: 'files.write', scope: '/workspace/m-1' }],
     dataDisclosure: [{ dataClass: 'personal', to: 'local', fields: ['notes.title'] }],
     budget: { modelCalls: 4, tokens: 1000, costCap: 2, localSlots: 1 },

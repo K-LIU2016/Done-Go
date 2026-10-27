@@ -8,9 +8,10 @@ import { AutonomyRuntime } from '../../../../scripts/agentic/autonomy/runtime.mj
 const NOW = '2026-10-27T10:00:00.000Z';
 const ACTOR = { actorId: 'sender-1', resolvedModel: 'gpt-6.1-sol', modelProvider: 'gateway' };
 const REQUEST = {
+  ownerId: 'owner-1',
   mission: { id: 'm-1', ownerId: 'owner-1', state: 'contracted', autonomy: 'A4' },
   contract: {
-    id: 'c-1', ownerId: 'owner-1', hash: 'hash-1', status: 'active',
+    id: 'c-1', ownerId: 'owner-1', missionId: 'm-1', hash: 'hash-1', status: 'active',
     capabilities: [{ capability: 'message.send', scope: 'draft:1' }],
   },
   grant: {
@@ -52,28 +53,30 @@ test('runtime only issues A4 confirmations for a policy decision that needs conf
 
 test('confirmation is bound to the complete action identity, not only its token', () => {
   const store = freshStore();
-  const issued = store.issue({ actionId: 'action-1', actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-1', now: NOW });
+  const action = { id: 'action-1', ownerId: 'owner-1', capability: 'message.send', scope: 'draft:1', risk: 'external', requestedAutonomy: 'A4', actor: ACTOR };
+  const issued = store.issue({ actionId: 'action-1', actionHash: 'action-hash-1', action, actor: ACTOR, contractHash: 'hash-1', now: NOW });
   assert.equal(store.consume(issued.token, {
-    actionId: 'action-2', actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-1', now: NOW,
+    actionId: 'action-2', action, actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-1', now: NOW,
   }).code, 'CONFIRMATION_BINDING_MISMATCH');
   assert.equal(store.consume(issued.token, {
-    actionId: 'action-1', actionHash: 'action-hash-2', actor: ACTOR, contractHash: 'hash-1', now: NOW,
+    actionId: 'action-1', action: { ...action, scope: 'draft:2' }, actionHash: 'action-hash-2', actor: ACTOR, contractHash: 'hash-1', now: NOW,
   }).code, 'CONFIRMATION_BINDING_MISMATCH');
   assert.equal(store.consume(issued.token, {
-    actionId: 'action-1', actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-2', now: NOW,
+    actionId: 'action-1', action, actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-2', now: NOW,
   }).code, 'CONFIRMATION_BINDING_MISMATCH');
   assert.equal(store.consume(issued.token, {
-    actionId: 'action-1', actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-1', now: NOW,
+    actionId: 'action-1', action, actionHash: 'action-hash-1', actor: ACTOR, contractHash: 'hash-1', now: NOW,
   }).status, 'confirmed');
 });
 
 test('expired confirmation is removed and cannot be consumed later', () => {
   const store = freshStore();
-  const issued = store.issue({ actionId: 'action-1', actor: ACTOR, contractHash: 'hash-1', now: NOW, ttlMs: 1 });
+  const action = { id: 'action-1', ownerId: 'owner-1', capability: 'message.send', scope: 'draft:1', risk: 'external', requestedAutonomy: 'A4', actor: ACTOR };
+  const issued = store.issue({ actionId: 'action-1', action, actor: ACTOR, contractHash: 'hash-1', now: NOW, ttlMs: 1 });
   assert.equal(store.consume(issued.token, {
-    actionId: 'action-1', actor: ACTOR, contractHash: 'hash-1', now: '2026-10-27T10:00:00.001Z',
+    actionId: 'action-1', action, actor: ACTOR, contractHash: 'hash-1', now: '2026-10-27T10:00:00.001Z',
   }).code, 'CONFIRMATION_EXPIRED');
   assert.equal(store.consume(issued.token, {
-    actionId: 'action-1', actor: ACTOR, contractHash: 'hash-1', now: NOW,
+    actionId: 'action-1', action, actor: ACTOR, contractHash: 'hash-1', now: NOW,
   }).code, 'CONFIRMATION_REPLAY');
 });

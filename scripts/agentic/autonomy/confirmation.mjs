@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { normalizeActor, fail } from './types.mjs';
+import { actionIdentity } from './identity.mjs';
 
 const validText = (value) => typeof value === 'string' && value.length > 0;
 const timestamp = (value) => {
@@ -12,7 +13,7 @@ const timestamp = (value) => {
 export class ConfirmationStore {
   #items = new Map();
 
-  issue({ actionId, actor, contractHash, actionHash, now = new Date().toISOString(), ttlMs = 60_000 } = {}) {
+  issue({ actionId, actor, contractHash, actionHash, action, now = new Date().toISOString(), ttlMs = 60_000 } = {}) {
     if (!validText(actionId) || !validText(contractHash)) fail('CONFIRMATION_INPUT_INVALID');
     if (!Number.isFinite(ttlMs) || ttlMs <= 0) fail('CONFIRMATION_TTL_INVALID');
     const normalizedActor = normalizeActor(actor);
@@ -23,6 +24,7 @@ export class ConfirmationStore {
     this.#items.set(token, {
       actionId,
       actionHash: actionHash ?? null,
+      actionFingerprint: action ? actionIdentity(action) : null,
       actorId: normalizedActor.actorId,
       resolvedModel: normalizedActor.resolvedModel,
       contractHash,
@@ -31,7 +33,7 @@ export class ConfirmationStore {
     return { token, actionId, expiresAt: new Date(expiresAt).toISOString() };
   }
 
-  consume(token, { actionId, actor, contractHash, actionHash, now = new Date().toISOString() } = {}) {
+  consume(token, { actionId, actor, contractHash, actionHash, action, now = new Date().toISOString() } = {}) {
     const item = this.#items.get(token);
     if (!item) return { status: 'blocked', code: 'CONFIRMATION_REPLAY' };
     let currentActor;
@@ -45,7 +47,8 @@ export class ConfirmationStore {
       || (item.actionHash ?? null) !== (actionHash ?? null)
       || item.actorId !== currentActor.actorId
       || item.resolvedModel !== currentActor.resolvedModel
-      || item.contractHash !== contractHash) {
+      || item.contractHash !== contractHash
+      || (item.actionFingerprint !== null && item.actionFingerprint !== actionIdentity(action))) {
       return { status: 'blocked', code: 'CONFIRMATION_BINDING_MISMATCH' };
     }
     if (timestamp(now) >= item.expiresAt) {

@@ -12,7 +12,9 @@ const TRANSITIONS = Object.freeze({
   pending: new Set(['running', 'succeeded', 'failed', 'unknown', 'paused', 'cancelled', 'blocked']),
   running: new Set(['succeeded', 'failed', 'unknown', 'paused', 'cancelled', 'blocked']),
   paused: new Set(['running', 'cancelled', 'blocked']),
-  succeeded: new Set(), failed: new Set(), unknown: new Set(), cancelled: new Set(), blocked: new Set(),
+  succeeded: new Set(['unknown']),
+  failed: new Set(['unknown']),
+  unknown: new Set(), cancelled: new Set(), blocked: new Set(),
 });
 
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -52,6 +54,8 @@ export class IdempotencyRecovery {
     this.actions = new Map();
     this.checkpoints = new Map();
     this.events = new Map();
+    this.inFlight = new Map();
+    this.inFlightFingerprints = new Map();
   }
 
   #row(key) {
@@ -147,7 +151,7 @@ export class IdempotencyRecovery {
     return this.transition(key, 'paused', { reason });
   }
 
-  async execute(input, executor) {
+  async #executeUnlocked(input, executor) {
     const checked = contextValid(input);
     if (checked.error) {
       const result = checked.error === 'ACTOR_MODEL_UNKNOWN' ? { status: 'UNKNOWN', code: checked.error } : fail(checked.error);
@@ -158,6 +162,8 @@ export class IdempotencyRecovery {
       if (!this.#same(existing, checked.fingerprint)) return fail('IDEMPOTENCY_KEY_CONFLICT');
       if (TERMINAL.has(existing.status)) return this.#public(existing, true);
       if (existing.status === 'unknown') return this.#public(existing, true);
+      const inFlight = this.inFlight.get(input.idempotencyKey);
+      if (inFlight) return inFlight;
     } else {
       try {
         await this.audit.append({ type: 'autonomy.action.started', actionId: input.actionId, ownerId: input.ownerId, actor: input.actor, resolvedModel: checked.fingerprint.resolvedModel, status: 'pending' });
@@ -181,7 +187,28 @@ export class IdempotencyRecovery {
     }
   }
 
-  async recover(input, executor) {
+  async execute(input, executor) {
+    const existingWork = this.inFlight.get(input?.idempotencyKey);
+    if (existingWork) {
+      const checked = contextValid(input);
+      if (checked.error) return fail(checked.error);
+      const row = this.#row(input.idempotencyKey);
+      return this.inFlightFingerprints.get(input.idempotencyKey) === digest(checked.fingerprint)
+        ? existingWork
+        : fail('IDEMPOTENCY_KEY_CONFLICT');
+    }
+    const key = input?.idempotencyKey;
+    const checked = contextValid(input);
+    const work = this.#executeUnlocked(input, executor);
+    this.inFlightFingerprints.set(key, checked.error ? null : digest(checked.fingerprint));
+    this.inFlight.set(key, work);
+    try { return await work; } finally {
+      this.inFlight.delete(key);
+      this.inFlightFingerprints.delete(key);
+    }
+  }
+
+  async #recoverUnlocked(input, executor) {
     const checked = contextValid(input);
     if (checked.error) return fail(checked.error);
     const row = this.#row(input.idempotencyKey);
@@ -195,12 +222,45 @@ export class IdempotencyRecovery {
       try {
         const output = await executor();
         this.transition(input.idempotencyKey, 'succeeded', output);
+        try {
+          await this.audit.append({ type: 'autonomy.action.result', actionId: input.actionId, ownerId: input.ownerId, actor: input.actor, status: 'succeeded', code: 'SUCCEEDED' });
+        } catch (error) {
+          this.transition(input.idempotencyKey, 'unknown', output);
+          return { status: 'UNKNOWN', code: error.code ?? 'AUDIT_WRITE_FAILED' };
+        }
         return { status: 'succeeded', code: 'SUCCEEDED', output };
       } catch (error) {
-        this.transition(input.idempotencyKey, error?.unknown ? 'unknown' : 'failed');
+        const next = error?.unknown ? 'unknown' : 'failed';
+        this.transition(input.idempotencyKey, next);
+        try {
+          await this.audit.append({ type: error?.unknown ? 'autonomy.action.unknown' : 'autonomy.action.result', actionId: input.actionId, ownerId: input.ownerId, actor: input.actor, status: next, code: error?.unknown ? 'EXTERNAL_RESULT_UNKNOWN' : 'EXECUTION_FAILED' });
+        } catch (auditError) {
+          this.transition(input.idempotencyKey, 'unknown');
+          return { status: 'UNKNOWN', code: auditError.code ?? 'AUDIT_WRITE_FAILED' };
+        }
         return { status: error?.unknown ? 'UNKNOWN' : 'failed', code: error?.unknown ? 'EXTERNAL_RESULT_UNKNOWN' : 'EXECUTION_FAILED' };
       }
     }
     return this.#public(row, true);
+  }
+
+  async recover(input, executor) {
+    const key = input?.idempotencyKey;
+    const existingWork = this.inFlight.get(key);
+    if (existingWork) {
+      const checked = contextValid(input);
+      if (checked.error) return fail(checked.error);
+      return this.inFlightFingerprints.get(key) === digest(checked.fingerprint)
+        ? existingWork
+        : fail('IDEMPOTENCY_KEY_CONFLICT');
+    }
+    const checked = contextValid(input);
+    const work = this.#recoverUnlocked(input, executor);
+    this.inFlightFingerprints.set(key, checked.error ? null : digest(checked.fingerprint));
+    this.inFlight.set(key, work);
+    try { return await work; } finally {
+      this.inFlight.delete(key);
+      this.inFlightFingerprints.delete(key);
+    }
   }
 }

@@ -60,13 +60,16 @@ export function evaluateAction(input, { now = new Date().toISOString(), phase = 
   let actor;
   try { actor = normalizeActor(action.actor); } catch (error) { return errorResult('blocked', error.code); }
   if (actor.status === 'UNKNOWN') return errorResult('UNKNOWN', actor.code);
-  const ownerIds = [input.ownerId, mission.ownerId, contract.ownerId, grant?.ownerId, action.ownerId].filter(Boolean);
-  if (!action.ownerId || ownerIds.some((ownerId) => ownerId !== action.ownerId)) return errorResult('blocked', 'OWNER_MISMATCH');
+
+  const ownerIds = [input.ownerId, mission.ownerId, contract.ownerId, ...(grant ? [grant.ownerId] : []), action.ownerId];
+  if (ownerIds.some((ownerId) => typeof ownerId !== 'string' || ownerId.length === 0)
+    || ownerIds.some((ownerId) => ownerId !== action.ownerId)) return errorResult('blocked', 'OWNER_MISMATCH');
+  if (!grant) return errorResult('blocked', 'GRANT_REQUIRED');
   if (action.capability === 'contract.wont.delete') return errorResult('blocked', 'WONT_IMMUTABLE');
   if (!['contracted', 'prepping', 'live'].includes(mission.state)) return errorResult('blocked', 'CONTRACT_REQUIRED');
-  if (contract.status !== 'active') return errorResult('blocked', 'CONTRACT_INVALID');
+  if (typeof contract.hash !== 'string' || contract.hash.length === 0) return errorResult('blocked', 'CONTRACT_INVALID');
+  if (typeof contract.missionId !== 'string' || contract.missionId !== mission.id) return errorResult('blocked', 'CONTRACT_MISSION_MISMATCH');
   if (action.contractHash != null && action.contractHash !== contract.hash) return errorResult('blocked', 'CONTRACT_HASH_MISMATCH');
-  if (!grant) return errorResult('blocked', 'GRANT_REQUIRED');
   if (grant.status !== 'active') return errorResult('blocked', 'GRANT_INACTIVE');
   if (grant.actor != null && grant.actor !== actor.actorId) return errorResult('blocked', 'GRANT_ACTOR_MISMATCH');
   const grantModel = grant.resolvedModel ?? grant.model;
@@ -80,7 +83,11 @@ export function evaluateAction(input, { now = new Date().toISOString(), phase = 
     ? true
     : contract.capabilities.find((item) => item.capability === action.capability && withinScope(item.scope, action.scope));
   if (!contractCapability) return errorResult('blocked', 'SCOPE_DENIED');
-  const capability = grant.capabilities?.find((item) => item.capability === action.capability && withinScope(item.scope, action.scope));
+  const capability = Array.isArray(grant.capabilities)
+    ? grant.capabilities.find((item) => typeof item === 'string'
+      ? item === action.capability
+      : item?.capability === action.capability && withinScope(item.scope, action.scope))
+    : null;
   if (!capability) return errorResult('blocked', 'SCOPE_DENIED');
   if (!disclosureAllows(contract, action)) return errorResult('blocked', 'DATA_DISCLOSURE_DENIED');
   if (!windowAllows(contract, now)) return errorResult('blocked', 'WINDOW_OUTSIDE');
