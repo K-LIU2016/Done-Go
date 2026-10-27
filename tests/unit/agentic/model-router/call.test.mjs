@@ -11,7 +11,8 @@
 //     · 超时（AbortSignal）→ 抛 UPSTREAM_UNAVAILABLE
 //   createSelectionLedger({ db }) → { record(sel), list({ownerId}) }   // 表 w7_model_selections
 //   createCompletionService({ select, transport, ledger, clock })
-//     .complete(taskClass, messages, { dataClass, actor, ownerId, budget })
+//     .complete(taskClass, messages, { dataClass, actor, ownerId, budget, localAvailable })
+//     · select port 鸭子类型同 M4 selectModel：localAvailable 原样透传、now 由注入 clock 派生
 //     · router 判 unknown / 双方都无 model 来源 → { ok:false, reason:'no-model-source' }，
 //       台账 model=NULL status='unknown'（actor 显式绑定模型：无 resolved model ≠ 完成）
 //     · resolvedModel = response.model || selection.model
@@ -28,6 +29,7 @@ import {
   createCompletionService,
   createSelectionLedger,
 } from '../../../../scripts/agentic/model-router/call.mjs';
+import { selectModel } from '../../../../scripts/agentic/model-router/router.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../../../');
@@ -401,4 +403,38 @@ test('M5 · 成功路径透传 usage；provenance 非对象时按 null 记账', 
   const row = led.list({ ownerId: 'owner-1' })[0];
   assert.equal(row.provenance, null, 'malformed provenance is recorded as null, never guessed');
   assert.equal(row.recordedAt, new Date(Date.parse(NOW)).toISOString(), 'recorded_at derives from the injected clock');
+});
+
+// ---------------- select port 鸭子类型（M4 selectModel 直接接线） ----------------
+
+test('M5 · select=selectModel 直接接线：complete 透传 localAvailable、now 由注入 clock 派生', async () => {
+  // 文档契约（call.mjs 头注/JSDoc）：select 是 M4 selectModel 的鸭子类型 port，
+  // W13 按文档 `select: selectModel` 接线必须开箱即用，不得在测试外重造适配器。
+  const led = freshLedger().ledger;
+  const service = createCompletionService({
+    select: selectModel, // 直接注入 M4 真实现，零适配
+    transport: { chat: async () => ({ model: 'gpt-6.1-sol', choices: [{ message: { content: 'hi' } }], usage: { total_tokens: 5 } }) },
+    ledger: led,
+    clock: { now: () => Date.parse(NOW) },
+  });
+  const result = await service.complete('code', [{ role: 'user', content: 'x' }], {
+    ...OPTS, localAvailable: true,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.model, 'gpt-6.1-sol');
+  // 红线⑥：select 收到的 now 必须由注入 clock 派生（毫秒 ISO 形式），不是真实 wall clock。
+  assert.equal(result.provenance.decidedAt, new Date(Date.parse(NOW)).toISOString());
+  assert.equal(led.list({ ownerId: 'owner-1' })[0].status, 'selected');
+});
+
+test('M5 负面 · select=selectModel 但 complete 未声明 localAvailable → CONTRACT_INVALID（不猜测本地可用性）', async () => {
+  const led = freshLedger().ledger;
+  const service = createCompletionService({
+    select: selectModel,
+    transport: { chat: async () => { throw new Error('must not be called'); } },
+    ledger: led,
+    clock: { now: () => Date.parse(NOW) },
+  });
+  await rejectsCode(service.complete('code', [{ role: 'user', content: 'x' }], OPTS), 'CONTRACT_INVALID');
+  assert.equal(led.list({ ownerId: 'owner-1' })[0].status, 'rejected');
 });

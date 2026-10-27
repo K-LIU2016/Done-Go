@@ -61,7 +61,7 @@ M6 tool-registry-core ─► M7 tool-registry-mcp ──────────
 
 文件：`scripts/agentic/model-router/call.mjs`、`scripts/agentic/model-router/transport.mjs`、`scripts/agentic/db/migrations/w7-2-model-router.sql`、`tests/unit/agentic/model-router/call.test.mjs`
 - `transport.mjs`：OpenAI-compatible transport 接口 + `createChatTransport({ baseUrl, apiKey, fetch, timeoutMs })`——**key 只经注入**（运行期由 `gateway-key.mjs` 供 W13 接线；本流不读不打印），fetch 可注入，测试全 mock，绝不联网。
-- `call.mjs`：`complete(taskClass, messages, {dataClass, actor, budget})` = router 选择 → 记账 → transport 调用 → 结果必须带模型来源（response.model / 选择 provenance），否则 UNKNOWN；timeout → UPSTREAM_UNAVAILABLE、403 → FORBIDDEN，错误结构化上抛不吞。
+- `call.mjs`：`complete(taskClass, messages, {dataClass, actor, ownerId, budget, localAvailable})` = router 选择 → 记账 → transport 调用（select port 鸭子类型同 M4 selectModel：localAvailable 原样透传、now 由注入 clock 派生，`select: selectModel` 可直接接线） → 结果必须带模型来源（response.model / 选择 provenance），否则 UNKNOWN；timeout → UPSTREAM_UNAVAILABLE、403 → FORBIDDEN，错误结构化上抛不吞。
 - 台账表 `w7_model_selections`（owner_id、actor、task_class、data_class、model 或 NULL=UNKNOWN、provenance、status）；**actor 显式绑定模型**：无 resolved model 记 UNKNOWN，不得视为完成。
 负面测试先行：transport timeout、403、返回无 model、router UNKNOWN、secret dataClass、预算耗尽、跨 owner 查台账。
 

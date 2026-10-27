@@ -403,6 +403,15 @@ export function createAgentRuntime(options = {}) {
       return classifyFailure(run, error);
     }
 
+    // 收尾预算兜底（fail closed）：pre-call 只能按 calls:1/tokens:0 估算，单次/末次
+    // 调用的实际用量可能把预算顶穿（charge 只记账不判定）。循环走完必须再验一次
+    // 双轴上限：超限 → 拒绝 done 收场（brief 负面清单「预算超限」），spent 保持如实供审计。
+    try {
+      tracker.assertCanSpend({ calls: 0, tokens: 0 });
+    } catch (error) {
+      return classifyFailure(run, error);
+    }
+
     if (typeof run.resolvedModel !== 'string' || run.resolvedModel.length === 0) {
       store.recordUnknownOutcome({
         ownerId: run.ownerId,

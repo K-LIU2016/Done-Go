@@ -224,23 +224,21 @@ test('M8 · M5 completion 真实链路：真 selectModel port + 注入 transport
   const db = openAgenticDb(':memory:');
   migrate(db, migrationsDir);
   const ledger = createSelectionLedger({ db });
-  // M5 的 select 是注入 port（W13 adapter 位）；此处用 M4 真实现接线，
-  // now/localAvailable 显式注入（红线⑥：不允许真实 wall clock）。
-  const selectPort = (taskClass, dataClass, opts) => selectModel(taskClass, dataClass, {
-    ...opts, localAvailable: true, now: NOW,
-  });
+  // M5 的 select 是注入 port（鸭子类型同 M4 selectModel）：修复后 localAvailable
+  // 由 complete opts 透传、now 由注入 clock 派生，`select: selectModel` 直接接线。
   const service = createCompletionService({
-    select: selectPort,
+    select: selectModel,
     transport: { chat: async () => ({ model: 'gpt-6.1-sol', choices: [{ message: { content: 'hi' } }], usage: { prompt_tokens: 3, total_tokens: 5 } }) },
     ledger,
     clock: { now: () => Date.parse(NOW) },
   });
   const result = await service.complete('code', [{ role: 'user', content: 'x' }], {
     dataClass: 'public', actor: 'planner@w7', ownerId: 'owner-1', budget: { calls: 5, tokens: 50_000 },
+    localAvailable: true,
   });
   assert.equal(result.ok, true);
   assert.equal(result.model, 'gpt-6.1-sol', 'actor must be explicitly bound to a resolved model');
-  assert.equal(result.provenance.decidedAt, NOW, 'provenance.decidedAt must come from the injected clock');
+  assert.equal(result.provenance.decidedAt, new Date(Date.parse(NOW)).toISOString(), 'provenance.decidedAt must come from the injected clock');
   assert.match(result.provenance.inputsHash, /^[a-f0-9]{64}$/);
   assert.equal(typeof result.provenance.rule, 'string');
   const rows = ledger.list({ ownerId: 'owner-1' });

@@ -53,3 +53,9 @@ git diff --check → 干净
 ## 红线自查
 
 不碰主仓/classic/thinkpad/生产/LiteLLM/.env；未读写打印任何真实 key（测试 key 均为注入字面量）；未联网（fetch 全 mock 且模块禁止回退全局 fetch）；未新增依赖（模块零 import，测试仅 node:test/assert）；文件域仅本模块 4 文件 + 本记录；contracts/agentic 零改动；端口段未实际监听（17681 仅作 URL 拼接断言）。
+
+## 修正（2026-10-28 评审修复）：select port 鸭子类型声明此前不成立
+
+- 原记录称 select 为「M4 selectModel 形状」的鸭子类型 port，但 `complete()` 只向 select 传 `{actor, ownerId, budget}`，而 `selectModel` 必填 `opts.localAvailable:boolean` 与 `opts.now:ISO`——直接 `select: selectModel` 接线每次必抛 `CONTRACT_INVALID 'opts.localAvailable must be an explicit boolean'`（本会话 node 实跑复现）。唯一适配器长在 `tests/unit/agentic/contracts/w7-contract-consistency.test.mjs`（硬编码 localAvailable:true），组内 call.test.mjs 全用 mock select 从未暴露。
+- 修复（call.mjs）：`complete()` 把 `opts.localAvailable` 原样透传给 select（不猜测；缺失由 selectModel 端 fail-closed 拒并记 rejected 台账），并传由注入 clock 派生的 `now = new Date(clock.now()).toISOString()`。`select: selectModel` 现可直接接线（call.test.mjs 新增直接接线正/负例钉住）。
+- 本记录上方正文与 `.s2d/plan.md` M5 旧签名 `complete(taskClass, messages, {dataClass, actor, budget})` 系当时实现的不实描述，以本节与现行代码为准（plan.md 已同步订正）。

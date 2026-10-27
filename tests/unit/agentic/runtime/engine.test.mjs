@@ -374,6 +374,24 @@ test('M3 负面 · 引擎级预算超限：两次 modelCall 超过 workOrder.bud
   assert.ok(['failed', 'partial'].includes(outcome.status), `status=${outcome.status}`);
 });
 
+test('M3 负面 · 引擎级预算超限（末次调用）：单次 modelCall 实际 tokens 超上限 → 拒绝 done 收场', async () => {
+  // 修复回归钉：pre-call 只能估 tokens:0（调用前不知道实际用量），若末次/单次
+  // 调用把预算顶穿，executeSteps 收尾必须兜住——绝不允许 fail-open 成 done。
+  const overCap = async () => ({ ok: true, content: 'big', model: 'gpt-6-sol', usage: { calls: 1, tokens: 500 } });
+  const { runtime } = freshRuntime({ modelCaller: overCap, clock: createFixedClock(T0) });
+  const outcome = await runtime.runAgent({
+    actor: 'planner@w7',
+    workOrder: makeWorkOrder({ budget: { calls: 5, tokens: 100, deadline: '2026-10-27T11:00:00Z' } }),
+    contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }],
+    ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async ctx => ctx.modelCall({ prompt: 'x' })),
+  });
+  assert.ok(['failed', 'partial'].includes(outcome.status), `status=${outcome.status} must not be done`);
+  assert.ok(!outcome.workResult || outcome.workResult.status !== 'done', 'over-cap run must never produce a done WorkResult');
+  assert.equal(outcome.workResult?.spent?.tokens, 500, 'spent stays honest for audit');
+});
+
 test('M3 负面 · 引擎级窗口外：注入时钟越过 deadline → 拒绝执行', async () => {
   const modelCaller = okModel();
   const lateClock = createFixedClock('2026-10-27T11:59:00Z');

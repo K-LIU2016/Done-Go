@@ -1,8 +1,11 @@
 // W7 M5 · model-router-call — 选型台账 + completion 服务（call.mjs）
 //
 // 依据：.s2d/plan.md M5；brief 裁决④。
-//   * complete(taskClass, messages, { dataClass, actor, ownerId, budget })
-//     = router 选择（注入的 select port，鸭子类型同 M4 selectModel）
+//   * complete(taskClass, messages, { dataClass, actor, ownerId, budget, localAvailable })
+//     = router 选择（注入的 select port，鸭子类型同 M4 selectModel：
+//       complete 把 opts.localAvailable 原样透传，并由注入 clock 派生 now
+//       （ISO-8601）一并传给 select——M4 selectModel 要求这两项必填，
+//       因此 `select: selectModel` 可直接接线，无需适配层）
 //     → 记账（w7_model_selections）→ transport 调用（注入，绝不联网）。
 //   * 结果必须带模型来源：resolvedModel = response.model || selection.model；
 //     双方都无 → 只能 UNKNOWN（{ ok:false, reason:'no-model-source' }，
@@ -141,9 +144,11 @@ function firstNonEmptyModel(...candidates) {
 /**
  * createCompletionService({ select, transport, ledger, clock })
  *
- * - select：注入的选型 port（M4 selectModel 的鸭子类型）：
- *     (taskClass, dataClass, { actor, ownerId, budget })
+ * - select：注入的选型 port（M4 selectModel 的鸭子类型，可直接 `select: selectModel`）：
+ *     (taskClass, dataClass, { actor, ownerId, budget, localAvailable, now })
  *     → { status:'selected'|'unknown', model?, provider?, locality?, provenance, reason }
+ *     complete 把 opts.localAvailable 原样透传（缺失/非 boolean 由 select 端 fail-closed
+ *     拒绝——本地可用性不允许猜测），now 由注入 clock 派生（new Date(clock.now()).toISOString()）。
  * - transport：createChatTransport 产物（{ chat(payload) }）；key 已封在 transport 内。
  * - ledger：createSelectionLedger 产物。
  * - clock：{ now() → epoch ms }，必注入（红线⑥）。
@@ -175,6 +180,9 @@ export function createCompletionService(options = {}) {
     const ownerId = requireNonEmptyString(opts.ownerId, 'opts.ownerId');
     const dataClass = requireNonEmptyString(opts.dataClass, 'opts.dataClass');
     const budget = opts.budget;
+    // 本地可用性只透传不猜测（M4 selectModel 要求显式 boolean；缺失由 select 端
+    // fail-closed 拒绝并记 rejected 台账）。
+    const localAvailable = opts.localAvailable;
     const recordedAt = new Date(clock.now()).toISOString();
 
     // 1) 预算先行：无调用额度即无选择、无调用（brief：预算耗尽不选型不调用）。
@@ -195,9 +203,10 @@ export function createCompletionService(options = {}) {
     }
 
     // 3) 选型（注入 port；抛错 = 结构化拒绝 → 记 rejected 后原样上抛）。
+    //    鸭子类型对齐 M4 selectModel：透传 localAvailable，now 由注入 clock 派生。
     let decision;
     try {
-      decision = await select(taskClass, dataClass, { actor, ownerId, budget });
+      decision = await select(taskClass, dataClass, { actor, ownerId, budget, localAvailable, now: recordedAt });
     } catch (cause) {
       ledger.record({ ownerId, actor, taskClass, dataClass, model: null, provenance: null, status: 'rejected', recordedAt });
       throw cause;
