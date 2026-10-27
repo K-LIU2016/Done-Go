@@ -158,3 +158,91 @@ test('side-effect boundary: confirm writes ONLY into preview_confirmations', asy
     world.db.close();
   }
 });
+
+test('key-shape and note validation are CONTRACT_INVALID and write nothing', async () => {
+  const world = await freshWorld();
+  try {
+    const badInputs = [
+      { ownerId: '', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'confirm' },
+      { ownerId: 'owner-a', missionId: '   ', previewVersion: 1, actor: 'user', decision: 'confirm' },
+      { ownerId: 'owner-a', missionId: 'm1', previewVersion: 0, actor: 'user', decision: 'confirm' },
+      { ownerId: 'owner-a', missionId: 'm1', previewVersion: '1', actor: 'user', decision: 'confirm' },
+      { ownerId: 'owner-a', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'confirm', note: 42 },
+      { ownerId: 'owner-a', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'confirm', note: 'n'.repeat(2001) },
+    ];
+    for (const params of badInputs) {
+      await assert.rejects(
+        () => world.confirmEntry.record(params),
+        error => error.code === 'CONTRACT_INVALID',
+        `expected CONTRACT_INVALID for ${JSON.stringify(params)}`,
+      );
+    }
+    assert.equal((await world.confirmEntry.list({ ownerId: 'owner-a', missionId: 'm1' })).length, 0);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('replay collapses onto the original record even with a drifted note', async () => {
+  const world = await freshWorld();
+  try {
+    const first = await world.confirmEntry.record({
+      ownerId: 'owner-a', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'confirm',
+    });
+    assert.equal(first.note, null);
+    const replay = await world.confirmEntry.record({
+      ownerId: 'owner-a', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'confirm', note: '再想想',
+    });
+    assert.equal(replay.id, first.id);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.note, null, 'the stored note wins: a drifted retry never rewrites a recorded decision');
+  } finally {
+    world.db.close();
+  }
+});
+
+test('idempotent replay survives a later soft delete of the confirmed version', async () => {
+  const world = await freshWorld();
+  try {
+    const first = await world.confirmEntry.record({
+      ownerId: 'owner-a', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'confirm',
+    });
+    await world.previewStore.softDelete({ ownerId: 'owner-a', missionId: 'm1', version: 1 });
+    const replay = await world.confirmEntry.record({
+      ownerId: 'owner-a', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'confirm',
+    });
+    assert.equal(replay.id, first.id, 'a retry of an already-recorded decision replays it');
+    assert.equal(replay.replayed, true);
+  } finally {
+    world.db.close();
+  }
+});
+
+test('list returns decisions in append order; corrupted stored event JSON fails closed', async () => {
+  const world = await freshWorld();
+  try {
+    await world.confirmEntry.record({
+      ownerId: 'owner-a', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'confirm', note: '就绪',
+    });
+    await world.confirmEntry.record({
+      ownerId: 'owner-a', missionId: 'm1', previewVersion: 1, actor: 'user', decision: 'decline',
+    });
+    const rows = await world.confirmEntry.list({ ownerId: 'owner-a', missionId: 'm1' });
+    assert.deepEqual(rows.map(row => row.decision), ['confirm', 'decline']);
+    assert.equal(rows[0].note, '就绪');
+    assert.equal(rows[0].event.type, 'contract-draft-request');
+    assert.equal(rows[0].event.previewVersion, 1);
+    assert.equal(rows[1].event, null);
+
+    world.db
+      .prepare("UPDATE preview_confirmations SET event = '{not-json' WHERE decision = 'confirm'")
+      .run();
+    await assert.rejects(
+      () => world.confirmEntry.list({ ownerId: 'owner-a', missionId: 'm1' }),
+      error => error.code === 'CONTRACT_INVALID',
+      'a corrupted stored event must surface as CONTRACT_INVALID, never as a plausible event',
+    );
+  } finally {
+    world.db.close();
+  }
+});
