@@ -2,7 +2,11 @@ const terminalErrors = {
   consumed: 'GRANT_NOT_ACTIVE', revoked: 'GRANT_REVOKED', expired: 'GRANT_EXPIRED', invalidated: 'GRANT_INVALIDATED',
 };
 const fail = (code, message = code) => ({ ok: false, error: { code, message } });
-const iso = value => Date.parse(value);
+const iso = value => {
+  const parsed = Date.parse(value ?? '');
+  return Number.isFinite(parsed) ? parsed : null;
+};
+function validTime(value) { return iso(value) !== null; }
 function owned(grant, context) {
   if (grant.ownerId !== context.ownerId || grant.actor !== context.actor) return fail('FORBIDDEN');
   if (!context.actor) return fail('ACTOR_REQUIRED');
@@ -17,6 +21,7 @@ export function proposeGrant(grant) {
   return { ok: true, grant: { ...grant, status: 'proposed' } };
 }
 export function activateGrant(grant, context) {
+  if (!grant || !context || !validTime(grant.expiresAt) || !validTime(context.now)) return fail('GRANT_INVALID');
   if (grant.status !== 'proposed') return fail('GRANT_NOT_PROPOSED');
   if (!grant.actor || !context.actor) return fail('ACTOR_REQUIRED');
   if (context.resolvedModel == null) return fail('MODEL_UNKNOWN');
@@ -27,6 +32,9 @@ export function activateGrant(grant, context) {
   return { ok: true, grant: { ...grant, status: 'active', revision: (grant.revision || 0) + 1 } };
 }
 export function checkGrant(grant, context) {
+  if (!grant || !context || !validTime(grant.expiresAt) || !validTime(context.now)
+    || (context.windowStart && !validTime(context.windowStart))
+    || (context.windowEnd && !validTime(context.windowEnd))) return fail('GRANT_INVALID');
   if (grant.status !== 'active') return fail(terminalErrors[grant.status] || 'GRANT_NOT_ACTIVE');
   const identity = owned(grant, context); if (identity) return identity;
   if (iso(context.now) >= iso(grant.expiresAt)) return fail('GRANT_EXPIRED');
@@ -47,17 +55,21 @@ export function consumeGrant(grant, context) {
 }
 function transition(grant, status, context) {
   if (!grant?.id || !context?.ownerId || grant.ownerId !== context.ownerId) return fail('FORBIDDEN');
-  if (grant.status !== 'active') return fail('GRANT_NOT_ACTIVE');
+  const allowed = status === 'invalidated' ? ['proposed', 'active'] : ['active'];
+  if (!allowed.includes(grant.status)) return fail('GRANT_NOT_ACTIVE');
   return { ok: true, grant: { ...grant, status, revision: grant.revision + 1 } };
 }
 export const revokeGrant = (grant, context) => transition(grant, 'revoked', context);
 export function expireGrant(grant, context) {
+  if (!grant || !context || !validTime(grant.expiresAt) || !validTime(context.now)) return fail('GRANT_INVALID');
   if (iso(context.now) < iso(grant.expiresAt)) return fail('NOT_EXPIRED');
   if (!grant?.id || !context?.ownerId || grant.ownerId !== context.ownerId) return fail('FORBIDDEN');
   if (!['proposed', 'active'].includes(grant.status)) return fail('GRANT_NOT_ACTIVE');
   return { ok: true, grant: { ...grant, status: 'expired', revision: grant.revision + 1 } };
 }
 export function invalidateGrant(grant, context) {
-  if (!context.newContractHash || context.newContractHash === grant.contractHash) return fail('CONTRACT_UNCHANGED');
-  return transition(grant, 'invalidated', context);
+  if (!grant || !context || !context.newContractHash || context.newContractHash === grant.contractHash) return fail('CONTRACT_UNCHANGED');
+  if (!grant.id || !context.ownerId || grant.ownerId !== context.ownerId) return fail('FORBIDDEN');
+  if (!['proposed', 'active'].includes(grant.status)) return fail('GRANT_NOT_ACTIVE');
+  return { ok: true, grant: { ...grant, status: 'invalidated', revision: grant.revision + 1 } };
 }

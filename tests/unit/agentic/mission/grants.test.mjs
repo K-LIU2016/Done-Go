@@ -95,3 +95,19 @@ test('does not authorize A4 or A5 through a reusable grant', () => {
   denied(activateGrant(proposed, context({ actionAutonomy: 'A4' })), 'CONFIRMATION_REQUIRED');
   denied(activateGrant(proposed, context({ actionAutonomy: 'A5' })), 'AUTONOMY_FORBIDDEN');
 });
+
+test('invalidates proposed grants when the contract changes', () => {
+  const result = invalidateGrant(grant(), context({ newContractHash: 'b'.repeat(64) }));
+  const invalidated = successful(result);
+  assert.equal(invalidated.status, 'invalidated');
+});
+
+test('fails closed for malformed grant and clock timestamps', () => {
+  denied(activateGrant(grant({ expiresAt: 'not-a-date' }), context()), 'GRANT_INVALID');
+  const active = successful(activateGrant(grant(), context()));
+  denied(checkGrant(active, context({ now: 'not-a-date' })), 'GRANT_INVALID');
+  denied(checkGrant(active, context({ windowStart: 'not-a-date' })), 'GRANT_INVALID');
+  denied(checkGrant(active, context({ windowEnd: 'not-a-date' })), 'GRANT_INVALID');
+  denied(expireGrant(active, { ...context(), now: 'not-a-date' }), 'GRANT_INVALID');
+  denied(invalidateGrant(null, context({ newContractHash: 'b'.repeat(64) })), 'GRANT_INVALID');
+});

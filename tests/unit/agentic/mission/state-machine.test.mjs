@@ -81,6 +81,18 @@ test('rejects expiration before the unsigned mission window opens', () => {
   }, 'WINDOW_NOT_OPEN');
 });
 
+test('expires unsigned draft and scanned missions only after a valid window starts', () => {
+  for (const state of ['draft', 'scanned']) {
+    const mission = base({ state, scanId: state === 'scanned' ? 's1' : null });
+    const result = transitionMission(mission, 'expire', {
+      now: '2026-10-27T14:00:00Z', windowStart: '2026-10-27T14:00:00Z',
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.mission.state, 'expired');
+  }
+  rejected(base({ state: 'draft' }), 'expire', { now: 'bad', windowStart: 'bad' }, 'PRECONDITION_FAILED');
+});
+
 test('rejects a contract without an A1-A3 autonomy value', () => {
   const mission = base({ state: 'previewed', scanId: 's1', previewId: 'p1' });
   rejected(mission, 'contract', {

@@ -1,8 +1,8 @@
 const STATES = new Set(['draft', 'scanned', 'previewed', 'discussing', 'contracted', 'prepping', 'live', 'reviewing', 'delivered', 'blocked', 'paused', 'cancelled', 'failed', 'expired']);
 const TERMINAL = new Set(['delivered', 'cancelled', 'failed', 'expired']);
 const EDGES = {
-  draft: { scan: 'scanned', cancel: 'cancelled' },
-  scanned: { preview: 'previewed', cancel: 'cancelled' },
+  draft: { scan: 'scanned', cancel: 'cancelled', expire: 'expired' },
+  scanned: { preview: 'previewed', cancel: 'cancelled', expire: 'expired' },
   previewed: { discuss: 'discussing', contract: 'contracted', cancel: 'cancelled', expire: 'expired' },
   discussing: { preview: 'previewed', contract: 'contracted', cancel: 'cancelled', expire: 'expired' },
   contracted: { prepare: 'prepping', pause: 'paused', block: 'blocked', cancel: 'cancelled' },
@@ -39,7 +39,8 @@ function prerequisite(mission, event, context) {
   }
   if (event === 'expire') {
     if (mission.contractId) return error('PRECONDITION_FAILED', 'contracted mission cannot expire');
-    if (context.windowStart && (!context.now || Date.parse(context.now) < Date.parse(context.windowStart))) return error('WINDOW_NOT_OPEN');
+    if (!context.now || !context.windowStart || !Number.isFinite(Date.parse(context.now)) || !Number.isFinite(Date.parse(context.windowStart))) return error('PRECONDITION_FAILED', 'valid window timestamps required');
+    if (Date.parse(context.now) < Date.parse(context.windowStart)) return error('WINDOW_NOT_OPEN');
   }
   if (event === 'block' && !context.reason) return error('NEED_HUMAN', 'blocked transition needs a reason');
   if (event === 'resume' && context.contractHash !== mission.contractHash) return error('CONTRACT_MISMATCH', 'Contract must be revalidated');
