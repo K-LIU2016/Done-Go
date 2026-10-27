@@ -12,11 +12,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { execFile as execFileCallback } from 'node:child_process';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { buildRelease } from '../../../../scripts/build-web.mjs';
-import { tempDir } from './_helpers.mjs';
+import { promisify } from 'node:util';
+import { buildRelease, packagableFile } from '../../../../scripts/build-web.mjs';
+import { tempDir, root } from './_helpers.mjs';
+
+const execFile = promisify(execFileCallback);
 
 test('release manifest packages the W1 sync client (TA2 close-out)', async () => {
   const output = await tempDir('w13-release-manifest-');
@@ -99,5 +103,26 @@ test('the packaged server entry stays importable with its factory (candidate is 
     server.close();
   } finally {
     await output.cleanup();
+  }
+});
+
+// M19 补强（覆盖率）：treeFiles 的打包谓词三分支 + CLI 直跑入口（dist-web 已 gitignore）。
+test('packagableFile admits regular files and rejects dotfiles and non-files', () => {
+  assert.equal(packagableFile({ isFile: () => true, name: 'sync.js' }), true);
+  assert.equal(packagableFile({ isFile: () => true, name: '.DS_Store' }), false, 'dotfiles must not ship');
+  assert.equal(packagableFile({ isFile: () => false, name: 'sync.js' }), false, 'symlinks/other entry kinds must not ship');
+});
+
+test('the CLI entry builds a real candidate under dist-web and prints its manifest path', { timeout: 120_000 }, async () => {
+  const { stdout } = await execFile(process.execPath, [join(root, 'scripts/build-web.mjs')]);
+  assert.match(stdout, /^Done&Go release: .+\/dist-web\/donego-\S+\n/);
+  assert.match(stdout, /SHA-256 manifest: .+\/manifest\.json\n$/);
+  const directory = stdout.match(/^Done&Go release: (.+)\n/)[1]; // 路径含空格（Done & Go），整行捕获
+  try {
+    const manifest = JSON.parse(await readFile(join(directory, 'manifest.json'), 'utf8'));
+    assert.ok('web/agentic/sync.js' in manifest.files, 'CLI-built candidate must package the W1 sync client too');
+    assert.ok('web/agentic/reel/player.js' in manifest.files);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });

@@ -30,6 +30,12 @@ test('a Done&Go release contains the actual web app and verifiable files without
   expected.push('scripts/voice-pipeline/asr.mjs', 'scripts/voice-pipeline/asr-worker.mjs', 'scripts/voice-pipeline/clean.mjs', 'scripts/voice-pipeline/gateway.mjs', 'scripts/voice-pipeline/llm.mjs', 'scripts/voice-pipeline/time.mjs', 'scripts/voice-pipeline/timeline.mjs', 'scripts/intent.mjs', 'web/voice/contracts.js', 'web/voice/capture.js', 'web/voice/pcm-worklet.js', 'web/voice/v3-panel.js', 'web/voice/v3-panel.css');
   expected.push('web/collaboration-ui.js', 'web/collaboration-personal.js', 'web/collaboration-copy.js', 'web/collaboration.css', 'scripts/collaboration-store.mjs', 'scripts/collaboration-service.mjs', 'server/auth/service.mjs', 'server/auth/config.mjs', 'server/auth/email.mjs', 'server/urlguard.mjs');
   expected.push('web/model-catalog-cn.js', 'web/ai-parse.js', 'web/ai-prompt.js');
+  // W13 M19: web/agentic/**（W1 sync.js〔TA2 由豁免转必须过〕+ W5 UI 全量 + W11 reel）进入发布候选。
+  expected.push('web/agentic/sync.js', 'web/agentic/agentic.css', 'web/agentic/component.html', 'web/agentic/demo.html');
+  expected.push('web/agentic/assets/bookshelf-done.jpg', 'web/agentic/assets/illus-lesson.jpg', 'web/agentic/assets/photo-craft.jpg', 'web/agentic/assets/photo-whiteboard.jpg', 'web/agentic/assets/scene-classroom-poster.jpg', 'web/agentic/assets/scene-classroom.mp4', 'web/agentic/assets/slide-qwen.jpg');
+  expected.push('web/agentic/reel/README.md', 'web/agentic/reel/player.js', 'web/agentic/reel/reel.css');
+  expected.push('web/agentic/ui/acceptance.js', 'web/agentic/ui/activity-feed.js', 'web/agentic/ui/app.js', 'web/agentic/ui/block-card.js', 'web/agentic/ui/board.js', 'web/agentic/ui/boundaries.js', 'web/agentic/ui/capture-card.js', 'web/agentic/ui/discuss.js', 'web/agentic/ui/drawer.js', 'web/agentic/ui/fixtures.js', 'web/agentic/ui/gallery.js', 'web/agentic/ui/inbox.js', 'web/agentic/ui/reel-player.js', 'web/agentic/ui/scene-card.js', 'web/agentic/ui/storyboard.js', 'web/agentic/ui/tiers.js', 'web/agentic/ui/trace-view.js', 'web/agentic/ui/utils.js');
+  expected.push('web/agentic/ui/shape/registry.js', 'web/agentic/ui/shape/rich-shapes.js', 'web/agentic/ui/shape/text-shapes.js');
   assert.deepEqual(Object.keys(manifest.files).sort(), expected.slice().sort());
   for (const path of expected) {
     const bytes = await readFile(join(release.directory, path));
