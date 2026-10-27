@@ -69,6 +69,18 @@ function rowFromDb(row) {
   };
 }
 
+/**
+ * Sentinel for withTransaction: fn returns `new TransactionRollback(value)`
+ * to roll the transaction back WITHOUT failing — the writes unwind, but the
+ * coordinator still receives `value` (used when an idempotency replay races
+ * the turn inside the shared transaction and the derived writes must vanish).
+ */
+export class TransactionRollback {
+  constructor(value) {
+    this.value = value;
+  }
+}
+
 export function createPreviewStore(db, options = {}) {
   const now = typeof options.now === 'function' ? options.now : () => new Date().toISOString();
 
@@ -100,7 +112,8 @@ export function createPreviewStore(db, options = {}) {
     `),
   };
 
-  async function put({ ownerId, missionId, preview, baseVersion } = {}) {
+  /** Pre-write validation for a version insert (pure; no writes, no txn). */
+  function validateForPut({ ownerId, missionId, preview, baseVersion } = {}) {
     requireScope(ownerId, missionId);
     if (preview === null || typeof preview !== 'object' || Array.isArray(preview)) {
       fail('CONTRACT_INVALID', 'preview must be an object');
@@ -111,14 +124,22 @@ export function createPreviewStore(db, options = {}) {
       fail('CONTRACT_INVALID', 'preview.missionId does not match the target missionId');
     }
     if (baseVersion !== undefined) requireVersion(baseVersion);
+  }
 
-    const timestamp = now();
-    db.exec('BEGIN IMMEDIATE');
+  /**
+   * In-transaction body of a version insert: stale-base check, version
+   * assignment and the INSERT itself. The CALLER owns the surrounding
+   * BEGIN IMMEDIATE/COMMIT — either put() for a standalone version write, or
+   * the shared multi-store transaction (withTransaction) through which
+   * discussion/apply.mjs lands the preview version, the discussion message
+   * and the contract change record in ONE commit (remediation blocker A).
+   */
+  function writeVersion({ ownerId, missionId, preview, baseVersion } = {}) {
     try {
       const live = statements.latestLive.get(ownerId, missionId) ?? null;
       if (baseVersion !== undefined && (live === null || live.version !== baseVersion)) {
         // Stale base (someone wrote a newer version, or the base never existed):
-        // reject before touching anything; the transaction rolls back empty.
+        // reject before touching anything; the caller's transaction rolls back.
         fail('CONFLICT', `baseVersion ${baseVersion} is stale; current version is ${live === null ? null : live.version}`, {
           currentVersion: live === null ? null : live.version,
         });
@@ -128,8 +149,8 @@ export function createPreviewStore(db, options = {}) {
       const version = (maxVersion === null ? 0 : maxVersion) + 1;
       const stored = { ...preview, version };
       const id = randomUUID();
+      const timestamp = now();
       statements.insert.run(id, ownerId, missionId, version, canonicalJson(stored), timestamp, timestamp);
-      db.exec('COMMIT');
       return {
         id,
         ownerId,
@@ -142,11 +163,6 @@ export function createPreviewStore(db, options = {}) {
         deletedAt: null,
       };
     } catch (error) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        // Connection already rolled back; surface the original error.
-      }
       // A UNIQUE hit means another process inserted the same version between
       // our SELECT and INSERT: that is a concurrency conflict, not corruption.
       if (error && error.code === undefined && /UNIQUE/i.test(String(error.message))) {
@@ -154,6 +170,55 @@ export function createPreviewStore(db, options = {}) {
       }
       throw error;
     }
+  }
+
+  /**
+   * Run `fn` (synchronous store calls only) inside ONE BEGIN IMMEDIATE /
+   * COMMIT on this store's database; any throw rolls everything back and
+   * rethrows. This is the shared transaction coordination path (remediation
+   * blocker A): discussion/apply.mjs writes the preview version, the
+   * discussion message and the contract change record through store txn
+   * seams INSIDE this single transaction, so no crash window can leave a
+   * moved preview boundary without its message and change record. fn may
+   * return a TransactionRollback to discard the writes without failing.
+   */
+  function withTransaction(fn) {
+    db.exec('BEGIN IMMEDIATE');
+    let result;
+    try {
+      result = fn();
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // Connection already rolled back; surface the original error.
+      }
+      throw error;
+    }
+    if (result instanceof TransactionRollback) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // see above
+      }
+      return result.value;
+    }
+    try {
+      db.exec('COMMIT');
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // see above
+      }
+      throw error;
+    }
+    return result;
+  }
+
+  async function put(params = {}) {
+    validateForPut(params);
+    return withTransaction(() => writeVersion(params));
   }
 
   async function get({ ownerId, missionId, version } = {}) {
@@ -199,5 +264,23 @@ export function createPreviewStore(db, options = {}) {
     }
   }
 
-  return { put, get, latest, list, softDelete };
+  return {
+    put,
+    get,
+    latest,
+    list,
+    softDelete,
+    // Shared-transaction coordination (remediation blocker A): apply.mjs runs
+    // a whole discussion turn — preview version + discussion message +
+    // contract change record — inside ONE withTransaction via these
+    // in-transaction seams. txn.putVersion validates then writes WITHOUT
+    // managing its own transaction.
+    withTransaction,
+    txn: {
+      putVersion: params => {
+        validateForPut(params);
+        return writeVersion(params);
+      },
+    },
+  };
 }

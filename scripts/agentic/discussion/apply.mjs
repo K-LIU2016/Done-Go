@@ -14,12 +14,12 @@
 //     version has moved on.
 //   * A stale baseVersion (≠ current live version) is CONFLICT — concurrent
 //     discussions never silently rebase (plan §2; routes stale-base 409 case).
-//   * Write order: preview version first, then the message. The discussion
-//     store commits message + change record in one transaction; the version row
-//     commits just before it, so the crash window (unreachable in one process,
-//     backstopped by put's own baseVersion check across processes) can only
-//     leave an audit-safe orphan VERSION — never a message whose afterVersion
-//     does not exist.
+//   * Write path: the preview version, the discussion message and (for
+//     contract-relevant patches) the contract_change_records row all land in
+//     ONE BEGIN IMMEDIATE/COMMIT coordinated through previewStore's shared
+//     transaction path (remediation blocker A) — there is no crash window in
+//     which the live preview boundary moved while discussion_messages /
+//     contract_change_records stayed empty.
 //
 // Patch vocabulary (fail-closed): apply understands exactly
 // {sources, length, boundary}; any other MissionPatch field (e.g. dod, format,
@@ -41,6 +41,7 @@
 // and mocked in tests), no clock reads — timestamps come from the stores'
 // injected clocks.
 import { MAX_UTTERANCE_LENGTH } from './store.mjs';
+import { TransactionRollback } from '../preview/store.mjs';
 
 /** PRD §8.1 default wont vocabulary — relaxing any of these is FORBIDDEN. */
 const SYSTEM_WONT_PATTERNS = Object.freeze([
@@ -274,6 +275,15 @@ export async function applyPatch(params) {
   if (previewStore == null || discussionStore == null) {
     fail('CONTRACT_INVALID', 'previewStore and discussionStore are required');
   }
+  // Shared-transaction seams (remediation blocker A): the turn's writes are
+  // coordinated through these — fail closed when a store does not expose them.
+  if (typeof previewStore.withTransaction !== 'function'
+    || previewStore.txn == null || typeof previewStore.txn.putVersion !== 'function') {
+    fail('CONTRACT_INVALID', 'previewStore must expose withTransaction and txn.putVersion');
+  }
+  if (discussionStore.txn == null || typeof discussionStore.txn.appendMessage !== 'function') {
+    fail('CONTRACT_INVALID', 'discussionStore must expose txn.appendMessage');
+  }
 
   const idempotencyKey = idempotencyKeyFor(missionId, baseVersion, utterance);
 
@@ -338,13 +348,38 @@ export async function applyPatch(params) {
     return { replayed: message.replayed, preview: live, message, changeRecord: null };
   }
 
-  // 6. Version first, then the message (+ change record in the same txn).
-  const stored = await previewStore.put({ ownerId, missionId, preview: nextPreview, baseVersion });
-  const message = await discussionStore.appendMessage({
-    ...turn,
-    afterVersion: stored.version,
-    contractChange: contractFields.length > 0 ? { patch, changedFields: contractFields } : undefined,
+  // 6. ONE transaction for the whole turn (remediation blocker A): preview
+  //    version + discussion message + contract change record commit together
+  //    in a single BEGIN IMMEDIATE/COMMIT on the preview store's shared
+  //    transaction path — a failure at ANY of the writes rolls all of them
+  //    back, so the live preview boundary can never move without its message
+  //    and change record.
+  let stored = null;
+  const written = previewStore.withTransaction(() => {
+    stored = previewStore.txn.putVersion({ ownerId, missionId, preview: nextPreview, baseVersion });
+    const appended = discussionStore.txn.appendMessage({
+      ...turn,
+      afterVersion: stored.version,
+      contractChange: contractFields.length > 0 ? { patch, changedFields: contractFields } : undefined,
+    });
+    // A racing process recorded this exact turn between our replay check and
+    // BEGIN: discard our derived version (roll back) and keep the stored turn.
+    if (appended.replayed) return new TransactionRollback(appended);
+    return appended;
   });
+
+  if (written.replayed) {
+    const message = written.message;
+    const version = message.afterVersion ?? message.beforeVersion;
+    const preview = (await previewStore.get({ ownerId, missionId, version }))
+      ?? (await previewStore.latest({ ownerId, missionId }));
+    const changeRecord = discussionStore
+      .listChangeRecords({ ownerId, missionId })
+      .find(record => record.messageId === message.id) ?? null;
+    return { replayed: true, preview, message, changeRecord };
+  }
+
+  const message = written.message;
   const changeRecord = contractFields.length > 0
     ? discussionStore
       .listChangeRecords({ ownerId, missionId })

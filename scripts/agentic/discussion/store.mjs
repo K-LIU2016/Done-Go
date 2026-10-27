@@ -172,6 +172,82 @@ export function createDiscussionStore(db, options = {}) {
   }
 
   /**
+   * In-transaction body of appendMessage: raced idempotency re-check (a hit
+   * returns a replay outcome for the CALLER to roll the surrounding
+   * transaction back with), implicit thread upsert, message insert,
+   * change-record insert (same transaction — the NOT NULL patch column makes
+   * an unrecorded contract change unreachable) and the thread touch. The
+   * caller owns BEGIN IMMEDIATE/COMMIT: either appendMessage for a standalone
+   * append, or the shared multi-store transaction coordinated by
+   * preview/store.mjs withTransaction (remediation blocker A).
+   */
+  function appendMessageTx(params) {
+    // Re-check inside the transaction: another process may have appended
+    // the same idempotency key between the caller's pre-check and BEGIN.
+    const raced = statements.findMessageByKey.get(params.ownerId, params.idempotencyKey);
+    if (raced) {
+      return { replayed: true, message: rowToMessage(raced, true) };
+    }
+
+    const messageId = randomUUID();
+    const recordId = randomUUID();
+    const createdAt = now();
+
+    statements.insertThread.run(randomUUID(), params.ownerId, params.missionId, createdAt, createdAt);
+    const thread = statements.findThread.get(params.ownerId, params.missionId);
+
+    statements.insertMessage.run(
+      messageId,
+      params.ownerId,
+      thread.id,
+      params.missionId,
+      params.baseVersion,
+      params.utterance,
+      toJson(params.patch),
+      params.beforeVersion,
+      params.afterVersion ?? null,
+      params.actor,
+      params.idempotencyKey,
+      createdAt,
+    );
+
+    if (params.contractChange !== undefined && params.contractChange !== null) {
+      statements.insertChangeRecord.run(
+        recordId,
+        params.ownerId,
+        params.missionId,
+        messageId,
+        params.beforeVersion,
+        params.afterVersion,
+        toJson(params.contractChange.patch), // null patch → SQL NULL → NOT NULL aborts the transaction
+        JSON.stringify(params.contractChange.changedFields),
+        createdAt,
+      );
+    }
+
+    statements.touchThread.run(createdAt, thread.id);
+
+    return {
+      replayed: false,
+      message: {
+        id: messageId,
+        ownerId: params.ownerId,
+        threadId: thread.id,
+        missionId: params.missionId,
+        baseVersion: params.baseVersion,
+        utterance: params.utterance,
+        patch: params.patch ?? null,
+        beforeVersion: params.beforeVersion,
+        afterVersion: params.afterVersion ?? null,
+        actor: params.actor,
+        idempotencyKey: params.idempotencyKey,
+        createdAt,
+        replayed: false,
+      },
+    };
+  }
+
+  /**
    * Append one discussion turn. Implicitly creates the (owner, mission)
    * thread. When `contractChange` is given ({patch, changedFields}), the
    * contract_change_records row lands in the same transaction — any failure
@@ -190,59 +266,10 @@ export function createDiscussionStore(db, options = {}) {
 
     validateAppend(params);
 
-    const messageId = randomUUID();
-    const recordId = randomUUID();
-    const createdAt = now();
-    // Filled inside the transaction: the thread the message lands in (an
-    // existing one when the (owner, mission) thread was created by an earlier
-    // turn — INSERT ... ON CONFLICT DO NOTHING keeps it).
-    let storedThreadId;
-
     db.exec('BEGIN IMMEDIATE');
+    let outcome;
     try {
-      // Re-check inside the transaction: another process may have appended
-      // the same idempotency key between the pre-check and BEGIN.
-      const raced = statements.findMessageByKey.get(params.ownerId, params.idempotencyKey);
-      if (raced) {
-        db.exec('ROLLBACK');
-        return rowToMessage(raced, true);
-      }
-
-      statements.insertThread.run(randomUUID(), params.ownerId, params.missionId, createdAt, createdAt);
-      const thread = statements.findThread.get(params.ownerId, params.missionId);
-      storedThreadId = thread.id;
-
-      statements.insertMessage.run(
-        messageId,
-        params.ownerId,
-        thread.id,
-        params.missionId,
-        params.baseVersion,
-        params.utterance,
-        toJson(params.patch),
-        params.beforeVersion,
-        params.afterVersion ?? null,
-        params.actor,
-        params.idempotencyKey,
-        createdAt,
-      );
-
-      if (params.contractChange !== undefined && params.contractChange !== null) {
-        statements.insertChangeRecord.run(
-          recordId,
-          params.ownerId,
-          params.missionId,
-          messageId,
-          params.beforeVersion,
-          params.afterVersion,
-          toJson(params.contractChange.patch), // null patch → SQL NULL → NOT NULL aborts the transaction
-          JSON.stringify(params.contractChange.changedFields),
-          createdAt,
-        );
-      }
-
-      statements.touchThread.run(createdAt, thread.id);
-      db.exec('COMMIT');
+      outcome = appendMessageTx(params);
     } catch (error) {
       try {
         db.exec('ROLLBACK');
@@ -251,22 +278,28 @@ export function createDiscussionStore(db, options = {}) {
       }
       throw error;
     }
-
-    return {
-      id: messageId,
-      ownerId: params.ownerId,
-      threadId: storedThreadId,
-      missionId: params.missionId,
-      baseVersion: params.baseVersion,
-      utterance: params.utterance,
-      patch: params.patch ?? null,
-      beforeVersion: params.beforeVersion,
-      afterVersion: params.afterVersion ?? null,
-      actor: params.actor,
-      idempotencyKey: params.idempotencyKey,
-      createdAt,
-      replayed: false,
-    };
+    if (outcome.replayed) {
+      // Another process appended the same idempotency key between the
+      // pre-check and BEGIN: discard our empty transaction and hand back the
+      // stored turn.
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // see above
+      }
+      return outcome.message;
+    }
+    try {
+      db.exec('COMMIT');
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // see above
+      }
+      throw error;
+    }
+    return outcome.message;
   }
 
   /**
@@ -307,5 +340,21 @@ export function createDiscussionStore(db, options = {}) {
     }));
   }
 
-  return { appendMessage, getThread, listChangeRecords };
+  return {
+    appendMessage,
+    getThread,
+    listChangeRecords,
+    // Shared-transaction seam (remediation blocker A): validates then runs the
+    // in-transaction body WITHOUT managing its own transaction — the caller
+    // (preview/store.mjs withTransaction, coordinated by discussion/apply.mjs)
+    // owns the single BEGIN IMMEDIATE/COMMIT for the whole turn. A raced
+    // idempotency key returns { replayed: true, message } for the coordinator
+    // to roll the surrounding transaction back with.
+    txn: {
+      appendMessage: params => {
+        validateAppend(params);
+        return appendMessageTx(params);
+      },
+    },
+  };
 }
