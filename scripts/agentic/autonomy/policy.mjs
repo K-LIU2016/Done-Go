@@ -1,4 +1,10 @@
-import { normalizeAction, normalizeActor, AUTONOMY_LEVELS, errorResult } from './types.mjs';
+import {
+  normalizeAction,
+  normalizeActor,
+  AUTONOMY_LEVELS,
+  isP0Forbidden,
+  errorResult,
+} from './types.mjs';
 
 const level = (value) => AUTONOMY_LEVELS.indexOf(value);
 const withinScope = (allowed, requested) => requested === allowed || requested.startsWith(`${allowed.replace(/\/$/, '')}/`);
@@ -24,8 +30,8 @@ export function evaluateAction(input, { now = new Date().toISOString(), phase = 
   const capability = grant.capabilities?.find((item) => item.capability === action.capability && withinScope(item.scope, action.scope));
   if (!capability) return errorResult('blocked', 'SCOPE_DENIED');
   if (action.risk === 'financial' || action.requestedAutonomy === 'A5') return errorResult('blocked', 'A5_NEVER_AUTOMATIC');
+  if (isP0Forbidden(action) && phase === 'P0') return errorResult('blocked', 'P0_EXTERNAL_EFFECT_BLOCKED');
   if (action.risk === 'external' || action.requestedAutonomy === 'A4') {
-    if (phase === 'P0') return errorResult('blocked', 'P0_EXTERNAL_EFFECT_BLOCKED');
     return { status: 'needs_confirmation', code: 'A4_CONFIRMATION_REQUIRED', requiresConfirmation: true };
   }
   return { status: 'allowed', code: 'ALLOWED', requiresConfirmation: false };
