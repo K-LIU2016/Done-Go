@@ -22,7 +22,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../../..');
 const contractDir = join(root, 'contracts/agentic');
 
-const FROZEN_EXPECTED = 'v1 b9d9bdfa0511905a95b729753b82e574adab6bb';
+// 与冻结工件本身逐字一致（已对账三方副本：基 60fdc73、本 worktree、w0-contracts worktree 均为
+// `v1 b9d9bdfa0511905a95b729753b82e5734adab6bb`）。brief/plan 行文里的 `…574adab6bb` 是转写笔误
+// （5734→574a），以文件为准；本断言仍是严格相等哨兵。
+const FROZEN_EXPECTED = 'v1 b9d9bdfa0511905a95b729753b82e5734adab6bb';
 
 // 哨兵：W9 开工时（基 60fdc73）29 个冻结 schema 文件的 SHA-256。任何 diff 都必须先过新的冻结流程。
 const SCHEMA_SHA256 = {
@@ -176,6 +179,35 @@ test('benefit gate: accepted + blocking verdict never yields benefit, non-blocki
   const art2 = await w.store.put('owner-a', { missionId: 'm2', type: 'report', title: 't2', location: '/a2', status: 'ready' });
   const rejected = await w.acceptance.record('owner-a', art2.id, { actor: 'user:alice', decision: 'reject' });
   assert.equal(acceptedBenefit(rejected, { blocking: false, unknownCount: 0, highFailCount: 0 }), null);
+});
+
+test('revision_requested never counts as benefit; only a fresh acceptance on the new version can (plan M4-3)', async () => {
+  const w = makeWorld();
+  const acceptanceSchema = loadSchema('acceptance.schema.json', contractDir);
+  const art = await w.store.put('owner-a', { missionId: 'm1', type: 'report', title: 't', location: '/a', status: 'ready' });
+
+  const revise = await w.acceptance.record('owner-a', art.id, { actor: 'user:alice', decision: 'revise', comment: '补充来源' });
+  assert.equal(revise.decision, 'revision_requested');
+  assert.equal(validate(revise, acceptanceSchema, { schemaDir: contractDir }).valid, true);
+  // 即便核验全清，revision_requested 也绝不计入收益（用户验收≠agent 自报）
+  const clear = { blocking: false, unknownCount: 0, highFailCount: 0 };
+  assert.equal(acceptedBenefit(revise, clear), null);
+
+  // revise 不关版本链：新版本可以继续，且需要一次全新的用户验收才可能进收益
+  const v2 = await w.store.put('owner-a', { missionId: 'm1', type: 'report', title: 't2', location: '/a', status: 'ready', artifactId: art.id });
+  assert.equal(v2.version, 2);
+  assert.equal((await w.store.get('owner-a', art.id)).status, 'ready');
+  const fresh = await w.acceptance.record('owner-a', art.id, { actor: 'user:alice', decision: 'accept' });
+  // 对外对象按冻结 schema 保持纯净（无 version 字段，plan 张力#2），版本绑定查 DB 列
+  assert.equal(fresh.version, undefined);
+  assert.equal(
+    w.db.prepare('SELECT artifact_version FROM w9_acceptances WHERE id = ?').get(fresh.id).artifact_version,
+    2,
+    'fresh acceptance must bind the new version',
+  );
+  const benefit = acceptedBenefit(fresh, clear);
+  assert.ok(benefit, 'accepted + non-blocking on the new version counts');
+  assert.equal(benefit.artifactId, art.id);
 });
 
 test('rejected artifact cannot sneak back into benefit via revision without a fresh acceptance', async () => {
