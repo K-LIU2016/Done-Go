@@ -34,3 +34,15 @@
 - targeted 快测：`node --test tests/unit/agentic/blocks/*.test.mjs` → rc=0，50 tests / 50 pass / 0 fail。含 contract-consistency（W1 对象经适配层过 W0 校验、W0 fixtures 往返、draft 缺口锚定）——首次在 60fdc73 对齐后 contracts 上跑，R-6 核销：无回归。
 - RED 套件：26 tests 保持 17 pass / 9 fail（与 M01 后一致，W1 未触碰 integration 预期）。
 - 备注：`web/index.html` 属 W13 允许域（M20 接缝），本合入保留 W1 版本原样；后续 M19/M20 再统一处理发布清单与 UI 接缝。
+
+## M03 · merge W8（feat/s2d-w8-codex-bridge @ 9a6dfdf）
+
+- tip 核对：`git rev-parse feat/s2d-w8-codex-bridge` = `9a6dfdff5a7a06ebf223bb9d69b4661495a846f3` = 派单值 9a6dfdf ✓（零漂移）。merge-base vs HEAD = `60fdc73`。
+- 命令：`git merge --no-commit 9a6dfdf` → rc=0，**自动合并干净，零冲突**。
+- 变更面（51 文件）：`scripts/agentic/bridge-hub/**`（hub/devices/pairing/routes）、`scripts/agentic/db/migrations/bridge-001-devices.sql`、`packages/donego-bridge/**`（client/wss、codex adapter/jsonrpc/threads、config、git/worktree、model/choose+rate-limits、policy/approvals、runtime/session、cli、donego-bridge.js 入口、generate-codex-ts）、`tests/unit/agentic/bridge/**`（18 文件含 _fake-codex、contract-consistency、security-gates）、`tests/agentic/bridge/**`（loopback.e2e、codex-smoke、SMOKE-LOG）、`.s2d/` 11 个 W8 实现记录新增。
+- .s2d 处置：W8 的 `closeout.md`/`cto-decisions.md` 与 W2 已合入版本逐 blob 相同（abd35f2 / b498f9f，两流共享同一收口产物）→ 内容一致自动保留，无冲突；`tests-red.md` 基线有/ours 已删（M01 随 W2 删除）/theirs 未改 → 删除保持；W13 `plan.md`/`merge-log.md` 保留 ours。
+- FROZEN 门禁：committed+worktree 对 `contracts/agentic` 零 delta、树哈希 cddcdf2e… 不变、`FROZEN` = `v1 b9d9bdfa0511905a95b729753b82e5734adab6bb` → rc=0。
+- migration 门禁：6 文件字典序 blocks-001 → bridge-001 → engine-001..004、编号无冲突、24 DDL 对象跨文件零重名、双跑 `migrate()` 第二次 applied=[] → rc=0。
+- targeted 快测：`node --test tests/unit/agentic/bridge/*.test.mjs` → rc=0，143 tests / 143 pass / 0 fail（W8 门禁原跑于 b561a7b，本次在 W13 合并树上重验通过）。
+- RED 套件：26 tests 保持 17 pass / 9 fail（与 M01/M02 后一致）。
+- PROVISIONAL 保留（不因合入抹平，进终报）：W8 报告的 19/21 actor resolved_model=NULL、真实 Codex smoke 0 完成回合、branch 覆盖率 78.27%<80%——代码原样合入，状态原样保留。
