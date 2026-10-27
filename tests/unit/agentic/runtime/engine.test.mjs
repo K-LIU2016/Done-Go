@@ -123,7 +123,10 @@ function okModel(model = 'gpt-6-sol') {
   return fn;
 }
 
-function freshRuntime({ policyPort = allowAllPolicy(), modelCaller = okModel(), clock = createFixedClock(T0), store } = {}) {
+function freshRuntime({
+  policyPort = allowAllPolicy(), modelCaller = okModel(), clock = createFixedClock(T0), store,
+  spanSink, toolCaller,
+} = {}) {
   const db = openAgenticDb(':memory:');
   migrate(db, migrationsDir);
   const realStore = store ?? createRuntimeStore({ db });
@@ -141,6 +144,8 @@ function freshRuntime({ policyPort = allowAllPolicy(), modelCaller = okModel(), 
   spyStore.spyCalls = spies;
   const runtime = createAgentRuntime({
     policyPort, modelCaller, store: spyStore, clock, schemaDir: contractDir,
+    ...(spanSink !== undefined ? { spanSink } : {}),
+    ...(toolCaller !== undefined ? { toolCaller } : {}),
   });
   return { runtime, store: spyStore, db };
 }
@@ -599,4 +604,362 @@ test('M3 · 重复 step（同 id+inputHash）→ 检查点重放，不二次执�
   });
   assert.deepEqual(executions, ['s-dup'], 'duplicate step id+inputHash must execute exactly once');
   assert.equal(outcome.status, 'done');
+});
+
+// ---------------- M3 追加（实现后补测：纵深防御/工具端口/覆盖缺口，只增不删） ----------------
+
+test('M3 追加 · 构造期：options 非对象 / store 缺方法 / spanSink 形状错 → CONTRACT_INVALID', () => {
+  const db = openAgenticDb(':memory:');
+  migrate(db, migrationsDir);
+  assert.throws(() => createAgentRuntime(null), /options object/);
+  const full = {
+    policyPort: allowAllPolicy(), modelCaller: okModel(),
+    store: createRuntimeStore({ db }), clock: createFixedClock(T0), schemaDir: contractDir,
+  };
+  const brokenStore = { saveWorkOrder() {} };
+  assert.throws(() => createAgentRuntime({ ...full, store: brokenStore }), /missing required methods/);
+  assert.throws(() => createAgentRuntime({ ...full, spanSink: { record: 1 } }), /spanSink/);
+});
+
+test('M3 追加 · spanSink 注入时记录 run 起止事件（可选端口）', async () => {
+  const spans = [];
+  const { runtime } = freshRuntime({
+    modelCaller: okModel(),
+    spanSink: { record: span => spans.push(span) },
+  });
+  const outcome = await runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async () => ({ ok: true, output: {}, model: 'gpt-6-sol', usage: { calls: 1, tokens: 5 } })),
+  });
+  assert.equal(outcome.status, 'done');
+  const types = spans.map(span => span.type);
+  assert.ok(types.includes('run.started') && types.includes('run.finished'));
+});
+
+test('M3 追加 · toolCall：策略拒绝 → FORBIDDEN；未注入 toolCaller → FORBIDDEN；A5 工具动作永拒', async () => {
+  const toolCalls = [];
+  const toolCaller = async (tool, args) => { toolCalls.push([tool, args]); return { ok: true, tool, output: {} }; };
+  const denied = freshRuntime({ policyPort: denyPolicy('tool not granted'), toolCaller });
+  const deniedOutcome = await denied.runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async ctx => ctx.toolCall('mcp.fetch', { url: 'x' })),
+  });
+  assert.equal(deniedOutcome.status, 'failed');
+  assert.equal(toolCalls.length, 0);
+
+  const allowed = freshRuntime({ toolCaller });
+  const a5 = await allowed.runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async ctx => ctx.toolCall('mcp.fetch', {}, { autonomy: 'A5' })),
+  });
+  assert.equal(a5.status, 'failed');
+  assert.equal(toolCalls.length, 0, 'A5 tool action must never reach the tool transport');
+
+  const okOutcome = await allowed.runtime.runAgent({
+    // 换工单（id+负载）：同 runtime 下同 id 异载会 CONFLICT、同 id 同载会重放上一子例的 failed 结果
+    actor: 'planner@w7', workOrder: makeWorkOrder({ id: 'wo-tool', objective: 'fetch via tool' }), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: [{
+      id: 's-tool', name: 'fetch', kind: 'execute',
+      execute: async ctx => ({ ok: true, output: await ctx.toolCall('mcp.fetch', { url: 'x' }), model: 'gpt-6-sol' }),
+    }],
+  });
+  assert.equal(okOutcome.status, 'done');
+  assert.equal(toolCalls.length, 1);
+
+  const noTool = freshRuntime({ toolCaller: undefined });
+  const refused = await noTool.runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async ctx => ctx.toolCall('mcp.fetch', {})),
+  });
+  assert.equal(refused.status, 'failed');
+});
+
+test('M3 追加 · modelCall 入参形状：payload 非对象 / action 非对象 / 工具名空 → CONTRACT_INVALID', async () => {
+  const { runtime } = freshRuntime();
+  const payloadBad = await runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async ctx => ctx.modelCall('not-an-object')),
+  });
+  assert.equal(payloadBad.status, 'failed');
+  const actionBad = await runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async ctx => ctx.modelCall({ prompt: 'x' }, 'bad-action')),
+  });
+  assert.equal(actionBad.status, 'failed');
+});
+
+test('M3 追加 · 决策形状非法（allow 非 boolean）→ CONTRACT_INVALID 上抛，不放行', async () => {
+  const malformed = { check: async () => ({ allow: 'yes' }) };
+  const { runtime } = freshRuntime({ policyPort: malformed });
+  await assert.rejects(
+    () => runtime.runAgent({
+      actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+      grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' }, steps: oneStep(async () => ({ ok: true })),
+    }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+});
+
+test('M3 追加 · 跨 owner runAgent（contract.ownerId ≠ ownerCtx.ownerId）→ FORBIDDEN 零副作用', async () => {
+  const { runtime, store } = freshRuntime();
+  await assert.rejects(
+    () => runtime.runAgent({
+      actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract({ ownerId: 'owner-9' }),
+      grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' }, steps: oneStep(async () => ({ ok: true })),
+    }),
+    err => err.code === 'FORBIDDEN',
+  );
+  assert.ok(!store.spyCalls.includes('saveWorkOrder'));
+});
+
+test('M3 追加 · grantRef 条目非法 / steps 形状非法 / idempotencyKey 空串 → CONTRACT_INVALID', async () => {
+  const { runtime } = freshRuntime();
+  const base = {
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    ownerCtx: { ownerId: 'owner-1' }, steps: oneStep(async () => ({ ok: true })),
+  };
+  await assert.rejects(
+    () => runtime.runAgent({ ...base, grantRefs: [{ grantId: '' }] }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  await assert.rejects(
+    () => runtime.runAgent({ ...base, grantRefs: [{ grantId: 'g-1' }], steps: [{ id: 's', name: 'n', kind: 'teleport', execute: async () => ({ ok: true }) }] }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  await assert.rejects(
+    () => runtime.runAgent({ ...base, grantRefs: [{ grantId: 'g-1' }], steps: 'nope' }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  await assert.rejects(
+    () => runtime.runAgent({ ...base, grantRefs: [{ grantId: 'g-1' }], idempotencyKey: '' }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+});
+
+test('M3 追加 · 步骤返回非对象 / ok:false 无 error 对象 → 失败收场（不炸不吞）', async () => {
+  const { runtime } = freshRuntime();
+  const garbage = await runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async () => 'garbage'),
+  });
+  assert.equal(garbage.status, 'failed');
+  const noErrorObject = await freshRuntime().runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async () => ({ ok: false })),
+  });
+  assert.equal(noErrorObject.status, 'failed');
+});
+
+test('M3 追加 · 全程无模型来源的"成功"步骤 → run=unknown + 台账（红线⑦）', async () => {
+  const { runtime, db } = freshRuntime();
+  const outcome = await runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async () => ({ ok: true, output: { deterministic: true } })),
+  });
+  assert.equal(outcome.status, 'unknown');
+  assert.equal(outcome.workResult, undefined);
+  const rows = db.prepare('SELECT source, detail FROM w7_unknown_outcomes').all();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].source, 'engine');
+});
+
+test('M3 追加 · 自动幂等键：同工单两次 runAgent（未显式给 key）→ 第二次重放', async () => {
+  const modelCaller = okModel();
+  const { runtime } = freshRuntime({ modelCaller });
+  const args = {
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: oneStep(async ctx => ctx.modelCall({ prompt: 'x' })),
+  };
+  const first = await runtime.runAgent(args);
+  assert.equal(first.status, 'done');
+  const second = await runtime.runAgent(args);
+  assert.equal(second.replayed, true);
+  assert.equal(second.runId, first.runId);
+  assert.equal(modelCaller.calls.length, 1);
+});
+
+test('M3 追加 · 重放落在 paused 运行上：返回 paused + replayed，不重执行', async () => {
+  const modelCaller = okModel();
+  const { runtime } = freshRuntime({ modelCaller });
+  const args = {
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    idempotencyKey: 'idem-paused',
+    steps: [{
+      id: 's-1', name: 'first', kind: 'execute',
+      execute: async () => ({ pause: true, checkpoint: { doneSteps: ['s-1'], next: 's-2' } }),
+    }],
+  };
+  const paused = await runtime.runAgent(args);
+  assert.equal(paused.status, 'paused');
+  const again = await runtime.runAgent(args);
+  assert.equal(again.status, 'paused');
+  assert.equal(again.replayed, true);
+  assert.equal(again.runId, paused.runId);
+});
+
+test('M3 追加 · 恢复只按 doneSteps 续跑（无 next）：跳过已完成步骤', async () => {
+  const modelCaller = okModel();
+  const { runtime } = freshRuntime({ modelCaller });
+  const executions = [];
+  const steps = [
+    { id: 's-1', name: 'first', kind: 'execute', execute: async () => { executions.push('s-1'); return { pause: true, checkpoint: { doneSteps: ['s-1'] } }; } },
+    { id: 's-2', name: 'second', kind: 'execute', execute: async ctx => { executions.push('s-2'); return ctx.modelCall({ prompt: 'go' }); } },
+  ];
+  const paused = await runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' }, steps,
+  });
+  assert.equal(paused.status, 'paused');
+  const resumed = await runtime.resumeAgent({ runId: paused.runId, actor: 'planner@w7', ownerCtx: { ownerId: 'owner-1' } });
+  assert.equal(resumed.status, 'done');
+  assert.deepEqual(executions, ['s-1', 's-2'], 'resume must not re-execute checkpointed steps');
+});
+
+test('M3 追加 · 恢复负例集：缺 ownerCtx / actor 不匹配 / checkpoint.next 不存在', async () => {
+  const { runtime } = freshRuntime();
+  const paused = await runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+    steps: [{
+      id: 's-1', name: 'first', kind: 'execute',
+      execute: async () => ({ pause: true, checkpoint: { doneSteps: [], next: 'ghost-step' } }),
+    }],
+  });
+  assert.equal(paused.status, 'paused');
+  await assert.rejects(
+    () => runtime.resumeAgent({ runId: paused.runId, ownerCtx: { ownerId: 'owner-1' } }),
+    err => err.code === 'FORBIDDEN',
+  );
+  await assert.rejects(
+    () => runtime.resumeAgent({ runId: paused.runId, actor: 'other@w7', ownerCtx: { ownerId: 'owner-1' } }),
+    err => err.code === 'FORBIDDEN',
+  );
+  await assert.rejects(
+    () => runtime.resumeAgent({ runId: paused.runId, actor: 'planner@w7', ownerCtx: { ownerId: 'owner-1' } }),
+    err => err.code === 'CONTRACT_INVALID',
+    'checkpoint.next pointing at a non-existent step invalidates the checkpoint',
+  );
+});
+
+test('M3 追加 · ownerCtx.parentGrants 注入时 runAgent/恢复都做 GrantRef 子集校验', async () => {
+  const modelCaller = okModel();
+  const { runtime } = freshRuntime({ modelCaller });
+  const ownerCtx = { ownerId: 'owner-1', parentGrants: PARENT_GRANTS };
+  const modelCaller2 = okModel();
+  const deniedRuntime = freshRuntime({ modelCaller: modelCaller2 }).runtime;
+  const grantViolation = await deniedRuntime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder({ grants: [{ grantId: 'grant-1', scope: 'files.write:/All' }] }),
+    contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1', scope: 'files.write:/All' }], ownerCtx,
+    steps: oneStep(async ctx => ctx.modelCall({ prompt: 'x' })),
+  });
+  assert.equal(grantViolation.status, 'failed', 'grant-ref superset violation must fail the run before any model call');
+  assert.equal(modelCaller2.calls.length, 0);
+  // 正例 + 恢复路径同样过子集校验
+  const paused = await runtime.runAgent({
+    actor: 'planner@w7', workOrder: makeWorkOrder({ objective: 'resume with grants' }), contract: makeContract(),
+    grantRefs: [{ grantId: 'grant-1', scope: 'files.read:/Docs' }], ownerCtx,
+    steps: [
+      { id: 's-1', name: 'first', kind: 'execute', execute: async () => ({ pause: true, checkpoint: { doneSteps: [], next: 's-2' } }) },
+      { id: 's-2', name: 'second', kind: 'execute', execute: async ctx => ctx.modelCall({ prompt: 'go' }) },
+    ],
+  });
+  assert.equal(paused.status, 'paused');
+  const resumed = await runtime.resumeAgent({ runId: paused.runId, actor: 'planner@w7', ownerCtx });
+  assert.equal(resumed.status, 'done');
+});
+
+test('M3 追加 · budget 负例：缺注入时间 / 缺 window / deadline 不可解析 → CONTRACT_INVALID', () => {
+  assert.throws(() => createBudgetTracker({ contract: makeContract(), workOrder: makeWorkOrder() }), /deterministic time/);
+  assert.throws(
+    () => createBudgetTracker({ contract: makeContract({ window: undefined }), workOrder: makeWorkOrder(), now: Date.parse(T0) }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  assert.throws(
+    () => createBudgetTracker({
+      contract: makeContract(),
+      workOrder: makeWorkOrder({ budget: { calls: 1, tokens: 1, deadline: 'not-a-date' } }),
+      now: Date.parse(T0),
+    }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  const tracker = createBudgetTracker({ contract: makeContract(), workOrder: makeWorkOrder(), now: Date.parse(T0) });
+  assert.throws(() => tracker.assertWithinWindow('not-a-number'), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => tracker.assertCanSpend('nope'), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => tracker.charge({ calls: -1 }), err => err.code === 'CONTRACT_INVALID');
+});
+
+test('M3 追加 · budget：snapshot 含注入 now；子预算父轴缺省不约束', () => {
+  const tracker = createBudgetTracker({ contract: makeContract(), workOrder: makeWorkOrder(), now: () => 1234 });
+  tracker.charge({ calls: 2, tokens: 20 });
+  assert.deepEqual(tracker.snapshot(), { calls: 2, tokens: 20, now: 1234 });
+  assertChildBudgetsWithinParent([{ calls: 99 }], { tokens: 10 }); // parent.calls 未设 → calls 轴不约束
+  assert.throws(() => assertChildBudgetsWithinParent('nope', { calls: 1 }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => assertChildBudgetsWithinParent([], 'nope'), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => assertChildBudgetsWithinParent([], { calls: 1.5 }), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => assertChildBudgetsWithinParent([], { calls: 5, callsSpent: -1 }), err => err.code === 'CONTRACT_INVALID');
+});
+
+test('M3 追加 · GrantRef 子集：路径前缀是子集；形状非法 CONTRACT_INVALID', () => {
+  // 同 capability 下子路径 ⊆ 父 scope（'/' 边界）
+  assertGrantRefsSubset([{ grantId: 'grant-1', scope: 'files.read:/Docs/Sub' }], PARENT_GRANTS);
+  // 父 scope 不带 ':' 时只允许精确匹配
+  assertGrantRefsSubset([{ grantId: 'grant-2', scope: 'legacy-scope' }], [
+    ...PARENT_GRANTS, { grantId: 'grant-2', scopes: ['legacy-scope', 'files.read:/X'] },
+  ]);
+  assert.throws(
+    () => assertGrantRefsSubset([{ grantId: 'grant-2', scope: 'other-scope' }], [
+      ...PARENT_GRANTS, { grantId: 'grant-2', scopes: ['legacy-scope'] },
+    ]),
+    err => err.code === 'FORBIDDEN',
+  );
+  // 不同 capability 即使路径相同也不是子集
+  assert.throws(
+    () => assertGrantRefsSubset([{ grantId: 'grant-1', scope: 'files.write:/Docs' }], PARENT_GRANTS),
+    err => err.code === 'FORBIDDEN',
+  );
+  assert.throws(() => assertGrantRefsSubset([], PARENT_GRANTS), err => err.code === 'FORBIDDEN');
+  assert.throws(() => assertGrantRefsSubset([{ grantId: 'g' }], 'nope'), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => assertGrantRefsSubset([{ grantId: 'g' }], [{ grantId: 'g' }]), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => assertGrantRefsSubset([{ grantId: '' }], PARENT_GRANTS), err => err.code === 'CONTRACT_INVALID');
+  assert.throws(() => assertGrantRefsSubset([{ grantId: 'grant-1', scope: '' }], PARENT_GRANTS), err => err.code === 'CONTRACT_INVALID');
+});
+
+test('M3 追加 · 步骤失败落库失败时不吞原始错误（fail closed 上抛）', async () => {
+  const db = openAgenticDb(':memory:');
+  migrate(db, migrationsDir);
+  const realStore = createRuntimeStore({ db });
+  const rigged = new Proxy(realStore, {
+    get(target, prop) {
+      if (prop !== 'updateStepState') return target[prop];
+      return payload => {
+        if (payload.state === 'failed') throw new Error('sqlite exploded during failure persistence');
+        return target.updateStepState(payload);
+      };
+    },
+  });
+  const runtime = createAgentRuntime({
+    policyPort: allowAllPolicy(), modelCaller: async () => ({ ok: false, error: { code: 'UPSTREAM_UNAVAILABLE', message: 'down' } }),
+    store: rigged, clock: createFixedClock(T0), schemaDir: contractDir,
+  });
+  await assert.rejects(
+    () => runtime.runAgent({
+      actor: 'planner@w7', workOrder: makeWorkOrder(), contract: makeContract(),
+      grantRefs: [{ grantId: 'grant-1' }], ownerCtx: { ownerId: 'owner-1' },
+      steps: oneStep(async ctx => ctx.modelCall({ prompt: 'x' })),
+    }),
+    /persist step failure/,
+  );
 });
