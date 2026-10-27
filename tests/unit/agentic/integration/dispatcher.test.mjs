@@ -433,3 +433,65 @@ test('body limit drains the remainder before rejecting (single oversized chunk a
     assert.equal(envelope.error.details.limitBytes, 32);
   }
 });
+
+// ---------------- M21 回归：断连监听生命周期（短请求零泄漏 / 开放流保留至 close） ----------------
+
+test('M21 regression: ended responses detach listeners at once; open streams keep the disconnect watch until close', async () => {
+  const recorded = [];
+  const context = stubContext({
+    auth: () => OWNER_A,
+    events: { emit: event => recorded.push(event), recorded: () => recorded.slice() },
+  });
+
+  // 短请求：响应已写完 → handle 返回时监听必须已全部拆除（零泄漏）。
+  const endedRes = fakeRes();
+  const endedDispatcher = createAgenticDispatcher({
+    context,
+    handlers: [async (req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      res.end('{"ok":true}');
+      return true;
+    }],
+  });
+  await endedDispatcher.handle(fakeReq({ method: 'GET', url: '/api/probe/short' }), endedRes, '/api/probe/short');
+  assert.equal(endedRes.listenerCount('close'), 0, 'ended response must not keep res close listeners after handle');
+
+  // 开放流：handler 同步返回、响应未结束 → 断连监听保留；客户端中途断开
+  // （fakeRes.destroy 发 'close' 且 writableEnded 仍 false）→ 记 UNKNOWN 且自清。
+  const openRes = fakeRes();
+  const openDispatcher = createAgenticDispatcher({
+    context,
+    handlers: [(req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8' });
+      res.write('data: {"seq":1}\n\n');
+      return true;
+    }],
+  });
+  await openDispatcher.handle(fakeReq({ method: 'GET', url: '/api/probe/sse' }), openRes, '/api/probe/sse');
+  assert.ok(openRes.listenerCount('close') >= 1, 'open stream keeps the disconnect watch after handle returns');
+  openRes.destroy();
+  const disconnect = recorded.find(e => e?.type === 'client_disconnect' && e.pathname === '/api/probe/sse');
+  assert.ok(disconnect, `disconnect must be recorded for the open stream, got ${JSON.stringify(recorded)}`);
+  assert.equal(disconnect.outcome, 'UNKNOWN');
+  assert.equal(openRes.listenerCount('close'), 0, 'the watch must clean itself after the disconnect');
+
+  // 正常写完触发的 close：只清理，不得记断开（无假阳性）。
+  const finishedRes = fakeRes();
+  const finishedDispatcher = createAgenticDispatcher({
+    context,
+    handlers: [(req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8' });
+      return true; // 开放返回，由“服务端稍后收尾”的正常结束路径接管
+    }],
+  });
+  await finishedDispatcher.handle(fakeReq({ method: 'GET', url: '/api/probe/sse-end' }), finishedRes, '/api/probe/sse-end');
+  const before = recorded.length;
+  finishedRes.end();          // 服务端稍后正常写完
+  finishedRes.emit('close');  // 正常收尾 close
+  assert.equal(finishedRes.listenerCount('close'), 0, 'normal end must still clean the watch');
+  assert.equal(
+    recorded.slice(before).filter(e => e?.type === 'client_disconnect').length,
+    0,
+    'normal end must not be misreported as client_disconnect',
+  );
+});

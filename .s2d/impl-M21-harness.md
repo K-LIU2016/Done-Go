@@ -54,3 +54,21 @@
 ## 交接 M22
 
 `createGoldenHarness({ scenario, handlers, ... })` 即 golden-scenarios.test.mjs 头部契约（port/baseUrl/as()/clock/events()/externalEffects()/modelTransport/adapt()/executionLayerBlocks()/close() 全部在位并经自测锁定）。场景语义（/api/blocks/sync 真路由挂载、/api/contracts·actions、/api/missions/:id/runs、/api/artifacts、/api/runs/:id/trace 等场景面）由 M22 经 `handlers` 注入；`withJsonBody` 供 req.json() 形状流路由搭桥。
+
+## 手动修复轮（2026-10-28，CTO 根因令五项；父会话 ZCode 执行，模型 zai-api/GLM-5.3$max）
+
+改动 4 文件，全部 W13 允许域（harness×2 + dispatcher×2）；contracts/agentic、旧流源码、配置/密钥/生产零触碰。
+
+1. **时钟错误信息**：`clock.advance` 非法输入（非 number/NaN/Infinity/null）错误信息改为 `requires a finite number of ms (milliseconds), got …`——同时含 ms 与 milliseconds；测试对四种非法输入逐一断言双关键词；有效性校验本体（typeof + isFinite）未放宽。
+2. **ledger perform 返回形状**：`{ status:'performed', effectId, effect }`——调用方直取 `effectId`；`asExecutor` 不变，W4 fence 语义保持（execute 包 succeeded/output、拒绝时 executor 不运行）；A5 零副作用断言未削弱（blocked + 台账 0 条原样）。
+3. **SSE 断连生命周期（dispatcher.mjs）**：`finally` 不再无条件拆监听——响应已写完（writableEnded，短请求/已收尾流）立即拆（零泄漏）；开放响应（SSE/长连接，含 handler 同步返回形态）保留断连监听至 response end/close，`onResClose` 按 writableEnded 区分正常收尾（只清理）与中途断开（记 client_disconnect outcome=UNKNOWN + abort + 自清）。回归测试：M21 harness 真实 socket 两用例（同步返回 SSE 断连有事件；短请求无假阳性且 close() 20s 内完成）+ M14 dispatcher 单元一用例（ended→listenerCount 0 / open→保留→destroy→UNKNOWN+自清 / 正常收尾 close→无假阳性）。
+4. **审计字样**：grep 复核 harness.mjs/dispatcher.mjs 零禁词字面量（墙钟/环境读取/外部 fetch/子进程）；源码自审测试（harness source self-audit）继续在套内通过——审计真实未放宽。
+5. **门禁（全部新鲜实跑）**：
+   - `node --test --test-timeout=20000 tests/agentic/integration/harness.test.mjs` → **26/26 rc=0**（24 原有 + 2 新回归，每项 20s 超时）
+   - `node --test tests/unit/agentic/integration/dispatcher.test.mjs` → **39/39 rc=0**（38 原有 + 1 新生命周期回归）
+   - `node --test tests/unit/agentic/integration/*.test.mjs` → **198 tests / 197 pass / 1 fail**：唯一失败 release-rollback.test.mjs = M26-release RED 基线（fd6b129 起既有，非本轮引入，保留）
+   - `node --test --test-timeout=20000 tests/agentic/integration/*.test.mjs` → **33 tests / 26 pass / 7 fail**：7 失败全为 M22 golden-1..7 RED 基线（场景 handler 待 M22/gates 挂载，保留）
+   - 覆盖率：harness.mjs **line 98.10 / branch 85.45 / func 97.62**；dispatcher.mjs **line 99.24 / branch 96.70 / func 91.67**（均 ≥80 三轴）
+   - `git diff --check` 干净；FROZEN 未动（v1 b9d9bdfa…5734adab6bb）
+
+剩余 UNKNOWN：无新增。既有边界不变——M22 golden 7 RED、M26 rollback 1 RED、Playwright/发布/恢复门禁归 W13 门禁B 阶段。

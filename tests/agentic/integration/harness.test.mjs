@@ -111,7 +111,14 @@ test('M21: harness clock is deterministic and only advance() moves it', async ()
   const moved = clock.advance(1500);
   assert.equal(Date.parse(moved) - Date.parse(first), 1500);
   assert.equal(clock.now(), moved);
-  assert.throws(() => clock.advance('later'), /milliseconds/i);
+  // 错误信息必须同时含 ms 与 milliseconds（M21 根因修复；校验本身不放宽）
+  for (const bad of ['later', Number.NaN, Number.POSITIVE_INFINITY, null]) {
+    assert.throws(
+      () => clock.advance(bad),
+      err => /ms/.test(err.message) && /milliseconds/.test(err.message),
+      `advance(${String(bad)}) must be rejected naming ms/milliseconds`,
+    );
+  }
 });
 
 // ---------------- 假模型 transport（W7 modelCaller 注入位） ----------------
@@ -197,11 +204,17 @@ test('M21: side-effect ledger records performs and pairs with the W4 fence (A5 �
   const { createDeterministicClock, createSideEffectLedger } = await load();
   const clock = createDeterministicClock({ startIso: '2026-10-28T10:00:00.000Z' });
   const ledger = createSideEffectLedger({ now: clock.now });
-  const effect = await ledger.perform('email.send', { to: 'self', subject: '周报' });
-  assert.ok(effect.effectId);
+  const done = await ledger.perform('email.send', { to: 'self', subject: '周报' });
+  // M21 根因修复：perform 返回 { status, effectId, effect }——调用方直取
+  // effectId，status/effect 语义保留给 W4 fence（execute 包成 succeeded/output）
+  assert.equal(done.status, 'performed');
+  assert.equal(typeof done.effectId, 'string');
+  assert.ok(done.effectId.length > 0);
+  assert.equal(done.effect.kind, 'email.send');
+  assert.equal(done.effect.at, clock.now(), '时间戳来自注入时钟');
   assert.equal(ledger.effects().length, 1);
   assert.equal(ledger.count('email.send'), 1);
-  assert.equal(ledger.effects()[0].at, clock.now(), '时间戳来自注入时钟');
+  assert.equal(ledger.effects()[0].effectId, done.effectId, '台账与返回值指向同一条副作用');
 
   const fence = new SideEffectFence({ clock: () => clock.now(), phase: 'P0' });
   const blocked = await fence.execute(
@@ -366,6 +379,49 @@ test('M21: client disconnect on SSE is recorded as outcome=UNKNOWN, never swallo
     assert.equal(event.outcome, 'UNKNOWN');
     assert.equal(event.pathname, '/api/probe/sse');
   });
+});
+
+// 同步返回形态的 SSE handler：写完头/首帧即 return true，响应保持开放——
+// 真实长连接 handler 的合法形态。dispatcher 必须在 handle() 返回后继续保留
+// 断连监听（M21 根因修复；修复前 finally 立即拆监听会丢 client_disconnect）。
+function sseSyncReturnHandler(req, res, pathname) {
+  if (req.method !== 'GET' || pathname !== '/api/probe/sse-sync') return false;
+  res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store' });
+  res.write(`data: ${JSON.stringify({ seq: 1 })}\n\n`);
+  return true;
+}
+
+test('M21: sync-returning SSE handler keeps the disconnect watch; client cut still records UNKNOWN', { timeout: 20000 }, async () => {
+  await usingHarness({ scenario: 'sse-sync-disconnect', handlers: [sseSyncReturnHandler] }, async harness => {
+    const session = await harness.as('primary').sse('/api/probe/sse-sync');
+    await eventually(() => session.frames().length >= 1, 'first frame from sync handler');
+    session.close();
+    const event = await eventually(
+      () => harness.events().find(e => e.type === 'client_disconnect' && e.pathname === '/api/probe/sse-sync'),
+      'client_disconnect for the sync-returning SSE stream',
+    );
+    assert.equal(event.outcome, 'UNKNOWN');
+  });
+});
+
+test('M21: short requests record no disconnect and close() completes without hanging', { timeout: 20000 }, async () => {
+  await usingHarness({ scenario: 'short-request-lifecycle' }, async harness => {
+    const ok = await harness.as('primary').request('GET', '/api/agentic/health');
+    assert.equal(ok.status, 200);
+    const missing = await harness.as('primary').request('GET', '/api/definitely/not/mounted');
+    assert.equal(missing.status, 404, '开放监听不改变未挂载路径的 404 语义');
+    await eventually(
+      () => harness.httpJournal().filter(row => row.pathname === '/api/agentic/health').length === 1,
+      'journal row',
+    );
+    assert.equal(
+      harness.events().filter(e => e.type === 'client_disconnect').length,
+      0,
+      '正常短请求不得产生 client_disconnect（无假阳性）',
+    );
+  });
+  // usingHarness 的 finally 已 await close()：在 timeout 内走到这里即证明拆机
+  // 完成——短请求不留监听、不挂 server.close（M21 回归证明）。
 });
 
 test('M21: HTTP journal + evidence capture event sequence, exchanges and final state', async () => {

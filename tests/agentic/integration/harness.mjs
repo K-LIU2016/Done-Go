@@ -124,7 +124,7 @@ export function createDeterministicClock({ startIso = '2026-10-28T10:00:00.000Z'
     nowMs: () => currentMs,
     advance(ms) {
       if (typeof ms !== 'number' || !Number.isFinite(ms)) {
-        throw new Error(`clock.advance requires a finite number of milliseconds (got ${JSON.stringify(ms)})`);
+        throw new Error(`clock.advance requires a finite number of ms (milliseconds), got ${JSON.stringify(ms)}`);
       }
       currentMs += ms;
       return iso();
@@ -313,10 +313,11 @@ export function createVisionMock({ now } = {}) {
 // ---------------- W4 副作用台账 ----------------
 
 /**
- * 唯一的“外部副作用”假端口：perform(kind, payload) 记账并返回成功；
- * asExecutor(kind, payload) 产出可直接交给 W4 SideEffectFence.execute 的
- * executor——fence 拒绝（A5/P0/AUTONOMY_TOO_LOW…）时 executor 根本不会运行，
- * 台账保持零条。时间戳只来自注入时钟。
+ * 唯一的“外部副作用”假端口：perform(kind, payload) 记账并返回
+ * { status:'performed', effectId, effect }——调用方可直接取得 effectId；
+ * status/effect 语义保留给 W4 SideEffectFence（asExecutor 产物经 fence.execute
+ * 包成 {status:'succeeded',…,output}，fence 拒绝时 executor 根本不运行，台账
+ * 保持零条）。时间戳只来自注入时钟。
  */
 export function createSideEffectLedger({ now, idGen } = {}) {
   const effects = [];
@@ -329,7 +330,7 @@ export function createSideEffectLedger({ now, idGen } = {}) {
       ...(typeof now === 'function' ? { at: now() } : {}),
     };
     effects.push(effect);
-    return effect;
+    return { status: 'performed', effectId: effect.effectId, effect };
   };
   return {
     perform,

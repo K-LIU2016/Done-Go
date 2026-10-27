@@ -137,11 +137,17 @@ export function createAgenticDispatcher({
     // —— 客户端断开检测：只看响应侧 premature close（res 'close' 且未写完）
     // 与请求侧 'aborted'。不监听 req 'close'（body 读尽后流自动销毁也会触发，
     // 会把正常完成误判为断开）。断开 → env.signal abort + events 记 UNKNOWN。
-    let settled = false;
+    //
+    // 监听生命周期（M21 修复）：handler 返回后按响应状态分流——
+    //   - 已写完（res.writableEnded，普通短请求/已收尾的流）：finally 立即拆
+    //     监听，零泄漏；后续 'close' 与本模块无关。
+    //   - 仍开放（SSE/长连接，handler 同步返回把流留给后续写入者）：保留断连
+    //     监听直到 response end/close，由 onResClose/onReqAborted 幂等自清；
+    //     断开照记 client_disconnect outcome=UNKNOWN，正常写完只清理不记
+    //     （writableEnded 区分正常结束与中途断开，无假阳性）。
     let disconnectRecorded = false;
     const controller = new AbortController();
-    const onPrematureClose = () => {
-      if (settled) return;
+    const recordDisconnect = () => {
       if (!controller.signal.aborted) controller.abort();
       if (disconnectRecorded) return;
       disconnectRecorded = true;
@@ -155,14 +161,24 @@ export function createAgenticDispatcher({
       if (typeof context.clock?.now === 'function') event.at = context.clock.now();
       try { context.events?.emit?.(event); } catch { /* 事件汇故障不得影响响应路径 */ }
     };
-    res.on?.('close', onPrematureClose);
-    req.on?.('aborted', onPrematureClose);
-
-    const detach = () => {
-      settled = true;
-      res.removeListener?.('close', onPrematureClose);
-      req.removeListener?.('aborted', onPrematureClose);
+    const cleanupListeners = () => {
+      res.removeListener?.('close', onResClose);
+      req.removeListener?.('aborted', onReqAborted);
     };
+    const onResClose = () => {
+      if (res.writableEnded) {
+        cleanupListeners(); // 正常写完后的 close：只清理，不记断开
+        return;
+      }
+      recordDisconnect();
+      cleanupListeners();
+    };
+    const onReqAborted = () => {
+      recordDisconnect();
+      cleanupListeners();
+    };
+    res.on?.('close', onResClose);
+    req.on?.('aborted', onReqAborted);
 
     try {
       // —— 统一鉴权门：每请求恰好一次（测试锁定 authCalls===1）。
@@ -236,7 +252,9 @@ export function createAgenticDispatcher({
       await sendError(res, error, requestIdValue);
       return true;
     } finally {
-      detach();
+      // 已结束响应：立即拆监听（短请求零泄漏）；开放响应（SSE/未结束）：
+      // 保留断连监听至 response end/close 自清（onResClose/onReqAborted）。
+      if (res.writableEnded) cleanupListeners();
     }
   }
 
