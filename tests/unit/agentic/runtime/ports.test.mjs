@@ -129,3 +129,95 @@ test('M1 · createSteppableClock：advance 只按注入步长移动，不受真�
   // 真实时间流逝不应影响注入时钟
   assert.equal(clock.now(), t0 + 30_000);
 });
+
+// ---------------- 实现期补充的负面路径（plan M1 清单：check 抛错 / clock 缺失） ----------------
+// 只新增验证，不放宽上方任何断言。
+import {
+  validateClock,
+  readPolicyDecision,
+  policyCheck,
+  bindRuntimePorts,
+} from '../../../../scripts/agentic/runtime/ports.mjs';
+import { sanitizeMessage } from '../../../../scripts/agentic/runtime/errors.mjs';
+
+test('M1 负面 · clock 缺失 / 无 now / now 非函数 → fail closed', () => {
+  for (const bad of [undefined, null, {}, { now: 'not-a-fn' }, 'clock', 42]) {
+    assert.throws(() => validateClock(bad), err => err.code === 'CONTRACT_INVALID', `validateClock(${JSON.stringify(bad) ?? bad}) must fail closed`);
+  }
+});
+
+test('M1 正例 · clock={now} 通过并原样返回', () => {
+  const clock = createFixedClock('2026-10-27T00:00:00Z');
+  assert.equal(validateClock(clock), clock);
+});
+
+test('M1 负面 · bindRuntimePorts 任一必需端口缺失 → 构造失败，不产出部分运行时', () => {
+  const policyPort = { check: async () => ({ allow: true }) };
+  const modelCaller = async () => ({ ok: true });
+  const toolCaller = async () => ({ ok: true });
+  const clock = createFixedClock('2026-10-27T00:00:00Z');
+  const full = { policyPort, modelCaller, toolCaller, clock };
+  assert.deepEqual(bindRuntimePorts({ ...full }), { ...full, spanSink: undefined });
+  for (const key of ['policyPort', 'modelCaller', 'toolCaller', 'clock']) {
+    const broken = { ...full };
+    delete broken[key];
+    assert.throws(() => bindRuntimePorts(broken), err => err.code === 'CONTRACT_INVALID', `missing ${key} must fail closed`);
+  }
+  assert.throws(() => bindRuntimePorts(), err => err.code === 'CONTRACT_INVALID');
+});
+
+test('M1 负面 · policyPort.check 抛错 → fail closed（FORBIDDEN），不放行不吞错', async () => {
+  const port = { check: async () => { throw new Error('policy backend exploded'); } };
+  await assert.rejects(
+    () => policyCheck(port, { actor: 'a' }, { autonomy: 'A2' }),
+    err => err.code === 'FORBIDDEN' && !/exploded/.test(err.message),
+  );
+});
+
+test('M1 负面 · check 结果形状不对（非对象 / allow 非布尔 / reason 非字符串）→ CONTRACT_INVALID', async () => {
+  const okPort = { check: async decision => decision };
+  for (const bad of [undefined, null, 'allow', 1, {}, { allow: 'yes' }, { allow: 1 }]) {
+    await assert.rejects(
+      () => policyCheck(okPort, bad, {}),
+      err => err.code === 'CONTRACT_INVALID',
+      `decision ${JSON.stringify(bad) ?? bad} must fail closed`,
+    );
+  }
+  assert.throws(
+    () => readPolicyDecision({ allow: true, reason: 7 }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+  assert.throws(
+    () => readPolicyDecision({ allow: true, need: {} }),
+    err => err.code === 'CONTRACT_INVALID',
+  );
+});
+
+test('M1 正例 · policyCheck 透传合法 decision（同步/异步 check、带 reason/need）', async () => {
+  const asyncPort = { check: async () => ({ allow: false, reason: 'grant missing', need: 'human-confirm' }) };
+  assert.deepEqual(await policyCheck(asyncPort, {}, {}), { allow: false, reason: 'grant missing', need: 'human-confirm' });
+  const syncPort = { check: () => ({ allow: true }) };
+  assert.deepEqual(await policyCheck(syncPort, {}, {}), { allow: true });
+});
+
+test('M1 负面 · 时钟注入值非法（非字符串 / 解析失败）→ fail closed', () => {
+  for (const bad of [undefined, null, 42, '', 'not-a-date', '2026-13-40T99:00:00Z']) {
+    assert.throws(() => createFixedClock(bad), err => err.code === 'CONTRACT_INVALID', `createFixedClock(${JSON.stringify(bad) ?? bad}) must fail closed`);
+    assert.throws(() => createSteppableClock(bad), err => err.code === 'CONTRACT_INVALID');
+  }
+  const clock = createSteppableClock('2026-10-27T00:00:00Z');
+  for (const bad of [undefined, '60', NaN, Infinity]) {
+    assert.throws(() => clock.advance(bad), err => err.code === 'CONTRACT_INVALID', `advance(${bad}) must fail closed`);
+  }
+});
+
+test('M1 · sanitizeMessage 脱敏 Authorization/Bearer/sk-/cookie/api-key，非字符串回退', () => {
+  assert.ok(!/Bearer\s+abc123/.test(sanitizeMessage('Authorization: Bearer abc123 was echoed')));
+  assert.ok(!/sk-live999/.test(sanitizeMessage('upstream rejected sk-live999 for tenant t')));
+  assert.ok(!/yum=secret/.test(sanitizeMessage('cookie: yum=secret; path=/')));
+  assert.ok(!/hunter2/.test(sanitizeMessage('api_key=hunter2 rejected')));
+  assert.ok(!/tok123/.test(sanitizeMessage('token: tok123 expired')));
+  assert.equal(sanitizeMessage('Bearer abc123'), 'bearer [REDACTED]');
+  assert.equal(sanitizeMessage(42), 'fail-closed error');
+  assert.equal(sanitizeMessage('   '), 'fail-closed error');
+});
