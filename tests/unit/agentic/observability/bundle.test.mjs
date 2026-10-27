@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadModule } from './_harness.mjs';
+import { fileURLToPath } from 'node:url';
+import { loadModule, CONTRACTS_DIR } from './_harness.mjs';
 
 const bundleApi = () => loadModule('bundle.mjs');
+const contractsApi = () => import('../../../../scripts/agentic/contracts.mjs');
+const contractsDir = () => fileURLToPath(CONTRACTS_DIR);
 
 const HASH_A = 'a'.repeat(64);
 
@@ -207,4 +210,121 @@ test('bundle: the bundle is JSON serialisable so it can be persisted as evidence
   assert.equal(typeof bundle.status, 'string');
   assert.ok(Array.isArray(bundle.unknowns));
   assert.ok(Array.isArray(bundle.evidence));
+});
+
+test('bundle: every emitted evidence entry validates against the frozen evidence schema (plan §2.1, N15 spirit)', async () => {
+  const { assembleBundle } = await bundleApi();
+  const { loadSchema, validate } = await contractsApi();
+  const schema = loadSchema('evidence.schema.json', contractsDir());
+  const bundle = assembleBundle(baseBundleInput({
+    cache: { verified: [{ key: 'k1', kind: 'block-summary', freshness: 'FRESH', verifiable: true }], stale: [], unverifiable: [] },
+  }));
+  // 2 verified gate items + 1 fresh cache metric + 1 web test-run must all travel.
+  assert.ok(bundle.evidence.length >= 4, `expected >=4 evidence entries, got ${bundle.evidence.length}`);
+  for (const item of bundle.evidence) {
+    const result = validate(item, schema, { schemaDir: contractsDir() });
+    assert.equal(result.valid, true, `evidence item violates frozen schema: ${JSON.stringify(item)} errors=${JSON.stringify(result.errors)}`);
+  }
+  // Attribution that no longer fits the frozen shape must remain discoverable
+  // in schema-legal fields (detail), not in smuggled top-level keys.
+  const cacheMetric = bundle.evidence.find((item) => item.type === 'metric');
+  assert.ok(cacheMetric && cacheMetric.detail.includes('k1'), 'cache key must survive inside detail');
+  const webRun = bundle.evidence.find((item) => item.type === 'test-run' && item.title === 'npm run verify:web');
+  assert.ok(webRun && webRun.detail.includes('rc=0') && webRun.detail.includes('227'), 'web counts must survive inside detail');
+});
+
+test('bundle: mock-marked evidence never travels as verified evidence and caps the run (BRIEF §3)', async () => {
+  const { assembleBundle, BUNDLE_STATUS } = await bundleApi();
+  const bundle = assembleBundle(baseBundleInput({
+    gates: [
+      verifiedGate({ evidence: [{ type: 'test-run', title: 'mocked run', verified: true, source: 'mock' }] }),
+      verifiedGate({ kind: 'web', name: 'verify:web', command: 'npm run verify:web' }),
+    ],
+  }));
+  assert.notEqual(bundle.status, BUNDLE_STATUS.VERIFIED);
+  assert.ok(bundle.unknowns.some((item) => item.code === 'EVIDENCE_INVALID' && item.severity === 'PROVISIONAL'));
+  assert.ok(bundle.evidence.every((item) => item.title !== 'mocked run'));
+});
+
+test('bundle: an unresolved HIGH finding blocks the run (plan §2.4: HIGH 未修 → BLOCKED)', async () => {
+  const { assembleBundle, BUNDLE_STATUS } = await bundleApi();
+  const bundle = assembleBundle(baseBundleInput({
+    findings: [{ id: 'R-1', severity: 'HIGH', status: 'open', title: 'unpatched injection' }],
+  }));
+  assert.equal(bundle.status, BUNDLE_STATUS.BLOCKED);
+  assert.ok(bundle.unknowns.some((item) => item.code === 'FINDING_OPEN' && item.id === 'R-1' && item.severity === 'BLOCKED'));
+
+  const critical = assembleBundle(baseBundleInput({
+    findings: [{ id: 'R-1b', severity: 'CRITICAL', status: 'open' }],
+  }));
+  assert.equal(critical.status, BUNDLE_STATUS.BLOCKED);
+});
+
+test('bundle: resolved findings do not block; an open MEDIUM caps at PROVISIONAL (plan §2.4)', async () => {
+  const { assembleBundle, BUNDLE_STATUS } = await bundleApi();
+  const bundle = assembleBundle(baseBundleInput({
+    findings: [
+      { id: 'R-2', severity: 'HIGH', status: 'resolved' },
+      { id: 'R-3', severity: 'MEDIUM', status: 'open' },
+    ],
+  }));
+  assert.equal(bundle.status, BUNDLE_STATUS.PROVISIONAL);
+  assert.ok(!bundle.unknowns.some((item) => item.id === 'R-2'));
+  const medium = bundle.unknowns.find((item) => item.code === 'FINDING_OPEN' && item.id === 'R-3');
+  assert.equal(medium.severity, 'PROVISIONAL');
+});
+
+test('bundle: absent findings change nothing (no heuristic guessing about reviews that never ran)', async () => {
+  const { assembleBundle, BUNDLE_STATUS } = await bundleApi();
+  const bundle = assembleBundle(baseBundleInput());
+  assert.equal(bundle.status, BUNDLE_STATUS.VERIFIED);
+  assert.ok(!bundle.unknowns.some((item) => item.code === 'FINDING_OPEN'));
+});
+
+test('bundle: a passing gate with no evidence at all is UNKNOWN (plan §2.1: gate 必挂 evidence)', async () => {
+  const { assembleBundle, BUNDLE_STATUS } = await bundleApi();
+  const bundle = assembleBundle(baseBundleInput({
+    gates: [verifiedGate(), verifiedGate({ kind: 'web', name: 'verify:web', command: 'npm run verify:web' }), verifiedGate({ name: 'lint', evidence: [] })],
+  }));
+  assert.equal(bundle.status, BUNDLE_STATUS.UNKNOWN);
+  assert.ok(bundle.unknowns.some((item) => item.code === 'GATE_INCOMPLETE' && item.reason === 'NO_EVIDENCE' && item.gate === 'lint'));
+});
+
+test('bundle: a span that ended in error is a demonstrated failure and blocks the run (N10 family)', async () => {
+  const { assembleBundle, BUNDLE_STATUS } = await bundleApi();
+  const bundle = assembleBundle(baseBundleInput({
+    spans: [{ id: 'boom', name: 'worker', kind: 'invoke_agent', status: 'error', outcome: 'failed', incomplete: false }],
+  }));
+  assert.equal(bundle.status, BUNDLE_STATUS.BLOCKED);
+  assert.ok(bundle.unknowns.some((item) => item.code === 'SPAN_INCOMPLETE' && item.id === 'boom' && item.severity === 'BLOCKED'));
+});
+
+test('bundle: a run with zero gates proves nothing and is UNKNOWN (plan §2.4: 缺 test 命令/rc)', async () => {
+  const { assembleBundle, BUNDLE_STATUS } = await bundleApi();
+  const bundle = assembleBundle(baseBundleInput({ gates: [] }));
+  assert.equal(bundle.status, BUNDLE_STATUS.UNKNOWN);
+  assert.ok(bundle.unknowns.some((item) => item.code === 'GATE_INCOMPLETE' && item.reason === 'NO_GATES'));
+  assert.equal(bundle.gates.summary.status, 'UNKNOWN');
+});
+
+test('bundle: malformed inputs degrade to explicit unknowns and empty projections, never to a crash', async () => {
+  const { assembleBundle, BUNDLE_STATUS } = await bundleApi();
+  const bundle = assembleBundle(baseBundleInput({
+    gates: [{ kind: 'unit' }, verifiedGate()],
+    webEvidence: { command: 'npm run verify:web', rc: 1 },
+    metrics: {},
+    cache: null,
+    spans: null,
+    findings: [{ id: 'R-4', status: 'open' }],
+  }));
+  assert.equal(bundle.status, BUNDLE_STATUS.BLOCKED);
+  const gateUnknown = bundle.unknowns.find((item) => item.code === 'GATE_INCOMPLETE' && Array.isArray(item.fields));
+  assert.equal(gateUnknown.fields.length, 4);
+  assert.ok(bundle.unknowns.some((item) => item.code === 'GATE_FAILED' && item.gate === 'verify:web' && item.rc === 1));
+  assert.ok(bundle.unknowns.some((item) => item.code === 'COST_UNKNOWN' && !item.costStatus));
+  assert.ok(bundle.unknowns.some((item) => item.code === 'FINDING_OPEN' && item.id === 'R-4' && item.severityLevel === null && item.severity === 'PROVISIONAL'));
+  assert.deepEqual(bundle.cache, { stale: [], unverifiable: [], verified: [] });
+  assert.deepEqual(bundle.spans, []);
+  assert.equal(bundle.gates.summary.unknown, 1);
+  assert.equal(bundle.gates.summary.total, 2);
 });
