@@ -40,6 +40,7 @@ import { createIntegrationContext } from '../../../scripts/agentic/integration/c
 import { createAgenticDispatcher } from '../../../scripts/agentic/integration/dispatcher.mjs';
 import { createHealthHandler } from '../../../scripts/agentic/integration/health.mjs';
 import { adaptW1DtoToBlock } from '../../../scripts/agentic/integration/w1-adapter.mjs';
+import { createGoldenScenarioHandlers } from './golden-handlers.mjs';
 
 // ---------------- 端口段 ----------------
 
@@ -621,16 +622,28 @@ export async function createGoldenHarness(options = {}) {
     return result;
   };
 
-  // —— dispatcher：health 先挂（public），场景 handler 次之，legacy 兜底 ——
+  // —— dispatcher：health 先挂（public），golden 场景 handler（M22，可关）次之，
+  //     用户 handler 再次之，legacy 兜底 ——
   const healthHandler = createHealthHandler(context);
+  const goldenHandlers = options.golden === false
+    ? []
+    : createGoldenScenarioHandlers({
+      context,
+      modelTransport,
+      sideEffectLedger,
+      vision,
+      ...(options.scanMissionId !== undefined ? { scanMissionId: options.scanMissionId } : {}),
+      ...(options.grantTtlSeconds !== undefined ? { grantTtlSeconds: options.grantTtlSeconds } : {}),
+    });
   context.handlers = [
     'GET /api/agentic/health',
+    ...goldenHandlers.map(handler => `golden:${handler.name}`),
     ...handlers.map((handler, index) => `scenario:${handler.name || `handler-${index + 1}`}`),
     ...(legacy ? ['legacy:fallback'] : []),
   ];
   const dispatcherOptions = {
     context,
-    handlers: [healthHandler, ...handlers],
+    handlers: [healthHandler, ...goldenHandlers, ...handlers],
   };
   if (legacy) dispatcherOptions.legacy = legacy;
   if (options.maxBodyBytes !== undefined) dispatcherOptions.maxBodyBytes = options.maxBodyBytes;
@@ -681,11 +694,43 @@ export async function createGoldenHarness(options = {}) {
     })();
   });
 
-  const chosenPort = port ?? (await pickHarnessPort());
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(chosenPort, '127.0.0.1', () => resolve());
+  // —— 端口绑定：真实 server 逐口直试（不先探后绑）。node --test 并行跑多个测试
+  // 文件时，probe→close→listen 之间存在 TOCTOU 窗口（EADDRINUSE 抖动来源）；
+  // 首选口被并发占用时在段内顺延重绑，段外/段尽仍按 pickHarnessPort 语义拒绝。
+  const listenOn = (candidate) => new Promise((resolve, reject) => {
+    const onError = error => {
+      server.removeListener('error', onError);
+      reject(error);
+    };
+    server.once('error', onError);
+    server.listen(candidate, '127.0.0.1', () => {
+      server.removeListener('error', onError);
+      resolve();
+    });
   });
+  const { min: rangeMin, max: rangeMax } = HARNESS_PORT_RANGE;
+  const portCandidates = [];
+  if (port !== undefined) portCandidates.push(port);
+  for (let candidate = rangeMin; candidate <= rangeMax; candidate += 1) {
+    if (candidate !== port) portCandidates.push(candidate);
+  }
+  let chosenPort = null;
+  let lastError = null;
+  for (const candidate of portCandidates) {
+    try {
+      await listenOn(candidate);
+      chosenPort = candidate;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (error?.code !== 'EADDRINUSE') break; // 非占用类错误（段外/权限）原样上抛
+      // EADDRINUSE → 段内顺延（pickHarnessPort 的 preferred-then-fallback 语义）
+    }
+  }
+  if (chosenPort === null) {
+    await new Promise(resolve => { server.close(() => resolve()); server.closeAllConnections?.(); });
+    throw lastError ?? new Error(`createGoldenHarness: no free port left in the harness range ${rangeMin}-${rangeMax}`);
+  }
   const baseUrl = `http://127.0.0.1:${chosenPort}`;
 
   // —— 证据：事件序列 / HTTP 台账 / 最终状态 ——

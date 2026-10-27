@@ -85,8 +85,11 @@ const DEFAULT_DENY_ALL_POLICY_PORT = Object.freeze({
  *   blocked            → { allowed: false, reason: <W4 code> }
  *   UNKNOWN            → { allowed: false, reason: <W4 code>, unknown: true } — surfaced, never swallowed
  *   resolver/eval 错误  → { allowed: false, reason: POLICY_INPUT_RESOLVER_FAILED|POLICY_EVALUATION_FAILED }
+ *
+ * M22 起导出：黄金场景（golden-handlers）把 W7 runtime 的 policy 动作适配成
+ * W4 evaluateAction 形状后经同一桥接裁决；组合根本身行为不变。
  */
-function createW4PolicyPort({ resolvePolicyInput, phase = 'P0', clock }) {
+export function createW4PolicyPort({ resolvePolicyInput, phase = 'P0', clock }) {
   if (typeof resolvePolicyInput !== 'function') {
     throw integrationError(
       'INTEGRATION_POLICY_CONFIG_INVALID',
